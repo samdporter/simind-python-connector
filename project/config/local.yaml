@@ -4,27 +4,29 @@
 # Project paths and settings
 project:
   total_activity: 358.7
-  data_dir: "/home/storage/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140"
-  image_path: "/home/sam/working/sirf_simind_connection/output/local/recon_osem_i5_s12_smoothed_0.hv"  # Will be updated dynamically
+  data_dir: "/home/storage/prepared_data/phantom_data/nema_phantom_data/SPECT"
+  image_path: "/home/storage/prepared_data/phantom_data/nema_phantom_data/SPECT/initial_image.hv"  # Will be updated dynamically
   output_dir: "/home/sam/working/sirf_simind_connection/output/local"
   output_prefix: "output_iter1_"  # Will be updated dynamically
   simind_parent_dir: "/home/sam/working/sirf_simind_connection"
-  axial_slice: 32
+  axial_slice: 50
 
 # Data file names (relative to data_dir)
 data:
   mu_map_filename: "umap_zoomed.hv"
   measured_data_filename: "peak.hs"
+  initial_additive_filename: scatter_dl.hs
+
 
 # Simulation parameters
 simulation:
-  photon_multiplier: 10
+  photon_multiplier: 1
   photon_energy: 150
   window_lower: 75
   window_upper: 225
   time_per_projection: 40
   source_type: "y90_frey"
-  collimator: "ma-megp"
+  collimator: "ma-mlegp"
   kev_per_channel: 10
   max_energy: 2080
   scoring_routine: 1  # scattwin
@@ -40,10 +42,30 @@ osem:
   initial_subsets: 12
   initial_epochs: 5
   smoothing: true
+  resolution_model: [1.31, 0.027, false]  # SPECTUBMatrix.set_resolution_model(a, b, use)
+  gaussian_image_processor_fwhm: [6.9, 6.9, 6.9]  # SeparableGaussianImageFilter fwhm (x, y, z)
+  relative_difference_prior:
+    weight: 0.1  # >0 enables RelativeDifferencePrior
+    gamma: null  # optional; leave null for STIR default
+    epsilon: null  # optional; leave null for STIR default
+    update_point: "post"  # "pre" uses x^k, "post" uses x^(k+1/2)
+
+scatter_estimation:
+  median_filter_size: 0  # 0/1 disables; use odd values like 3 or 5 to enable
+  gaussian_sigma: 0.0  # <=0 disables; e.g. 1.0 enables Gaussian smoothing
+  mask_threshold: 0.05
+  mask_opening_radius: 2  # >0 helps suppress thin bed/table structures
+  mask_keep_largest_component: true
+  additive_alpha: 0.2  # 0 keeps old additive; 1 replaces fully
+  scale_method: "trimmed_mean"  # sum | trimmed_mean
+  scale_trim_frac: 0.1  # 0 disables trimming; must be < 0.5
+  scale_min_linear: 10.0  # set >0 to threshold low-count bins
+  scale_min_b02: 10.0  # set >0 to threshold low-count bins
+  save_scale_ratios: true  # write per-bin ratio map + mask each iteration
 
 # Pipeline Settings (for pipeline compatibility)
 pipeline:
-  num_iterations: 5
+  num_iterations: 10
   num_array_jobs: 10
 
 # Output settings (for pipeline compatibility)

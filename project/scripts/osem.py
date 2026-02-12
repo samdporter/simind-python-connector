@@ -73,10 +73,10 @@ def get_spect_am(spect_data, keep_all_views_in_cache=False):
     spect_am_mat = SPECTUBMatrix()
     spect_am_mat.set_attenuation_image(spect_data["attenuation"])
     spect_am_mat.set_keep_all_views_in_cache(keep_all_views_in_cache)
-    spect_am_mat.set_resolution_model(1.22, 0.031, False)
+    spect_am_mat.set_resolution_model(1.31, 0.0, False)
     spect_am = AcquisitionModelUsingMatrix(spect_am_mat)
     gauss = SeparableGaussianImageFilter()
-    gauss.set_fwhms((13.4, 13.4, 13.4))
+    gauss.set_fwhms((6.9, 6.9, 6.9))
     spect_am.set_image_data_processor(gauss)
     if spect_data["additive"] is not None:
         spect_am.set_additive_term(spect_data["additive"])

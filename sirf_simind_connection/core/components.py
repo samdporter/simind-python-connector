@@ -414,7 +414,7 @@ class SimindExecutor:
                 "mpirun",
                 "-np",
                 str(mp_value),
-                "simind",
+                "simind_mpi",
                 output_prefix,
                 output_prefix,
             ]
@@ -434,10 +434,9 @@ class SimindExecutor:
         if runtime_switches:
             switch_parts = []
             for k, v in runtime_switches.items():
-                if k.upper() == "MP":
-                    # MP is just a flag when using mpirun
-                    switch_parts.append(f"/{k}")
-                else:
+                # MP is used only to decide mpirun -np above; do not forward /MP
+                # to SIMIND to avoid split-output artefacts.
+                if k.upper() != "MP":
                     switch_parts.append(f"/{k}:{v}")
             switches = "".join(switch_parts)
             if switches:

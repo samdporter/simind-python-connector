@@ -227,7 +227,8 @@ def test_simind_executor_orbit_file_position():
             cmd = mock_run.call_args[0][0]
 
             # Find positions in command
-            simind_idx = cmd.index("simind")
+            simind_exe = "simind_mpi" if "simind_mpi" in cmd else "simind"
+            simind_idx = cmd.index(simind_exe)
             orbit_idx = cmd.index(orbit_file.name)  # Just filename, not full path
             p_flag_idx = cmd.index("-p")
 
