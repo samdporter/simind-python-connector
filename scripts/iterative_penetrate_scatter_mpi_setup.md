@@ -32,6 +32,61 @@ Expected:
 python scripts/iterative_penetrate_scatter.py --config project/config/local.yaml --mpi-procs 8
 ```
 
+## Sweep Runs
+
+Local sweep, staged and executed directly:
+
+```bash
+python scripts/run_iterative_penetrate_grid.py \
+  --execution local \
+  --base-config project/config/local.yaml \
+  --mpi-procs 8 \
+  --skip-completed
+```
+
+Local sweep with limited task-level parallelism:
+
+```bash
+python scripts/run_iterative_penetrate_grid.py \
+  --execution local \
+  --base-config project/config/local.yaml \
+  --mpi-procs 1 \
+  --max-local-jobs 2 \
+  --skip-completed
+```
+
+Cluster sweep, stage only:
+
+```bash
+python scripts/run_iterative_penetrate_grid.py \
+  --execution cluster \
+  --base-config project/config/local.yaml \
+  --mpi-procs 8 \
+  --cluster-env-setup-script /path/to/simind_env.sh \
+  --cluster-runtime 48:00:00 \
+  --cluster-memory 16G \
+  --cluster-max-concurrent 8
+```
+
+Cluster sweep, submit immediately:
+
+```bash
+python scripts/run_iterative_penetrate_grid.py \
+  --execution cluster \
+  --base-config project/config/local.yaml \
+  --mpi-procs 8 \
+  --cluster-env-setup-script /path/to/simind_env.sh \
+  --cluster-runtime 48:00:00 \
+  --cluster-memory 16G \
+  --cluster-max-concurrent 8 \
+  --submit
+```
+
+Notes:
+- The cluster mode writes a manifest under `output/.../_grid/` and submits an SGE array job using `SGE_TASK_ID`.
+- When `--mpi-procs > 1`, the runner requests `-pe mpi <mpi-procs>` and `-R y` to match the UCL SGE guidance for parallel jobs.
+- Use `--dry-run` to inspect the prepared commands and the final `qsub` command without writing configs or submitting.
+
 ## If MPI fails
 
 Run serial temporarily:
