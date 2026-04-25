@@ -16,6 +16,8 @@ import argparse
 import gc
 import logging
 import os
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -250,6 +252,7 @@ def compute_scale(
     trim_frac=0.0,
     min_linear=0.0,
     min_b02=0.0,
+    fallback_if_empty="sum",
 ):
     method = str(method or "sum").lower()
     if method in ("sum", "global_sum", "mean_sum"):
@@ -268,20 +271,45 @@ def compute_scale(
     b02_arr = get_array(b02)
     mask = (lin_arr > float(min_linear)) & (b02_arr > float(min_b02))
     ratios = lin_arr[mask] / b02_arr[mask]
+    lin_masked = lin_arr[mask]
+    b02_masked = b02_arr[mask]
     num_samples = int(ratios.size)
     if num_samples == 0:
-        raise ValueError("No samples available for trimmed-mean scale (mask empty)")
+        fallback_method = str(fallback_if_empty or "").lower()
+        if fallback_method in ("sum", "global_sum", "mean_sum"):
+            b02_counts = float(b02.sum())
+            if b02_counts <= 0:
+                raise ValueError("b02 counts are non-positive")
+            logging.warning(
+                "Trimmed scale mask empty (min_linear=%g, min_b02=%g); "
+                "falling back to sum scale using CT-masked projections.",
+                min_linear,
+                min_b02,
+            )
+            return float(linear_forward.sum()) / b02_counts, b02_counts, 0
+        raise ValueError("No samples available for trimmed scale (mask empty)")
 
     if trim_frac > 0:
         k = int(np.floor(trim_frac * num_samples))
         if 2 * k >= num_samples:
             raise ValueError(
-                "trim_frac too large for available samples in trimmed-mean scale"
+                "trim_frac too large for available samples in trimmed scale"
             )
         if k > 0:
-            ratios = np.sort(ratios)[k:-k]
+            keep_idx = np.argsort(ratios)[k:-k]
+            lin_masked = lin_masked[keep_idx]
+            b02_masked = b02_masked[keep_idx]
 
-    scale = float(np.mean(ratios))
+    b02_retained = float(np.sum(b02_masked))
+    if b02_retained <= 0:
+        raise ValueError("Retained b02 counts are non-positive after trimming")
+
+    # Robust scalar calibration:
+    # 1. threshold bins by minimum counts,
+    # 2. trim ratio outliers,
+    # 3. compute the calibration from retained sums rather than the mean ratio.
+    # This keeps the robustness of ratio trimming while restoring count-weighting.
+    scale = float(np.sum(lin_masked)) / b02_retained
     return scale, float(b02.sum()), num_samples
 
 
@@ -483,6 +511,13 @@ def damp_additive_update(previous, proposed, alpha):
     return out
 
 
+def clamp_nonnegative(acq_data):
+    arr = get_array(acq_data).astype(np.float32, copy=False)
+    np.maximum(arr, 0.0, out=arr)
+    acq_data.fill(arr)
+    return acq_data
+
+
 def maybe_smooth(image, enabled):
     if not enabled:
         return image
@@ -537,6 +572,51 @@ def setup_penetrate_simulator(
         simulator.add_runtime_switch("MP", int(mpi_procs))
 
     return simulator
+
+
+def preflight_simind_runtime(mpi_procs):
+    """Validate SIMIND runtime dependencies before starting iterative loops."""
+    use_mpi = int(mpi_procs) > 1
+    executable = "simind_mpi" if use_mpi else "simind"
+    executable_path = shutil.which(executable)
+    if executable_path is None:
+        raise FileNotFoundError(
+            f"Required executable '{executable}' not found in PATH."
+        )
+
+    if use_mpi:
+        mpirun_path = shutil.which("mpirun")
+        if mpirun_path is None:
+            raise FileNotFoundError(
+                "MPI run requested (--mpi-procs > 1) but 'mpirun' was not found in PATH."
+            )
+        logging.info("SIMIND preflight: mpirun=%s", mpirun_path)
+
+    logging.info("SIMIND preflight: %s=%s", executable, executable_path)
+
+    ldd_path = shutil.which("ldd")
+    if ldd_path is None:
+        logging.warning(
+            "SIMIND preflight: 'ldd' not found; skipping shared-library dependency check."
+        )
+        return
+
+    proc = subprocess.run(
+        [ldd_path, executable_path],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).splitlines()
+    missing = [line.strip() for line in combined if "=> not found" in line]
+    if missing:
+        unresolved = ", ".join(
+            line.split("=>", maxsplit=1)[0].strip() for line in missing
+        )
+        raise RuntimeError(
+            f"SIMIND preflight failed: unresolved shared libraries for {executable}: "
+            f"{unresolved}. Fix LD_LIBRARY_PATH or runtime environment before running."
+        )
 
 
 def recon_filename(output_dir, num_epochs, num_subsets, index, smoothing):
@@ -615,6 +695,37 @@ def main():
         help="Damping factor for additive updates (0 -> keep old, 1 -> replace).",
     )
     parser.add_argument(
+        "--residual-alpha",
+        type=float,
+        default=None,
+        help=(
+            "Damping factor for residual updates (0 -> keep old residual, "
+            "1 -> replace with current residual)."
+        ),
+    )
+    parser.add_argument(
+        "--additive-mode",
+        type=str,
+        default=None,
+        choices=[
+            "initial_scatter",
+            "update_scatter",
+            "initial_scatter_plus_residual",
+            "update_scatter_plus_residual",
+        ],
+        help=(
+            "Additive update mode. initial_scatter: fixed initial additive only. "
+            "update_scatter: update scatter each iteration. "
+            "initial_scatter_plus_residual: fixed initial scatter + residual. "
+            "update_scatter_plus_residual: update scatter + residual."
+        ),
+    )
+    parser.add_argument(
+        "--additive-clamp",
+        action="store_true",
+        help="Clamp additive term to non-negative values after updates.",
+    )
+    parser.add_argument(
         "--mask-threshold",
         type=float,
         default=None,
@@ -636,13 +747,20 @@ def main():
         type=str,
         default=None,
         choices=["sum", "trimmed_mean"],
-        help="Scale estimation method: sum (global sum ratio) or trimmed_mean.",
+        help=(
+            "Scale estimation method: sum (global sum ratio) or trimmed_mean "
+            "(trim ratio outliers, then compute a retained ratio-of-sums)."
+        ),
     )
     parser.add_argument(
         "--scale-trim-frac",
         type=float,
         default=None,
-        help="Trim fraction for trimmed-mean scale (0 disables trimming; <0.5).",
+        help=(
+            "Trim fraction for trimmed_mean scale (0 disables trimming; <0.5). "
+            "Trimming is applied in ratio space before the retained ratio-of-sums "
+            "calibration is computed."
+        ),
     )
     parser.add_argument(
         "--scale-min-linear",
@@ -791,6 +909,46 @@ def main():
     )
     if additive_alpha < 0 or additive_alpha > 1:
         raise ValueError("additive_alpha must be in [0, 1]")
+    residual_alpha = (
+        args.residual_alpha
+        if args.residual_alpha is not None
+        else float(_cfg_get(cfg, ["scatter_estimation", "residual_alpha"], 0.2))
+    )
+    if residual_alpha < 0 or residual_alpha > 1:
+        raise ValueError("residual_alpha must be in [0, 1]")
+    additive_mode = (
+        args.additive_mode
+        if args.additive_mode is not None
+        else _cfg_get(
+            cfg, ["scatter_estimation", "additive_mode"], "update_scatter_plus_residual"
+        )
+    )
+    additive_mode = str(additive_mode).lower().strip()
+    if additive_mode not in (
+        "initial_scatter",
+        "update_scatter",
+        "initial_scatter_plus_residual",
+        "update_scatter_plus_residual",
+    ):
+        raise ValueError(
+            "additive_mode must be one of: initial_scatter, update_scatter, "
+            "initial_scatter_plus_residual, update_scatter_plus_residual"
+        )
+
+    update_scatter = additive_mode in (
+        "update_scatter",
+        "update_scatter_plus_residual",
+    )
+    use_residual = additive_mode in (
+        "initial_scatter_plus_residual",
+        "update_scatter_plus_residual",
+    )
+    use_simind = update_scatter or use_residual
+    additive_clamp = (
+        args.additive_clamp
+        if args.additive_clamp
+        else bool(_cfg_get(cfg, ["scatter_estimation", "additive_clamp"], True))
+    )
 
     rdp_weight = float(
         _cfg_get(cfg, ["osem", "relative_difference_prior", "weight"], 0.0)
@@ -879,6 +1037,16 @@ def main():
         scale_min_b02,
     )
     logging.info("Additive damping alpha=%g", additive_alpha)
+    logging.info("Residual damping alpha=%g", residual_alpha)
+    logging.info(
+        "Additive mode=%s (update_scatter=%s, residual=%s, clamp_nonnegative=%s)",
+        additive_mode,
+        update_scatter,
+        use_residual,
+        additive_clamp,
+    )
+    if use_simind:
+        preflight_simind_runtime(args.mpi_procs)
     if args.gc_collect:
         logging.info("GC collect enabled: forcing gc.collect() each iteration.")
     if save_scale_ratios:
@@ -895,6 +1063,7 @@ def main():
     os.chdir(simind_parent_dir)
     try:
         current_additive = iter0_additive.clone()
+        current_residual = measured.get_uniform_copy(0.0)
 
         full_model = make_spect_model(
             attenuation,
@@ -960,140 +1129,216 @@ def main():
 
             current_image = current_image.maximum(0)
 
-            full_model.set_additive_term(current_additive)
+            additive_for_model = current_additive.clone()
+            if use_residual:
+                additive_for_model = additive_for_model + current_residual
+            if additive_clamp:
+                # Signed residuals are folded into the additive term. STIR expects
+                # a non-negative effective additive, so project back to positivity
+                # before each forward model evaluation.
+                additive_for_model = clamp_nonnegative(additive_for_model)
+            full_model.set_additive_term(additive_for_model)
 
-            # SIMIND PENETRATE run on current reconstruction (masked in image domain)
-            masked_image = current_image.clone()
-            masked_image *= attenuation_body_mask
-            simulator = setup_penetrate_simulator(
-                scanner_config=scanner_config,
-                output_dir=output_dir,
-                output_prefix=f"output_iter{iteration}",
-                measured=measured,
-                source_image=masked_image,
-                mu_map=attenuation,
-                sim_cfg=sim_cfg,
-                total_activity=total_activity,
-                mpi_procs=args.mpi_procs,
-            )
-            simulator.run_simulation()
+            b01 = None
+            b02 = None
+            b01_scaled = None
+            b02_scaled = None
+            residual = None
+            scatter = None
+            linear_forward = None
+            full_forward = None
+            scale = None
+            scale_samples = None
 
-            b01 = simulator.get_all_interactions()
-            b02 = simulator.get_geometrically_collimated_primary()
-            del simulator
-
-            full_forward = full_model.forward(
-                current_image, subset_num=0, num_subsets=1
-            )
-            linear_forward = linear_model.forward(
-                masked_image, subset_num=0, num_subsets=1
-            )
-            del masked_image
-
-            if args.save_components and not mask_saved:
-                attenuation_body_mask.write(
-                    str(output_dir / "attenuation_body_mask.hv")
+            if use_simind:
+                # SIMIND PENETRATE run on current reconstruction (masked in image domain)
+                masked_image = current_image.clone()
+                masked_image *= attenuation_body_mask
+                simulator = setup_penetrate_simulator(
+                    scanner_config=scanner_config,
+                    output_dir=output_dir,
+                    output_prefix=f"output_iter{iteration}",
+                    measured=measured,
+                    source_image=masked_image,
+                    mu_map=attenuation,
+                    sim_cfg=sim_cfg,
+                    total_activity=total_activity,
+                    mpi_procs=args.mpi_procs,
                 )
-                mask_saved = True
+                simulator.run_simulation()
 
-            try:
-                scale, b02_counts, scale_samples = compute_scale(
-                    linear_forward,
-                    b02,
-                    method=scale_method,
-                    trim_frac=scale_trim_frac,
-                    min_linear=scale_min_linear,
-                    min_b02=scale_min_b02,
-                )
-            except ValueError as exc:
-                raise ValueError(
-                    f"Scale estimation failed at iteration {iteration}: {exc}"
-                ) from exc
+                b01 = simulator.get_all_interactions()
+                b02 = simulator.get_geometrically_collimated_primary()
+                del simulator
 
-            if save_scale_ratios:
-                lin_arr = get_array(linear_forward)
-                b02_arr = get_array(b02)
-                ratio_mask = (lin_arr > float(scale_min_linear)) & (
-                    b02_arr > float(scale_min_b02)
+                linear_forward = linear_model.forward(
+                    masked_image, subset_num=0, num_subsets=1
                 )
-                ratio_arr = np.zeros_like(lin_arr, dtype=np.float32)
-                if np.any(ratio_mask):
-                    ratio_arr[ratio_mask] = lin_arr[ratio_mask] / b02_arr[ratio_mask]
-                ratio_img = b02.get_uniform_copy(0.0)
-                ratio_img.fill(ratio_arr.astype(np.float32))
-                ratio_img.write(
-                    str(output_dir / f"mean_iter{iteration}_scale_ratio.hs")
-                )
-                ratio_mask_img = b02.get_uniform_copy(0.0)
-                ratio_mask_img.fill(ratio_mask.astype(np.float32))
-                ratio_mask_img.write(
-                    str(output_dir / f"mean_iter{iteration}_scale_ratio_mask.hs")
-                )
+                del masked_image
 
-            scatter = (b01 - b02) * scale
-            if scatter_median_size > 1 or scatter_gaussian_sigma > 0:
-                scatter_raw = scatter.clone()
-            if scatter_median_size > 1:
-                scatter = median_smooth_scatter(scatter, scatter_median_size)
-            if scatter_gaussian_sigma > 0:
-                scatter = gaussian_smooth_scatter(scatter, scatter_gaussian_sigma)
-            if args.save_components and (
-                scatter_median_size > 1 or scatter_gaussian_sigma > 0
-            ):
-                scatter_raw.write(
-                    str(output_dir / f"mean_iter{iteration}_scatter_raw.hs")
-                )
-            scatter_path = output_dir / f"mean_iter{iteration}_scatter.hs"
-            scatter.write(str(scatter_path))
+                if args.save_components and not mask_saved:
+                    attenuation_body_mask.write(
+                        str(output_dir / "attenuation_body_mask.hv")
+                    )
+                    mask_saved = True
 
-            scale_path = output_dir / f"mean_iter{iteration}_scatter_scaling.txt"
-            scale_path.write_text(f"{scale:.12g}\n", encoding="utf-8")
+                try:
+                    scale, b02_counts, scale_samples = compute_scale(
+                        linear_forward,
+                        b02,
+                        method=scale_method,
+                        trim_frac=scale_trim_frac,
+                        min_linear=scale_min_linear,
+                        min_b02=scale_min_b02,
+                    )
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Scale estimation failed at iteration {iteration}: {exc}"
+                    ) from exc
 
-            if args.save_components:
-                b01_scaled = b01 * scale
+                if save_scale_ratios:
+                    lin_arr = get_array(linear_forward)
+                    b02_arr = get_array(b02)
+                    ratio_mask = (lin_arr > float(scale_min_linear)) & (
+                        b02_arr > float(scale_min_b02)
+                    )
+                    ratio_arr = np.zeros_like(lin_arr, dtype=np.float32)
+                    if np.any(ratio_mask):
+                        ratio_arr[ratio_mask] = (
+                            lin_arr[ratio_mask] / b02_arr[ratio_mask]
+                        )
+                    ratio_img = b02.get_uniform_copy(0.0)
+                    ratio_img.fill(ratio_arr.astype(np.float32))
+                    ratio_img.write(
+                        str(output_dir / f"mean_iter{iteration}_scale_ratio.hs")
+                    )
+                    ratio_mask_img = b02.get_uniform_copy(0.0)
+                    ratio_mask_img.fill(ratio_mask.astype(np.float32))
+                    ratio_mask_img.write(
+                        str(output_dir / f"mean_iter{iteration}_scale_ratio_mask.hs")
+                    )
+
+                scale_path = output_dir / f"mean_iter{iteration}_scatter_scaling.txt"
+                scale_path.write_text(f"{scale:.12g}\n", encoding="utf-8")
+
                 b02_scaled = b02 * scale
-                b01.write(str(output_dir / f"mean_iter{iteration}_b01.hs"))
-                b02.write(str(output_dir / f"mean_iter{iteration}_b02.hs"))
-                b01_scaled.write(
-                    str(output_dir / f"mean_iter{iteration}_b01_scaled.hs")
-                )
-                b02_scaled.write(
-                    str(output_dir / f"mean_iter{iteration}_b02_scaled.hs")
-                )
-                linear_forward.write(
-                    str(output_dir / f"mean_iter{iteration}_sirf_linear_forward.hs")
-                )
-                full_forward.write(
-                    str(output_dir / f"mean_iter{iteration}_sirf_full_forward.hs")
+                if use_residual:
+                    residual = b02_scaled - linear_forward
+                    residual_path = output_dir / f"mean_iter{iteration}_residual.hs"
+                    residual.write(str(residual_path))
+                    current_residual = damp_additive_update(
+                        current_residual, residual, residual_alpha
+                    )
+
+                if update_scatter:
+                    b01_scaled = b01 * scale
+                    scatter = b01_scaled - b02_scaled
+                    if scatter_median_size > 1 or scatter_gaussian_sigma > 0:
+                        scatter_raw = scatter.clone()
+                    if scatter_median_size > 1:
+                        scatter = median_smooth_scatter(scatter, scatter_median_size)
+                    if scatter_gaussian_sigma > 0:
+                        scatter = gaussian_smooth_scatter(
+                            scatter, scatter_gaussian_sigma
+                        )
+                    if args.save_components and (
+                        scatter_median_size > 1 or scatter_gaussian_sigma > 0
+                    ):
+                        scatter_raw.write(
+                            str(output_dir / f"mean_iter{iteration}_scatter_raw.hs")
+                        )
+                    scatter_path = output_dir / f"mean_iter{iteration}_scatter.hs"
+                    scatter.write(str(scatter_path))
+
+                full_forward = full_model.forward(
+                    current_image, subset_num=0, num_subsets=1
                 )
 
-            if scale_samples is None:
-                logging.info(
-                    "Iteration %d scale=%g, linear=%g, full=%g, b01=%g, b02=%g, scatter=%g",
-                    iteration,
-                    scale,
-                    float(linear_forward.sum()),
-                    float(full_forward.sum()),
-                    float(b01.sum()),
-                    float(b02.sum()),
-                    float(scatter.sum()),
-                )
+                if update_scatter:
+                    current_additive = damp_additive_update(
+                        current_additive, scatter, additive_alpha
+                    )
+
+                additive_for_model = current_additive.clone()
+                if use_residual:
+                    additive_for_model = additive_for_model + current_residual
+                if additive_clamp:
+                    # See note above: residuals are applied through the effective
+                    # additive term, then projected back to non-negativity.
+                    additive_for_model = clamp_nonnegative(additive_for_model)
+                full_model.set_additive_term(additive_for_model)
+
+                if update_scatter or use_residual:
+                    scatter_sum = float(scatter.sum()) if scatter is not None else None
+                    residual_sum = (
+                        float(residual.sum()) if residual is not None else None
+                    )
+                    residual_applied_sum = (
+                        float(current_residual.sum()) if use_residual else None
+                    )
+                    if scale_samples is None:
+                        logging.info(
+                            "Iteration %d scale=%g, linear=%g, full=%g, b01=%g, b02=%g, scatter=%s, residual_raw=%s, residual_applied=%s",
+                            iteration,
+                            scale,
+                            float(linear_forward.sum()),
+                            float(full_forward.sum()),
+                            float(b01.sum()),
+                            float(b02.sum()),
+                            f"{scatter_sum:g}" if scatter_sum is not None else "n/a",
+                            f"{residual_sum:g}" if residual_sum is not None else "n/a",
+                            (
+                                f"{residual_applied_sum:g}"
+                                if residual_applied_sum is not None
+                                else "n/a"
+                            ),
+                        )
+                    else:
+                        logging.info(
+                            "Iteration %d scale=%g (samples=%d), linear=%g, full=%g, b01=%g, b02=%g, scatter=%s, residual_raw=%s, residual_applied=%s",
+                            iteration,
+                            scale,
+                            scale_samples,
+                            float(linear_forward.sum()),
+                            float(full_forward.sum()),
+                            float(b01.sum()),
+                            float(b02.sum()),
+                            f"{scatter_sum:g}" if scatter_sum is not None else "n/a",
+                            f"{residual_sum:g}" if residual_sum is not None else "n/a",
+                            (
+                                f"{residual_applied_sum:g}"
+                                if residual_applied_sum is not None
+                                else "n/a"
+                            ),
+                        )
+
+                if args.save_components:
+                    b01.write(str(output_dir / f"mean_iter{iteration}_b01.hs"))
+                    b02.write(str(output_dir / f"mean_iter{iteration}_b02.hs"))
+                    if b01_scaled is not None:
+                        b01_scaled.write(
+                            str(output_dir / f"mean_iter{iteration}_b01_scaled.hs")
+                        )
+                    b02_scaled.write(
+                        str(output_dir / f"mean_iter{iteration}_b02_scaled.hs")
+                    )
+                    linear_forward.write(
+                        str(output_dir / f"mean_iter{iteration}_sirf_linear_forward.hs")
+                    )
+                    full_forward.write(
+                        str(output_dir / f"mean_iter{iteration}_sirf_full_forward.hs")
+                    )
             else:
+                # No SIMIND needed; keep initial additive only.
+                additive_for_model = current_additive.clone()
+                if additive_clamp:
+                    additive_for_model = clamp_nonnegative(additive_for_model)
+                full_model.set_additive_term(additive_for_model)
                 logging.info(
-                    "Iteration %d scale=%g (samples=%d), linear=%g, full=%g, b01=%g, b02=%g, scatter=%g",
+                    "Iteration %d: SIMIND skipped (mode=%s).",
                     iteration,
-                    scale,
-                    scale_samples,
-                    float(linear_forward.sum()),
-                    float(full_forward.sum()),
-                    float(b01.sum()),
-                    float(b02.sum()),
-                    float(scatter.sum()),
+                    additive_mode,
                 )
-            current_additive = damp_additive_update(
-                current_additive, scatter, additive_alpha
-            )
-            full_model.set_additive_term(current_additive)
 
             # OSEM update with new additive scatter
             updated = run_osem_manual(
@@ -1117,19 +1362,31 @@ def main():
             current_image = updated.clone()
             logging.info("Updated OSEM saved: %s", recon_path)
             del updated
-            del full_forward
-            del linear_forward
-            del b01
-            del b02
-            del scatter
+            if full_forward is not None:
+                del full_forward
+            if linear_forward is not None:
+                del linear_forward
+            if b01 is not None:
+                del b01
+            if b02 is not None:
+                del b02
+            if b01_scaled is not None:
+                del b01_scaled
+            if b02_scaled is not None:
+                del b02_scaled
+            if residual is not None:
+                del residual
+            if scatter is not None:
+                del scatter
             if args.gc_collect:
                 gc.collect()
     finally:
         os.chdir(original_cwd)
 
     logging.info(
-        "Done. Final scatter estimate: %s",
+        "Done. Final scatter=%s residual=%s",
         output_dir / f"mean_iter{num_iters}_scatter.hs",
+        output_dir / f"mean_iter{num_iters}_residual.hs",
     )
 
 
