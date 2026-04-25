@@ -15,7 +15,7 @@ project:
 data:
   mu_map_filename: "umap_zoomed.hv"
   measured_data_filename: "peak.hs"
-  initial_additive_filename: scatter_dl.hs
+  initial_additive_filename: null
 
 
 # Simulation parameters
@@ -29,7 +29,7 @@ simulation:
   collimator: "ma-mlegp"
   kev_per_channel: 10
   max_energy: 2080
-  scoring_routine: 1  # scattwin
+  scoring_routine: 4  # penetrate
   collimator_routine: 1
   photon_direction: 3
   crystal_thickness: 9.5
@@ -40,27 +40,28 @@ simulation:
 # OSEM Settings (for pipeline compatibility)
 osem:
   initial_subsets: 12
-  initial_epochs: 5
+  initial_epochs: 10
   smoothing: true
   resolution_model: [1.31, 0.027, false]  # SPECTUBMatrix.set_resolution_model(a, b, use)
   gaussian_image_processor_fwhm: [6.9, 6.9, 6.9]  # SeparableGaussianImageFilter fwhm (x, y, z)
   relative_difference_prior:
-    weight: 0.1  # >0 enables RelativeDifferencePrior
+    weight: 0.0  # >0 enables RelativeDifferencePrior
     gamma: null  # optional; leave null for STIR default
     epsilon: null  # optional; leave null for STIR default
     update_point: "post"  # "pre" uses x^k, "post" uses x^(k+1/2)
 
 scatter_estimation:
+  additive_mode: "update_scatter" #  initial_scatter | update_scatter | initial_scatter_plus residual | update_scatter_plus_residual
   median_filter_size: 0  # 0/1 disables; use odd values like 3 or 5 to enable
   gaussian_sigma: 0.0  # <=0 disables; e.g. 1.0 enables Gaussian smoothing
   mask_threshold: 0.05
   mask_opening_radius: 2  # >0 helps suppress thin bed/table structures
   mask_keep_largest_component: true
-  additive_alpha: 0.2  # 0 keeps old additive; 1 replaces fully
-  scale_method: "trimmed_mean"  # sum | trimmed_mean
+  additive_alpha: 1  # 0 keeps old additive; 1 replaces fully
+  scale_method: "trimmed_mean"  # sum | trimmed_mean (trim ratio outliers, then use retained ratio-of-sums)
   scale_trim_frac: 0.1  # 0 disables trimming; must be < 0.5
-  scale_min_linear: 10.0  # set >0 to threshold low-count bins
-  scale_min_b02: 10.0  # set >0 to threshold low-count bins
+  scale_min_linear: 0.0  # set >0 to threshold low-count bins
+  scale_min_b02: 0.0  # set >0 to threshold low-count bins
   save_scale_ratios: true  # write per-bin ratio map + mask each iteration
 
 # Pipeline Settings (for pipeline compatibility)
