@@ -96,7 +96,6 @@ def partition_data_with_cil_objectives(
     coordinator=None,
     mode="staggered",
     eta_floor=1e-5,
-    count_floor=1e-8,
     attenuation_map=None,
     blur_operator=None,
 ):
@@ -125,7 +124,6 @@ def partition_data_with_cil_objectives(
             StirPsfCoordinator: Uses internal projectors, no additional setup needed.
         mode (str): Partitioning mode ("staggered", "sequential", "random").
         eta_floor (float): Minimum additive value applied via max(additive, eta_floor).
-        count_floor (float): Minimum measured count used in the logarithm to avoid log(0).
         attenuation_map (ImageData, optional): Attenuation map for FOV masking.
             If provided, creates a binary mask (mu_map > 0.001) that is composed
             with each acquisition model to prevent boundary artifacts.
@@ -253,7 +251,9 @@ def partition_data_with_cil_objectives(
 
         projectors.append(projector)
 
-        # Create CIL KL function with eta floored for numerical stability
+        # Create CIL KL function with eta floored for numerical stability.
+        # Signed correction terms from the coordinator are folded into the
+        # effective additive, and eta_floor keeps the Poisson mean positive.
         if eta_floor > 0.0:
             eta_subset = additive_subset.maximum(eta_floor)
         else:

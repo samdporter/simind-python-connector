@@ -23,7 +23,6 @@ resolution:
 # Data fidelity
 data_fidelity:
   eta_floor: 1.0e-5
-  counts_floor: 1.0e-8
 
 # Stochastic reconstruction parameters (reduced for testing)
 stochastic:

@@ -191,11 +191,12 @@ class SaveEffectiveObjectiveCallback:
 
 class UpdateEtaCallback:
     """
-    Callback to update additive/residual terms in KL functions after SIMIND simulations.
+    Callback to update effective additive terms in KL functions after corrections.
 
-    This callback refreshes the additive component (`eta` for classical KL, `additive`
-    for the residual-aware variant) and, when available, the residual correction.
-    Updates are triggered whenever the coordinator publishes a new cache version.
+    The current design folds signed residual updates into the additive estimate
+    managed by the coordinator. This callback refreshes each subset KL term's
+    `eta` from that effective additive whenever the coordinator publishes a new
+    cache version.
     """
 
     def __init__(

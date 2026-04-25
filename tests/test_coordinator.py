@@ -17,7 +17,7 @@ from sirf.STIR import AcquisitionData
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.configs import get
-from sirf_simind_connection.core.components import ScoringRoutine
+from sirf_simind_connection.core.components import PenetrateOutputType, ScoringRoutine
 from sirf_simind_connection.core.coordinator import SimindCoordinator
 from sirf_simind_connection.utils import get_array
 from sirf_simind_connection.utils.stir_utils import (
@@ -387,15 +387,22 @@ class TestIterationTracking:
         acq_template = create_stir_acqdata([64, 64], 60, [4.42, 4.42])
         coordinator.initialize_with_additive(acq_template.get_uniform_copy(0.1))
 
-        # Track if projection was called
-        original_forward = linear_acquisition_model.forward
+        # Keep this as a unit test: stub the SIMIND side and track the linear
+        # projector method the coordinator actually uses (`direct`, not
+        # `forward`).
+        simind_simulator.run_simulation = lambda: None
+        simind_simulator.get_penetrate_output = (
+            lambda *_args, **_kwargs: acq_template.get_uniform_copy(1.0)
+        )
+
+        original_direct = linear_acquisition_model.direct
         call_count = [0]
 
-        def counting_forward(*args, **kwargs):
+        def counting_direct(*args, **kwargs):
             call_count[0] += 1
-            return original_forward(*args, **kwargs)
+            return original_direct(*args, **kwargs)
 
-        linear_acquisition_model.forward = counting_forward
+        linear_acquisition_model.direct = counting_direct
 
         # First call at iteration 6 - should run
         initial_cache_version = coordinator.cache_version
@@ -603,7 +610,7 @@ class TestSimulationIntegration:
 
         # Extract subset residual
         subset_indices = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54]  # Subset 0
-        residual = coordinator.get_subset_residual(subset_indices)
+        residual = coordinator.get_full_residual_term().get_subset(subset_indices)
 
         assert residual is not None
         # Residual should have shape corresponding to subset views
@@ -638,17 +645,20 @@ class TestSimulationIntegration:
         # Run simulation
         coordinator.run_full_simulation(basic_phantom)
 
-        # Check cache was populated
+        # Check public state was populated.
         assert coordinator.cache_version == 1
-        assert coordinator.cached_b02 is not None  # Mode A uses b02
         assert coordinator.cached_scale_factor is not None
 
-        # Mode A should have b01 = None
+        # Mode A does not use b01.
         assert coordinator.cached_b01 is None
 
         # Residual should match SIMIND geometric minus fast linear projection.
-        b02_scaled = coordinator.cached_b02 * coordinator.cached_scale_factor
-        expected_residual = b02_scaled - coordinator.cached_linear_proj
+        linear_proj = linear_acquisition_model.direct(basic_phantom)
+        b02 = simind_simulator.get_penetrate_output(
+            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT
+        )
+        b02_scaled = b02 * coordinator.cached_scale_factor
+        expected_residual = b02_scaled - linear_proj
         expected_additive = initial_additive + expected_residual
         updated_additive = coordinator.get_full_additive_term()
         np.testing.assert_allclose(
@@ -657,9 +667,11 @@ class TestSimulationIntegration:
             rtol=0,
             atol=1e-6,
         )
-        num_views = int(coordinator.cached_linear_proj.dimensions()[2])
+        num_views = int(linear_proj.dimensions()[2])
         subset_indices = list(range(0, num_views, coordinator.num_subsets))
-        subset_residual = coordinator.get_subset_residual(subset_indices)
+        subset_residual = coordinator.get_full_residual_term().get_subset(
+            subset_indices
+        )
         expected_subset = expected_residual.get_subset(subset_indices)
         subset_residual_arr = get_array(subset_residual)
         expected_subset_arr = get_array(expected_subset)
@@ -696,8 +708,14 @@ class TestSimulationIntegration:
 
         coordinator.run_full_simulation(basic_phantom)
 
-        b01_scaled = coordinator.cached_b01 * coordinator.cached_scale_factor
-        b02_scaled = coordinator.cached_b02 * coordinator.cached_scale_factor
+        b01 = simind_simulator.get_penetrate_output(
+            PenetrateOutputType.ALL_INTERACTIONS
+        )
+        b02 = simind_simulator.get_penetrate_output(
+            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT
+        )
+        b01_scaled = b01 * coordinator.cached_scale_factor
+        b02_scaled = b02 * coordinator.cached_scale_factor
         expected_scatter = b01_scaled - b02_scaled
         updated_additive = coordinator.get_full_additive_term()
         updated_additive_arr = get_array(updated_additive)
@@ -709,22 +727,7 @@ class TestSimulationIntegration:
             atol=1e-6,
         )
 
-        subset_indices = list(
-            range(
-                0,
-                int(coordinator.cached_linear_proj.dimensions()[2]),
-                coordinator.num_subsets,
-            )
-        )
-        residual_subset = coordinator.get_subset_residual(subset_indices)
-        residual_subset_arr = get_array(residual_subset)
-        np.testing.assert_allclose(
-            residual_subset_arr,
-            np.zeros_like(residual_subset_arr),
-            rtol=0,
-            atol=1e-7,
-        )
-        assert coordinator.cached_residual_full is None
+        assert coordinator.get_full_residual_term() is None
 
     def test_mode_c_returns_separate_additive_and_residual(
         self,
@@ -761,9 +764,16 @@ class TestSimulationIntegration:
 
         coordinator.run_full_simulation(basic_phantom)
 
-        b01_scaled = coordinator.cached_b01 * coordinator.cached_scale_factor
-        b02_scaled = coordinator.cached_b02 * coordinator.cached_scale_factor
-        expected_geometric = b02_scaled - coordinator.cached_linear_proj
+        linear_proj = linear_acquisition_model.direct(basic_phantom)
+        b01 = simind_simulator.get_penetrate_output(
+            PenetrateOutputType.ALL_INTERACTIONS
+        )
+        b02 = simind_simulator.get_penetrate_output(
+            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT
+        )
+        b01_scaled = b01 * coordinator.cached_scale_factor
+        b02_scaled = b02 * coordinator.cached_scale_factor
+        expected_geometric = b02_scaled - linear_proj
         additive_residual = (b01_scaled - b02_scaled) - initial_additive
         expected_residual = expected_geometric + additive_residual
         expected_additive = initial_additive + expected_residual
@@ -781,11 +791,13 @@ class TestSimulationIntegration:
         subset_indices = list(
             range(
                 0,
-                int(coordinator.cached_linear_proj.dimensions()[2]),
+                int(linear_proj.dimensions()[2]),
                 coordinator.num_subsets,
             )
         )
-        residual_subset = coordinator.get_subset_residual(subset_indices)
+        residual_subset = coordinator.get_full_residual_term().get_subset(
+            subset_indices
+        )
         expected_subset = expected_residual.get_subset(subset_indices)
         residual_subset_arr = get_array(residual_subset)
         expected_subset_arr = get_array(expected_subset)
@@ -828,15 +840,16 @@ class TestStirPsfCoordinator:
         )
         coordinator.algorithm = DummyAlgorithm()
 
-        # Track forward calls on PSF projector
-        original_psf_forward = psf_projector.forward
+        # Track direct() calls because the coordinator uses direct(), not
+        # forward().
+        original_psf_direct = psf_projector.direct
         psf_call_count = [0]
 
-        def counting_psf_forward(*args, **kwargs):
+        def counting_psf_direct(*args, **kwargs):
             psf_call_count[0] += 1
-            return original_psf_forward(*args, **kwargs)
+            return original_psf_direct(*args, **kwargs)
 
-        psf_projector.forward = counting_psf_forward
+        psf_projector.direct = counting_psf_direct
 
         # First call at iteration 6 - should run
         initial_cache_version = coordinator.cache_version

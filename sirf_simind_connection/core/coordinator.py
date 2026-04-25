@@ -496,9 +496,13 @@ class SimindCoordinator(Coordinator):
             )
 
         # --- Update current_additive and residual based on correction mode ---
-        # baseline_additive represents b_initial (or zeros if not provided).
+        # baseline_additive represents b_initial. When the caller does not
+        # provide one, use a zero AcquisitionData with the projection geometry
+        # so downstream arithmetic stays in the STIR domain.
         baseline_additive = (
-            self.initial_additive if self.initial_additive is not None else 0
+            self.initial_additive
+            if self.initial_additive is not None
+            else self.cached_linear_proj.get_uniform_copy(0)
         )
 
         b02_scaled = self.cached_b02 * self.cached_scale_factor

@@ -66,7 +66,6 @@ def run_svrg_with_prior_cil(
     algorithm = solver_cfg.get("algorithm", "SVRG").upper()
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
-    data_fidelity_cfg.get("counts_floor", 1e-8)
     projector_cfg = config.get("projector", {})
     prefetch_initial_correction = bool(
         projector_cfg.get("prefetch_initial_correction", True)

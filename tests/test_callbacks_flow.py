@@ -233,19 +233,19 @@ def callbacks():
 
     import importlib
 
-    cmp_mod = importlib.import_module("compare_psf_models")
+    cb_mod = importlib.import_module("psf_compare.callbacks")
     ssr_mod = importlib.import_module("step_size_rules")
 
     cb = SimpleNamespace(
-        SaveObjectiveCallback=cmp_mod.SaveObjectiveCallback,
-        SaveImageCallback=cmp_mod.SaveImageCallback,
+        SaveObjectiveCallback=cb_mod.SaveObjectiveCallback,
+        SaveImageCallback=cb_mod.SaveImageCallback,
         ArmijoTriggerCallback=ssr_mod.ArmijoTriggerCallback,
     )
 
     yield cb
 
     # Cleanup: remove stubbed modules and restore originals
-    for name in ("compare_psf_models", "step_size_rules"):
+    for name in ("psf_compare.callbacks", "psf_compare", "step_size_rules"):
         sys.modules.pop(name, None)
 
     for name in list(sys.modules.keys()):

@@ -27,7 +27,6 @@ simind:
 # Data fidelity
 data_fidelity:
   eta_floor: 1.0e-5
-  counts_floor: 1.0e-8
   image_smoothing_fwhm: null    # [fz, fy, fx] in mm; smooth image after residual update
 
 # Resolution modeling

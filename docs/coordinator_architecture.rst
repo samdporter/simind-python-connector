@@ -99,33 +99,34 @@ Wraps SIRF's partitioner to create CIL objectives:
 
 1. Uses ``sirf.contrib.partitioner.data_partition()`` to get subset acquisition models
 2. Wraps each in ``SimindSubsetProjector`` (if coordinator provided)
-3. Creates ``OperatorCompositionFunction(ResidualCorrectedKullbackLeibler(f=data_subset), projector)``
+3. Creates ``OperatorCompositionFunction(KullbackLeibler(b=data_subset, eta=eta_subset), projector)``
 
-**Important Note**: The projectors are LINEAR acquisition models (no additive term). The additive and residual corrections are handled inside the residual-aware KL function – the callback updates its ``additive`` and ``residual`` parameters after each SIMIND or STIR-PSF simulation.
+**Important Note**: The projectors are LINEAR acquisition models (no additive term). Signed correction updates from the coordinator are folded into the effective additive term ``eta``. After each SIMIND or STIR-PSF update, the callback refreshes ``eta`` for every subset and applies an ``eta_floor`` to keep the Poisson mean positive.
 
-Residual-Aware vs Classical KL
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Effective Additive Updates
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-
-``ResidualCorrectedKullbackLeibler`` now uses the Jordan decomposition of the
-residual correction. For each bin we split ``r = r^{+} - r^{-}`` with
-``r^{+} = \max(r, 0)`` and ``r^{-} = \max(-r, 0)`` and define the effective
-prediction and data counts
+The current CIL path uses the ordinary Poisson KL with a dynamically updated
+effective additive term:
 
 .. math::
 
-    \mu_{\text{eff}} = (x + b) + r^{+}, \qquad f_{\text{eff}} = f + r^{-}.
+    \mu = A x + \eta.
 
-The objective becomes the ordinary Poisson KL evaluated at
-``(\mu_{\text{eff}}, f_{\text{eff}})``. This guarantees ``\mu_{\text{eff}} > 0``
-and ``f_{\text{eff}} \ge 0`` regardless of the sign of the residual, so the
-function stays convex and smooth. The gradient retains the familiar form
-``1 - f_{\text{eff}} / \mu_{\text{eff}}``.
+For SIMIND and STIR-PSF coordinators, the correction term is first added to the
+baseline additive estimate and only then passed into KL via ``eta``. In other
+words, the coordinator computes an updated effective additive
+``eta = b_initial + correction`` and the callback distributes subset-specific
+views of this ``eta`` to the KL data terms.
 
-To handle empty acquisition bins, the effective data ``f_{\text{eff}}`` is
-floored to ``counts_floor`` (default ``1\times10^{-8}``) before evaluating the
-logarithm. This avoids ``\log(0)`` while leaving the gradient with respect to
-the prediction unchanged.
+Numerically, each subset applies:
+
+.. math::
+
+    \eta_{\text{subset}} \leftarrow \max(\eta_{\text{subset}}, \eta_{\text{floor}})
+
+before evaluating KL. This keeps the effective Poisson mean positive while
+preserving the existing additive-plus-residual design.
 
 ``create_svrg_objective_with_rdp()``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -141,7 +141,6 @@ def _run_mode_core(
 
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
-    count_floor = data_fidelity_cfg.get("count_floor", 1e-5)
 
     output_cfg = config.get("output", {})
     track_effective_objective = output_cfg.get("track_effective_objective", False)
@@ -230,7 +229,6 @@ def _run_mode_core(
             num_subsets,
             coordinator=coordinator,
             eta_floor=eta_floor,
-            count_floor=count_floor,
             attenuation_map=spect_data["attenuation"],
             blur_operator=blur_op,
         )
@@ -311,7 +309,6 @@ def _run_stir_psf_residual_mode(
 
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
-    count_floor = data_fidelity_cfg.get("count_floor", 1e-5)
 
     output_cfg = config.get("output", {})
     track_effective_objective = output_cfg.get("track_effective_objective", False)
@@ -387,7 +384,6 @@ def _run_stir_psf_residual_mode(
             num_subsets,
             coordinator=coordinator,
             eta_floor=eta_floor,
-            count_floor=count_floor,
             attenuation_map=spect_data["attenuation"],
             blur_operator=blur_op_baseline,
         )
