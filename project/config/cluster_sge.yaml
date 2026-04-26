@@ -32,6 +32,52 @@ simulation:
   crystal_half_width: 265
   half_life: 64.6
 
+dataset_overrides:
+  nema_phantom_data:
+    simulation:
+      photon_energy: 150
+      window_lower: 75
+      window_upper: 225
+      collimator: "ma-mlegp"
+      collimator_routine: 1
+      photon_direction: 3
+      crystal_thickness: 9.5
+      crystal_half_length_radius: 195
+      crystal_half_width: 265
+  phantom_140:
+    simulation:
+      photon_energy: 150
+      window_lower: 75
+      window_upper: 225
+      collimator: "ma-mlegp"
+      collimator_routine: 1
+      photon_direction: 3
+      crystal_thickness: 9.5
+      crystal_half_length_radius: 195
+      crystal_half_width: 265
+  manc_nema_phantom_data:
+    simulation:
+      photon_energy: 83
+      window_lower: 39.84
+      window_upper: 126.16
+      collimator: "g8-megp"
+      collimator_routine: 0
+      photon_direction: 2
+      crystal_thickness: 9.5
+      crystal_half_length_radius: 200
+      crystal_half_width: 270
+  sirt3:
+    simulation:
+      photon_energy: 100
+      window_lower: 50
+      window_upper: 150
+      collimator: "g8-megp"
+      collimator_routine: 0
+      photon_direction: 2
+      crystal_thickness: 9.5
+      crystal_half_length_radius: 200
+      crystal_half_width: 270
+
 osem:
   initial_subsets: 12
   initial_epochs: 10

@@ -138,6 +138,25 @@ def ensure_unique_dataset_names(paths: Iterable[Path]) -> dict[Path, str]:
     return out
 
 
+def apply_dataset_config_overrides(cfg: dict, run: RunSpec) -> None:
+    """Apply optional per-dataset config overrides from the base config."""
+    overrides = cfg.get("dataset_overrides", {})
+    if not isinstance(overrides, dict):
+        return
+
+    override = overrides.get(run.dataset_name)
+    if override is None:
+        override = overrides.get(str(run.data_dir))
+    if not isinstance(override, dict):
+        return
+
+    for section, values in override.items():
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            set_nested(cfg, [str(section), str(key)], value)
+
+
 def mode_uses_scatter(additive_mode: str) -> bool:
     return additive_mode in ("update_scatter", "update_scatter_plus_residual")
 
@@ -391,6 +410,7 @@ def prepare_tasks(
             cfg = copy.deepcopy(base_cfg)
             set_nested(cfg, ["project", "data_dir"], str(run.data_dir))
             set_nested(cfg, ["project", "output_dir"], str(run.output_dir))
+            apply_dataset_config_overrides(cfg, run)
             set_nested(
                 cfg, ["osem", "gaussian_image_processor_fwhm"], list(run.gauss_fwhm)
             )
