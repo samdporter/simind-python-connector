@@ -1060,7 +1060,11 @@ def main():
     )
 
     original_cwd = Path.cwd()
-    os.chdir(simind_parent_dir)
+    # Chdir to the job-specific output_dir so SIRF writes its tmp sinogram files
+    # there rather than to simind_parent_dir, which is shared across all concurrent
+    # cluster tasks and causes cross-job file corruption. SimindSimulator handles
+    # its own chdir internally.
+    os.chdir(output_dir)
     try:
         current_additive = iter0_additive.clone()
         current_residual = measured.get_uniform_copy(0.0)
