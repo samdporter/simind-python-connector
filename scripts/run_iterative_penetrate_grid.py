@@ -32,6 +32,7 @@ DEFAULT_DATASETS = [
     "/home/storage/prepared_data/phantom_data/nema_phantom_data/SPECT",
     "/home/storage/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140",
     "/home/storage/prepared_data/phantom_data/manc_nema_phantom_data/SPECT",
+    "/home/storage/prepared_data/oxford_patient_data/sirt3/SPECT",
 ]
 
 DEFAULT_ADDITIVE_MODES = [
@@ -50,7 +51,7 @@ DEFAULT_INTEL_MPI_ROOT = Path("/opt/intel/oneapi/mpi")
 DEFAULT_LOCAL_WORKERS = 1
 DEFAULT_CLUSTER_JOB_NAME = "iter_pen_grid"
 DEFAULT_CLUSTER_RUNTIME = "48:00:00"
-DEFAULT_CLUSTER_MEMORY = "16G"
+DEFAULT_CLUSTER_MEMORY = "48G"
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,77 @@
+# SGE cluster configuration for iterative penetrate scatter grid runs.
+
+project:
+  total_activity: 358.7
+  data_dir: "/home/sporter/synergistic_Y90/prepared_data/phantom_data/nema_phantom_data/SPECT"
+  image_path: "/home/sporter/synergistic_Y90/prepared_data/phantom_data/nema_phantom_data/SPECT/initial_image.hv"
+  output_dir: "/home/sporter/synergistic_Y90/SIRF-SIMIND-Connection/output/cluster"
+  output_prefix: "output_iter1_"
+  simind_parent_dir: "/home/sporter/synergistic_Y90/SIRF-SIMIND-Connection"
+  axial_slice: 50
+
+data:
+  mu_map_filename: "umap_zoomed.hv"
+  measured_data_filename: "peak.hs"
+  initial_additive_filename: null
+
+simulation:
+  photon_multiplier: 1
+  photon_energy: 150
+  window_lower: 75
+  window_upper: 225
+  time_per_projection: 40
+  source_type: "y90_frey"
+  collimator: "ma-mlegp"
+  kev_per_channel: 10
+  max_energy: 2080
+  scoring_routine: 4
+  collimator_routine: 1
+  photon_direction: 3
+  crystal_thickness: 9.5
+  crystal_half_length_radius: 195
+  crystal_half_width: 265
+  half_life: 64.6
+
+osem:
+  initial_subsets: 12
+  initial_epochs: 10
+  smoothing: true
+  resolution_model: [1.31, 0.027, false]
+  gaussian_image_processor_fwhm: [6.9, 6.9, 6.9]
+  relative_difference_prior:
+    weight: 0.0
+    gamma: null
+    epsilon: null
+    update_point: "post"
+
+scatter_estimation:
+  additive_mode: "update_scatter"
+  median_filter_size: 0
+  gaussian_sigma: 0.0
+  mask_threshold: 0.05
+  mask_opening_radius: 2
+  mask_keep_largest_component: true
+  additive_alpha: 1
+  scale_method: "trimmed_mean"
+  scale_trim_frac: 0.1
+  scale_min_linear: 0.0
+  scale_min_b02: 0.0
+  save_scale_ratios: true
+
+pipeline:
+  num_iterations: 10
+  num_array_jobs: 10
+
+output:
+  base_output_dir: "/home/sporter/synergistic_Y90/SIRF-SIMIND-Connection/output"
+  suffix: "cluster"
+
+sum_scatter:
+  scatter_pattern: "*_iter%ITER%_*_sca_w1.hs"
+  total_pattern: "*_iter%ITER%_*_tot_w1.hs"
+  image_pattern: "recon_osem_i*_s*_smoothed_%PREV_ITER%.hv"
+
+patient_processing:
+  patient_data_root: "/home/sporter/synergistic_Y90/prepared_data"
+  activities_csv_filename: "activities.csv"
+  spect_activity_column_index: 2

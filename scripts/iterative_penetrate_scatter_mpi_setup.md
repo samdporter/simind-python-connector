@@ -61,11 +61,10 @@ Cluster sweep, stage only:
 python scripts/run_iterative_penetrate_grid.py \
   --execution cluster \
   --base-config project/config/local.yaml \
-  --mpi-procs 8 \
+  --mpi-procs 1 \
   --cluster-env-setup-script /path/to/simind_env.sh \
   --cluster-runtime 48:00:00 \
-  --cluster-memory 16G \
-  --cluster-max-concurrent 8
+  --cluster-memory 48G
 ```
 
 Cluster sweep, submit immediately:
@@ -74,17 +73,17 @@ Cluster sweep, submit immediately:
 python scripts/run_iterative_penetrate_grid.py \
   --execution cluster \
   --base-config project/config/local.yaml \
-  --mpi-procs 8 \
+  --mpi-procs 1 \
   --cluster-env-setup-script /path/to/simind_env.sh \
   --cluster-runtime 48:00:00 \
-  --cluster-memory 16G \
-  --cluster-max-concurrent 8 \
+  --cluster-memory 48G \
   --submit
 ```
 
 Notes:
 - The cluster mode writes a manifest under `output/.../_grid/` and submits an SGE array job using `SGE_TASK_ID`.
 - When `--mpi-procs > 1`, the runner requests `-pe mpi <mpi-procs>` and `-R y` to match the UCL SGE guidance for parallel jobs.
+- `--cluster-max-concurrent` is optional. If set, it passes `qsub -tc <n>` to cap how many array tasks run at once; omit it to let SGE schedule as many tasks as policy/resources allow.
 - Use `--dry-run` to inspect the prepared commands and the final `qsub` command without writing configs or submitting.
 
 ## If MPI fails
