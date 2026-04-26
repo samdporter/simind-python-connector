@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_BASE="/home/sporter/synergistic_Y90/SIRF-SIMIND-Connection"
 DATA_ROOT="/home/sporter/synergistic_Y90/prepared_data"
+CLUSTER_ENV_SETUP_SCRIPT="${CLUSTER_ENV_SETUP_SCRIPT:-$REPO_BASE/scripts/cluster/simind_env_sge.sh}"
 
 cd "$REPO_BASE"
 
@@ -20,7 +21,7 @@ cmd=(
   --dataset "$DATA_ROOT/oxford_patient_data/sirt3/SPECT"
 )
 
-if [ -n "${CLUSTER_ENV_SETUP_SCRIPT:-}" ]; then
+if [ -n "$CLUSTER_ENV_SETUP_SCRIPT" ]; then
   cmd+=(--cluster-env-setup-script "$CLUSTER_ENV_SETUP_SCRIPT")
 fi
 

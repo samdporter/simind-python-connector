@@ -166,6 +166,7 @@ Thumbs.db
 *.hct
 *.s*
 !scripts/cluster/run_iterative_penetrate_grid_sge.sh
+!scripts/cluster/simind_env_sge.sh
 tmp*
 temp*
 
