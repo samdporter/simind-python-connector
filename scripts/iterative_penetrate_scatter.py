@@ -1383,11 +1383,16 @@ def main():
     finally:
         os.chdir(original_cwd)
 
-    logging.info(
-        "Done. Final scatter=%s residual=%s",
-        output_dir / f"mean_iter{num_iters}_scatter.hs",
-        output_dir / f"mean_iter{num_iters}_residual.hs",
-    )
+    final_outputs = []
+    if update_scatter:
+        final_outputs.append(
+            f"scatter={output_dir / f'mean_iter{num_iters}_scatter.hs'}"
+        )
+    if use_residual:
+        final_outputs.append(
+            f"residual={output_dir / f'mean_iter{num_iters}_residual.hs'}"
+        )
+    logging.info("Done. Final outputs: %s", ", ".join(final_outputs) or "none")
 
 
 if __name__ == "__main__":
