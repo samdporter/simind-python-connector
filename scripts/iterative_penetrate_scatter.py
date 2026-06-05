@@ -1227,7 +1227,14 @@ def main():
 
                 b02_scaled = b02 * scale
                 if use_residual:
-                    residual = b02_scaled - linear_forward
+                    # SIMIND always outputs extent=360.0/start=0.0; measured data
+                    # may have slightly different values (e.g. 360.001/360).
+                    # Re-wrap b02_scaled into linear_forward's (measured) geometry so
+                    # xapyb doesn't reject the mismatch, and so residual stays in
+                    # measured geometry — safe for damp_additive_update with alpha=1.
+                    b02_scaled_matched = linear_forward.get_uniform_copy(0.0)
+                    b02_scaled_matched.fill(get_array(b02_scaled).astype(np.float32))
+                    residual = b02_scaled_matched - linear_forward
                     residual_path = output_dir / f"mean_iter{iteration}_residual.hs"
                     residual.write(str(residual_path))
                     current_residual = damp_additive_update(
@@ -1237,6 +1244,11 @@ def main():
                 if update_scatter:
                     b01_scaled = b01 * scale
                     scatter = b01_scaled - b02_scaled
+                    # Re-wrap scatter into measured geometry so current_additive stays
+                    # compatible with SIRF operations regardless of additive_alpha.
+                    scatter_matched = measured.get_uniform_copy(0.0)
+                    scatter_matched.fill(get_array(scatter).astype(np.float32))
+                    scatter = scatter_matched
                     if scatter_median_size > 1 or scatter_gaussian_sigma > 0:
                         scatter_raw = scatter.clone()
                     if scatter_median_size > 1:
