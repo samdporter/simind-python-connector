@@ -228,8 +228,12 @@ def extract_attributes_from_stir(sinogram) -> dict:
     elif isinstance(sinogram, AcquisitionData):
         # Write to temporary header file to preserve all metadata
         # AcquisitionData.get_info() doesn't include orbit/radii information
+        temp_dir = os.environ.get("TMPDIR", "/tmp")
+        if not os.path.exists(temp_dir):
+            temp_dir = os.getcwd()
+            
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".hs", delete=False
+            mode="w", suffix=".hs", delete=False, dir=temp_dir
         ) as temp_file:
             temp_path = temp_file.name
 

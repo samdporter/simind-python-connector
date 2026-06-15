@@ -29,10 +29,10 @@ import yaml
 
 
 DEFAULT_DATASETS = [
-    "/home/storage/prepared_data/phantom_data/nema_phantom_data/SPECT",
-    "/home/storage/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140",
-    "/home/storage/prepared_data/phantom_data/manc_nema_phantom_data/SPECT",
-    "/home/storage/prepared_data/oxford_patient_data/sirt3/SPECT",
+    "/home/sporter/synergistic_Y90/prepared_data/phantom_data/nema_phantom_data/SPECT",
+    "/home/sporter/synergistic_Y90/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140",
+    "/home/sporter/synergistic_Y90/prepared_data/phantom_data/manc_nema_phantom_data/SPECT",
+    "/home/sporter/synergistic_Y90/prepared_data/oxford_patient_data/sirt3/SPECT",
 ]
 
 DEFAULT_ADDITIVE_MODES = [
