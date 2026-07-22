@@ -176,7 +176,9 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_data_file(6, src_prefix)
 
         if cfg.get_flag(11):
-            photon_energy = float(cfg.get_value("photon_energy"))
+            photon_energy = abs(
+                float(cfg.get_value("photon_energy"))
+            )  # use absolute value, as it is a negative value if using a spectrum source.
             density = attenuation_to_density(mu_map_array, photon_energy) * 1000.0
         else:
             density = np.zeros_like(mu_map_array)
