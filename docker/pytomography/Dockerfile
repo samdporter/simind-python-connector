@@ -23,7 +23,7 @@ RUN python -m pip install --upgrade pip \
     && pip install --index-url https://download.pytorch.org/whl/cpu torch \
     && pip install pytomography --no-deps \
     && pip install fft-conv-pytorch kornia pydicom rt-utils torchrbf uproot \
-    && pip install -e ".[dev,examples]" \
+    && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
     && python - <<'PY'
 import importlib
 for module in ("torch", "pytomography", "pytest"):

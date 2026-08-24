@@ -105,6 +105,10 @@ def get_sirf_attenuation_from_simind(
         data_type = np.float32
     elif attn_type == "rho*1000":
         data_type = np.uint16
+    else:
+        raise ValueError(
+            f"Unsupported attn_type {attn_type!r}. Expected one of: 'mu', 'rho*1000'"
+        )
 
     # remove suffix from filename if present
     if attn_filename[-3:] in ["ict", "hct"]:
@@ -119,7 +123,7 @@ def get_sirf_attenuation_from_simind(
     vsize = [
         float(header_dict["scaling factor (mm/pixel) [%d]" % i]) for i in range(1, 3)
     ]
-    vsize.append(header_dict["# scaling factor (mm/pixel) [3]"])
+    vsize.append(float(header_dict["# scaling factor (mm/pixel) [3]"]))
 
     # origin looks like '-128.0000 -128.0000 128.000000'
     origin_string = header_dict["# Image Position First image"]
@@ -130,7 +134,8 @@ def get_sirf_attenuation_from_simind(
 
     if attn_type == "mu":
         image.fill(attn)
-    elif attn_type == "rho*100":
+    elif attn_type == "rho*1000":
+        # Density-scaled input: convert g/cm^3 to mu at the photopeak energy.
         image.fill(attn / 1000 * photopeak_energy)
 
     return image

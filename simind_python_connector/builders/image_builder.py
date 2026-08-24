@@ -79,12 +79,24 @@ class STIRSPECTImageDataBuilder:
 
     def _resolve_data_array(self) -> np.ndarray:
         if self.pixel_array is not None:
-            return np.asarray(self.pixel_array, dtype=np.float32)
+            data = np.asarray(self.pixel_array, dtype=np.float32)
+        else:
+            dim_x = int(self.header["!matrix size [1]"])
+            dim_y = int(self.header["!matrix size [2]"])
+            dim_z = int(self.header["!matrix size [3]"])
+            data = np.zeros((dim_z, dim_y, dim_x), dtype=np.float32)
 
-        dim_x = int(self.header["!matrix size [1]"])
-        dim_y = int(self.header["!matrix size [2]"])
-        dim_z = int(self.header["!matrix size [3]"])
-        return np.zeros((dim_z, dim_y, dim_x), dtype=np.float32)
+        expected_shape = (
+            int(self.header["!matrix size [3]"]),
+            int(self.header["!matrix size [2]"]),
+            int(self.header["!matrix size [1]"]),
+        )
+        if data.shape != expected_shape:
+            raise ValueError(
+                f"pixel array shape {data.shape} does not match header "
+                f"dimensions {expected_shape} (z, y, x)"
+            )
+        return data
 
     def build(self, output_path: Optional[str | Path] = None):
         """

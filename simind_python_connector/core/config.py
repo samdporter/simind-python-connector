@@ -7,10 +7,18 @@
 
 ### Author: Sam Porter
 
+import os
 import re
 from pathlib import Path
 
 import yaml
+
+
+def _is_traversable_only(value) -> bool:
+    """True for importlib.resources Traversables that are not filesystem paths."""
+    if isinstance(value, (str, os.PathLike)):
+        return False
+    return hasattr(value, "is_file") and hasattr(value, "joinpath")
 
 
 class SimulationConfig:
@@ -167,6 +175,7 @@ class SimulationConfig:
                 8,
                 9,
                 10,
+                11,
                 12,
                 13,
                 22,
@@ -196,71 +205,197 @@ class SimulationConfig:
         self.data_files = {}
         self.comment = None
 
-        print(filepath)
+        # Section sizes from the most recent SMC parse, reused by save_file()
+        # so variable-length files round-trip exactly.
+        self._flag_count = len(self.flag_dict)
+        self._text_variable_count = 12
+        self._data_file_count = len(self.data_file_dict)
 
         # Detect file type and load accordingly
-        if str(filepath).endswith(".yaml") or str(filepath).endswith(".yml"):
+        if _is_traversable_only(filepath):
+            # importlib.resources Traversable (e.g. zipped wheel installs):
+            # materialise to a concrete path for the duration of parsing.
+            import contextlib
+            import importlib.resources
+
+            with contextlib.ExitStack() as stack:
+                materialised = stack.enter_context(
+                    importlib.resources.as_file(filepath)
+                )
+                self._load_from_path(materialised)
+            return
+        self._load_from_path(Path(str(filepath)))
+
+    def _load_from_path(self, filepath):
+        suffix = filepath.suffix.lower()
+        if suffix in {".yaml", ".yml"}:
             # Initialize with default values first
             self._initialise_yaml_defaults()
             self.import_yaml(filepath)
-        else:
-            # Assume .smc format
+        elif suffix == ".smc":
             self.import_smc(filepath)
+        else:
+            raise ValueError(
+                f"Unsupported configuration file extension {suffix!r}. "
+                "Expected one of .smc, .yaml, .yml"
+            )
 
     def _initialise_yaml_defaults(self):
         """Initialize with default values for YAML loading."""
         # Set up defaults for when loading from YAML
         self.data = [0.0] * 101  # Initialize with 101 zeros
-        self.flags = "F" * 15  # Initialize with 15 False flags
+        # The SMC reference format declares 30 flag positions; named flags
+        # only cover 1-15, so the remaining positions must survive round trips.
+        self.flags = "F" * 30
         self.text_variables = {i: "none" for i in range(1, 13)}
-        self.data_files = {}
+        # Pre-create every data-file slot so connector assignments to unused
+        # slots are not silently dropped for minimal YAML configurations.
+        self.data_files = {i: "none" for i in range(1, 13)}
         self.comment = "Loaded from YAML"
 
     def _initialise_sms_defaults(self):
         """Initialize with default values for SMC loading."""
         self.comment = "Loaded from SMC"
 
+    _SMC_NUMBER_PATTERN = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?")
+
+    @classmethod
+    def _parse_basic_data_line(cls, line):
+        """Return numeric tokens for one basic-data line, or None if invalid.
+
+        SIMIND writes fixed-width 12-character fields, so consecutive
+        negative values may share no separating whitespace. Space-separated
+        lines are validated token by token; packed lines are sliced on the
+        fixed 12-character field width instead.
+        """
+        tokens = line.split()
+        if tokens and all(cls._SMC_NUMBER_PATTERN.fullmatch(token) for token in tokens):
+            return tokens
+
+        fields = []
+        for start in range(0, len(line), 12):
+            field = line[start : start + 12].strip()
+            if not field:
+                continue
+            if not cls._SMC_NUMBER_PATTERN.fullmatch(field):
+                return None
+            fields.append(field)
+        return fields
+
     def import_smc(self, filepath):
         """
         Parse the simulation configuration file and populate attributes.
+
+        The SMC layout is section based rather than fixed offset based:
+        each section starts with a "<count>  # <label>" line followed by
+        exactly <count> content lines.
         """
         with open(filepath, "r") as file:
-            lines = file.readlines()
-            self.comment = lines[1].strip()
+            lines = [line.rstrip("\r\n") for line in file]
 
-            # Parsing Basic Change data
-            data_lines = lines[3:27]
-            data_string = " ".join(data_lines).replace("\n", "")
-            self.data = [
-                float(val) for val in re.findall(r"-?\d+\.\d+E[+-]\d+", data_string)
-            ]
+        cursor = 0
 
-            # Parsing Simulation flags
-            self.flags = lines[28].strip().replace(" ", "")
+        def next_content_line(section):
+            nonlocal cursor
+            while cursor < len(lines) and not lines[cursor].strip():
+                cursor += 1
+            if cursor >= len(lines):
+                raise ValueError(f"{section}: unexpectedly reached end of file")
+            line = lines[cursor]
+            cursor += 1
+            return line
 
-            # Parsing Text Variables
-            text_variables_start = 29
-            text_variables_count = int(lines[text_variables_start].split()[0])
-            text_variables_lines = lines[
-                text_variables_start + 1 : text_variables_start
-                + 1
-                + text_variables_count
-            ]
-            self.text_variables = {
-                i + 1: text_variables_lines[i].strip()
-                for i in range(text_variables_count)
-            }
+        def read_section_count(section):
+            line = next_content_line(section)
+            tokens = line.split("#", 1)[0].split()
+            if not tokens:
+                raise ValueError(
+                    f"{section}: expected a '<count>  # label' header, got "
+                    f"{line.strip()!r}"
+                )
+            try:
+                return int(tokens[0])
+            except ValueError as exc:
+                raise ValueError(
+                    f"{section}: expected a numeric count header, got {line.strip()!r}"
+                ) from exc
 
-            # Parsing Data files
-            data_files_start = 38
-            data_files_count = int(lines[data_files_start].split()[0])
-            data_files_lines = lines[
-                data_files_start + 1 : data_files_start + 1 + data_files_count
-            ]
-            self.data_files = {
-                i + 1: data_files_lines[i].strip()
-                for i in range(data_files_count)  # Start from 1, not 7
-            }
+        header_line = next_content_line("SMC header")
+        if header_line.strip() != "SMCV2":
+            raise ValueError(
+                f"basic data: expected 'SMCV2' header, got {header_line.strip()!r}"
+            )
+
+        self.comment = next_content_line("comment").strip()
+
+        basic_count = read_section_count("basic data")
+        values = []
+        while len(values) < basic_count:
+            if cursor >= len(lines):
+                raise ValueError(
+                    f"basic data: declared {basic_count} values but found {len(values)}"
+                )
+            line = lines[cursor]
+            cursor += 1
+            parsed_line = self._parse_basic_data_line(line)
+            if parsed_line is None:
+                raise ValueError(
+                    f"basic data: invalid numeric content in {line.strip()!r}"
+                )
+            if len(values) + len(parsed_line) > basic_count:
+                raise ValueError(
+                    f"basic data: more than the declared {basic_count} values"
+                )
+            values.extend(parsed_line)
+        self.data = [float(value) for value in values]
+
+        flag_count = read_section_count("simulation flags")
+        flag_string = next_content_line("simulation flags").replace(" ", "")
+        if len(flag_string) != flag_count:
+            raise ValueError(
+                f"simulation flags: declared {flag_count} flags but found "
+                f"{len(flag_string)}"
+            )
+        self.flags = flag_string
+
+        text_count = read_section_count("text variables")
+
+        def read_entries(section, count):
+            nonlocal cursor
+            entries = {}
+            for i in range(count):
+                if cursor >= len(lines):
+                    raise ValueError(
+                        f"{section}: declared {count} entries but reached end of file"
+                    )
+                candidate = lines[cursor]
+                if re.match(r"^\s*\d+\s*#", candidate):
+                    raise ValueError(
+                        f"{section}: declared {count} entries but found only {i}"
+                    )
+                entries[i + 1] = candidate.rstrip()
+                cursor += 1
+            return entries
+
+        self.text_variables = read_entries("text variables", text_count)
+
+        data_count = read_section_count("data files")
+        self.data_files = {
+            key: value.strip()
+            for key, value in read_entries("data files", data_count).items()
+        }
+
+        while cursor < len(lines):
+            if lines[cursor].strip():
+                raise ValueError(
+                    f"data files: unexpected content after final section: "
+                    f"{lines[cursor].strip()!r}"
+                )
+            cursor += 1
+
+        self._flag_count = flag_count
+        self._text_variable_count = text_count
+        self._data_file_count = data_count
 
     def to_yaml_dict(self):
         """
@@ -728,14 +863,14 @@ class SimulationConfig:
             filepath (str): Path to the data file.
         """
         if isinstance(index, int) and index in self.data_file_dict:
-            if index in self.data_files:
-                self.data_files[index] = filepath
+            self.data_files[index] = filepath
         elif isinstance(index, str) and index in self.data_file_dict.values():
-            for key, val in self.data_files.items():
-                if val == index:
+            for key, description in self.data_file_dict.items():
+                if description == index:
                     self.data_files[key] = filepath
+                    return
         else:
-            raise ValueError("index must be an integer or string")
+            raise ValueError("index must be a valid integer or string")
 
     def get_data_file(self, index):
         """
@@ -748,13 +883,19 @@ class SimulationConfig:
             str: Path to the data file.
         """
         if isinstance(index, int) and index in self.data_file_dict:
-            return self.data_files[index]
+            key = index
         elif isinstance(index, str) and index in self.data_file_dict.values():
-            for key, val in self.data_files.items():
-                if val == index:
-                    return key
+            key = next(
+                candidate
+                for candidate, description in self.data_file_dict.items()
+                if description == index
+            )
         else:
-            raise ValueError("index must be an integer or string")
+            raise ValueError("index must be a valid integer or string")
+
+        if key not in self.data_files:
+            raise KeyError(f"No data file stored for slot {key}")
+        return self.data_files[key]
 
     def get_comment(self):
         return self.comment
@@ -815,12 +956,16 @@ class SimulationConfig:
                 # Write the formatted line to the file
                 file.write(f"{line}\n")
 
-            file.write(f"    30  # Simulation flags\n{self.flags}\n")
-            file.write(f"     {len(self.text_variables)}  # Text Variables\n")
-            for i in range(1, len(self.text_variables) + 1):
-                file.write(f"{self.text_variables[i]}\n")
-            file.write(f"    {len(self.data_files)} # Data files\n")
-            for i in range(1, 13):
+            file.write(f"{len(self.flags)}  # Simulation flags\n{self.flags}\n")
+
+            max_text_variable = max(self.text_variables) if self.text_variables else 0
+            file.write(f"{max_text_variable}  # Text Variables\n")
+            for i in range(1, max_text_variable + 1):
+                file.write(f"{self.text_variables.get(i, 'none')}\n")
+
+            max_data_file = max(self.data_files) if self.data_files else 0
+            file.write(f"{max_data_file} # Data files\n")
+            for i in range(1, max_data_file + 1):
                 filename = self.data_files.get(i, "none")
                 file.write(f"{filename:<60}\n")
 

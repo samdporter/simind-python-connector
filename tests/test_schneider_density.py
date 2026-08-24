@@ -15,6 +15,9 @@ from simind_python_connector.converters.attenuation import (
 )
 
 
+pytestmark = pytest.mark.unit
+
+
 class TestSchneiderData:
     """Test Schneider data loading and structure."""
 

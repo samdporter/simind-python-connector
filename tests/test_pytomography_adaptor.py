@@ -1,3 +1,4 @@
+import types
 from pathlib import Path
 
 import numpy as np
@@ -188,3 +189,87 @@ def test_pytomography_axis_helpers_roundtrip_through_simind_order() -> None:
     assert tuple(zyx.shape) == (4, 3, 2)
     assert tuple(restored.shape) == (2, 3, 4)
     assert torch.equal(restored, xyz)
+
+
+@pytest.mark.unit
+def test_pytomography_h00_branch_uses_pyto_reader(tmp_path: Path, monkeypatch):
+    """When a SIMIND .h00 exists the PyTomography reader supplies projections."""
+    import simind_python_connector.connectors.pytomography_adaptor as pyta
+
+    connector = _make_wired_connector(tmp_path, monkeypatch)
+
+    h00_path = tmp_path / "case01_tot_w1.h00"
+    h00_path.write_text("!INTERFILE :=\n!END OF INTERFILE :=\n")
+
+    reader_tensor = torch.arange(2 * 3 * 4, dtype=torch.float32).reshape(2, 3, 4)
+    monkeypatch.setattr(
+        pyta,
+        "pytomo_simind",
+        types.SimpleNamespace(
+            get_projections=lambda path: (
+                reader_tensor.clone()
+                if str(path).endswith(".h00")
+                else (_ for _ in ()).throw(AssertionError(path))
+            )
+        ),
+    )
+
+    outputs = connector.run()
+
+    assert torch.equal(outputs["tot_w1"], reader_tensor)
+    assert connector.get_output_header_path("tot_w1") == h00_path.resolve()
+
+
+@pytest.mark.unit
+def test_pytomography_fallback_branch_preserves_projection_values(
+    tmp_path: Path, monkeypatch
+):
+    """Without an .h00 the converter-generated data and .hs header are used."""
+    import simind_python_connector.connectors.pytomography_adaptor as pyta
+
+    connector = _make_wired_connector(tmp_path, monkeypatch)
+    monkeypatch.setattr(pyta, "pytomo_simind", None)
+
+    outputs = connector.run()
+    expected = connector._raw["tot_w1"].projection
+
+    assert torch.equal(outputs["tot_w1"], torch.from_numpy(expected))
+    assert (
+        connector.get_output_header_path("tot_w1")
+        == (tmp_path / "case01_tot_w1.hs").resolve()
+    )
+
+
+def _make_wired_connector(tmp_path: Path, monkeypatch):
+    from simind_python_connector.connectors.python_connector import ProjectionResult
+
+    connector = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        voxel_size_mm=4.0,
+    )
+
+    source = torch.zeros((4, 3, 2), dtype=torch.float32)
+    source[0, 0, 0] = 1.0
+    connector.set_source(source)
+    connector.set_mu_map(torch.zeros_like(source))
+    connector.set_energy_windows([126], [154], [0])
+
+    projection = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    raw_outputs = {
+        "tot_w1": ProjectionResult(
+            projection=projection,
+            header_path=tmp_path / "case01_tot_w1.hs",
+            data_path=tmp_path / "case01_tot_w1.a00",
+            metadata={"k": "v"},
+        )
+    }
+
+    connector._raw = raw_outputs
+    monkeypatch.setattr(
+        connector.python_connector,
+        "run",
+        lambda runtime_operator=None: raw_outputs,
+    )
+    return connector

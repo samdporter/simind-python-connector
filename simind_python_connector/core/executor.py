@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from .types import SimulationError
 
@@ -13,14 +14,19 @@ from .types import SimulationError
 class SimindExecutor:
     """Run SIMIND as a subprocess with optional MPI switch support."""
 
-    def __init__(self) -> None:
+    def __init__(self, executable: Union[str, Path, None] = None) -> None:
         self.logger = logging.getLogger(__name__)
+        if executable is not None:
+            self.executable = str(executable)
+        else:
+            self.executable = os.environ.get("SIMIND_BIN") or "simind"
 
     def run_simulation(
         self,
         output_prefix: str,
         orbit_file: Optional[Path] = None,
         runtime_switches: Optional[Dict] = None,
+        cwd: Union[str, Path, None] = None,
     ) -> None:
         mp_value = None
         if runtime_switches:
@@ -29,6 +35,7 @@ class SimindExecutor:
                     mp_value = value
                     break
 
+        validated_simind = self._validate_cli_token(self.executable)
         validated_output_prefix = self._validate_cli_token(output_prefix)
         validated_orbit_name = (
             self._validate_cli_token(orbit_file.name) if orbit_file else None
@@ -53,7 +60,7 @@ class SimindExecutor:
                 "mpirun",
                 "-np",
                 validated_mp_value,
-                "simind",
+                validated_simind,
                 validated_output_prefix,
                 validated_output_prefix,
             ]
@@ -63,7 +70,11 @@ class SimindExecutor:
             if validated_switch_blob is not None:
                 command.append(validated_switch_blob)
         else:
-            command = ["simind", validated_output_prefix, validated_output_prefix]
+            command = [
+                validated_simind,
+                validated_output_prefix,
+                validated_output_prefix,
+            ]
             if validated_orbit_name is not None:
                 command.append(validated_orbit_name)
             if validated_switch_blob is not None:
@@ -71,7 +82,7 @@ class SimindExecutor:
 
         self.logger.info("Running SIMIND: %s", " ".join(command))
         try:
-            subprocess.run(command, check=True, shell=False)
+            subprocess.run(command, check=True, shell=False, cwd=cwd)
         except OSError as exc:
             raise SimulationError(f"Unable to execute SIMIND command: {exc}") from exc
         except subprocess.CalledProcessError as exc:

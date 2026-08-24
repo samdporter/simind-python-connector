@@ -49,6 +49,16 @@ def _has_supported_function_marker(source: str, node: ast.FunctionDef) -> bool:
     return False
 
 
+def _class_has_supported_marker(source: str, node: ast.ClassDef) -> bool:
+    for decorator in node.decorator_list:
+        segment = ast.get_source_segment(source, decorator) or ""
+        if "pytest.mark" in segment and any(
+            marker in segment for marker in ALLOWED_MARKERS
+        ):
+            return True
+    return False
+
+
 def test_all_tests_have_dependency_or_category_marker() -> None:
     missing: list[str] = []
 
@@ -58,15 +68,50 @@ def test_all_tests_have_dependency_or_category_marker() -> None:
         module_marked = _has_supported_module_marker(source, tree)
 
         for node in tree.body:
-            if not isinstance(node, ast.FunctionDef):
-                continue
-            if not node.name.startswith("test_"):
-                continue
-            if module_marked or _has_supported_function_marker(source, node):
-                continue
-            missing.append(f"{path.name}:{node.name}")
+            if isinstance(node, ast.FunctionDef):
+                if not node.name.startswith("test_"):
+                    continue
+                if module_marked or _has_supported_function_marker(source, node):
+                    continue
+                missing.append(f"{path.name}:{node.name}")
+            elif isinstance(node, ast.ClassDef):
+                class_marked = _class_has_supported_marker(source, node)
+                for child in node.body:
+                    if not isinstance(child, ast.FunctionDef):
+                        continue
+                    if not child.name.startswith("test_"):
+                        continue
+                    if (
+                        module_marked
+                        or class_marked
+                        or (_has_supported_function_marker(source, child))
+                    ):
+                        continue
+                    missing.append(f"{path.name}:{node.name}.{child.name}")
 
     assert not missing, (
-        "Every test must have a dependency/category marker via function decorator "
-        "or module-level pytestmark. Missing:\n- " + "\n- ".join(missing)
+        "Every test must have a dependency/category marker via function "
+        "decorator, class decorator, or module-level pytestmark. Missing:\n- "
+        + "\n- ".join(missing)
     )
+
+
+def test_pytest_ci_configuration_registers_markers_and_uses_pytest_section():
+    import configparser
+
+    parser = configparser.ConfigParser()
+    parser.read(ROOT.parent / "pytest-ci.ini")
+
+    assert parser.has_section("pytest"), "pytest-ci.ini must use a [pytest] section"
+    markers = parser["pytest"]["markers"]
+    for required in (
+        "slow",
+        "requires_stir",
+        "requires_pytomography",
+        "requires_cil",
+        "requires_setr",
+    ):
+        assert required in markers, f"missing marker registration: {required}"
+    addopts = parser["pytest"]["addopts"]
+    assert "-m" in addopts
+    assert "not requires_simind" in addopts

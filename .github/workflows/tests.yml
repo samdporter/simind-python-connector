@@ -28,7 +28,7 @@ jobs:
           ruff format --check .
       - name: Run CI-friendly tests
         run: |
-          python -m pytest tests/ -v -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not requires_setr and not ci_skip" --cov=simind_python_connector --cov-report=xml
+          python -m pytest -c pytest-ci.ini -v --cov=simind_python_connector --cov-report=xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -55,3 +55,19 @@ jobs:
       - name: Check package
         run: |
           twine check dist/*
+      - name: Smoke-test wheel resources
+        run: |
+          python -m venv /tmp/wheel-env
+          /tmp/wheel-env/bin/pip install --quiet dist/*.whl
+          /tmp/wheel-env/bin/python -c 'from simind_python_connector.configs import get; assert get("input.smc").is_file()'
+          /tmp/wheel-env/bin/python -c 'from simind_python_connector.data import data_path; assert data_path("h2o.atn").is_file()'
+
+  container-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core container validation
+        run: bash scripts/run_container_validation.sh --only-core
+
+      - name: Core container examples (SIMIND optional)
+        run: bash scripts/run_container_examples.sh --only-core || echo "::warning::Core examples require SIMIND; skipped."

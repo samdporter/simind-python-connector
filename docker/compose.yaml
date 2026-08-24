@@ -8,9 +8,9 @@ services:
     environment:
       SIMIND_CONNECTOR_BACKEND: python
       SIMIND_ROOT: /workspace/simind
-      SIMIND_BIN: /workspace/simind/simind
-      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
-      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
+      SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}
+      SIMIND_SMC_DIR: ${SIMIND_SMC_DIR:-/workspace/simind/smc_dir/}
       SIMIND_DATA_DIR: /workspace/simind/smc_dir/
       SMC_DIR: /workspace/simind/smc_dir/
     volumes:
@@ -26,9 +26,9 @@ services:
     environment:
       SIMIND_CONNECTOR_BACKEND: stir
       SIMIND_ROOT: /workspace/simind
-      SIMIND_BIN: /workspace/simind/simind
-      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
-      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
+      SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}
+      SIMIND_SMC_DIR: ${SIMIND_SMC_DIR:-/workspace/simind/smc_dir/}
       SIMIND_DATA_DIR: /workspace/simind/smc_dir/
       SMC_DIR: /workspace/simind/smc_dir/
     volumes:
@@ -44,9 +44,9 @@ services:
     environment:
       SIMIND_CONNECTOR_BACKEND: sirf
       SIMIND_ROOT: /workspace/simind
-      SIMIND_BIN: /workspace/simind/simind
-      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
-      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
+      SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}
+      SIMIND_SMC_DIR: ${SIMIND_SMC_DIR:-/workspace/simind/smc_dir/}
       SIMIND_DATA_DIR: /workspace/simind/smc_dir/
       SMC_DIR: /workspace/simind/smc_dir/
     volumes:
@@ -54,7 +54,6 @@ services:
     command: python examples/07B_sirf_adaptor_osem.py
 
   pytomography:
-    platform: linux/amd64
     build:
       context: ..
       dockerfile: docker/pytomography/Dockerfile
@@ -63,9 +62,9 @@ services:
     environment:
       SIMIND_CONNECTOR_BACKEND: pytomography
       SIMIND_ROOT: /workspace/simind
-      SIMIND_BIN: /workspace/simind/simind
-      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
-      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
+      SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}
+      SIMIND_SMC_DIR: ${SIMIND_SMC_DIR:-/workspace/simind/smc_dir/}
       SIMIND_DATA_DIR: /workspace/simind/smc_dir/
       SMC_DIR: /workspace/simind/smc_dir/
     volumes:

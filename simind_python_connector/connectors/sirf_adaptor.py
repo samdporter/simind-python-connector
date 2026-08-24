@@ -79,6 +79,9 @@ class SirfSimindAdaptor(BaseConnector):
         self.python_connector.add_runtime_switch(switch, value)
 
     def run(self, runtime_operator: Optional[RuntimeOperator] = None) -> dict[str, Any]:
+        # Drop cached outputs before validation so a failed rerun can never
+        # expose results from a previous successful run.
+        self._outputs = None
         self._validate_inputs()
         assert self._source is not None
         assert self._mu_map is not None

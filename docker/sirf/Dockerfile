@@ -20,7 +20,7 @@ WORKDIR /workspace
 COPY --chown=1000:100 . /workspace
 
 RUN python -m pip install --upgrade pip \
-    && pip install -e ".[dev,examples]" \
+    && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
     && python - <<'PY'
 import importlib
 for module in ("sirf.STIR", "pytest"):

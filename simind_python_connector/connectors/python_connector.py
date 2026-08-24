@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import math
 import os
 import shutil
 from dataclasses import dataclass, field
@@ -62,11 +63,12 @@ class SimindPythonConnector(BaseConnector):
         quantization_scale: float = 1.0,
     ) -> None:
         self.logger = logging.getLogger(__name__)
+        self._validate_output_prefix(output_prefix)
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_prefix = output_prefix
         self.quantization_scale = float(quantization_scale)
-        if self.quantization_scale <= 0:
+        if not math.isfinite(self.quantization_scale) or self.quantization_scale <= 0:
             raise ValueError("quantization_scale must be > 0")
 
         self.config = self._initialize_config(config_source)
@@ -77,9 +79,27 @@ class SimindPythonConnector(BaseConnector):
         self._outputs: Optional[dict[str, ProjectionResult]] = None
 
     @staticmethod
+    def _validate_output_prefix(prefix: str) -> None:
+        """Reject prefixes that could escape the output directory."""
+        if (
+            not isinstance(prefix, str)
+            or not prefix
+            or prefix in {".", ".."}
+            or "/" in prefix
+            or "\\" in prefix
+            or Path(prefix).is_absolute()
+        ):
+            raise ValueError(f"output_prefix must be a plain filename, got {prefix!r}")
+
+    @staticmethod
     def _initialize_config(config_source: ConfigSource) -> SimulationConfig:
         if isinstance(config_source, SimulationConfig):
             return config_source
+
+        if not isinstance(config_source, (str, os.PathLike)):
+            # importlib.resources Traversable from configs.get(): hand it to
+            # SimulationConfig untouched (supports zipped installs).
+            return SimulationConfig(config_source)
 
         config_path = Path(config_source).expanduser().resolve()
         if not config_path.exists():
@@ -124,14 +144,30 @@ class SimindPythonConnector(BaseConnector):
             raise ValueError("source and mu_map must have identical shapes")
 
         vox_cm = float(voxel_size_mm) / SIMIND_VOXEL_UNIT_CONVERSION
-        if vox_cm <= 0:
+        if not math.isfinite(vox_cm) or vox_cm <= 0:
             raise ValueError("voxel_size_mm must be > 0")
+        if source_array.size == 0 or mu_map_array.size == 0:
+            raise ValueError("source and mu_map must not be empty")
+        if not np.isfinite(source_array).all() or not np.isfinite(mu_map_array).all():
+            raise ValueError("source and mu_map must contain only finite values")
+        if (source_array < 0).any() or (mu_map_array < 0).any():
+            raise ValueError("source and mu_map must be non-negative")
 
-        routine = (
-            ScoringRoutine(scoring_routine)
-            if isinstance(scoring_routine, int)
-            else scoring_routine
-        )
+        if isinstance(scoring_routine, ScoringRoutine):
+            routine = scoring_routine
+        elif isinstance(scoring_routine, int) and not isinstance(scoring_routine, bool):
+            try:
+                routine = ScoringRoutine(scoring_routine)
+            except ValueError as exc:
+                raise ValueError(
+                    f"scoring_routine {scoring_routine!r} is not a valid "
+                    "ScoringRoutine value"
+                ) from exc
+        else:
+            raise ValueError(
+                "scoring_routine must be a ScoringRoutine or int, got "
+                f"{type(scoring_routine).__name__}"
+            )
         dim_z, dim_y, dim_x = (int(v) for v in source_array.shape)
 
         cfg = self.config
@@ -156,8 +192,10 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(31, vox_cm)
         cfg.set_value(33, 1)
         cfg.set_value(34, dim_z)
-        cfg.set_value(78, dim_x)
-        cfg.set_value(79, dim_y)
+        cfg.set_value(78, dim_x)  # density map i
+        cfg.set_value(79, dim_x)  # source map i
+        cfg.set_value(81, dim_y)  # density map j
+        cfg.set_value(82, dim_y)  # source map j
 
         self.runtime_switches.set_switch("PX", vox_cm)
 
@@ -211,22 +249,27 @@ class SimindPythonConnector(BaseConnector):
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
 
+        # Runtime-operator switches apply to this run only; merge them into
+        # a throwaway switch set instead of persistent connector state.
+        run_switches_holder = RuntimeSwitches()
+        for key, value in self.runtime_switches.switches.items():
+            run_switches_holder.set_switch(key, value)
         orbit_file = None
         if runtime_operator is not None:
-            self.set_runtime_switches(runtime_operator.switches)
+            for key, value in runtime_operator.switches.items():
+                run_switches_holder.set_switch(key, value)
             orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
 
         config_path = self.output_dir / self.output_prefix
         self.config.save_file(config_path)
 
-        original_cwd = Path.cwd()
-        try:
-            os.chdir(self.output_dir)
-            self.executor.run_simulation(
-                self.output_prefix, orbit_file, self.runtime_switches.switches
-            )
-        finally:
-            os.chdir(original_cwd)
+        self._clear_previous_outputs()
+        self.executor.run_simulation(
+            self.output_prefix,
+            orbit_file,
+            run_switches_holder.switches,
+            cwd=self.output_dir,
+        )
 
         header_files = self._ensure_interfile_headers()
         self._outputs = self._load_projection_outputs(header_files)
@@ -240,6 +283,40 @@ class SimindPythonConnector(BaseConnector):
 
     def get_config(self) -> SimulationConfig:
         return self.config
+
+    _OUTPUT_SUFFIXES = {".h00", ".hs", ".a00", ".s", ".win"}
+
+    def _clear_previous_outputs(self) -> None:
+        """Delete stale outputs from earlier runs sharing this prefix.
+
+        Connector-written inputs (``{prefix}_src.smi`` / ``{prefix}_dns.dmi``)
+        are protected because SIMIND still needs them on disk.
+        """
+        protected = {
+            f"{self.output_prefix}_src.smi",
+            f"{self.output_prefix}_dns.dmi",
+            # Energy-window input written via set_energy_windows()
+            f"{self.output_prefix}.win",
+        }
+        for slot in (5, 6):
+            try:
+                protected.add(self.config.get_data_file(slot))
+            except KeyError:
+                pass
+        for path in sorted(self.output_dir.iterdir()):
+            if not path.is_file() or path.name in protected:
+                continue
+            stem_ok = path.stem == self.output_prefix or path.stem.startswith(
+                f"{self.output_prefix}_"
+            )
+            if not stem_ok:
+                continue
+            if path.suffix in self._OUTPUT_SUFFIXES or (
+                path.suffix.startswith(".b")
+                and path.suffix[2:].isdigit()
+                and path.stem == self.output_prefix
+            ):
+                path.unlink()
 
     def _prepare_orbit_file(self, orbit_file: Optional[PathLike]) -> Optional[Path]:
         if orbit_file is None:
@@ -273,12 +350,18 @@ class SimindPythonConnector(BaseConnector):
                 self.output_dir.glob(f"{self.output_prefix}_component_*.hs")
             )
         else:
-            h00_files = sorted(self.output_dir.glob(f"*{self.output_prefix}*.h00"))
+            h00_files = sorted(
+                set(self.output_dir.glob(f"{self.output_prefix}_*.h00"))
+                | set(self.output_dir.glob(f"{self.output_prefix}.h00"))
+            )
             for h00_file in h00_files:
                 hs_file = h00_file.with_suffix(".hs")
                 self.converter.convert_file(str(h00_file), str(hs_file))
 
-            hs_files = sorted(self.output_dir.glob(f"*{self.output_prefix}*.hs"))
+            hs_files = sorted(
+                set(self.output_dir.glob(f"{self.output_prefix}_*.hs"))
+                | {h00_file.with_suffix(".hs") for h00_file in h00_files}
+            )
         if not hs_files:
             raise FileNotFoundError(
                 f"No projection headers (.hs) found for prefix {self.output_prefix!r} "

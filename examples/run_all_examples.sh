@@ -140,13 +140,17 @@ run_example() {
         return 0
     fi
 
-    # Build command with optional backend argument
+    # Build command with optional backend argument.
+    # Only examples that define --backend accept it.
     local cmd="python3 $example"
 
-    # Add backend argument if specified
-    if [[ -n "$BACKEND" ]]; then
-        cmd="$cmd --backend $BACKEND"
-    fi
+    case "$example" in
+        04_custom_config.py|06_schneider_density_conversion.py)
+            if [[ -n "$BACKEND" ]]; then
+                cmd="$cmd --backend $BACKEND"
+            fi
+            ;;
+    esac
 
     # Run the command and capture output
     if eval "$cmd" > "$log_file" 2>&1; then
