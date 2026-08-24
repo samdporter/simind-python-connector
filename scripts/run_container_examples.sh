@@ -166,15 +166,65 @@ run_service() {
     local service="$1"
     shift
     local command="$*"
+    local compose_args=(run --rm)
+    if [[ "$DO_BUILD" -eq 0 ]]; then
+        compose_args+=(--no-build)
+    fi
+    local simind_env_args=()
+    if [[ "$SIMIND_AVAILABLE" -eq 1 ]]; then
+        local container_bin="/workspace/${SIMIND_PATH#$ROOT_DIR/}"
+        simind_env_args+=(
+            -e "SIMIND_BIN=$container_bin"
+            -e "SIMIND_SMC_DIR=$(dirname "$container_bin")/smc_dir/"
+        )
+    fi
     if [[ -n "$SIMIND_CONTAINER_DIR" ]]; then
         command="export PATH=\"$SIMIND_CONTAINER_DIR:\$PATH\"; $command"
     fi
     echo
     echo "[$service] $command"
     if [[ -n "$DOCKER_PLATFORM" ]]; then
-        DOCKER_DEFAULT_PLATFORM="$DOCKER_PLATFORM" docker compose -f "$COMPOSE_FILE" run --rm "$service" bash -lc "$command"
+        DOCKER_DEFAULT_PLATFORM="$DOCKER_PLATFORM" docker compose -f "$COMPOSE_FILE" \
+            "${compose_args[@]}" "${simind_env_args[@]}" "$service" bash -lc "$command"
     else
-        docker compose -f "$COMPOSE_FILE" run --rm "$service" bash -lc "$command"
+        docker compose -f "$COMPOSE_FILE" \
+            "${compose_args[@]}" "${simind_env_args[@]}" "$service" bash -lc "$command"
+    fi
+}
+
+
+SERVICE_IMAGES=(
+    python=simind-python-connector/python:dev
+    stir=simind-python-connector/stir:dev
+    sirf=simind-python-connector/sirf:dev
+    pytomography=simind-python-connector/pytomography:dev
+)
+
+image_for_service() {
+    local service="$1"
+    local entry
+    for entry in "${SERVICE_IMAGES[@]}"; do
+        if [[ "${entry%%=*}" == "$service" ]]; then
+            echo "${entry#*=}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+ensure_images_present() {
+    local service image missing=()
+    for service in "${SERVICES_TO_BUILD[@]}"; do
+        image="$(image_for_service "$service")"
+        if ! docker image inspect "$image" >/dev/null 2>&1; then
+            missing+=("$image")
+        fi
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "ERROR: --no-build requested but missing images:" >&2
+        printf '  - %s\n' "${missing[@]}" >&2
+        echo "Build them first (rerun without --no-build)." >&2
+        exit 1
     fi
 }
 
@@ -202,6 +252,7 @@ if [[ "$DO_BUILD" -eq 1 ]]; then
     fi
 else
     echo "[1/2] Skipping build step (--no-build)."
+    ensure_images_present
 fi
 
 echo "[2/2] Running selected examples..."

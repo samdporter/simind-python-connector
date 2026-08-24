@@ -32,8 +32,10 @@ def parse_interfile_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     """
     line = line.strip()
 
-    # Skip comments, empty lines, and section headers
-    if not line or line.startswith(";") or line.startswith("#") or line.endswith(":="):
+    # Skip comments, empty lines, and section headers. STIR-style keys that
+    # begin with '#' (e.g. '# scaling factor (mm/pixel) [3]') are kept when
+    # they carry a ':=' assignment.
+    if not line or line.startswith(";") or line.endswith(":="):
         return None, None
 
     # Handle := separator (preferred)

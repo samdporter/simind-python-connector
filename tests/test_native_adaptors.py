@@ -183,28 +183,32 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
     assert np.asarray(captured["mu_map"]).dtype == np.float32
     assert np.asarray(captured["source"]).shape == (2, 3, 4)
     assert np.asarray(captured["mu_map"]).shape == (2, 3, 4)
-    assert captured["voxel_size_mm"] == pytest.approx(4.25)
+    assert captured["voxel_size_mm"] == pytest.approx(1.0)
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
     assert captured["runtime_operator"] is runtime_operator
 
 
 def test_stir_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> None:
+    """Package contract: images report spacing as (z, y, x); the z component
+    is the first spatial element."""
     voxel_sizes_image = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (2.0, 1.0, 4.0)
     )
     assert StirSimindAdaptor._extract_voxel_size_mm(voxel_sizes_image) == pytest.approx(
-        4.0
+        2.0
     )
 
+    # Four-element raw sequences follow STIR's (unused, z, y, x) layout
     spacing_4d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (0.0, 1.0, 2.0, 5.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (0.0, 2.0, 2.0, 5.0)
     )
     assert StirSimindAdaptor._extract_voxel_size_mm(spacing_4d_image) == pytest.approx(
-        5.0
+        2.0
     )
 
+    # Three-element sequences are already in (z, y, x) order
     spacing_3d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 2.0, 6.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (6.0, 2.0, 1.0)
     )
     assert StirSimindAdaptor._extract_voxel_size_mm(spacing_3d_image) == pytest.approx(
         6.0
@@ -331,28 +335,32 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
     assert np.asarray(captured["mu_map"]).dtype == np.float32
     assert np.asarray(captured["source"]).shape == (2, 3, 4)
     assert np.asarray(captured["mu_map"]).shape == (2, 3, 4)
-    assert captured["voxel_size_mm"] == pytest.approx(3.75)
+    assert captured["voxel_size_mm"] == pytest.approx(1.0)
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
     assert captured["runtime_operator"] is runtime_operator
 
 
 def test_sirf_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> None:
+    """Package contract: images report spacing as (z, y, x); the z component
+    is the first spatial element."""
     voxel_sizes_image = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (3.0, 1.0, 4.0)
     )
     assert SirfSimindAdaptor._extract_voxel_size_mm(voxel_sizes_image) == pytest.approx(
-        4.0
+        3.0
     )
 
+    # Four-element raw sequences follow STIR's (unused, z, y, x) layout
     spacing_4d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (0.0, 1.0, 2.0, 5.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (0.0, 3.0, 2.0, 5.0)
     )
     assert SirfSimindAdaptor._extract_voxel_size_mm(spacing_4d_image) == pytest.approx(
-        5.0
+        3.0
     )
 
+    # Three-element sequences are already in (z, y, x) order
     spacing_3d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 2.0, 6.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (6.0, 2.0, 1.0)
     )
     assert SirfSimindAdaptor._extract_voxel_size_mm(spacing_3d_image) == pytest.approx(
         6.0
@@ -387,3 +395,51 @@ def test_sirf_adaptor_missing_component_errors_list_available_keys(
         adaptor.get_scatter_output()
     with pytest.raises(KeyError, match="Available: tot_w1"):
         adaptor.get_penetrate_output("all_interactions")
+
+
+def test_stir_adaptor_clears_cached_outputs_on_failed_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_stir_backend(monkeypatch)
+    adaptor = _make_adaptor(StirSimindAdaptor, tmp_path)
+    _assert_failed_rerun_clears_cache(adaptor)
+
+
+def test_sirf_adaptor_clears_cached_outputs_on_failed_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_sirf_backend(monkeypatch)
+    adaptor = _make_adaptor(SirfSimindAdaptor, tmp_path)
+    _assert_failed_rerun_clears_cache(adaptor)
+
+
+def _make_adaptor(cls, tmp_path: Path):
+    adaptor = cls(
+        config_source=get("AnyScan.yaml"),
+        output_dir=str(tmp_path),
+        output_prefix="case01",
+    )
+    source = _ImageWithVoxelSizes(
+        np.zeros((2, 3, 4), dtype=np.float32), (2.0, 1.0, 4.0)
+    )
+    adaptor.set_source(source)
+    adaptor.set_mu_map(
+        _ImageWithVoxelSizes(np.zeros_like(source.array), (2.0, 1.0, 4.0))
+    )
+    return adaptor
+
+
+def _assert_failed_rerun_clears_cache(adaptor) -> None:
+    adaptor._outputs = {"stale": object()}  # type: ignore[assignment]
+
+    def failing_run(runtime_operator=None):
+        raise RuntimeError("simulated failure")
+
+    adaptor.python_connector.run = failing_run  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError, match="simulated failure"):
+        adaptor.run()
+
+    assert adaptor._outputs is None
+    with pytest.raises(RuntimeError, match="Run the adaptor first"):
+        adaptor.get_outputs()

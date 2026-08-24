@@ -5,6 +5,8 @@ These tests verify that the backend system correctly detects and switches
 between SIRF and STIR Python backends.
 """
 
+from pathlib import Path
+
 import pytest
 
 
@@ -287,3 +289,79 @@ def test_arithmetic_operations():
         assert hasattr(StirImageData, "__sub__")
         assert hasattr(StirImageData, "__mul__")
         assert hasattr(StirImageData, "__truediv__")
+
+
+def _install_fake_stir(monkeypatch):
+    """Install a complete fake 'stir' backend for every lookup path."""
+    import types
+
+    import simind_python_connector.backends.stir_backend as stir_backend
+
+    class _FakeVoxels:
+        @staticmethod
+        def read_from_file(filepath):
+            return ("image", filepath)
+
+    class _FakeProjData:
+        @staticmethod
+        def read_from_file(filepath):
+            return ("acquisition", filepath)
+
+    class _FakeProjDataInMemory:
+        def __init__(self, obj):
+            self.obj = obj
+
+    fake_stir = types.ModuleType("stir")
+    fake_stir.FloatVoxelsOnCartesianGrid = _FakeVoxels
+    fake_stir.ProjData = _FakeProjData
+    fake_stir.ProjDataInMemory = _FakeProjDataInMemory
+    fake_stirextra = types.ModuleType("stirextra")
+
+    # The backend factory resolves modules through sys.modules, while the
+    # cached wrapper holds direct references; patch both.
+    import sys
+
+    monkeypatch.setitem(sys.modules, "stir", fake_stir)
+    monkeypatch.setitem(sys.modules, "stirextra", fake_stirextra)
+    monkeypatch.setattr(stir_backend, "stir", fake_stir, raising=False)
+    monkeypatch.setattr(stir_backend, "stirextra", fake_stirextra, raising=False)
+    monkeypatch.setattr(stir_backend, "STIR_AVAILABLE", True, raising=False)
+
+
+@pytest.mark.unit
+def test_create_image_data_accepts_path_objects(monkeypatch):
+    """os.PathLike inputs are normalised before backend dispatch."""
+    from simind_python_connector.backends import (
+        create_image_data,
+        reset_backend,
+        set_backend,
+    )
+
+    _install_fake_stir(monkeypatch)
+
+    reset_backend()
+    try:
+        set_backend("stir")
+        wrapped = create_image_data(Path("/tmp/phantom.hv"))
+        assert wrapped.native_object == ("image", "/tmp/phantom.hv")
+    finally:
+        reset_backend()
+
+
+@pytest.mark.unit
+def test_create_acquisition_data_accepts_path_objects(monkeypatch):
+    from simind_python_connector.backends import (
+        create_acquisition_data,
+        reset_backend,
+        set_backend,
+    )
+
+    _install_fake_stir(monkeypatch)
+
+    reset_backend()
+    try:
+        set_backend("stir")
+        wrapped = create_acquisition_data(Path("/tmp/proj.hs"))
+        assert wrapped.native_object.obj == ("acquisition", "/tmp/proj.hs")
+    finally:
+        reset_backend()

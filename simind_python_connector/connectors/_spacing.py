@@ -17,9 +17,11 @@ def _voxel_size_from_spacing(spacing: Any) -> float | None:
 
     if values:
         if len(values) >= 4:
-            return float(values[3])
-        if len(values) >= 3:
-            return float(values[2])
+            # Raw STIR-style coordinate sequence: (unused, z, y, x)
+            return float(values[1])
+        if len(values) == 3:
+            # Public (z, y, x) convention
+            return float(values[0])
 
     if hasattr(spacing, "z"):
         try:
@@ -44,12 +46,16 @@ def _voxel_size_from_spacing(spacing: Any) -> float | None:
 
 
 def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
-    """Extract z voxel spacing in mm from backend image metadata."""
+    """Extract z voxel spacing in mm from backend image metadata.
+
+    Backend images report ``voxel_sizes()`` in ``(z, y, x)`` order, so the
+    first element is the z spacing.
+    """
     if hasattr(image, "voxel_sizes"):
         voxel_sizes = image.voxel_sizes()
         try:
             if len(voxel_sizes) >= 3:
-                return float(voxel_sizes[2])
+                return float(voxel_sizes[0])
         except Exception:
             pass
 

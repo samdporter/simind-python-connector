@@ -28,8 +28,9 @@ if BLOCKED_IMPORTS:
         def find_spec(self, fullname, path=None, target=None):
             root = fullname.split(".", 1)[0]
             if root in BLOCKED_IMPORTS:
-                raise ImportError(
-                    f"Module '{root}' is blocked in this backend-isolated container."
+                raise ModuleNotFoundError(
+                    f"Module '{root}' is blocked in this backend-isolated container.",
+                    name=root,
                 )
             return None
 
@@ -42,8 +43,9 @@ if BLOCKED_IMPORTS:
     def _guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
         root = name.split(".", 1)[0]
         if root in BLOCKED_IMPORTS:
-            raise ImportError(
-                f"Module '{root}' is blocked in this backend-isolated container."
+            raise ModuleNotFoundError(
+                f"Module '{root}' is blocked in this backend-isolated container.",
+                name=root,
             )
         return _ORIGINAL_IMPORT(name, globals, locals, fromlist, level)
 

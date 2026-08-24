@@ -57,7 +57,9 @@ def get_attenuation_coefficient(material, energy, file_path=None):
         raise ValueError("Unknown material. Accepted values are 'water' or 'bone'.")
 
     if file_path:
-        filepath = Path(file_path) / filename
+        # filename may already be an absolute packaged path; join only its
+        # basename so the override directory is honoured.
+        filepath = Path(file_path) / Path(str(filename)).name
     else:
         filepath = get_package_data_path(filename)
 

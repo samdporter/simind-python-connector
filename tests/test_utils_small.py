@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from simind_python_connector.utils.io_utils import temporary_directory
@@ -17,6 +19,47 @@ def test_create_window_file_writes_expected_lines(tmp_path):
     assert lines[0] == "140.0,160.0,0"
     # Additional scatter-only line should be appended to encourage SIMIND output
     assert lines[-1].endswith(",1")
+
+
+@pytest.mark.unit
+def test_create_window_file_rejects_empty_windows(tmp_path):
+    with pytest.raises(ValueError, match="provided"):
+        create_window_file([], [], [], output_filename=str(tmp_path / "w"))
+
+
+@pytest.mark.unit
+def test_create_window_file_rejects_mismatched_lengths(tmp_path):
+    with pytest.raises(ValueError, match="same length"):
+        create_window_file([120, 130], [140], [0], output_filename=str(tmp_path / "w"))
+
+
+@pytest.mark.unit
+def test_create_window_file_rejects_inverted_bounds(tmp_path):
+    with pytest.raises(ValueError, match="lower"):
+        create_window_file([150.0], [140.0], [0], output_filename=str(tmp_path / "w"))
+    with pytest.raises(ValueError, match="lower"):
+        create_window_file([140.0], [140.0], [0], output_filename=str(tmp_path / "w"))
+
+
+@pytest.mark.unit
+def test_create_window_file_rejects_non_finite_bounds(tmp_path):
+    for bad in (math.nan, math.inf, -math.inf):
+        with pytest.raises(ValueError, match="finite"):
+            create_window_file([bad], [160.0], [0], output_filename=str(tmp_path / "w"))
+        with pytest.raises(ValueError, match="finite"):
+            create_window_file([120.0], [bad], [0], output_filename=str(tmp_path / "w"))
+
+
+@pytest.mark.unit
+def test_create_window_file_rejects_negative_scatter_orders(tmp_path):
+    with pytest.raises(ValueError, match="[Ss]catter"):
+        create_window_file([120.0], [140.0], [-1], output_filename=str(tmp_path / "w"))
+
+
+@pytest.mark.unit
+def test_create_window_file_rejects_non_integral_scatter_orders(tmp_path):
+    with pytest.raises(ValueError, match="[Ss]catter"):
+        create_window_file([120.0], [140.0], [1.5], output_filename=str(tmp_path / "w"))
 
 
 @pytest.mark.unit

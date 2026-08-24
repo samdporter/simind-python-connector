@@ -18,7 +18,7 @@ WORKDIR /workspace
 COPY . /workspace
 
 RUN python -m pip install --upgrade pip \
-    && pip install -e ".[dev,examples]" \
+    && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
     && python - <<'PY'
 import importlib
 for module in ("numpy", "matplotlib", "pytest"):

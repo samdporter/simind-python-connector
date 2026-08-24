@@ -7,6 +7,126 @@ from simind_python_connector.utils.interfile_numpy import load_interfile_array
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "offset_key",
+    (
+        "!data offset in bytes",
+        "data offset in bytes",
+        "data_offset_in_bytes",
+    ),
+)
+def test_load_interfile_array_respects_data_offset(tmp_path: Path, offset_key: str):
+    data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    prefix = b"\xde\xad\xbe\xef"
+    data_path.write_bytes(prefix + data.tobytes())
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                f"{offset_key} := 4",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    loaded = load_interfile_array(header_path)
+
+    assert loaded.data_path == data_path.resolve()
+    assert np.array_equal(loaded.array, data)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_strips_quoted_data_filename(tmp_path: Path):
+    data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    data.tofile(data_path)
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                '!name of data file := "projection.a00"',
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    loaded = load_interfile_array(header_path)
+
+    assert loaded.data_path == data_path.resolve()
+    assert np.array_equal(loaded.array, data)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_rejects_truncated_payload(tmp_path: Path):
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    np.arange(20, dtype=np.float32).tofile(data_path)
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="Data size mismatch"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_rejects_trailing_payload(tmp_path: Path):
+    data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    header_path = tmp_path / "projection.hs"
+    (tmp_path / "projection.a00").write_bytes(data.tobytes() + b"\x00\x00\x00\x00")
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="Data size mismatch"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
 def test_load_interfile_array_round_trip(tmp_path: Path):
     data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
     data_path = tmp_path / "projection.a00"
@@ -88,7 +208,12 @@ def test_load_interfile_array_infers_projection_axis_from_header(tmp_path: Path)
 
 
 @pytest.mark.unit
-def test_load_interfile_array_prefers_header_projection_count(tmp_path: Path):
+def test_load_interfile_array_rejects_projection_count_payload_mismatch(
+    tmp_path: Path,
+):
+    """A header projection count below the payload must be an error, not a
+    silent truncation: the extra planes may be additional energy windows or
+    corrupted data."""
     data = np.arange(3 * 3 * 4, dtype=np.float32).reshape(3, 3, 4)
     data_path = tmp_path / "projection.a00"
     header_path = tmp_path / "projection.hs"
@@ -110,9 +235,8 @@ def test_load_interfile_array_prefers_header_projection_count(tmp_path: Path):
         )
     )
 
-    loaded = load_interfile_array(header_path)
-    assert loaded.array.shape == (2, 3, 4)
-    assert np.array_equal(loaded.array, data[:2, :, :])
+    with pytest.raises(ValueError, match="Data size mismatch"):
+        load_interfile_array(header_path)
 
 
 @pytest.mark.unit

@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 class ConversionConfig:
     """Configuration for SIMIND to STIR conversion."""
 
-    radius_scale_factor: float = 10.0  # cm to mm
+    radius_scale_factor: float = 1.0  # pass-through; SIMIND writes Radius in mm
     angle_offset: float = 180.0  # degrees
     default_number_format: str = "float"
     ignored_patterns: List[str] = None
@@ -74,9 +74,9 @@ class RadiusConversionRule(ConversionRule):
 
     def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         try:
-            # Assume .h00 files contain radius in mm (SIMIND's inconsistent behavior)
-            # So use radius value as-is for STIR (which expects mm)
-            radius_value = float(line.split()[-1])
+            # Apply the configured scale factor (default 1.0 keeps SIMIND's
+            # millimetre Radius values unchanged).
+            radius_value = float(line.split()[-1]) * self.scale_factor
             return f"Radius := {radius_value}", context
         except (ValueError, IndexError) as e:
             logging.warning(f"Failed to convert radius line '{line}': {e}")
@@ -283,6 +283,10 @@ class SimindToStirConverter:
     ) -> List[ConversionRule]:
         """Create conversion rules in order of priority."""
         return [
+            # Data-file names must be rewritten before ignore rules run:
+            # ignored substrings such as "patient" otherwise comment out
+            # data files whose paths happen to contain them.
+            DataFileNameRule(data_file_override),
             IgnorePatternRule(self.config.ignored_patterns),
             OrbitFileRule(self.input_file_dir),  # Process orbit file before other rules
             RadiusConversionRule(self.config.radius_scale_factor),
@@ -293,7 +297,6 @@ class SimindToStirConverter:
             ImageDurationRule(),
             EnergyWindowRule("lower"),
             EnergyWindowRule("upper"),
-            DataFileNameRule(data_file_override),
         ]
 
     def convert_line(
@@ -507,12 +510,11 @@ class SimindToStirConverter:
             self.logger.warning(f"No .h00 file found with prefix {output_prefix}")
             return None
         else:
-            # Multiple .h00 files - this might be scattwin, not penetrate
-            self.logger.warning(
-                "Multiple .h00 files found - this may not be penetrate routine output"
+            raise ValueError(
+                f"Multiple .h00 files match prefix {output_prefix!r} in "
+                f"{output_dir}: {[f.name for f in sorted(h00_files)]}. "
+                "Remove stale outputs or use a distinct output prefix."
             )
-            # Return the first one as fallback
-            return str(h00_files[0])
 
     def read_parameter(self, filename: str, parameter: str) -> Optional[str]:
         """Read a parameter from a header file."""

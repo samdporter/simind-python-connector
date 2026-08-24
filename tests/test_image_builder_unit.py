@@ -88,3 +88,26 @@ def test_image_builder_autodetect_backend_when_not_specified(monkeypatch, tmp_pa
 def test_image_builder_rejects_invalid_backend():
     with pytest.raises(ValueError, match="backend must be one of"):
         STIRSPECTImageDataBuilder(backend="invalid")  # type: ignore[arg-type]
+
+
+@pytest.mark.unit
+def test_image_builder_rejects_pixel_array_shape_mismatch(monkeypatch, tmp_path):
+    from simind_python_connector.builders import image_builder as builder_mod
+
+    monkeypatch.setattr(
+        builder_mod.BACKENDS.factories,
+        "create_image_data",
+        lambda header_path: DummyWrappedImage(header_path),
+    )
+
+    builder = STIRSPECTImageDataBuilder(
+        header_overrides={
+            "!matrix size [1]": "4",
+            "!matrix size [2]": "3",
+            "!matrix size [3]": "2",
+        }
+    )
+    builder.set_pixel_array(np.ones((2, 3, 5), dtype=np.float32))
+
+    with pytest.raises(ValueError, match="shape"):
+        builder.build(output_path=tmp_path / "img")

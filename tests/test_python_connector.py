@@ -20,6 +20,193 @@ def test_python_connector_requires_run_before_get_outputs(tmp_path: Path):
 
 
 @pytest.mark.unit
+def test_python_connector_rejects_unsafe_output_prefixes(tmp_path: Path):
+    for bad_prefix in ("../escape", "/absolute", "", "a/b", "a\\b", ".."):
+        with pytest.raises(ValueError, match="output_prefix"):
+            SimindPythonConnector(
+                config_source=get("AnyScan.yaml"),
+                output_dir=tmp_path,
+                output_prefix=bad_prefix,
+            )
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_non_finite_quantization_scale(tmp_path: Path):
+    import math
+
+    for bad_scale in (math.nan, math.inf, -math.inf):
+        with pytest.raises(ValueError, match="quantization_scale"):
+            SimindPythonConnector(
+                config_source=get("AnyScan.yaml"),
+                output_dir=tmp_path,
+                output_prefix="case01",
+                quantization_scale=bad_scale,
+            )
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_sets_all_map_dimensions(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    source = np.zeros((2, 3, 4), dtype=np.float32)
+    source[0, 0, 0] = 1.0
+
+    connector.configure_voxel_phantom(
+        source=source,
+        mu_map=np.zeros_like(source),
+        voxel_size_mm=4.0,
+    )
+
+    config = connector.get_config()
+    assert config.get_value(76) == pytest.approx(4)  # image i = dim_x
+    assert config.get_value(77) == pytest.approx(3)  # image j = dim_y
+    assert config.get_value(78) == pytest.approx(4)  # density map i = dim_x
+    assert config.get_value(79) == pytest.approx(4)  # source map i = dim_x
+    assert config.get_value(81) == pytest.approx(3)  # density map j = dim_y
+    assert config.get_value(82) == pytest.approx(3)  # source map j = dim_y
+    assert config.get_value(34) == pytest.approx(2)  # number of density images
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_rejects_non_finite_values(
+    tmp_path: Path,
+):
+    import math
+
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    good = np.zeros((2, 3, 4), dtype=np.float32)
+
+    for bad_value in (math.nan, math.inf, -math.inf):
+        bad = good.copy()
+        bad[0, 0, 0] = bad_value
+        with pytest.raises(ValueError, match="finite"):
+            connector.configure_voxel_phantom(source=bad, mu_map=good)
+        with pytest.raises(ValueError, match="finite"):
+            connector.configure_voxel_phantom(source=good, mu_map=bad)
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_rejects_negative_values(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    good = np.zeros((2, 3, 4), dtype=np.float32)
+    negative = good.copy()
+    negative[0, 0, 0] = -1.0
+
+    with pytest.raises(ValueError, match="non-negative"):
+        connector.configure_voxel_phantom(source=negative, mu_map=good)
+    with pytest.raises(ValueError, match="non-negative"):
+        connector.configure_voxel_phantom(source=good, mu_map=negative)
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_rejects_empty_arrays(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    empty = np.zeros((0, 0, 0), dtype=np.float32)
+    with pytest.raises(ValueError, match="empty"):
+        connector.configure_voxel_phantom(source=empty, mu_map=empty)
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_rejects_invalid_scoring_routine(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.zeros((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.configure_voxel_phantom(
+            source=source,
+            mu_map=source.copy(),
+            scoring_routine=1.5,
+        )
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.configure_voxel_phantom(
+            source=source,
+            mu_map=source.copy(),
+            scoring_routine=999,
+        )
+
+
+@pytest.mark.unit
+def test_python_connector_runtime_operator_switches_are_one_shot(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path / "run1",
+        output_prefix="case01",
+    )
+
+    captured_switches: list[dict] = []
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        captured_switches.append(dict(runtime_switches or {}))
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run(RuntimeOperator(switches={"RR": 111}))
+    connector.run()
+
+    assert "RR" not in connector.runtime_switches.switches
+    assert captured_switches[0].get("RR") == 111
+    assert "RR" not in captured_switches[1]
+
+
+@pytest.mark.unit
+def test_python_connector_passes_output_dir_as_cwd(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path / "isolated",
+        output_prefix="case01",
+    )
+
+    seen_cwd: list[object] = []
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        seen_cwd.append(cwd)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+
+    assert seen_cwd == [connector.output_dir]
+    assert Path.cwd() != connector.output_dir
+
+
+@pytest.mark.unit
 def test_python_connector_accepts_quantization_scale_parameter(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
@@ -55,6 +242,7 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
         output_prefix: str,
         orbit_file=None,
         runtime_switches=None,
+        cwd=None,
     ) -> None:
         captured["output_prefix"] = output_prefix
         captured["orbit_file"] = orbit_file
@@ -108,6 +296,7 @@ def test_python_connector_skips_malformed_interfile_outputs(tmp_path: Path):
         output_prefix: str,
         orbit_file=None,
         runtime_switches=None,
+        cwd=None,
     ) -> None:
         good_projection = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
         good_data_path = tmp_path / f"{output_prefix}_tot_w1.a00"
@@ -171,6 +360,7 @@ def test_python_connector_penetrate_uses_bxx_component_headers(
         output_prefix: str,
         orbit_file=None,
         runtime_switches=None,
+        cwd=None,
     ) -> None:
         (tmp_path / f"{output_prefix}.h00").write_text(
             "\n".join(["!INTERFILE :=", "!END OF INTERFILE :="])
@@ -368,3 +558,21 @@ def test_python_connector_set_energy_windows_writes_window_file(tmp_path: Path):
 
     lines = [line.strip() for line in window_file.read_text().splitlines() if line]
     assert lines[0] == "126.0,154.0,0"
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_preserves_window_file(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    window_file = tmp_path / "case01.win"
+    window_file.write_text("126.0,154.0,0\n")
+    stale = tmp_path / "case01_tot_w1.hs"
+    stale.write_text("stale")
+
+    connector._clear_previous_outputs()
+
+    assert window_file.exists()
+    assert not stale.exists()
