@@ -150,7 +150,7 @@ def load_interfile_array(header_path: HeaderInput) -> InterfileArray:
             f"Interfile header {header_path} does not define 'name of data file'"
         )
 
-    data_path = (header_path.parent / data_filename).resolve()
+    data_path = (header_path.parent / data_filename.strip().strip("'\"")).resolve()
     if not data_path.exists():
         raise FileNotFoundError(
             f"Interfile data file referenced by header does not exist: {data_path}"
@@ -160,7 +160,22 @@ def load_interfile_array(header_path: HeaderInput) -> InterfileArray:
     shape = _extract_matrix_shape(metadata)
     expected_elements = int(np.prod(shape))
 
-    flat = np.fromfile(data_path, dtype=dtype)
+    offset_raw = _lookup_header_value(
+        metadata,
+        "!data offset in bytes",
+        "data offset in bytes",
+        "data_offset_in_bytes",
+    )
+    offset = int(float(offset_raw)) if offset_raw else 0
+    if offset < 0:
+        raise ValueError(f"Negative data offset in Interfile header: {offset}")
+    if offset % dtype.itemsize != 0:
+        raise ValueError(
+            f"Data offset {offset} is not aligned to a {dtype.itemsize}-byte "
+            "pixel boundary"
+        )
+
+    flat = np.fromfile(data_path, dtype=dtype, offset=offset)
 
     # Projection and tomographic payloads are treated as at least 3D:
     # [leading_axis, axis2, axis1]. If headers only declare matrix sizes [1],[2],
@@ -173,16 +188,11 @@ def load_interfile_array(header_path: HeaderInput) -> InterfileArray:
             shape = (leading_count, *shape)
             expected_elements = int(np.prod(shape))
 
-    if flat.size < expected_elements:
+    if flat.size != expected_elements:
         raise ValueError(
             f"Data size mismatch for {data_path}: expected {expected_elements} "
             f"elements for shape {shape}, found {flat.size}"
         )
-
-    # SIMIND files can contain trailing payload not represented by Interfile keys.
-    # Use the declared geometry and discard trailing elements.
-    if flat.size > expected_elements:
-        flat = flat[:expected_elements]
 
     return InterfileArray(
         array=flat.reshape(shape),

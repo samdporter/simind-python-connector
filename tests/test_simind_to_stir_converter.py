@@ -23,17 +23,48 @@ class TestConversionRules:
     """Test individual conversion rules."""
 
     def test_radius_conversion_rule(self):
-        """Test radius conversion with scaling."""
-        rule = RadiusConversionRule(scale_factor=10.0)
+        """Test radius conversion honours its configured scale factor."""
+        scaling_rule = RadiusConversionRule(scale_factor=2.0)
 
         # Test matching
-        assert rule.matches("Radius := 134")
-        assert not rule.matches("Radii := {134}")
-        assert not rule.matches("start angle := 0")
+        assert scaling_rule.matches("Radius := 134")
+        assert not scaling_rule.matches("Radii := {134}")
+        assert not scaling_rule.matches("start angle := 0")
 
-        # Test conversion
-        line, context = rule.convert("Radius := 134.5", {})
-        assert "Radius := 134.5" in line
+        # Test conversion applies the factor
+        line, context = scaling_rule.convert("Radius := 134.5", {})
+        assert line == "Radius := 269.0"
+
+        # Identity scaling passes the value through unchanged
+        identity_rule = RadiusConversionRule(scale_factor=1.0)
+        line, _ = identity_rule.convert("Radius := 134.5", {})
+        assert line == "Radius := 134.5"
+
+    def test_data_file_line_survives_ignored_substrings(self, tmp_path):
+        """A data-file path containing ignored substrings must stay active."""
+        h00_file = tmp_path / "output.h00"
+        h00_file.write_text(
+            "\n".join(
+                [
+                    "!INTERFILE :=",
+                    "!name of data file := patient.a00",
+                    "patient name := John Doe",
+                    "!study ID := study123",
+                    "!END OF INTERFILE :=",
+                ]
+            )
+        )
+
+        hs_file = tmp_path / "output.hs"
+        SimindToStirConverter().convert_file(str(h00_file), str(hs_file))
+
+        content_lines = [line.strip() for line in hs_file.read_text().splitlines()]
+        active_data_file = [
+            line for line in content_lines if line.startswith("!name of data file")
+        ]
+        assert active_data_file == ["!name of data file := patient.a00"]
+        assert ";patient name := John Doe" in content_lines
+        assert ";!study ID := study123" in content_lines
 
     def test_start_angle_conversion_rule(self):
         """Test start angle conversion with offset."""
@@ -430,7 +461,8 @@ def test_conversion_config_defaults():
     """Test ConversionConfig default values."""
     config = ConversionConfig()
 
-    assert config.radius_scale_factor == 10.0  # cm to mm
+    # Default passes SIMIND's millimetre Radius values through unchanged
+    assert config.radius_scale_factor == 1.0
     assert config.angle_offset == 180.0
     assert config.default_number_format == "float"
     assert len(config.ignored_patterns) > 0

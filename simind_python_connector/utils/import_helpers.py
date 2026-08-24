@@ -27,12 +27,16 @@ def get_sirf_types() -> Tuple[Type, Type, bool]:
 def get_stir_types() -> Tuple[Type, Type, bool]:
     """Import STIR Python types with fallback.
 
+    Both ``stir`` and ``stirextra`` are required by the backend wrappers, so
+    availability is only reported when both import successfully.
+
     Returns:
         Tuple of (FloatVoxelsOnCartesianGrid, ProjData, STIR_AVAILABLE)
         If STIR is not available, returns (type(None), type(None), False)
     """
     try:
         import stir
+        import stirextra  # noqa: F401
 
         return stir.FloatVoxelsOnCartesianGrid, stir.ProjData, True
     except ImportError:

@@ -258,14 +258,13 @@ def main():
         f"({total_time / 60:.1f} minutes)"
     )
 
+    failed = sum(1 for result in results if not result["success"])
+    return 1 if failed else 0
+
 
 if __name__ == "__main__":
     try:
-        main()
+        raise SystemExit(main())
     except KeyboardInterrupt:
         print("\n\n⚠️  Script interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\n✗ Unexpected error: {e}")
-        traceback.print_exc()
         sys.exit(1)

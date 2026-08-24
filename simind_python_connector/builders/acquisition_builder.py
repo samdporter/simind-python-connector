@@ -97,6 +97,19 @@ class STIRSPECTAcquisitionDataBuilder:
         else:
             self.pixel_array = np.array(self.pixel_array, dtype=np.float32)
 
+        expected_shape = (
+            1,
+            matrix_size_1,
+            num_projections,
+            matrix_size_2,
+        )
+        if self.pixel_array.shape != expected_shape:
+            raise ValueError(
+                f"pixel array shape {self.pixel_array.shape} does not match "
+                f"header dimensions {expected_shape} "
+                "(tof, bin, view, axial)"
+            )
+
         def _write(base_path: Path, cleanup: bool) -> AcquisitionData:
             header_path = base_path.with_suffix(".hs")
             raw_file_path = base_path.with_suffix(".s")
@@ -112,9 +125,8 @@ class STIRSPECTAcquisitionDataBuilder:
 
             acqdata = self._load_acquisition(str(header_path))
 
-            flipped = np.flip(self.pixel_array, axis=-1)
             acqdata = acqdata.clone()
-            acqdata.fill(flipped)
+            acqdata.fill(self.pixel_array)
             acqdata.write(str(header_path))
 
             if cleanup:
@@ -194,27 +206,50 @@ class STIRSPECTAcquisitionDataBuilder:
             acqdata = self.build(output_path=output_path_base)
             return [acqdata]
 
+        if self.pixel_array is None:
+            raise ValueError(
+                "build_multi_energy requires pixel_array to be set "
+                "(use update_header_from_dicom or set it directly)"
+            )
+
+        num_windows = len(self.energy_windows)
+        total_projections = int(self.header.get("!number of projections", 1))
+        if self.pixel_array.ndim != 4 or (
+            self.pixel_array.shape[2] != total_projections
+        ):
+            raise ValueError(
+                f"pixel array shape {self.pixel_array.shape} does not match "
+                f"declared {total_projections} projections"
+            )
+        if total_projections % num_windows != 0:
+            raise ValueError(
+                f"Number of projections ({total_projections}) must be divisible "
+                f"by the number of energy windows ({num_windows})"
+            )
+        projections_per_window = total_projections // num_windows
+
         # number of projections needs dividing by number of energy windows
-        num_projections = int(self.header.get("!number of projections", 1))
-        num_projections //= len(self.energy_windows)
-        self.header["!number of projections"] = str(num_projections)
+        self.header["!number of projections"] = str(projections_per_window)
 
         # split pixel_array into energy windows along 3rd axis
-        pixel_array_list = np.array_split(
-            self.pixel_array, len(self.energy_windows), axis=2
-        )
+        original_pixel_array = self.pixel_array
+        try:
+            pixel_array_list = np.array_split(original_pixel_array, num_windows, axis=2)
 
-        acqdata_list = []
-        for idx, ew in enumerate(self.energy_windows):
-            # Update header for this energy window.
-            self.header["energy window lower level[1]"] = ew["lower"]
-            self.header["energy window upper level[1]"] = ew["upper"]
-            suffix = f"_ew{idx + 1}"
-            output_path = output_path_base + suffix
-            self.pixel_array = pixel_array_list[idx]
-            acqdata = self.build(output_path=output_path)
-            acqdata_list.append(acqdata)
-        return acqdata_list
+            acqdata_list = []
+            for idx, ew in enumerate(self.energy_windows):
+                # Update header for this energy window.
+                self.header["energy window lower level[1]"] = ew["lower"]
+                self.header["energy window upper level[1]"] = ew["upper"]
+                suffix = f"_ew{idx + 1}"
+                output_path = output_path_base + suffix
+                self.pixel_array = pixel_array_list[idx]
+                acqdata = self.build(output_path=output_path)
+                acqdata_list.append(acqdata)
+            return acqdata_list
+        finally:
+            self.pixel_array = original_pixel_array
+            self.header["!number of projections"] = str(total_projections)
 
     def update_header_from_dicom(self, dicom_filepath):
         """
@@ -303,6 +338,8 @@ class STIRSPECTAcquisitionDataBuilder:
             )
 
         # Rotation Information Sequence processing
+        num_frames = ds.get("NumberOfFrames", None)
+        time_per_projection = None
         try:
             if (0x0054, 0x0052) in ds:
                 rot_seq = ds[(0x0054, 0x0052)].value
@@ -322,16 +359,17 @@ class STIRSPECTAcquisitionDataBuilder:
                             rot_item[(0x0018, 0x1242)].value / 1000
                         )
 
-                    if num_frames is not None:
+                    if time_per_projection is not None and num_frames is not None:
                         self.header["number of time frames"] = str(1)
                         self.header["!image duration (sec)[1]"] = str(
                             int(
                                 np.round(
-                                    float(time_per_projection) * float(num_frames), 0
+                                    float(time_per_projection) * float(num_frames),
+                                    0,
                                 )
                             )
                         )
-                    else:
+                    elif time_per_projection is not None:
                         self.header["!time per projection (sec)[1]"] = (
                             time_per_projection
                         )
@@ -516,11 +554,20 @@ class STIRSPECTAcquisitionDataBuilder:
         except AttributeError:
             warnings.warn("StudyDescription not found in DICOM.")
         try:
-            self.pixel_array = ds.pixel_array
-            print(self.pixel_array.shape)
-            self.pixel_array = np.transpose(self.pixel_array, (2, 0, 1))
-            # rotate the image by 90 degrees cW in axis 1
-            self.pixel_array = np.rot90(self.pixel_array, 3, axes=(0, 2))
-            self.pixel_array = np.expand_dims(self.pixel_array, axis=0)
+            raw_pixel_array = ds.pixel_array
         except AttributeError:
             warnings.warn("Pixel data not found in DICOM.")
+            return
+
+        raw_pixel_array = np.asarray(raw_pixel_array)
+        if raw_pixel_array.ndim == 2:
+            # Single frame: promote to (rows, columns, frames=1)
+            raw_pixel_array = raw_pixel_array[:, :, np.newaxis]
+        elif raw_pixel_array.ndim != 3:
+            raise ValueError(
+                f"pixel data must be 2D or 3D, got {raw_pixel_array.ndim}D"
+            )
+        self.pixel_array = np.transpose(raw_pixel_array, (2, 0, 1))
+        # rotate the image by 90 degrees cW in axis 1
+        self.pixel_array = np.rot90(self.pixel_array, 3, axes=(0, 2))
+        self.pixel_array = np.expand_dims(self.pixel_array, axis=0)

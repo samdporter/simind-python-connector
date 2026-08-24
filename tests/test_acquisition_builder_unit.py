@@ -2,7 +2,10 @@ import sys
 import types
 
 
-if "pydicom" not in sys.modules:
+try:
+    import pydicom  # noqa: F401
+except ImportError:
+    # Only stub when genuinely unavailable so real-pydicom tests can coexist.
     sys.modules["pydicom"] = types.ModuleType("pydicom")
 
 import numpy as np
@@ -111,7 +114,9 @@ def test_build_multi_energy_splits_windows(tmp_path, fake_create_acquisition):
 
     outputs = builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
 
-    assert builder.header["!number of projections"] == "2"
+    # Builder state must be reusable after a multi-energy build
+    assert builder.header["!number of projections"] == "4"
+    assert builder.pixel_array.shape == (1, 4, 4, 2)
     assert len(outputs) == 2
     # Each stub should see half the projections
     for idx, stub in enumerate(outputs, start=1):
@@ -150,3 +155,73 @@ def test_build_with_explicit_backend_restores_global_backend(monkeypatch, tmp_pa
 def test_acquisition_builder_rejects_invalid_backend():
     with pytest.raises(ValueError, match="backend must be one of"):
         STIRSPECTAcquisitionDataBuilder(backend="invalid")  # type: ignore[arg-type]
+
+
+@pytest.mark.unit
+def test_acquisition_builder_rejects_pixel_array_shape_mismatch(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder(
+        header_overrides={
+            "!matrix size [1]": "4",
+            "!matrix size [2]": "2",
+            "!number of projections": "3",
+        }
+    )
+    builder.pixel_array = np.zeros((1, 4, 3, 5), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="shape"):
+        builder.build(output_path=tmp_path / "acq")
+
+
+@pytest.mark.unit
+def test_build_multi_energy_requires_pixel_array(tmp_path, fake_create_acquisition):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!number of projections"] = "4"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+
+    with pytest.raises(ValueError, match="pixel"):
+        builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+
+@pytest.mark.unit
+def test_build_multi_energy_rejects_non_divisible_projections(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "4"
+    builder.header["!matrix size [2]"] = "2"
+    builder.header["!number of projections"] = "5"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+    builder.pixel_array = np.zeros((1, 4, 5, 2), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="divis"):
+        builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+    assert not list(tmp_path.glob("multi_ew*.hs"))
+
+
+@pytest.mark.unit
+def test_acquisition_written_payload_matches_input(tmp_path, fake_create_acquisition):
+    """The raw file and the returned object must hold the input orientation."""
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "4"
+    builder.header["!matrix size [2]"] = "2"
+    builder.header["!number of projections"] = "3"
+
+    one_hot = np.zeros((1, 4, 3, 2), dtype=np.float32)
+    one_hot[0, 3, 2, 1] = 7.0
+    builder.pixel_array = one_hot
+
+    output_prefix = tmp_path / "acq"
+    acq = builder.build(output_path=output_prefix)
+
+    raw = np.fromfile(output_prefix.with_suffix(".s"), dtype=np.float32)
+    assert np.array_equal(raw.reshape(one_hot.shape), one_hot)
+    assert np.array_equal(acq.fill_data, one_hot)

@@ -134,6 +134,11 @@ class PyTomographySimindAdaptor(BaseConnector):
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
     ) -> Dict[str, torch.Tensor]:
+        # Clear all output caches up front so failed reruns cannot leak
+        # results from a previous successful run.
+        self._outputs = None
+        self._output_metadata = None
+        self._output_header_paths = None
         self._validate_inputs()
         assert self._source is not None  # for type checkers
         assert self._mu_map is not None

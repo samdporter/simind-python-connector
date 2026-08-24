@@ -19,6 +19,7 @@ Usage:
 
 import importlib
 import logging
+import os
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from .base import AcquisitionDataInterface, ImageDataInterface
@@ -233,6 +234,9 @@ def create_image_data(
     if isinstance(filepath_or_object, ImageDataInterface):
         return filepath_or_object
 
+    if isinstance(filepath_or_object, os.PathLike):
+        filepath_or_object = os.fspath(filepath_or_object)
+
     backend_hint = detect_image_backend(filepath_or_object)
     if backend_hint is None:
         backend_hint = detect_backend_from_interface(filepath_or_object)
@@ -313,6 +317,9 @@ def create_acquisition_data(
     # Already wrapped?
     if isinstance(filepath_or_object, AcquisitionDataInterface):
         return filepath_or_object
+
+    if isinstance(filepath_or_object, os.PathLike):
+        filepath_or_object = os.fspath(filepath_or_object)
 
     backend_hint = detect_acquisition_backend(filepath_or_object)
     if backend_hint is None:

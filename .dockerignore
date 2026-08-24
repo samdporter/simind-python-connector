@@ -1,0 +1,17 @@
+.git
+.venv
+simind
+dist
+build
+*.egg-info
+*.tar.gz
+.pytest_cache
+.ruff_cache
+.uv-cache
+.uv-tools
+.coverage
+.coverage.*
+coverage.xml
+docs/_build
+output
+results

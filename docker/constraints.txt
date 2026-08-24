@@ -1,0 +1,5 @@
+# Version constraints shared by backend Dockerfiles, aligned with uv.lock.
+# NumPy is capped below 2.x-unsafe versions for STIR/SIRF binary bindings;
+# see README "NumPy ABI" notes.
+numpy==2.0.2
+pytest==8.4.2
