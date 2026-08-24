@@ -153,6 +153,7 @@ Thumbs.db
 # SIMIND/STIR specific files
 *.smc
 !simind_python_connector/configs/input.smc
+!tests/fixtures/minimal_variable_sections.smc
 *.h00
 *.a00
 *.s

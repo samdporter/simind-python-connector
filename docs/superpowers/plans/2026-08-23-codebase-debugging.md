@@ -192,7 +192,10 @@ def test_smc_parser_uses_section_cursor_and_preserves_counts():
     assert len(config.data) == 120
     assert config.get_value(11) == pytest.approx(11.0)
     assert config.flags == "TFTFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-    assert config.text_variables == {1: "first text variable", 2: "second text variable"}
+    assert config.text_variables == {
+        1: "first text variable",
+        2: "second text variable",
+    }
     assert config.data_files == {
         1: "phantom.dat",
         2: "source.dat",
@@ -275,9 +278,7 @@ Implement the parser in this order:
 3. Consume lines until exactly that many numeric values have been parsed. Use this regex:
 
 ```python
-number_pattern = re.compile(
-    r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?"
-)
+number_pattern = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?")
 ```
 
 4. Raise `ValueError("basic data ...")` if the section ends before the declared count or contains an invalid token.
@@ -519,9 +520,11 @@ Replace the existing test that expects silent truncation at `tests/test_interfil
 Look up these case-insensitive keys:
 
 ```python
-"!data offset in bytes",
-"data offset in bytes",
-"data_offset_in_bytes",
+_lookup_header_value(
+    "!data offset in bytes",
+    "data offset in bytes",
+    "data_offset_in_bytes",
+)
 ```
 
 Parse a non-negative integer offset, require the offset to be aligned to the dtype item size, read with `np.fromfile(data_path, dtype=dtype, offset=offset)`, and require `flat.size == expected_elements`. Strip matching single or double quotes from the data filename before resolving it.
