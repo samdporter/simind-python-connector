@@ -35,7 +35,11 @@ class SimindExecutor:
                     mp_value = value
                     break
 
-        validated_simind = self._validate_cli_token(self.executable)
+        # shell=False passes the executable to execve as argv[0], so spaces
+        # in its path are safe; other tokens must stay whitespace-free.
+        validated_simind = self._validate_cli_token(
+            self._resolve_executable(), allow_whitespace=True
+        )
         validated_output_prefix = self._validate_cli_token(output_prefix)
         validated_orbit_name = (
             self._validate_cli_token(orbit_file.name) if orbit_file else None
@@ -88,19 +92,33 @@ class SimindExecutor:
         except subprocess.CalledProcessError as exc:
             raise SimulationError(f"SIMIND execution failed: {exc}") from exc
 
+    def _resolve_executable(self) -> str:
+        """Make path-bearing executables absolute before ``cwd`` applies.
+
+        subprocess resolves relative paths against the child ``cwd`` (the
+        output directory), so they must be anchored to the caller's working
+        directory here. Bare names keep their PATH-lookup semantics.
+        """
+        executable = self.executable
+        if os.sep in executable or (os.altsep and os.altsep in executable):
+            return str(Path(executable).expanduser().absolute())
+        return executable
+
     @staticmethod
-    def _validate_cli_token(value: object) -> str:
+    def _validate_cli_token(value: object, *, allow_whitespace: bool = False) -> str:
         """Validate command tokens before subprocess invocation.
 
         This executor always runs with ``shell=False``, and each token is
         validated to reject empty values, NUL bytes, and whitespace.
+        Executables are exempt from the whitespace check because they are
+        passed as ``argv[0]``.
         """
         token = str(value)
         if not token:
             raise SimulationError("Encountered empty command token for SIMIND call.")
         if "\x00" in token:
             raise SimulationError("SIMIND command token contains NUL byte.")
-        if any(char.isspace() for char in token):
+        if not allow_whitespace and any(char.isspace() for char in token):
             raise SimulationError(
                 f"SIMIND command token contains whitespace: {token!r}"
             )

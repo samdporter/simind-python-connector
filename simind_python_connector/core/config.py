@@ -326,7 +326,12 @@ class SimulationConfig:
                 f"basic data: expected 'SMCV2' header, got {header_line.strip()!r}"
             )
 
-        self.comment = next_content_line("comment").strip()
+        # The comment is the physical line after 'SMCV2'; it may be blank,
+        # so blank-skipping content lookup would consume the section header.
+        if cursor >= len(lines):
+            raise ValueError("comment: unexpectedly reached end of file")
+        self.comment = lines[cursor].strip()
+        cursor += 1
 
         basic_count = read_section_count("basic data")
         values = []

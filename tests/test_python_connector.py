@@ -561,18 +561,55 @@ def test_python_connector_set_energy_windows_writes_window_file(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_python_connector_cleanup_preserves_window_file(tmp_path: Path):
+def test_python_connector_cleanup_preserves_window_file_it_wrote(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
     )
-    window_file = tmp_path / "case01.win"
-    window_file.write_text("126.0,154.0,0\n")
+    connector.set_energy_windows([126.0], [154.0], [0])
     stale = tmp_path / "case01_tot_w1.hs"
     stale.write_text("stale")
 
     connector._clear_previous_outputs()
 
-    assert window_file.exists()
+    assert (tmp_path / "case01.win").exists()
     assert not stale.exists()
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_removes_stale_window_file(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    stale_window = tmp_path / "case01.win"
+    stale_window.write_text("126.0,154.0,0\n")
+
+    connector._clear_previous_outputs()
+
+    assert not stale_window.exists()
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_only_protects_window_file_it_wrote(tmp_path: Path):
+    written_dir = tmp_path / "written"
+    rerun_dir = tmp_path / "rerun"
+    written_dir.mkdir()
+    rerun_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=written_dir,
+        output_prefix="case01",
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+
+    stale_window = rerun_dir / "case01.win"
+    stale_window.write_text("stale")
+    connector.output_dir = rerun_dir
+
+    connector._clear_previous_outputs()
+
+    assert not stale_window.exists()
+    assert (written_dir / "case01.win").exists()

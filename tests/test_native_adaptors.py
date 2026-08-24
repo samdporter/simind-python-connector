@@ -68,6 +68,28 @@ class _ImageWithoutSpacing:
         self.array = array
 
 
+class _AtOnlyGridSpacing:
+    """Non-iterable STIR-style coordinate exposing values via at()."""
+
+    def __init__(self, unused: float, z: float, y: float, x: float) -> None:
+        self._values = (unused, z, y, x)
+
+    def at(self, index: int) -> float:
+        return self._values[index]
+
+
+class _GetItemOnlyGridSpacing:
+    """Non-iterable (z, y, x) coordinate exposing 1-based indexing."""
+
+    def __init__(self, z: float, y: float, x: float) -> None:
+        self._values = (z, y, x)
+
+    def __getitem__(self, index: int) -> float:
+        if index not in (1, 2, 3):
+            raise IndexError(index)
+        return self._values[index - 1]
+
+
 def _patch_stir_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     class _DummyProjData:
         @staticmethod
@@ -226,6 +248,24 @@ def test_stir_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> No
         StirSimindAdaptor._extract_voxel_size_mm(
             _ImageWithoutSpacing(np.zeros((1, 1, 1)))
         )
+
+
+def test_extract_voxel_size_reads_z_from_non_iterable_fallbacks() -> None:
+    """at()/index-only coordinates follow STIR's (unused, z, y, x) ordering,
+    so index 1 carries the z spacing."""
+    at_only_image = _ImageWithNonIterableGridSpacing(
+        np.zeros((2, 3, 4), dtype=np.float32),
+        _AtOnlyGridSpacing(9.0, 2.0, 3.0, 4.0),
+    )
+    assert StirSimindAdaptor._extract_voxel_size_mm(at_only_image) == pytest.approx(2.0)
+
+    getitem_only_image = _ImageWithNonIterableGridSpacing(
+        np.zeros((2, 3, 4), dtype=np.float32),
+        _GetItemOnlyGridSpacing(2.0, 3.0, 4.0),
+    )
+    assert StirSimindAdaptor._extract_voxel_size_mm(
+        getitem_only_image
+    ) == pytest.approx(2.0)
 
 
 def test_stir_adaptor_missing_component_errors_list_available_keys(

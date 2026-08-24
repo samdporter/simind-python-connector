@@ -1,6 +1,7 @@
 """Tests for example-runner scripts and container helper scripts."""
 
 import os
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -170,6 +171,71 @@ def test_container_validation_script_rejects_no_build_without_image(
     )
 
     assert result.returncode == 1, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "script_name",
+    ["run_container_validation.sh", "run_container_examples.sh"],
+)
+def test_container_scripts_forward_smc_env_without_compose_no_build(
+    tmp_path: Path, script_name: str
+):
+    """--no-build is a script-level flag only, and custom SIMIND data
+    locations must reach SIMIND via SMC_DIR/SIMIND_DATA_DIR too."""
+    repo = tmp_path / "repo"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "docker").mkdir()
+    shutil.copy(ROOT / "scripts" / script_name, repo / "scripts" / script_name)
+    shutil.copy(ROOT / "docker" / "compose.yaml", repo / "docker" / "compose.yaml")
+
+    repo_simind = repo / "simind"
+    repo_simind.mkdir()
+    executable = repo_simind / "simind"
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(executable.stat().st_mode | stat.S_IEXEC)
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.log"
+    docker = bin_dir / "docker"
+    docker.write_text(f'#!/bin/sh\necho "$@" >> {argv_log}\nexit 0\n')
+    docker.chmod(docker.stat().st_mode | stat.S_IEXEC)
+
+    env = dict(os.environ)
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    result = subprocess.run(
+        ["bash", str(repo / "scripts" / script_name), "--only-core", "--no-build"],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    recorded = argv_log.read_text().splitlines()
+    assert any("image inspect" in line for line in recorded)
+    assert "--no-build" not in argv_log.read_text().split()
+
+    compose_runs = [
+        line for line in recorded if line.startswith("compose ") and " run " in line
+    ]
+    assert compose_runs, recorded
+    expected_env = {
+        "SIMIND_BIN": "/workspace/simind/simind",
+        "SIMIND_SMC_DIR": "/workspace/simind/smc_dir/",
+        "SIMIND_DATA_DIR": "/workspace/simind/smc_dir/",
+        "SMC_DIR": "/workspace/simind/smc_dir/",
+    }
+    for line in compose_runs:
+        tokens = line.split()
+        env_pairs = {
+            tokens[i + 1].split("=", 1)[0]: tokens[i + 1].split("=", 1)[1]
+            for i, token in enumerate(tokens)
+            if token == "-e"
+        }
+        assert env_pairs == expected_env, line
 
 
 def test_dockerignore_excludes_local_heavy_paths():

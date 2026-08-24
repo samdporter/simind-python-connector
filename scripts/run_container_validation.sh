@@ -171,15 +171,14 @@ run_service() {
     shift
     local command="$*"
     local compose_args=(run --rm)
-    if [[ "$DO_BUILD" -eq 0 ]]; then
-        compose_args+=(--no-build)
-    fi
     local simind_env_args=()
     if [[ "$SIMIND_AVAILABLE" -eq 1 ]]; then
         local container_bin="/workspace/${SIMIND_PATH#$ROOT_DIR/}"
         simind_env_args+=(
             -e "SIMIND_BIN=$container_bin"
             -e "SIMIND_SMC_DIR=$(dirname "$container_bin")/smc_dir/"
+            -e "SIMIND_DATA_DIR=$(dirname "$container_bin")/smc_dir/"
+            -e "SMC_DIR=$(dirname "$container_bin")/smc_dir/"
         )
     fi
     if [[ -n "$SIMIND_CONTAINER_DIR" ]]; then

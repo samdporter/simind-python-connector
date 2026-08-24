@@ -561,8 +561,9 @@ class STIRSPECTAcquisitionDataBuilder:
 
         raw_pixel_array = np.asarray(raw_pixel_array)
         if raw_pixel_array.ndim == 2:
-            # Single frame: promote to (rows, columns, frames=1)
-            raw_pixel_array = raw_pixel_array[:, :, np.newaxis]
+            # Single frame: promote to (frames=1, rows, columns) so the
+            # transpose below sees the same layout as multiframe data.
+            raw_pixel_array = raw_pixel_array[np.newaxis, :, :]
         elif raw_pixel_array.ndim != 3:
             raise ValueError(
                 f"pixel data must be 2D or 3D, got {raw_pixel_array.ndim}D"
