@@ -54,6 +54,16 @@ def test_yaml_smc_yaml_round_trip_preserves_parameter_flags_and_files(tmp_path):
     assert len(restored.flags) == len(original.flags)
 
 
+def test_smc_round_trip_preserves_empty_comment(tmp_path):
+    original = SimulationConfig(get("AnyScan.yaml"))
+    original.set_comment("")
+    smc_path = original.save_file(tmp_path / "empty_comment.smc")
+
+    restored = SimulationConfig(smc_path)
+
+    assert restored.get_comment() == ""
+
+
 def test_data_file_description_accessors_create_and_return_entries():
     config = SimulationConfig(get("AnyScan.yaml"))
     config.set_data_file(12, "new_file")

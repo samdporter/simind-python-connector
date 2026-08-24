@@ -77,6 +77,7 @@ class SimindPythonConnector(BaseConnector):
         self.converter = SimindToStirConverter()
 
         self._outputs: Optional[dict[str, ProjectionResult]] = None
+        self._window_file_path: Optional[Path] = None
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -236,12 +237,14 @@ class SimindPythonConnector(BaseConnector):
         scatter_orders: Union[int, list[int]],
     ) -> None:
         """Write a SIMIND window file for this connector run."""
+        window_path = self.output_dir / f"{self.output_prefix}.win"
         create_window_file(
             lower_bounds,
             upper_bounds,
             scatter_orders,
-            output_filename=str(self.output_dir / self.output_prefix),
+            output_filename=str(window_path),
         )
+        self._window_file_path = window_path
 
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
@@ -295,9 +298,15 @@ class SimindPythonConnector(BaseConnector):
         protected = {
             f"{self.output_prefix}_src.smi",
             f"{self.output_prefix}_dns.dmi",
-            # Energy-window input written via set_energy_windows()
-            f"{self.output_prefix}.win",
         }
+        if (
+            self._window_file_path is not None
+            and self._window_file_path.parent == self.output_dir
+        ):
+            # Energy-window input written via set_energy_windows(); protect
+            # only that exact file, never a pre-existing one at the current
+            # prefix/location.
+            protected.add(self._window_file_path.name)
         for slot in (5, 6):
             try:
                 protected.add(self.config.get_data_file(slot))

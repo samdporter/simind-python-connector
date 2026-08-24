@@ -30,13 +30,13 @@ def _voxel_size_from_spacing(spacing: Any) -> float | None:
             pass
 
     if hasattr(spacing, "at"):
-        for index in (3, 2):
+        for index in (1, 2, 3):
             try:
                 return float(spacing.at(index))
             except Exception:
                 continue
 
-    for index in (3, 2):
+    for index in (1, 2, 3):
         try:
             return float(spacing[index])
         except Exception:
