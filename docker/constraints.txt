@@ -1,5 +1,6 @@
-# Version constraints shared by backend Dockerfiles, aligned with uv.lock.
-# NumPy is capped below 2.x-unsafe versions for STIR/SIRF binary bindings;
-# see README "NumPy ABI" notes.
-numpy==2.0.2
+# Version constraints shared by backend Dockerfiles.
+# NumPy is capped below 2.x: the STIR/SIRF binaries in the synerbi/sirf base
+# images are compiled against NumPy 1.x and crash with NumPy 2 (see README
+# "NumPy ABI" notes).
+numpy<2.0
 pytest==8.4.2

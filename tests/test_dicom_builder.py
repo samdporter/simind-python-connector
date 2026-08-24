@@ -89,7 +89,24 @@ def test_single_frame_dicom_populates_header_and_pixels(tmp_path: Path):
     assert builder.header["scaling factor (mm/pixel) [1]"] == "1.5"
     assert builder.pixel_array is not None
     assert builder.pixel_array.ndim == 4
-    assert builder.pixel_array.shape[0] == 1
+    assert builder.pixel_array.shape == (1, 4, 1, 5)
+    # Frames-first promotion feeds the same transpose/rotation as multiframe
+    # data: rows keep their order and columns are mirrored.
+    source = np.arange(20, dtype=np.uint16).reshape(4, 5)
+    expected = source[:, ::-1][np.newaxis, :, np.newaxis, :]
+    assert np.array_equal(builder.pixel_array, expected)
+
+
+def test_single_frame_pixels_match_explicit_one_frame_multiframe(tmp_path: Path):
+    single = _new_builder()
+    with pytest.warns(UserWarning, match="NumberOfFrames"):
+        single.update_header_from_dicom(
+            str(_make_dicom(tmp_path / "single.dcm", frames=1))
+        )
+    multi = _new_builder()
+    multi.update_header_from_dicom(str(_make_dicom(tmp_path / "multi1.dcm", frames=1)))
+
+    assert np.array_equal(single.pixel_array, multi.pixel_array)
 
 
 def test_multiframe_dicom_sets_projection_count(tmp_path: Path):

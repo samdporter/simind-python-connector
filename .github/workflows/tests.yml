@@ -70,4 +70,4 @@ jobs:
         run: bash scripts/run_container_validation.sh --only-core
 
       - name: Core container examples (SIMIND optional)
-        run: bash scripts/run_container_examples.sh --only-core || echo "::warning::Core examples require SIMIND; skipped."
+        run: bash scripts/run_container_examples.sh --only-core

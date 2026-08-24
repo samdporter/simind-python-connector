@@ -51,6 +51,72 @@ def test_executor_prefers_simind_bin_environment(
     assert calls[0][0][0] == "/opt/custom/simind"
 
 
+def test_executor_resolves_relative_executable_against_caller_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    simind_dir = tmp_path / "simind"
+    simind_dir.mkdir()
+    (simind_dir / "simind").write_text("#!/bin/sh\n")
+    calls = _capture_run(monkeypatch)
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    SimindExecutor(executable="./simind/simind").run_simulation(
+        "case01", cwd=output_dir
+    )
+
+    command, kwargs = calls[0]
+    assert command[0] == str(simind_dir / "simind")
+    assert kwargs["cwd"] == output_dir
+
+
+def test_executor_resolves_relative_simind_bin_against_caller_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    simind_dir = tmp_path / "simind"
+    simind_dir.mkdir()
+    (simind_dir / "simind").write_text("#!/bin/sh\n")
+    monkeypatch.setenv("SIMIND_BIN", "./simind/simind")
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", cwd=tmp_path / "elsewhere")
+
+    assert calls[0][0][0] == str(simind_dir / "simind")
+
+
+def test_executor_accepts_executable_path_containing_spaces(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    simind_dir = tmp_path / "simind dir"
+    simind_dir.mkdir()
+    (simind_dir / "simind").write_text("#!/bin/sh\n")
+    calls = _capture_run(monkeypatch)
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    SimindExecutor(executable="./simind dir/simind").run_simulation(
+        "case01", cwd=output_dir
+    )
+
+    command, kwargs = calls[0]
+    assert command[0] == str(simind_dir / "simind")
+    assert kwargs["cwd"] == output_dir
+
+
+def test_executor_keeps_bare_executable_for_path_lookup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", cwd=tmp_path)
+
+    assert calls[0][0][0] == "simind"
+
+
 def test_executor_defaults_to_path_lookup_without_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
