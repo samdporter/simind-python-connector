@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2026-04-16
 
+## [1.0.2] - 2026-08-26
+
+### Added
+- Version bumped to 1.0.2
+
+### Changed
+- Automated release preparation
+
+### Fixed
+- Updated test to use dynamic version
+
 ### Added
 - Python SIMIND Monte Carlo connector for SPECT imaging simulations.
 - STIR/SIRF adaptor for reading and writing SIMIND output data compatible with the STIR/SIRF reconstruction framework.
