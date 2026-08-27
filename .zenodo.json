@@ -1,0 +1,35 @@
+{
+  "title": "simind-python-connector: Python SIMIND Monte Carlo connector with STIR/SIRF/PyTomography adaptors",
+  "upload_type": "software",
+  "description": "A Python package providing SIMIND Monte Carlo simulation connector with adaptors for STIR/SIRF and PyTomography reconstruction frameworks. Enables Python-driven SIMIND simulations and data processing workflows.",
+  "authors": [
+    {
+      "name": "Sam Porter",
+      "affiliation": "University College London",
+      "orcid": "0000-0002-9848-2579"
+    },
+    {
+      "name": "Efstathios (Stahis) Varzakis",
+      "affiliation": "University College London", 
+      "orcid": "0000-0002-8813-921X"
+    }
+  ],
+  "keywords": [
+    "SPECT",
+    "Monte Carlo",
+    "medical imaging",
+    "SIMIND",
+    "SIRF",
+    "STIR",
+    "PyTomography",
+    "Python"
+  ],
+  "access_right": "open",
+  "license": "Apache-2.0",
+  "version": "1.0.2",
+  "communities": [
+    {
+      "identifier": "medical-imaging"
+    }
+  ]
+}

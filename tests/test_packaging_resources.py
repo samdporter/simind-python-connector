@@ -87,8 +87,14 @@ def test_configs_load_from_zipped_install(tmp_path: Path):
     wheel_path = next(built.glob("*.whl"))
     with zipfile.ZipFile(wheel_path) as source:
         with zipfile.ZipFile(tmp_path / "pkg.zip", "w") as target:
+            # Extract version from wheel filename to find dist-info
+            wheel_name = wheel_path.name
+            version = wheel_name.replace("simind_python_connector-", "").replace(
+                "-py3-none-any.whl", ""
+            )
+            dist_info_prefix = f"simind_python_connector-{version}.dist-info"
             for name in source.namelist():
-                if not name.startswith("simind_python_connector-1.0.1.dist-info"):
+                if not name.startswith(dist_info_prefix):
                     target.writestr(name, source.read(name))
 
     code = (
