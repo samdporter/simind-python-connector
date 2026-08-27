@@ -1,4 +1,4 @@
-name: Publish to PyPI
+name: Publish to PyPI and Zenodo
 
 on:
   release:
@@ -25,3 +25,13 @@ jobs:
         run: twine check dist/*
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  zenodo:
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: Publish to Zenodo
+        uses: zenodo/publish@v1
+        with:
+          zenodo-token: ${{ secrets.ZENODO_TOKEN }}
+          workflow: "Auto-publish to Zenodo"

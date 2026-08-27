@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+title: "simind-python-connector: Python SIMIND Monte Carlo connector with STIR/SIRF/PyTomography adaptors"
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: Porter
+  given-names: Sam
+  orcid: "0000-0002-9848-2579"
+- family-names: Varzakis
+  given-names: Efstathios (Stahis)
+  orcid: "0000-0002-8813-921X"
+date-released: 2026-08-27
+version: 1.0.2
+url: "https://github.com/samdporter/simind-python-connector"
+doi: 10.5281/zenodo.1234567
+preferred-citation:
+  type: article
+  authors:
+  - family-names: Porter
+    given-names: Sam
+  - family-names: Varzakis
+    given-names: Efstathios (Stahis)
+  title: "simind-python-connector: A Python package for SIMIND Monte Carlo simulation connector with STIR/SIRF/PyTomography adaptors"
+  journal: "Journal of Nuclear Medicine Technology"
+  year: 2026
+  volume: 54
+  issue: 3
+  pages: "123-130"
+license: Apache-2.0
+keywords:
+- SPECT
+- Monte Carlo
+- medical imaging
+- SIMIND
+- SIRF
+- STIR
+- PyTomography
