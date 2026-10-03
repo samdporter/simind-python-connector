@@ -1,16 +1,12 @@
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Literal, Optional
 
 import numpy as np
 
-from simind_python_connector.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-from simind_python_connector.utils.import_helpers import get_sirf_types
-from simind_python_connector.utils.io_utils import temporary_directory
-
-
-ImageData, _, SIRF_AVAILABLE = get_sirf_types()
+from simind_python_connector.builders import _native
 
 
 class STIRSPECTImageDataBuilder:
@@ -100,14 +96,11 @@ class STIRSPECTImageDataBuilder:
 
     def build(self, output_path: Optional[str | Path] = None):
         """
-        Build and return the STIR ImageData object.
-
-        Returns:
-            ImageData: The constructed STIR ImageData object.
+        Build and return the image as a native SIRF or STIR object.
         """
         data = self._resolve_data_array()
 
-        def _write(base_path: Path, cleanup: bool):
+        def _write(base_path: Path):
             header_path = base_path.with_suffix(".hv")
             raw_path = base_path.with_suffix(".v")
             self.header["!name of data file"] = raw_path.name
@@ -123,67 +116,13 @@ class STIRSPECTImageDataBuilder:
                     f.write(temp_str)
 
             data.tofile(raw_path)
-
-            image_data = self._load_image(str(header_path))
-
-            if cleanup:
-                header_path.unlink(missing_ok=True)
-                raw_path.unlink(missing_ok=True)
-            return self._unwrap_native(image_data)
+            return _native.load_image(str(header_path), self.backend)
 
         if output_path is None:
-            with temporary_directory() as tmp_dir:
-                return _write(Path(tmp_dir) / "spect_image", cleanup=False)
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                return _write(Path(tmp_dir) / "spect_image")
 
-        return _write(Path(output_path), cleanup=False)
-
-    def _load_image(self, header_path: str):
-        """Load an image with optional explicit backend selection."""
-        if BACKEND_AVAILABLE and BACKENDS.factories.create_image_data is not None:
-            if (
-                self.backend is not None
-                and BACKENDS.detection.set_backend is not None
-                and BACKENDS.detection.get_backend is not None
-            ):
-                previous_backend = None
-                try:
-                    previous_backend = BACKENDS.detection.get_backend()
-                except Exception:
-                    previous_backend = None
-                BACKENDS.detection.set_backend(self.backend)
-                try:
-                    return BACKENDS.factories.create_image_data(header_path)
-                finally:
-                    if (
-                        previous_backend is not None
-                        and previous_backend != self.backend
-                    ):
-                        try:
-                            BACKENDS.detection.set_backend(previous_backend)
-                        except Exception:
-                            pass
-
-            return BACKENDS.factories.create_image_data(header_path)
-
-        if self.backend == "stir":
-            raise ImportError(
-                "Requested STIR backend for image loading, "
-                "but backend wrappers are unavailable."
-            )
-
-        if SIRF_AVAILABLE:
-            return ImageData(header_path)
-
-        raise ImportError(
-            "Unable to load image data: neither SIRF nor STIR Python "
-            "backends are available."
-        )
-
-    @staticmethod
-    def _unwrap_native(obj):
-        """Return native backend object when a wrapper is provided."""
-        native = getattr(obj, "native_object", None)
-        return native if native is not None else obj
+        return _write(Path(output_path))
 
     @staticmethod
     def create_spect_uniform_image_from_sinogram(sinogram, origin=None):
@@ -202,10 +141,12 @@ class STIRSPECTImageDataBuilder:
             ImageData: A uniform SPECT image initialized with the computed dimensions
                 and voxel sizes.
         """
-        if not SIRF_AVAILABLE:
+        try:
+            import sirf.STIR
+        except ImportError as exc:
             raise ImportError(
                 "create_spect_uniform_image_from_sinogram requires the SIRF backend."
-            )
+            ) from exc
 
         # Create a uniform image from the sinogram and adjust z-voxel size.
         image = sinogram.create_uniform_image(1)
@@ -224,6 +165,6 @@ class STIRSPECTImageDataBuilder:
             origin = (0, 0, 0)
 
         # Initialize a new image with computed dimensions, voxel sizes, and origin.
-        new_image = ImageData()
+        new_image = sirf.STIR.ImageData()
         new_image.initialise(tuple(dims), tuple(voxel_size), tuple(origin))
         return new_image

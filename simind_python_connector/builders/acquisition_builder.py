@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 import warnings
 from pathlib import Path
 from typing import Literal, Optional
@@ -7,17 +8,7 @@ from typing import Literal, Optional
 import numpy as np
 import pydicom
 
-from simind_python_connector.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-
-# Conditional import for SIRF types
-from simind_python_connector.utils.import_helpers import get_sirf_types
-from simind_python_connector.utils.io_utils import temporary_directory
-
-
-_, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
-
-# Unpack interfaces needed by builder
-create_acquisition_data = BACKENDS.factories.create_acquisition_data
+from simind_python_connector.builders import _native
 
 
 class STIRSPECTAcquisitionDataBuilder:
@@ -110,7 +101,7 @@ class STIRSPECTAcquisitionDataBuilder:
                 "(tof, bin, view, axial)"
             )
 
-        def _write(base_path: Path, cleanup: bool) -> AcquisitionData:
+        def _write(base_path: Path):
             header_path = base_path.with_suffix(".hs")
             raw_file_path = base_path.with_suffix(".s")
 
@@ -123,70 +114,17 @@ class STIRSPECTAcquisitionDataBuilder:
 
             self.pixel_array.tofile(raw_file_path)
 
-            acqdata = self._load_acquisition(str(header_path))
-
-            acqdata = acqdata.clone()
-            acqdata.fill(self.pixel_array)
-            acqdata.write(str(header_path))
-
-            if cleanup:
-                header_path.unlink(missing_ok=True)
-                raw_file_path.unlink(missing_ok=True)
-
-            return self._unwrap_native(acqdata)
-
-        if output_path is None:
-            with temporary_directory() as tmp_dir:
-                return _write(Path(tmp_dir) / "spect_acq", cleanup=False)
-
-        return _write(Path(output_path), cleanup=False)
-
-    def _load_acquisition(self, header_path: str):
-        """Load acquisition data with optional explicit backend selection."""
-        if BACKEND_AVAILABLE and create_acquisition_data is not None:
-            if (
-                self.backend is not None
-                and BACKENDS.detection.set_backend is not None
-                and BACKENDS.detection.get_backend is not None
-            ):
-                previous_backend = None
-                try:
-                    previous_backend = BACKENDS.detection.get_backend()
-                except Exception:
-                    previous_backend = None
-                BACKENDS.detection.set_backend(self.backend)
-                try:
-                    return create_acquisition_data(header_path)
-                finally:
-                    if (
-                        previous_backend is not None
-                        and previous_backend != self.backend
-                    ):
-                        try:
-                            BACKENDS.detection.set_backend(previous_backend)
-                        except Exception:
-                            pass
-            return create_acquisition_data(header_path)
-
-        if self.backend == "stir":
-            raise ImportError(
-                "Requested STIR backend for acquisition loading, but backend wrappers "
-                "are unavailable."
+            backend = _native.resolve_backend(self.backend)
+            acqdata = _native.load_acquisition(str(header_path), backend)
+            return _native.refill_acquisition(
+                acqdata, self.pixel_array, str(header_path), backend
             )
 
-        if SIRF_AVAILABLE:
-            return AcquisitionData(header_path)
+        if output_path is None:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                return _write(Path(tmp_dir) / "spect_acq")
 
-        raise ImportError(
-            "Unable to load acquisition data: neither SIRF nor STIR Python "
-            "backends are available."
-        )
-
-    @staticmethod
-    def _unwrap_native(obj):
-        """Return native backend object when a wrapper is provided."""
-        native = getattr(obj, "native_object", None)
-        return native if native is not None else obj
+        return _write(Path(output_path))
 
     def build_multi_energy(self, output_path_base="temp", multiple_data_files=True):
         """
