@@ -15,7 +15,10 @@ from simind_python_connector.converters.simind_to_stir import (
     StartAngleConversionRule,
 )
 from simind_python_connector.core.types import PenetrateOutputType
-from simind_python_connector.utils.interfile import parse_interfile_line
+from simind_python_connector.utils.interfile import (
+    InterfileHeader,
+    parse_interfile_line,
+)
 
 
 @pytest.mark.unit
@@ -256,7 +259,7 @@ class TestSimindToStirConverter:
         header_path = tmp_path / f"output_component_{component.value:02d}.hs"
         header_text = header_path.read_text()
 
-        assert component.slug in outputs
+        assert outputs == {component.slug: header_path}
         assert f"patient name := {component.slug}_{binary_file.name}" in header_text
         assert component.description in header_text
 
@@ -423,37 +426,19 @@ start angle := 0.000000
         hs_file = tmp_path / "output.hs"
         assert hs_file.exists()
 
-    def test_read_parameter(self, tmp_path):
-        """Test reading parameter from header file."""
+    def test_converted_header_can_be_read_and_edited(self, tmp_path):
+        """Converted headers are edited with InterfileHeader."""
         h00_file = self.create_sample_h00_file(tmp_path)
         hs_file = tmp_path / "output.hs"
+        SimindToStirConverter().convert_file(str(h00_file), str(hs_file))
 
-        converter = SimindToStirConverter()
-        converter.convert_file(str(h00_file), str(hs_file))
+        header = InterfileHeader.from_file(hs_file)
+        assert header.get("!matrix size [1]") == "128"
+        assert header.get("scaling factor (mm/pixel) [1]") == "4.419600"
 
-        # Read parameters
-        matrix_size = converter.read_parameter(str(hs_file), "!matrix size [1]")
-        assert matrix_size == "128"
-
-        scaling = converter.read_parameter(
-            str(hs_file), "scaling factor (mm/pixel) [1]"
-        )
-        assert scaling == "4.419600"
-
-    def test_edit_parameter(self, tmp_path):
-        """Test editing parameter in header file."""
-        h00_file = self.create_sample_h00_file(tmp_path)
-        hs_file = tmp_path / "output.hs"
-
-        converter = SimindToStirConverter()
-        converter.convert_file(str(h00_file), str(hs_file))
-
-        # Edit a parameter
-        converter.edit_parameter(str(hs_file), "!matrix size [1]", "256")
-
-        # Verify edit
-        new_value = converter.read_parameter(str(hs_file), "!matrix size [1]")
-        assert new_value == "256"
+        header.set("!matrix size [1]", "256")
+        header.write(hs_file)
+        assert InterfileHeader.from_file(hs_file).get("!matrix size [1]") == "256"
 
 
 @pytest.mark.unit
