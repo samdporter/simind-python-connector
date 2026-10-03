@@ -12,13 +12,6 @@ from pathlib import Path
 from simind_python_connector import SimulationConfig, configs
 
 
-try:
-    from simind_python_connector.backends import get_backend, set_backend
-except ImportError:  # backend libraries intentionally absent in core container
-    get_backend = None
-    set_backend = None
-
-
 TEMPLATE_PATH = configs.get("input.smc")  # Path to a template configuration file
 
 
@@ -193,36 +186,5 @@ if __name__ == "__main__":
         description="Create and manage custom SIMIND configurations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "--backend",
-        type=str,
-        choices=["sirf", "stir"],
-        help=(
-            "Force a specific backend (sirf or stir). "
-            "If not specified, auto-detection is used."
-        ),
-    )
-    args = parser.parse_args()
-
-    # Set backend if specified and backend layer is available.
-    if args.backend:
-        if set_backend is None:
-            print(
-                f"Backend '{args.backend}' requested, "
-                "but backend libraries are not installed."
-            )
-        else:
-            set_backend(args.backend)
-
-    # Print backend status (core config workflow does not require one).
-    print(f"\n{'=' * 60}")
-    if get_backend is None:
-        print("Using backend: NONE (core configuration mode)")
-    else:
-        try:
-            print(f"Using backend: {get_backend().upper()}")
-        except ImportError:
-            print("Using backend: NONE (backend libraries unavailable)")
-    print(f"{'=' * 60}\n")
-
+    parser.parse_args()
     main()
