@@ -1,112 +1,70 @@
 import numpy as np
 import pytest
 
+from simind_python_connector.builders import image_builder as builder_mod
 from simind_python_connector.builders.image_builder import STIRSPECTImageDataBuilder
 
 
-class DummyWrappedImage:
-    """Wrapper-like stand-in exposing a native_object attribute."""
+pytestmark = pytest.mark.unit
 
-    def __init__(self, header_path):
-        self.header_path = header_path
-        self._native = object()
-
-    @property
-    def native_object(self):
-        return self._native
+_SMALL_HEADER = {
+    "!matrix size [1]": "4",
+    "!matrix size [2]": "3",
+    "!matrix size [3]": "2",
+}
 
 
-@pytest.mark.unit
-def test_image_builder_explicit_backend_restores_global_backend(monkeypatch, tmp_path):
-    from simind_python_connector.builders import image_builder as builder_mod
+@pytest.fixture
+def loaded(monkeypatch):
+    calls = []
 
-    created = []
-    set_backend_calls = []
+    def fake_load_image(header_path, backend):
+        calls.append((header_path, backend))
+        return ("native-image", header_path)
 
-    def _factory(header_path):
-        obj = DummyWrappedImage(header_path)
-        created.append(obj)
-        return obj
+    monkeypatch.setattr(builder_mod._native, "load_image", fake_load_image)
+    return calls
 
-    monkeypatch.setattr(builder_mod.BACKENDS.factories, "create_image_data", _factory)
-    monkeypatch.setattr(builder_mod.BACKENDS.detection, "get_backend", lambda: "sirf")
-    monkeypatch.setattr(
-        builder_mod.BACKENDS.detection,
-        "set_backend",
-        lambda backend: set_backend_calls.append(backend),
-    )
 
-    builder = STIRSPECTImageDataBuilder(
-        header_overrides={
-            "!matrix size [1]": "4",
-            "!matrix size [2]": "3",
-            "!matrix size [3]": "2",
-        },
-        backend="stir",
-    )
+def test_image_builder_passes_explicit_backend(loaded, tmp_path):
+    builder = STIRSPECTImageDataBuilder(header_overrides=_SMALL_HEADER, backend="stir")
     builder.set_pixel_array(np.ones((2, 3, 4), dtype=np.float32))
+
     output = builder.build(output_path=tmp_path / "img")
 
-    assert set_backend_calls == ["stir", "sirf"]
-    assert output is created[0].native_object
+    header_path = str(tmp_path / "img.hv")
+    assert loaded == [(header_path, "stir")]
+    assert output == ("native-image", header_path)
 
 
-@pytest.mark.unit
-def test_image_builder_autodetect_backend_when_not_specified(monkeypatch, tmp_path):
-    from simind_python_connector.builders import image_builder as builder_mod
-
-    created = []
-    set_backend_calls = []
-
-    def _factory(header_path):
-        obj = DummyWrappedImage(header_path)
-        created.append(obj)
-        return obj
-
-    monkeypatch.setattr(builder_mod.BACKENDS.factories, "create_image_data", _factory)
-    monkeypatch.setattr(
-        builder_mod.BACKENDS.detection,
-        "set_backend",
-        lambda backend: set_backend_calls.append(backend),
-    )
-
-    builder = STIRSPECTImageDataBuilder(
-        header_overrides={
-            "!matrix size [1]": "4",
-            "!matrix size [2]": "3",
-            "!matrix size [3]": "2",
-        }
-    )
+def test_image_builder_passes_none_when_backend_not_specified(loaded, tmp_path):
+    builder = STIRSPECTImageDataBuilder(header_overrides=_SMALL_HEADER)
     builder.set_pixel_array(np.zeros((2, 3, 4), dtype=np.float32))
-    output = builder.build(output_path=tmp_path / "img")
 
-    assert set_backend_calls == []
-    assert output is created[0].native_object
+    builder.build(output_path=tmp_path / "img")
+
+    assert loaded == [(str(tmp_path / "img.hv"), None)]
 
 
-@pytest.mark.unit
+def test_image_builder_writes_header_and_raw_data(loaded, tmp_path):
+    builder = STIRSPECTImageDataBuilder(header_overrides=_SMALL_HEADER)
+    data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    builder.set_pixel_array(data)
+
+    builder.build(output_path=tmp_path / "img")
+
+    assert "!name of data file := img.v" in (tmp_path / "img.hv").read_text()
+    raw = np.fromfile(tmp_path / "img.v", dtype=np.float32)
+    assert np.array_equal(raw.reshape(2, 3, 4), data)
+
+
 def test_image_builder_rejects_invalid_backend():
     with pytest.raises(ValueError, match="backend must be one of"):
         STIRSPECTImageDataBuilder(backend="invalid")  # type: ignore[arg-type]
 
 
-@pytest.mark.unit
-def test_image_builder_rejects_pixel_array_shape_mismatch(monkeypatch, tmp_path):
-    from simind_python_connector.builders import image_builder as builder_mod
-
-    monkeypatch.setattr(
-        builder_mod.BACKENDS.factories,
-        "create_image_data",
-        lambda header_path: DummyWrappedImage(header_path),
-    )
-
-    builder = STIRSPECTImageDataBuilder(
-        header_overrides={
-            "!matrix size [1]": "4",
-            "!matrix size [2]": "3",
-            "!matrix size [3]": "2",
-        }
-    )
+def test_image_builder_rejects_pixel_array_shape_mismatch(loaded, tmp_path):
+    builder = STIRSPECTImageDataBuilder(header_overrides=_SMALL_HEADER)
     builder.set_pixel_array(np.ones((2, 3, 5), dtype=np.float32))
 
     with pytest.raises(ValueError, match="shape"):

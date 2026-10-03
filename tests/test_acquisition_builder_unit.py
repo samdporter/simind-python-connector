@@ -44,32 +44,20 @@ class DummyAcquisitionData:
         return copy
 
 
-class DummyWrappedAcquisition(DummyAcquisitionData):
-    """Wrapper-like stub exposing a native_object attribute."""
-
-    def __init__(self, header_path):
-        super().__init__(header_path)
-        self._native = DummyAcquisitionData(header_path)
-
-    @property
-    def native_object(self):
-        return self._native
-
-
 @pytest.fixture
 def fake_create_acquisition(monkeypatch):
-    """Patch create_acquisition_data to avoid SIRF/STIR dependency."""
+    """Patch the native loader to avoid a SIRF/STIR dependency."""
+    from simind_python_connector.builders import acquisition_builder as builder_mod
+
     created_objects = []
 
-    def _factory(header_path):
+    def fake_load_acquisition(header_path, backend):
         obj = DummyAcquisitionData(header_path)
         created_objects.append(obj)
         return obj
 
-    monkeypatch.setattr(
-        "simind_python_connector.builders.acquisition_builder.create_acquisition_data",
-        _factory,
-    )
+    monkeypatch.setattr(builder_mod._native, "resolve_backend", lambda b: "sirf")
+    monkeypatch.setattr(builder_mod._native, "load_acquisition", fake_load_acquisition)
     return created_objects
 
 
@@ -125,30 +113,25 @@ def test_build_multi_energy_splits_windows(tmp_path, fake_create_acquisition):
 
 
 @pytest.mark.unit
-def test_build_with_explicit_backend_restores_global_backend(monkeypatch, tmp_path):
+def test_build_forwards_explicit_backend(monkeypatch, tmp_path):
     from simind_python_connector.builders import acquisition_builder as builder_mod
 
-    wrapped_objects = []
-    set_backend_calls = []
+    requested = []
 
-    def _factory(header_path):
-        obj = DummyWrappedAcquisition(header_path)
-        wrapped_objects.append(obj)
-        return obj
+    def fake_resolve(backend):
+        requested.append(backend)
+        return "sirf"
 
-    monkeypatch.setattr(builder_mod, "create_acquisition_data", _factory)
-    monkeypatch.setattr(builder_mod.BACKENDS.detection, "get_backend", lambda: "sirf")
+    monkeypatch.setattr(builder_mod._native, "resolve_backend", fake_resolve)
     monkeypatch.setattr(
-        builder_mod.BACKENDS.detection,
-        "set_backend",
-        lambda backend: set_backend_calls.append(backend),
+        builder_mod._native,
+        "load_acquisition",
+        lambda header_path, backend: DummyAcquisitionData(header_path),
     )
 
-    builder = STIRSPECTAcquisitionDataBuilder(backend="stir")
-    output = builder.build(output_path=tmp_path / "acq")
+    STIRSPECTAcquisitionDataBuilder(backend="stir").build(output_path=tmp_path / "acq")
 
-    assert set_backend_calls == ["stir", "sirf"]
-    assert output is wrapped_objects[0].native_object
+    assert requested == ["stir"]
 
 
 @pytest.mark.unit
