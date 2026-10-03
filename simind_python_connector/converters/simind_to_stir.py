@@ -3,20 +3,11 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from simind_python_connector.core.types import PenetrateOutputType
-from simind_python_connector.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-from simind_python_connector.utils.import_helpers import get_sirf_types
 from simind_python_connector.utils.interfile import InterfileHeader
 
-
-# Conditional import for SIRF to avoid CI dependencies
-_, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
-
-# Unpack interfaces needed by converter
-create_acquisition_data = BACKENDS.factories.create_acquisition_data
-AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -265,10 +256,7 @@ class IgnorePatternRule(ConversionRule):
 
 
 class SimindToStirConverter:
-    """
-    Enhanced SIMIND to STIR converter with configurable rules and editing
-    capabilities.
-    """
+    """Converts SIMIND Interfile headers (.h00) into STIR headers (.hs)."""
 
     def __init__(self, config: Optional[ConversionConfig] = None):
         self.config = config or ConversionConfig()
@@ -333,13 +321,8 @@ class SimindToStirConverter:
         input_filename: str,
         output_filename: Optional[str] = None,
         data_file: Optional[str] = None,
-        return_object: bool = False,
-    ) -> Optional[Union[AcquisitionData, AcquisitionDataInterface]]:
-        """Convert a SIMIND header file to STIR format.
-
-        Returns:
-            Backend-agnostic acquisition data if return_object=True, None otherwise
-        """
+    ) -> None:
+        """Convert a SIMIND header file to STIR format."""
 
         if not input_filename.endswith(".h00"):
             raise ValueError("Input file must have .h00 extension")
@@ -382,13 +365,6 @@ class SimindToStirConverter:
             if data_file:
                 self.logger.info(f"Used data file override: {data_file}")
 
-            if return_object:
-                if BACKEND_AVAILABLE:
-                    # Return wrapped backend-agnostic object
-                    return create_acquisition_data(output_filename)
-                else:
-                    return AcquisitionData(output_filename)
-
         except Exception as e:
             self.logger.error(f"Failed to convert {input_filename}: {e}")
             raise
@@ -397,29 +373,21 @@ class SimindToStirConverter:
             if data_file is not None:
                 self.rules = self._create_rules()
 
-        return None
-
     def create_penetrate_headers_from_template(
         self, h00_file: str, output_prefix: str, output_dir: str
-    ) -> Dict[str, AcquisitionData]:
+    ) -> Dict[str, Path]:
         """
-        Create multiple STIR headers for penetrate routine from single .h00 template.
+        Create one STIR header per PENETRATE component from the single .h00 file.
 
-        The penetrate routine creates only one .h00 file pointing to a
-        non-existent .a00,
-        but multiple .bXX binary files. This method creates separate .hs headers
-        for each .bXX file.
-
-        Args:
-            h00_file: Path to the single .h00 template file from penetrate routine
-            output_prefix: Prefix used for output files
-            output_dir: Directory containing .bXX files
+        The penetrate routine writes one .h00 file pointing to a non-existent
+        .a00, plus one .bXX binary file per component. This writes a .hs
+        header for each .bXX file found.
 
         Returns:
-            Dictionary mapping component names to AcquisitionData objects
+            Dictionary mapping component slugs to the written header paths.
         """
         output_dir = Path(output_dir)
-        outputs = {}
+        outputs: Dict[str, Path] = {}
 
         # First convert the template .h00 to .hs format
         template_hs = h00_file.replace(".h00", "_template.hs")
@@ -433,7 +401,6 @@ class SimindToStirConverter:
 
             if binary_file.exists():
                 try:
-                    # Create .hs file for this component
                     component_hs = output_dir / (
                         f"{output_prefix}_component_{component.value:02d}.hs"
                     )
@@ -448,11 +415,7 @@ class SimindToStirConverter:
                     component_header.set("data description", component.description)
                     component_header.write(component_hs)
 
-                    # Create AcquisitionData object (backend-agnostic)
-                    acquisition_data = self._load_penetrate_output(component_hs)
-
-                    # Generate component name
-                    outputs[component.slug] = acquisition_data
+                    outputs[component.slug] = component_hs
 
                     self.logger.info(
                         f"Created STIR header for {component.slug}: {component_hs.name}"
@@ -468,21 +431,6 @@ class SimindToStirConverter:
             os.remove(template_hs)
 
         return outputs
-
-    def _load_penetrate_output(self, header_path: Path):
-        """Best-effort loading of penetrate output respecting missing backends."""
-        try:
-            if BACKEND_AVAILABLE and create_acquisition_data is not None:
-                return create_acquisition_data(str(header_path))
-            if SIRF_AVAILABLE and AcquisitionData is not type(None):
-                return AcquisitionData(str(header_path))
-        except Exception as exc:  # pragma: no cover - backend-specific failures
-            self.logger.warning(
-                "Falling back to file path for %s due to load error: %s",
-                header_path,
-                exc,
-            )
-        return str(header_path)
 
     def find_penetrate_h00_file(
         self, output_prefix: str, output_dir: str
@@ -513,257 +461,3 @@ class SimindToStirConverter:
                 f"{output_dir}: {[f.name for f in sorted(h00_files)]}. "
                 "Remove stale outputs or use a distinct output prefix."
             )
-
-    def read_parameter(self, filename: str, parameter: str) -> Optional[str]:
-        """Read a parameter from a header file."""
-        if not filename.endswith((".hs", ".h00")):
-            self.logger.error("File must have .hs or .h00 extension")
-            return None
-
-        try:
-            header = InterfileHeader.from_file(filename)
-        except FileNotFoundError:
-            self.logger.error(f"File not found: {filename}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Error reading file {filename}: {e}")
-            return None
-
-        return header.get(parameter)
-
-    def edit_parameter(
-        self,
-        filename: str,
-        parameter: str,
-        value: Union[str, float],
-        return_object: bool = False,
-    ) -> Optional[AcquisitionData]:
-        """Edit a parameter in a header file."""
-        if not filename.endswith((".hs", ".h00")):
-            self.logger.error("File must have .hs or .h00 extension")
-            return None
-
-        try:
-            header = InterfileHeader.from_file(filename)
-            if header.get(parameter) is None:
-                self.logger.warning(f"Parameter '{parameter}' not found in {filename}")
-            header.set(parameter, value)
-            header.write(filename)
-
-            self.logger.info(f"Parameter {parameter} set to {value}")
-
-            if return_object:
-                if BACKEND_AVAILABLE:
-                    return create_acquisition_data(filename)
-                else:
-                    return AcquisitionData(filename)
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error editing parameter in {filename}: {e}")
-            raise
-
-    def add_parameter(
-        self,
-        filename: str,
-        parameter: str,
-        value: Union[str, float],
-        line_number: int = 0,
-        return_object: bool = False,
-    ) -> Optional[AcquisitionData]:
-        """Add a parameter at a specific line number in an Interfile header file."""
-        if not filename.endswith((".hs", ".h00")):
-            self.logger.error("File must have .hs or .h00 extension")
-            return None
-
-        try:
-            header = InterfileHeader.from_file(filename)
-            if header.get(parameter) is not None:
-                self.logger.info(
-                    f"Parameter {parameter} already exists, editing instead of adding"
-                )
-                return self.edit_parameter(filename, parameter, value, return_object)
-
-            header.insert(line_number, parameter, value)
-            header.write(filename)
-            self.logger.info(
-                f"Parameter {parameter} added with value {value} at line {line_number}"
-            )
-
-            if return_object:
-                if BACKEND_AVAILABLE:
-                    return create_acquisition_data(filename)
-                else:
-                    return AcquisitionData(filename)
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error adding parameter to {filename}: {e}")
-            raise
-
-    def validate_and_fix_scaling_factors(
-        self, filename: str, image_data, tolerance: float = 0.1
-    ) -> bool:
-        """
-        Validate scaling factors against image voxel sizes and fix if they differ
-        within tolerance.
-
-        Args:
-            filename: Path to the header file
-            image_data: SIRF ImageData object to get voxel sizes from
-            tolerance: Maximum allowed difference in mm (default 0.1mm)
-
-        Returns:
-            bool: True if scaling factors were within tolerance, False if they were
-                corrected
-        """
-        if not filename.endswith((".hs", ".h00")):
-            self.logger.error("File must have .hs or .h00 extension")
-            return False
-
-        # Get voxel sizes from image data
-        voxel_sizes = image_data.voxel_sizes()
-        image_voxel_x = voxel_sizes[0]  # mm
-        image_voxel_y = voxel_sizes[1]  # mm
-
-        # Read current scaling factors from file
-        current_scaling_x = self.read_parameter(
-            filename, "scaling factor (mm/pixel) [1]"
-        )
-        current_scaling_y = self.read_parameter(
-            filename, "scaling factor (mm/pixel) [2]"
-        )
-
-        if current_scaling_x is None or current_scaling_y is None:
-            self.logger.warning(f"Could not read scaling factors from {filename}")
-            # Set them to image voxel sizes
-            self.edit_parameter(
-                filename, "scaling factor (mm/pixel) [1]", image_voxel_x
-            )
-            self.edit_parameter(
-                filename, "scaling factor (mm/pixel) [2]", image_voxel_y
-            )
-            self.logger.info(
-                f"Set scaling factors to image voxel sizes: "
-                f"[{image_voxel_x}, {image_voxel_y}]"
-            )
-            return False
-
-        try:
-            current_x = float(current_scaling_x)
-            current_y = float(current_scaling_y)
-
-            # Check if they're different but within tolerance
-            diff_x = abs(current_x - image_voxel_x)
-            diff_y = abs(current_y - image_voxel_y)
-
-            if diff_x <= tolerance and diff_y <= tolerance:
-                self.logger.debug(
-                    f"Scaling factors are within tolerance: current=[{current_x}, "
-                    f"{current_y}], image=[{image_voxel_x}, {image_voxel_y}]"
-                )
-                return True
-            else:
-                # Fix the scaling factors to match image voxel sizes
-                self.logger.info(
-                    f"Scaling factors differ beyond tolerance ({tolerance}mm)"
-                )
-                self.logger.info(f"  Current: [{current_x}, {current_y}]")
-                self.logger.info(f"  Image:   [{image_voxel_x}, {image_voxel_y}]")
-                self.logger.info(f"  Diff:    [{diff_x:.6f}, {diff_y:.6f}]")
-
-                self.edit_parameter(
-                    filename, "scaling factor (mm/pixel) [1]", image_voxel_x
-                )
-                self.edit_parameter(
-                    filename, "scaling factor (mm/pixel) [2]", image_voxel_y
-                )
-                self.logger.info("Updated scaling factors to match image voxel sizes")
-                return False
-
-        except ValueError as e:
-            self.logger.error(f"Error parsing scaling factors: {e}")
-            # Set them to image voxel sizes as fallback
-            self.edit_parameter(
-                filename, "scaling factor (mm/pixel) [1]", image_voxel_x
-            )
-            self.edit_parameter(
-                filename, "scaling factor (mm/pixel) [2]", image_voxel_y
-            )
-            return False
-
-    def add_custom_rule(self, rule: ConversionRule, priority: int = None):
-        """Add a custom conversion rule."""
-        if priority is None:
-            self.rules.append(rule)
-        else:
-            self.rules.insert(priority, rule)
-
-    def validate_and_correct_radius(
-        self,
-        output_file: str,
-        template_file: Optional[str] = None,
-        tolerance_factor: float = 2.0,
-    ) -> bool:
-        """
-        Validate radius in output file against template and correct if needed.
-
-        Args:
-            output_file: Path to the output .hs file
-            template_file: Path to the template .hs file for comparison
-            tolerance_factor: Factor by which radius can differ before correction
-
-        Returns:
-            bool: True if radius was within tolerance, False if corrected
-        """
-        if template_file is None or not os.path.exists(template_file):
-            self.logger.debug(
-                "No template file provided or found - skipping radius validation"
-            )
-            return True
-
-        try:
-            # Read radius from template
-            template_radius = self.read_parameter(template_file, "Radius")
-            if template_radius is None:
-                self.logger.debug("No radius found in template file")
-                return True
-
-            template_radius = float(template_radius)
-
-            # Read radius from output
-            output_radius = self.read_parameter(output_file, "Radius")
-            if output_radius is None:
-                self.logger.warning(f"No radius found in output file {output_file}")
-                return True
-
-            output_radius = float(output_radius)
-
-            # Check if radii are within tolerance
-            ratio = output_radius / template_radius
-            if 1 / tolerance_factor <= ratio <= tolerance_factor:
-                self.logger.debug(
-                    "Radius validation passed: "
-                    f"template={template_radius}, output={output_radius}"
-                )
-                return True
-
-            # Radius mismatch detected - attempt correction
-            self.logger.warning(
-                f"Radius mismatch detected in {output_file}:\n"
-                f"  Template: {template_radius} mm\n"
-                f"  Output:   {output_radius} mm\n"
-                f"  Ratio:    {ratio:.2f}"
-            )
-
-            # Correct the radius by setting it to template value
-            self.edit_parameter(output_file, "Radius", template_radius)
-            self.logger.info(
-                f"Corrected radius in {output_file} to {template_radius} mm"
-            )
-
-            return False
-
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"Error during radius validation: {e}")
-            return True
