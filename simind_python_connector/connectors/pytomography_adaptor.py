@@ -24,6 +24,7 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     ValidationError,
 )
+from simind_python_connector.utils.simind_utils import validate_energy_windows
 
 
 try:
@@ -104,26 +105,9 @@ class PyTomographySimindAdaptor(BaseConnector):
         upper_bounds: Union[float, list[float]],
         scatter_orders: Union[int, list[int]],
     ) -> None:
-        lowers = (
-            [float(lower_bounds)]
-            if isinstance(lower_bounds, (int, float))
-            else [float(v) for v in lower_bounds]
+        self._energy_windows = validate_energy_windows(
+            lower_bounds, upper_bounds, scatter_orders
         )
-        uppers = (
-            [float(upper_bounds)]
-            if isinstance(upper_bounds, (int, float))
-            else [float(v) for v in upper_bounds]
-        )
-        orders = (
-            [int(scatter_orders)]
-            if isinstance(scatter_orders, (int, float))
-            else [int(v) for v in scatter_orders]
-        )
-        if not (len(lowers) == len(uppers) == len(orders)):
-            raise ValueError(
-                "lower_bounds, upper_bounds, and scatter_orders must have equal lengths"
-            )
-        self._energy_windows = (lowers, uppers, orders)
 
     def add_config_value(self, index: int, value: Any) -> None:
         self.python_connector.add_config_value(index, value)
