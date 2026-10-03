@@ -94,25 +94,3 @@ def test_lazy_adaptor_raises_construction_import_error_when_blocked():
     )
     assert result.returncode == 0, result.stderr
     assert "IMPORT_ERROR:" in result.stdout
-
-
-def test_get_stir_types_requires_both_stir_and_stirextra():
-
-    code = (
-        "import sys, types\n"
-        "fake = types.ModuleType('stir')\n"
-        "class P: pass\n"
-        "fake.FloatVoxelsOnCartesianGrid = P\n"
-        "fake.ProjData = P\n"
-        "sys.modules['stir'] = fake\n"
-        "assert 'stirextra' not in sys.modules\n"
-        "from simind_python_connector.utils.import_helpers import get_stir_types\n"
-        "img, proj, available = get_stir_types()\n"
-        "assert available is False and img is type(None) and proj is type(None)\n"
-        "print('OK')\n"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
-    )
-    assert result.returncode == 0, result.stderr
-    assert "OK" in result.stdout

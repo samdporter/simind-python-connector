@@ -299,24 +299,5 @@ if __name__ == "__main__":
         description="Demonstrate Schneider density conversion functionality",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "--backend",
-        type=str,
-        choices=["sirf", "stir"],
-        help=(
-            "Force a specific backend (sirf or stir). "
-            "Note: This example doesn't use backends, but the argument is "
-            "provided for consistency."
-        ),
-    )
-    args = parser.parse_args()
-
-    # This example does not use backend implementations directly, but accepts
-    # the argument for consistency with the rest of the examples.
-    if args.backend:
-        print(
-            f"Note: Backend argument '{args.backend}' "
-            "specified but not used in this example."
-        )
-
+    parser.parse_args()
     main()
