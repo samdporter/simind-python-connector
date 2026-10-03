@@ -10,10 +10,9 @@ import importlib
 # Lazy imports to avoid SIRF dependencies in CI
 def __getattr__(name):
     if name in (
-        "interfile_numpy",
+        "interfile",
         "io_utils",
         "simind_utils",
-        "stir_utils",
         "sirf_stir_utils",
     ):
         return importlib.import_module(f".{name}", __name__)
@@ -109,11 +108,10 @@ def to_projdata_in_memory(proj_data):
 
 __all__ = [
     "get_array",
-    "interfile_numpy",
+    "interfile",
     "to_projdata_in_memory",
     "io_utils",
     "simind_utils",
-    "stir_utils",
     "sirf_stir_utils",
     "step_size_rules",
     "cil_partitioner",

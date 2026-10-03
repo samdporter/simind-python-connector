@@ -4,7 +4,6 @@ import pytest
 
 from simind_python_connector.utils.io_utils import temporary_directory
 from simind_python_connector.utils.simind_utils import create_window_file
-from simind_python_connector.utils.stir_utils import parse_sinogram
 
 
 @pytest.mark.unit
@@ -84,13 +83,3 @@ def test_temporary_directory_context_manager():
 
     # Context manager should clean up the directory tree
     assert not tmpdir.exists()
-
-
-@pytest.mark.unit
-def test_parse_sinogram_from_path(tmp_path):
-    header = tmp_path / "template.hs"
-    header.write_text("!INTERFILE :=\n!matrix size [1] := 64\nstart angle := 180\n")
-
-    values = parse_sinogram(header)
-    assert values["!matrix size [1]"] == "64"
-    assert values["start angle"] == "180"

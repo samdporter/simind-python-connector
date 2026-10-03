@@ -26,7 +26,7 @@ from simind_python_connector.core.types import (
     PenetrateOutputType,
     ScoringRoutine,
 )
-from simind_python_connector.utils.interfile_numpy import load_interfile_array
+from simind_python_connector.utils.interfile import load_interfile_array
 from simind_python_connector.utils.simind_utils import create_window_file
 
 
