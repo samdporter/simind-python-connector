@@ -9,7 +9,7 @@ import importlib
 
 # Lazy imports keep SIRF/STIR out of the import path
 def __getattr__(name):
-    if name in ("interfile", "io_utils", "simind_utils"):
+    if name in ("interfile", "simind_utils"):
         return importlib.import_module(f".{name}", __name__)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
@@ -42,4 +42,4 @@ def get_array(obj):
     )
 
 
-__all__ = ["get_array", "interfile", "io_utils", "simind_utils"]
+__all__ = ["get_array", "interfile", "simind_utils"]

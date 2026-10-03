@@ -25,10 +25,6 @@ class SimulationError(SimindError):
     """Raised when simulation execution fails."""
 
 
-class OutputError(SimindError):
-    """Raised when output processing fails."""
-
-
 # =============================================================================
 # ENUMS
 # =============================================================================
@@ -39,15 +35,6 @@ class RotationDirection(Enum):
 
     CCW = "ccw"
     CW = "cw"
-
-
-class ScatterType(Enum):
-    """SIMIND scatter output types."""
-
-    TOTAL = "tot"
-    SCATTER = "sca"
-    PRIMARY = "pri"
-    AIR = "air"
 
 
 class ScoringRoutine(Enum):
@@ -180,8 +167,6 @@ SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
 # 500 seems a reasonable value that improves precision
 # whilst not exceeding the maximum value (weird things happen)
 MAX_SOURCE = 500
-ORBIT_FILE_EXTENSION = ".cor"
-OUTPUT_EXTENSIONS = [".h00", ".a00", ".hs"]
 
 
 __all__ = [
@@ -189,15 +174,11 @@ __all__ = [
     "SimindError",
     "ValidationError",
     "SimulationError",
-    "OutputError",
     # Enums
     "RotationDirection",
-    "ScatterType",
     "ScoringRoutine",
     "PenetrateOutputType",
     # Constants
     "SIMIND_VOXEL_UNIT_CONVERSION",
     "MAX_SOURCE",
-    "ORBIT_FILE_EXTENSION",
-    "OUTPUT_EXTENSIONS",
 ]

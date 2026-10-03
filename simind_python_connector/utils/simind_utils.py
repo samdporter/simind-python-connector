@@ -3,14 +3,6 @@ import os
 from numbers import Number
 
 
-class SimindError(Exception):
-    """Base exception for SIMIND-related errors."""
-
-
-class SimindNotFoundError(SimindError):
-    """Raised when SIMIND executable is not found."""
-
-
 def validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
     """Normalise and validate energy-window arguments."""
     if isinstance(lower_bounds, Number):
@@ -61,9 +53,6 @@ def create_window_file(
     upper_bounds: list,
     scatter_orders: list,
     output_filename: str = "input",
-    energy_window=None,
-    lower_ew=None,
-    upper_ew=None,
 ):
     """
     Creates a window file for simind simulation
@@ -73,14 +62,6 @@ def create_window_file(
         upper_bounds (list): upper bounds of energy windows
         scatter_orders (list): scatter orders of energy windows
         output_filename (str, optional): name of output file. Defaults to 'input'.
-        ! energy_window (str, optional): energy window type can be dew or dew.
-            Defaults to None.
-        ! lower_ew (list, optional): lower energy window lower and upper bounds.
-            Defaults to None.
-        ! upper_ew (list, optional): upper energy window lower and upper bounds.
-            Defaults to None.
-        ! Note that dual and triple energy windows are not yet supported by this
-        wrapper. Please define your own energy windows and work out yourself
     """
 
     # if path suffix is not. win, add it

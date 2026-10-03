@@ -253,10 +253,6 @@ class SimulationConfig:
         self.data_files = {i: "none" for i in range(1, 13)}
         self.comment = "Loaded from YAML"
 
-    def _initialise_sms_defaults(self):
-        """Initialize with default values for SMC loading."""
-        self.comment = "Loaded from SMC"
-
     _SMC_NUMBER_PATTERN = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?")
 
     @classmethod

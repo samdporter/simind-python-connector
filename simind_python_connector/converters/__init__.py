@@ -8,9 +8,9 @@ import importlib
 
 # Lazy imports to avoid SIRF dependencies in CI
 def __getattr__(name):
-    if name in ("attenuation", "dicom_to_stir", "simind_to_stir"):
+    if name in ("attenuation", "simind_to_stir"):
         return importlib.import_module(f".{name}", __name__)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
-__all__ = ["attenuation", "dicom_to_stir", "simind_to_stir"]
+__all__ = ["attenuation", "simind_to_stir"]

@@ -8,7 +8,6 @@ import importlib
 
 from .base import BaseConnector
 from .python_connector import (
-    NumpyConnector,
     ProjectionResult,
     RuntimeOperator,
     SimindPythonConnector,
@@ -33,7 +32,6 @@ def __getattr__(name):
 
 __all__ = [
     "BaseConnector",
-    "NumpyConnector",
     "PyTomographySimindAdaptor",
     "ProjectionResult",
     "RuntimeOperator",

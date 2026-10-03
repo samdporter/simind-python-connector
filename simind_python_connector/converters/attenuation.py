@@ -5,7 +5,6 @@ This module provides functions to convert Hounsfield Units (HU) to attenuation
 coefficients and densities based on both bilinear and Schneider piecewise models.
 """
 
-import importlib.resources as pkg_resources
 import json
 import warnings
 from pathlib import Path
@@ -13,18 +12,6 @@ from pathlib import Path
 import numpy as np
 
 from simind_python_connector.data import data_path
-
-
-def get_package_data_path(filename):
-    """Get the path to a data file in the package."""
-    try:
-        # Python 3.9+
-        files = pkg_resources.files("simind_python_connector.data")
-        return files / filename
-    except AttributeError:
-        # Python 3.8
-        with pkg_resources.path("simind_python_connector.data", filename) as path:
-            return path
 
 
 def interpolate_attenuation_coefficient(filename, energy):
@@ -61,7 +48,7 @@ def get_attenuation_coefficient(material, energy, file_path=None):
         # basename so the override directory is honoured.
         filepath = Path(file_path) / Path(str(filename)).name
     else:
-        filepath = get_package_data_path(filename)
+        filepath = filename
 
     if not filepath.exists():
         raise FileNotFoundError(f"Attenuation data file not found: {filepath}")
@@ -214,7 +201,7 @@ def load_schneider_data():
         dict: Schneider tissue data with HU ranges and densities
     """
     try:
-        schneider_path = get_package_data_path("Schneider2000.json")
+        schneider_path = data_path("Schneider2000.json")
         with open(schneider_path, "r") as f:
             return json.load(f)
     except FileNotFoundError:
