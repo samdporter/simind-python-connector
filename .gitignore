@@ -158,6 +158,7 @@ Thumbs.db
 *.a00
 *.s
 *.hs
+!tests/fixtures/golden/*.hs
 *.hv
 *.v
 *.dmi
