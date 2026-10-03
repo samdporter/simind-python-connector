@@ -37,7 +37,6 @@ def __getattr__(name: str) -> Any:
         return obj
     elif name in {
         "BaseConnector",
-        "NumpyConnector",
         "PyTomographySimindAdaptor",
         "ProjectionResult",
         "RuntimeOperator",
@@ -54,7 +53,6 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "BaseConnector",
-    "NumpyConnector",
     "ProjectionResult",
     "PyTomographySimindAdaptor",
     "RuntimeOperator",

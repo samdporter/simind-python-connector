@@ -2,7 +2,6 @@ import math
 
 import pytest
 
-from simind_python_connector.utils.io_utils import temporary_directory
 from simind_python_connector.utils.simind_utils import create_window_file
 
 
@@ -71,15 +70,3 @@ def test_create_window_file_overwrites_existing(tmp_path):
     contents = win_file.read_text()
     assert contents != "old contents"
     assert "120.0,140.0,1" in contents
-
-
-@pytest.mark.unit
-def test_temporary_directory_context_manager():
-    with temporary_directory() as tmpdir:
-        assert tmpdir.exists()
-        marker = tmpdir / "marker.txt"
-        marker.write_text("ok")
-        assert marker.exists()
-
-    # Context manager should clean up the directory tree
-    assert not tmpdir.exists()

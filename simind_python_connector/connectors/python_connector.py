@@ -436,11 +436,7 @@ class SimindPythonConnector(BaseConnector):
         return scoring_routine == ScoringRoutine.PENETRATE.value
 
 
-NumpyConnector = SimindPythonConnector
-
-
 __all__ = [
-    "NumpyConnector",
     "ProjectionResult",
     "RuntimeOperator",
     "SimindPythonConnector",
