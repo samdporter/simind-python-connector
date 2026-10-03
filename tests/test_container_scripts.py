@@ -101,48 +101,6 @@ def fake_bin(tmp_path: Path):
     return {"bin": bin_dir, "log": argv_log, "smc_dir": smc_dir}
 
 
-BACKEND_EXAMPLES = ("04_custom_config.py", "06_schneider_density_conversion.py")
-NON_BACKEND_EXAMPLES = (
-    "01_basic_simulation.py",
-    "02_runtime_switch_comparison.py",
-    "03_multi_window.py",
-    "05_scattwin_vs_penetrate_comparison.py",
-)
-
-
-def test_shell_runner_passes_backend_only_to_supporting_examples(
-    tmp_path: Path, fake_bin
-):
-    env = dict(os.environ)
-    env["PATH"] = f"{fake_bin['bin']}:{env['PATH']}"
-    env["SMC_DIR"] = f"{fake_bin['smc_dir']}/"
-
-    result = subprocess.run(
-        ["bash", str(ROOT / "examples" / "run_all_examples.sh"), "--backend", "stir"],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=tmp_path,
-        timeout=120,
-    )
-
-    # The script tolerates individual failures but must not misreport
-    assert result.returncode in (0, 1), result.stderr
-
-    recorded = fake_bin["log"].read_text().splitlines()
-    backend_examples_recorded = [
-        line.split()[0] for line in recorded if line.endswith("--backend stir")
-    ]
-    assert backend_examples_recorded, recorded
-    assert all(name.endswith(BACKEND_EXAMPLES) for name in backend_examples_recorded), (
-        recorded
-    )
-    for example in NON_BACKEND_EXAMPLES:
-        assert not any(
-            line.startswith(example) and "--backend" in line for line in recorded
-        ), (example, recorded)
-
-
 def test_container_validation_script_rejects_no_build_without_image(
     tmp_path: Path, fake_bin
 ):

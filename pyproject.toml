@@ -82,3 +82,22 @@ select = ["F", "E", "W", "I"]  # Include import sorting (I)
 force-single-line = false
 lines-after-imports = 2
 known-first-party = ["simind_python_connector"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --tb=short"
+markers = [
+    "unit: pure unit tests (CI-friendly)",
+    "integration: integration tests (may be slow)",
+    "slow: tests that take more than 10 seconds",
+    "ci_skip: tests to skip in CI environments",
+    "requires_sirf: tests that require SIRF",
+    "requires_stir: tests that require STIR Python",
+    "requires_simind: tests that require SIMIND",
+    "requires_pytomography: tests that require PyTomography",
+    "requires_cil: tests that require CIL",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
