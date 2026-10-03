@@ -11,7 +11,7 @@ class SimindNotFoundError(SimindError):
     """Raised when SIMIND executable is not found."""
 
 
-def _validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
+def validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
     """Normalise and validate energy-window arguments."""
     if isinstance(lower_bounds, Number):
         lower_bounds = [lower_bounds]
@@ -87,7 +87,7 @@ def create_window_file(
     if not output_filename.endswith(".win"):
         output_filename += ".win"
 
-    lower_bounds, upper_bounds, scatter_orders = _validate_energy_windows(
+    lower_bounds, upper_bounds, scatter_orders = validate_energy_windows(
         lower_bounds, upper_bounds, scatter_orders
     )
 
