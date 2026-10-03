@@ -8,9 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from simind_python_connector.core.types import PenetrateOutputType
 from simind_python_connector.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 from simind_python_connector.utils.import_helpers import get_sirf_types
-from simind_python_connector.utils.interfile_parser import (
-    InterfileHeader,
-)
+from simind_python_connector.utils.interfile import InterfileHeader
 
 
 # Conditional import for SIRF to avoid CI dependencies

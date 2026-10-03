@@ -15,7 +15,7 @@ from simind_python_connector.converters.simind_to_stir import (
     StartAngleConversionRule,
 )
 from simind_python_connector.core.types import PenetrateOutputType
-from simind_python_connector.utils.interfile_parser import parse_interfile_line
+from simind_python_connector.utils.interfile import parse_interfile_line
 
 
 @pytest.mark.unit
