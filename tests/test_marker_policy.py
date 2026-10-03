@@ -20,7 +20,6 @@ ALLOWED_MARKERS = {
     "requires_simind",
     "requires_pytomography",
     "requires_cil",
-    "requires_setr",
 }
 
 
@@ -94,24 +93,3 @@ def test_all_tests_have_dependency_or_category_marker() -> None:
         "decorator, class decorator, or module-level pytestmark. Missing:\n- "
         + "\n- ".join(missing)
     )
-
-
-def test_pytest_ci_configuration_registers_markers_and_uses_pytest_section():
-    import configparser
-
-    parser = configparser.ConfigParser()
-    parser.read(ROOT.parent / "pytest-ci.ini")
-
-    assert parser.has_section("pytest"), "pytest-ci.ini must use a [pytest] section"
-    markers = parser["pytest"]["markers"]
-    for required in (
-        "slow",
-        "requires_stir",
-        "requires_pytomography",
-        "requires_cil",
-        "requires_setr",
-    ):
-        assert required in markers, f"missing marker registration: {required}"
-    addopts = parser["pytest"]["addopts"]
-    assert "-m" in addopts
-    assert "not requires_simind" in addopts

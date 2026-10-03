@@ -18,11 +18,11 @@ SIMIND_PATH=""
 SIMIND_CONTAINER_DIR=""
 DOCKER_PLATFORM=""
 
-COMMON_EXCLUDE="not requires_cil and not requires_setr and not ci_skip and not requires_pytomography"
+COMMON_EXCLUDE="not requires_cil and not ci_skip and not requires_pytomography"
 CORE_SUITE_MARKERS="$COMMON_EXCLUDE and not requires_simind and not requires_sirf and not requires_stir"
 STIR_SUITE_MARKERS="$COMMON_EXCLUDE and not requires_simind and not requires_sirf"
 SIRF_MARKERS="$COMMON_EXCLUDE and requires_sirf and not requires_simind"
-SIMIND_MARKERS="requires_simind and not requires_cil and not requires_setr"
+SIMIND_MARKERS="requires_simind and not requires_cil"
 
 usage() {
     cat <<'USAGE'

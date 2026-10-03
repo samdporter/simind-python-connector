@@ -1,7 +1,5 @@
 include README.md
 include LICENSE
-include requirements.txt
-include requirements-dev.txt
 recursive-include simind_python_connector/data *.atn
 recursive-include simind_python_connector/data *.json
 recursive-include simind_python_connector/configs *.smc *.yaml
