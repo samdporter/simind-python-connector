@@ -120,12 +120,9 @@ When SIMIND mode is enabled, it also runs geometry-isolation diagnostics:
 Alternative CI Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can also use the dedicated CI pytest configuration:
-
 .. code-block:: bash
 
-    # Using CI-specific config
-    pytest -c pytest-ci.ini
+    python -m pytest -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not ci_skip"
 
 Test Categories
 ---------------
@@ -138,8 +135,8 @@ The default CI job runs the tests that avoid heavyweight dependencies. These foc
 * **Conversion maths** – ``tests/test_schneider_density.py`` exercises the HU-to-density pipelines.
 * **Configuration & builders** – ``tests/test_simulation_config.py`` and ``tests/test_acquisition_builder_unit.py`` validate YAML/SMC handling plus Interfile header generation without a SIRF runtime.
 * **Connector behavior** – ``tests/test_python_connector.py``, ``tests/test_connectors_base.py``, and ``tests/test_connector_backend_separation.py`` cover the connector-first API without requiring reconstruction packages.
-* **Utility helpers** – ``tests/test_utils.py``, ``tests/test_utils_small.py``, ``tests/test_interfile_parser.py``, and ``tests/test_interfile_numpy.py`` cover file parsing and small helper functions.
-* **Backend guards** – ``tests/test_backends.py``, ``tests/test_marker_policy.py``, and ``tests/test_examples_backend_separation.py`` ensure optional backend imports remain isolated.
+* **Utility helpers** – ``tests/test_interfile.py`` and ``tests/test_utils_small.py`` cover Interfile parsing and small helper functions.
+* **Backend guards** – ``tests/test_builders_native.py``, ``tests/test_marker_policy.py``, and ``tests/test_examples_backend_separation.py`` ensure optional backend imports remain isolated.
 
 Backend-Dependent Suites
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -149,7 +146,6 @@ markers and are skipped when those packages are unavailable. These include:
 
 * ``tests/test_native_adaptors.py`` for STIR/SIRF adaptor behavior.
 * ``tests/test_pytomography_adaptor.py`` for PyTomography tensor and output adaptation.
-* ``tests/test_arithmetic_operations.py`` and ``tests/test_sirf_stir_utils.py`` for backend wrapper/helper behavior.
 
 SIMIND and Container Diagnostics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -171,22 +167,15 @@ skipped in lightweight CI environments.
 Configuration Files
 -------------------
 
-pytest.ini (Local Development)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pyproject.toml
+~~~~~~~~~~~~~~
 
-* Runs all available tests based on detected dependencies
-* Includes verbose output and duration reporting
-
-pytest-ci.ini (CI Environment)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-* Specifically filters out dependency-requiring tests
-* Optimized for GitHub Actions environment
+* ``[tool.pytest.ini_options]`` registers every marker and sets default options
+* The CI selection is passed with ``-m`` (see above)
 
 tests/conftest.py
 ~~~~~~~~~~~~~~~~~
 
-* Configures pytest markers
 * Implements automatic dependency detection and test skipping
 * Handles CI environment detection
 

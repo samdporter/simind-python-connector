@@ -10,7 +10,7 @@ At-a-Glance Axis Conventions
 - STIR/SIRF image arrays are handled as ``(z, y, x)``.
 - STIR/SIRF projection arrays are often 4D with a singleton TOF axis:
   ``(tof, bin, view, axial)``. For these, **view 0** is ``arr[0, :, 0, :]``.
-- Raw Interfile projection loading in ``interfile_numpy`` is exposed as
+- Raw Interfile projection loading in ``utils.interfile`` is exposed as
   ``(views, bins, axial)`` when no singleton TOF axis is present.
 - ``PyTomographySimindAdaptor`` public object-space tensors are ``(x, y, z)``.
 - PyTomography object space is ``(x, y, z)`` (``Lx, Ly, Lz``).
@@ -35,11 +35,9 @@ Units
 - STIR/SIRF image geometry is typically expressed in **mm**.
 - Connectors handle conversion internally via voxel-size settings (for example,
   runtime switch ``PX`` is set in cm for SIMIND).
-- STIR/SIRF adaptor voxel size extraction expects z-spacing in mm. Images
-  report ``voxel_sizes()`` as ``(z, y, x)``, so the **first** element is the z
-  spacing. Raw ``get_grid_spacing()`` sequences follow the STIR coordinate
-  layout ``(unused, z, y, x)`` and use index 1; coordinate objects with a
-  ``z`` accessor use that accessor directly.
+- STIR/SIRF adaptors read voxel sizes in mm in ``(z, y, x)`` order: SIRF from
+  ``voxel_sizes()``, STIR from the 1-based ``get_grid_spacing()`` coordinate
+  (``[1]`` is z).
 
 Example Configuration Guardrails
 --------------------------------

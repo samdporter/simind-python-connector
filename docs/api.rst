@@ -60,11 +60,6 @@ Converters
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: simind_python_connector.converters.dicom_to_stir
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: simind_python_connector.converters.simind_to_stir
    :members:
    :undoc-members:
@@ -73,22 +68,12 @@ Converters
 Utilities
 ---------
 
-.. automodule:: simind_python_connector.utils.stir_utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: simind_python_connector.utils.simind_utils
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: simind_python_connector.utils.io_utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: simind_python_connector.utils.interfile_numpy
+.. automodule:: simind_python_connector.utils.interfile
    :members:
    :undoc-members:
    :show-inheritance:
