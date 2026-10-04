@@ -25,6 +25,7 @@ from simind_python_connector.core.types import (
     SIMIND_VOXEL_UNIT_CONVERSION,
     PenetrateOutputType,
     ScoringRoutine,
+    SimulationError,
 )
 from simind_python_connector.utils.interfile import load_interfile_array
 from simind_python_connector.utils.simind_utils import create_window_file
@@ -102,6 +103,11 @@ class SimindPythonConnector(BaseConnector):
             or Path(prefix).is_absolute()
         ):
             raise ValueError(f"output_prefix must be a plain filename, got {prefix!r}")
+        if prefix != prefix.lower():
+            raise ValueError(
+                f"output_prefix must be lower case, got {prefix!r}: SIMIND "
+                "lowercases file names on Unix, so its outputs would not be found"
+            )
 
     @staticmethod
     def _initialize_config(config_source: ConfigSource) -> SimulationConfig:
@@ -390,6 +396,11 @@ class SimindPythonConnector(BaseConnector):
             ):
                 path.unlink()
 
+        for suffix in (".res", ".bis", ".spe", ".cor"):
+            stale = self.output_dir / f"{self.output_prefix}{suffix}"
+            if stale.is_file() and stale.name not in protected:
+                stale.unlink()
+
     def _prepare_orbit_file(self, orbit_file: Optional[PathLike]) -> Optional[Path]:
         if orbit_file is None:
             return None
@@ -398,12 +409,11 @@ class SimindPythonConnector(BaseConnector):
         if not orbit_path.exists():
             raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
 
-        if orbit_path.parent == self.output_dir:
-            return orbit_path
-
-        copied_path = self.output_dir / orbit_path.name
-        shutil.copy2(orbit_path, copied_path)
-        return copied_path
+        # SIMIND lowercases file names, so pass it a lower-case copy.
+        target = self.output_dir / f"{self.output_prefix}_orbit.cor"
+        if orbit_path != target:
+            shutil.copy2(orbit_path, target)
+        return target
 
     def _ensure_interfile_headers(self) -> list[Path]:
         if self._is_penetrate_routine():
@@ -451,12 +461,9 @@ class SimindPythonConnector(BaseConnector):
             try:
                 interfile = load_interfile_array(header_path)
             except Exception as exc:
-                self.logger.warning(
-                    "Skipping output %s due to parse/load error: %s",
-                    header_path,
-                    exc,
-                )
-                continue
+                raise SimulationError(
+                    f"Could not load SIMIND output {header_path}: {exc}"
+                ) from exc
 
             key = self._extract_output_key(header_path)
             outputs[key] = ProjectionResult(

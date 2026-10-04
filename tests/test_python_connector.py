@@ -5,7 +5,7 @@ import pytest
 
 from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
-from simind_python_connector.core.types import ScoringRoutine
+from simind_python_connector.core.types import ScoringRoutine, SimulationError
 
 
 @pytest.mark.unit
@@ -282,67 +282,6 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
     assert result.projection.shape == (2, 3, 4)
     expected_sum = float(np.arange(24, dtype=np.float32).sum())
     assert float(result.projection.sum()) == expected_sum
-
-
-@pytest.mark.unit
-def test_python_connector_skips_malformed_interfile_outputs(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-
-    def fake_run_simulation(
-        output_prefix: str,
-        orbit_file=None,
-        runtime_switches=None,
-        cwd=None,
-    ) -> None:
-        good_projection = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
-        good_data_path = tmp_path / f"{output_prefix}_tot_w1.a00"
-        good_header_path = tmp_path / f"{output_prefix}_tot_w1.hs"
-        good_projection.tofile(good_data_path)
-        good_header_path.write_text(
-            "\n".join(
-                [
-                    "!INTERFILE :=",
-                    "!number format := float",
-                    "!number of bytes per pixel := 4",
-                    "imagedata byte order := LITTLEENDIAN",
-                    "!matrix size [1] := 4",
-                    "!matrix size [2] := 3",
-                    "!matrix size [3] := 2",
-                    f"!name of data file := {good_data_path.name}",
-                    "!END OF INTERFILE :=",
-                ]
-            )
-        )
-
-        bad_projection = np.arange(16, dtype=np.float32).reshape(4, 4)
-        bad_data_path = tmp_path / f"{output_prefix}_air_w1.a00"
-        bad_header_path = tmp_path / f"{output_prefix}_air_w1.hs"
-        bad_projection.tofile(bad_data_path)
-        bad_header_path.write_text(
-            "\n".join(
-                [
-                    "!INTERFILE :=",
-                    "!number format := float",
-                    "!number of bytes per pixel := 4",
-                    "imagedata byte order := LITTLEENDIAN",
-                    "!matrix size [1] := 4",
-                    "!matrix size [2] := 4",
-                    "!matrix size [3] := 4",
-                    f"!name of data file := {bad_data_path.name}",
-                    "!END OF INTERFILE :=",
-                ]
-            )
-        )
-
-    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
-    outputs = connector.run(RuntimeOperator(switches={"NN": 1}))
-
-    assert "tot_w1" in outputs
-    assert "air_w1" not in outputs
 
 
 @pytest.mark.unit
@@ -731,3 +670,108 @@ def test_python_connector_negative_photon_energy_converts_like_positive(
         written.append(np.fromfile(density_path, dtype=np.uint16))
     assert written[0].max() > 900  # water-like density, not ~0
     assert np.array_equal(written[0], written[1])
+
+
+def _write_projection(tmp_path: Path, name: str, shape: tuple, declared: tuple):
+    data_path = tmp_path / f"{name}.a00"
+    np.zeros(shape, dtype=np.float32).tofile(data_path)
+    (tmp_path / f"{name}.hs").write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                f"!matrix size [1] := {declared[2]}",
+                f"!matrix size [2] := {declared[1]}",
+                f"!matrix size [3] := {declared[0]}",
+                f"!name of data file := {data_path.name}",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+
+@pytest.mark.unit
+def test_python_connector_raises_on_unparseable_output(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        _write_projection(tmp_path, "case01_tot_w1", (2, 3, 4), (2, 3, 4))
+        _write_projection(tmp_path, "case01_air_w1", (4, 4), (4, 4, 4))
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    with pytest.raises(SimulationError, match="case01_air_w1"):
+        connector.run()
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_upper_case_prefix(tmp_path: Path):
+    with pytest.raises(ValueError, match="lower case"):
+        SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            output_prefix="Case01",
+        )
+
+
+@pytest.mark.unit
+def test_python_connector_copies_orbit_file_to_lower_case_name(tmp_path: Path):
+    source_dir = tmp_path / "in"
+    source_dir.mkdir()
+    orbit = source_dir / "MyOrbit.COR"
+    orbit.write_text("15.0\n")
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path / "out",
+        output_prefix="case01",
+    )
+    captured = {}
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        captured["orbit_file"] = orbit_file
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run(RuntimeOperator(orbit_file=orbit))
+    connector.run(RuntimeOperator(orbit_file=tmp_path / "out" / "case01_orbit.cor"))
+
+    assert captured["orbit_file"] == tmp_path / "out" / "case01_orbit.cor"
+    assert (tmp_path / "out" / "case01_orbit.cor").read_text() == "15.0\n"
+
+
+@pytest.mark.unit
+def test_python_connector_removes_stale_result_files(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    for name in (
+        "case01.res",
+        "case01.bis",
+        "case01.spe",
+        "case01.cor",
+        "case01_orbit.cor",
+    ):
+        (tmp_path / name).write_text("old")
+    seen = {}
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        seen["files"] = sorted(path.name for path in tmp_path.iterdir())
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+
+    for name in ("case01.res", "case01.bis", "case01.spe", "case01.cor"):
+        assert name not in seen["files"]
+    assert "case01_orbit.cor" in seen["files"]
