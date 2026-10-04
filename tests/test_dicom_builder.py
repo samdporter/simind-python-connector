@@ -84,9 +84,10 @@ def test_single_frame_dicom_populates_header_and_pixels(tmp_path: Path):
     with pytest.warns(UserWarning, match="NumberOfFrames"):
         builder.update_header_from_dicom(str(dicom_path))
 
-    assert builder.header["!matrix size [1]"] == "4"
-    assert builder.header["!matrix size [2]"] == "5"
-    assert builder.header["scaling factor (mm/pixel) [1]"] == "1.5"
+    assert builder.header["!matrix size [1]"] == "5"
+    assert builder.header["!matrix size [2]"] == "4"
+    assert builder.header["scaling factor (mm/pixel) [1]"] == "2.0"
+    assert builder.header["scaling factor (mm/pixel) [2]"] == "1.5"
     assert builder.pixel_array is not None
     assert builder.pixel_array.ndim == 4
     assert builder.pixel_array.shape == (1, 4, 1, 5)
