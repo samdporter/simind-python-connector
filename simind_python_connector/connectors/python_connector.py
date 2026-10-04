@@ -231,8 +231,10 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(3, dim_x * vox_cm / 2.0)
         cfg.set_value(4, dim_y * vox_cm / 2.0)
         cfg.set_value(28, vox_cm)
-        cfg.set_value(76, dim_x)
-        cfg.set_value(77, dim_y)
+        # Projection rows (Index 77) run along the axis of rotation, which is
+        # the slice direction of the maps (checked against SIMIND 8.0).
+        cfg.set_value(76, max(dim_x, dim_y))
+        cfg.set_value(77, dim_z)
 
         # Density geometry
         cfg.set_value(5, dim_z * vox_cm / 2.0)
