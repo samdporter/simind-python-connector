@@ -166,3 +166,16 @@ class _NativeSimindAdaptor(BaseConnector):
                 f"source and mu_map must have matching shapes, got "
                 f"{source_shape} and {mu_shape}"
             )
+
+        source_sizes = np.asarray(self._voxel_sizes_mm(self._source), dtype=float)
+        mu_sizes = np.asarray(self._voxel_sizes_mm(self._mu_map), dtype=float)
+        if not np.allclose(source_sizes, source_sizes[0], atol=1e-3):
+            raise ValueError(
+                f"source voxel sizes {tuple(source_sizes)} mm (z, y, x) are not "
+                "isotropic; anisotropic voxels are not supported yet"
+            )
+        if not np.allclose(source_sizes, mu_sizes, atol=1e-3):
+            raise ValueError(
+                f"source and mu_map voxel sizes differ: {tuple(source_sizes)} "
+                f"vs {tuple(mu_sizes)} mm"
+            )

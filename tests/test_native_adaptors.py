@@ -137,8 +137,8 @@ def test_adaptor_run_forwards_expected_connector_inputs(
     patch(monkeypatch)
     adaptor = _make_adaptor(cls, tmp_path, scoring_routine=ScoringRoutine.PENETRATE)
     source_arr = np.arange(2 * 3 * 4, dtype=np.float64).reshape(2, 3, 4)
-    adaptor.set_source(image_cls(source_arr, (3.5, 4.0, 4.0)))
-    adaptor.set_mu_map(image_cls(np.ones_like(source_arr) * 0.15, (3.5, 4.0, 4.0)))
+    adaptor.set_source(image_cls(source_arr, (4.0, 4.0, 4.0)))
+    adaptor.set_mu_map(image_cls(np.ones_like(source_arr) * 0.15, (4.0, 4.0, 4.0)))
 
     captured: dict[str, object] = {}
 
@@ -172,7 +172,7 @@ def test_adaptor_run_forwards_expected_connector_inputs(
     assert np.asarray(captured["source"]).dtype == np.float32
     assert np.asarray(captured["mu_map"]).dtype == np.float32
     assert np.asarray(captured["source"]).shape == (2, 3, 4)
-    assert captured["voxel_size_mm"] == pytest.approx(3.5)  # z spacing
+    assert captured["voxel_size_mm"] == pytest.approx(4.0)
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
     assert captured["runtime_operator"] is runtime_operator
 
@@ -236,3 +236,27 @@ def test_adaptor_rejects_invalid_photon_multiplier(
     patch(monkeypatch)
     with pytest.raises(ValueError, match="integer >= 1"):
         _make_adaptor(cls, tmp_path, photon_multiplier=0)
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_rejects_anisotropic_voxels(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_source(image_cls(np.zeros((2, 3, 4)), (2.0, 4.0, 4.0)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), (2.0, 4.0, 4.0)))
+    with pytest.raises(ValueError, match="not isotropic"):
+        adaptor.run()
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_rejects_mu_map_with_different_spacing(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_source(image_cls(np.zeros((2, 3, 4)), (4.0, 4.0, 4.0)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), (3.0, 3.0, 3.0)))
+    with pytest.raises(ValueError, match="voxel sizes differ"):
+        adaptor.run()
