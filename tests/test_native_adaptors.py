@@ -227,3 +227,12 @@ def test_adaptor_clears_cached_outputs_on_failed_rerun(
     assert adaptor._outputs is None
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_outputs()
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_rejects_invalid_photon_multiplier(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    with pytest.raises(ValueError, match="integer >= 1"):
+        _make_adaptor(cls, tmp_path, photon_multiplier=0)

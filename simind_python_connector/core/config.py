@@ -11,6 +11,7 @@ import os
 import re
 from pathlib import Path
 
+import numpy as np
 import yaml
 
 
@@ -973,13 +974,37 @@ class SimulationConfig:
         return filepath.with_suffix(".smc")
 
 
+def _is_integer(value) -> bool:
+    return isinstance(value, (int, np.integer)) and not isinstance(value, bool)
+
+
+def _validate_switch_value(switch: str, value) -> None:
+    if switch == "NN" and not (_is_integer(value) and value >= 1):
+        raise ValueError(
+            "NN must be an integer >= 1 (SIMIND cuts off the simulation "
+            f"otherwise), got {value!r}"
+        )
+    if switch in ("RR", "SC") and not _is_integer(value):
+        raise ValueError(f"{switch} must be an integer, got {value!r}")
+    if switch in ("CA", "DI") and not (_is_integer(value) and value in (0, 1, 2)):
+        raise ValueError(f"{switch} must be 0, 1 or 2, got {value!r}")
+
+
 class RuntimeSwitches:
+    """SIMIND command-line switches (SIMIND manual v8.0, "Running simind").
+
+    A value of True stands for a switch without a value, e.g. /HO.
+    """
+
     def __init__(self):
         self.standard_switch_dict = {
+            "CA": "Scattwin output files (0: tot; 1: air, tot, sca; 2: air, tot, pri)",
             "CC": "Collimator code",
             "DF": "Density file segment",
+            "DP": "Distance between planes for forced collimation",
             "ES": "Energy offset",
             "FE": "Energy resolution file",
+            "FW": "Window file name",
             "FZ": "Zubal file",
             "FI": "Input file",
             "FD": "Density map base name",
@@ -988,8 +1013,8 @@ class RuntimeSwitches:
             "IN": "Change simind.ini value",
             "LO": "Photon histories before printout",
             "LF": "Linear sampling of polar angle for photon direction",
-            "MP": "MPI parallel run",
             "OR": "Change orientation of the density map",
+            "OU": "List-mode output format",
             "PR": "Start simulation at projection number",
             "PU": "Shift of the source in pixel units",
             "QF": "Quit simulation if earlier result file exists",
@@ -999,7 +1024,12 @@ class RuntimeSwitches:
             "TS": "Time shift for interfile header",
             "UA": "Set density equal to data buffer or 1.0",
             "WB": "Whole-body simulation of anterior and posterior views",
-            "Xn": "Change cross sections",
+            "X1": "Cross-section file for soft tissue",
+            "X2": "Cross-section file for bone",
+            "X3": "Cross-section file for the cover",
+            "X4": "Cross-section file for the crystal",
+            "X5": "Cross-section file for the backscatter material",
+            "X6": "Cross-section file for the collimator",
         }
 
         self.image_based_switch_dict = {
@@ -1008,7 +1038,7 @@ class RuntimeSwitches:
             "TH": "Slice thickness for the images",
             "SB": "Start block when reading source maps",
             "1S": "Position of the first image to be used",
-            "NN": "Multiplier for scaling the number of counts",
+            "NN": "Multiplier for the number of photon histories",
             "IF": "Input tumour file",
         }
 
@@ -1035,6 +1065,9 @@ class RuntimeSwitches:
             "C4": "Shift of spheres in the x-direction",
             "C5": "Shift of spheres in the y-direction",
             "C6": "Shift of spheres in the z-direction",
+            "BG": "Background activity concentration",
+            "HO": "Hot spheres without background",
+            "CO": "Cold spheres in a uniform background",
         }
         self.switches = {}
 
@@ -1052,26 +1085,26 @@ class RuntimeSwitches:
             combined_dict.update(sub_dict)
         return combined_dict
 
-    def _set_switch_by_switch(self, switch, value):
-        if switch in self.combined_switch_dict:
-            self.switches[switch] = value
-        else:
-            raise ValueError(f"Switch {switch} is not recognised.")
-
-    def _set_switch_by_name(self, name, value):
-        for switch, description in self.combined_switch_dict.items():
-            if description == name:
-                self.switches[switch] = value
-                return
-        raise ValueError(f"Switch {name} is not recognised.")
+    def _resolve(self, identifier):
+        combined = self.combined_switch_dict
+        if identifier in combined:
+            return identifier
+        for switch, description in combined.items():
+            if description == identifier:
+                return switch
+        raise ValueError(f"Switch {identifier} is not recognised.")
 
     def set_switch(self, identifier, value):
-        if identifier in self.combined_switch_dict.values():
-            self._set_switch_by_name(identifier, value)
-        elif identifier in self.combined_switch_dict.keys():
-            self._set_switch_by_switch(identifier, value)
-        else:
-            raise ValueError(f"Switch {identifier} is not recognised.")
+        if identifier == "MP":
+            raise ValueError(
+                "MP is not set as a switch: use set_mpi() to run SIMIND with MPI"
+            )
+        switch = self._resolve(identifier)
+        if value is None:
+            self.switches.pop(switch, None)
+            return
+        _validate_switch_value(switch, value)
+        self.switches[switch] = value
 
     def print_switches(self):
         for switch, value in self.switches.items():
