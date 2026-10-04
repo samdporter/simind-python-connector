@@ -262,7 +262,9 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_data_file(6, src_prefix)
 
         if cfg.get_flag(11):
-            photon_energy = float(cfg.get_value("photon_energy"))
+            # A negative Index 1 asks SIMIND to read photon energies from the
+            # isotope file; its absolute value is still the window energy.
+            photon_energy = abs(float(cfg.get_value("photon_energy")))
             density = attenuation_to_density(mu_map_array, photon_energy) * 1000.0
         else:
             density = np.zeros_like(mu_map_array)

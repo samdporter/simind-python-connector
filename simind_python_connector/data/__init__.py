@@ -18,8 +18,8 @@ def data_path(filename: str) -> Path:
 
 def load_table(filename: str) -> _np.ndarray:
     """
-    Load an attenuation table (energy [keV], μ [cm⁻¹]).
-    Example filenames: 'bone.atn', 'h2o.atn'.
+    Load an attenuation table: column 1 energy [MeV], column 2 mass
+    attenuation coefficient [cm^2/g]. Example filenames: 'bone.atn', 'h2o.atn'.
     """
     with _res.as_file(data_path(filename)) as fp:
-        return _np.loadtxt(fp, dtype=float)
+        return _np.loadtxt(fp, dtype=float, ndmin=2)
