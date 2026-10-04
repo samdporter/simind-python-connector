@@ -11,8 +11,13 @@ Example
 """
 
 from importlib import resources as _res
-from importlib.resources.abc import Traversable
 from typing import Union
+
+
+try:  # Python 3.11 moved Traversable into importlib.resources.abc
+    from importlib.resources.abc import Traversable
+except ImportError:  # pragma: no cover - Python 3.10
+    from importlib.abc import Traversable
 
 
 __all__ = ["get", "list"]
