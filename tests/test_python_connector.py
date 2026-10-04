@@ -64,12 +64,38 @@ def test_python_connector_configure_voxel_phantom_sets_all_map_dimensions(
     )
 
     config = connector.get_config()
-    assert config.get_value(76) == pytest.approx(4)  # image i = dim_x
-    assert config.get_value(77) == pytest.approx(3)  # image j = dim_y
+    assert config.get_value(76) == pytest.approx(4)  # columns = max(dim_x, dim_y)
+    assert config.get_value(77) == pytest.approx(2)  # rows = dim_z (axial)
     assert config.get_value(78) == pytest.approx(4)  # density map i = dim_x
     assert config.get_value(79) == pytest.approx(4)  # source map i = dim_x
     assert config.get_value(81) == pytest.approx(3)  # density map j = dim_y
     assert config.get_value(82) == pytest.approx(3)  # source map j = dim_y
+    assert config.get_value(34) == pytest.approx(2)  # number of density images
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_uses_axial_projection_rows(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    # dim_y (4) exceeds dim_x (3), so the columns follow dim_y.
+    source = np.zeros((2, 4, 3), dtype=np.float32)
+    source[0, 0, 0] = 1.0
+
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+
+    config = connector.get_config()
+    assert config.get_value(76) == pytest.approx(4)  # columns = max(dim_x, dim_y)
+    assert config.get_value(77) == pytest.approx(2)  # rows = dim_z (axial)
+    assert config.get_value(78) == pytest.approx(3)  # density map i = dim_x
+    assert config.get_value(79) == pytest.approx(3)  # source map i = dim_x
+    assert config.get_value(81) == pytest.approx(4)  # density map j = dim_y
+    assert config.get_value(82) == pytest.approx(4)  # source map j = dim_y
     assert config.get_value(34) == pytest.approx(2)  # number of density images
 
 
