@@ -273,7 +273,7 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
     outputs = connector.run(RuntimeOperator(switches={"NN": 2, "RR": 12345}))
 
     assert captured["output_prefix"] == "case01"
-    assert captured["runtime_switches"] == {"NN": 2, "RR": 12345}
+    assert captured["runtime_switches"] == {"NN": 2, "RR": 12345, "CA": 1}
 
     assert "tot_w1" in outputs
     result = outputs["tot_w1"]
@@ -775,3 +775,95 @@ def test_python_connector_removes_stale_result_files(tmp_path: Path):
     for name in ("case01.res", "case01.bis", "case01.spe", "case01.cor"):
         assert name not in seen["files"]
     assert "case01_orbit.cor" in seen["files"]
+
+
+def _write_named_projection(tmp_path: Path, name: str, values: np.ndarray):
+    data_path = tmp_path / f"{name}.a00"
+    values.astype("<f4").tofile(data_path)
+    (tmp_path / f"{name}.hs").write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                f"!name of data file := {data_path.name}",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+
+@pytest.mark.unit
+def test_python_connector_derives_primary_from_total_and_scatter(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    total = np.arange(24, dtype=np.float32).reshape(2, 3, 4) + 10
+    scatter = np.ones((2, 3, 4), dtype=np.float32)
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        _write_named_projection(tmp_path, "case01_tot_w1", total)
+        _write_named_projection(tmp_path, "case01_sca_w1", scatter)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    outputs = connector.run()
+
+    assert np.array_equal(outputs["pri_w1"].projection, total - scatter)
+    assert outputs["pri_w1"].metadata["derived"] == "tot - sca"
+    assert "derived" not in outputs["tot_w1"].metadata
+
+
+@pytest.mark.unit
+def test_python_connector_keeps_user_ca_and_simind_primary(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_runtime_switch("CA", 2)
+    primary = np.full((2, 3, 4), 5.0, dtype=np.float32)
+    captured = {}
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        captured["switches"] = dict(runtime_switches)
+        _write_named_projection(tmp_path, "case01_tot_w1", primary + 1)
+        _write_named_projection(tmp_path, "case01_pri_w1", primary)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    outputs = connector.run()
+
+    assert captured["switches"]["CA"] == 2
+    assert np.array_equal(outputs["pri_w1"].projection, primary)
+    assert "derived" not in outputs["pri_w1"].metadata
+
+
+@pytest.mark.unit
+def test_python_connector_derives_primary_only_for_order_zero_windows(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.set_energy_windows([126.0, 126.0], [154.0, 154.0], [0, 1])
+    total = np.full((2, 3, 4), 10.0, dtype=np.float32)
+    scatter = np.full((2, 3, 4), 1.0, dtype=np.float32)
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        for window in (1, 2):
+            _write_named_projection(tmp_path, f"case01_tot_w{window}", total)
+            _write_named_projection(tmp_path, f"case01_sca_w{window}", scatter)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    outputs = connector.run()
+
+    assert np.array_equal(outputs["pri_w1"].projection, total - scatter)
+    assert outputs["pri_w1"].metadata["derived"] == "tot - sca"
+    assert "pri_w2" not in outputs
