@@ -195,6 +195,19 @@ run_service() {
     fi
 }
 
+# A backend test group can legitimately select no tests (for example, once the
+# wrapper-layer tests were removed). pytest exits 5 in that case; treat it as an
+# empty group so the container's import-isolation check still runs.
+run_service_allowing_no_tests() {
+    local rc=0
+    run_service "$@" || rc=$?
+    if [[ "$rc" -eq 5 ]]; then
+        echo "[info] No tests collected for '$1'; continuing with an empty group."
+        return 0
+    fi
+    return "$rc"
+}
+
 
 SERVICE_IMAGES=(
     python=simind-python-connector/python:dev
@@ -265,15 +278,15 @@ if [[ "$RUN_CORE" -eq 1 ]]; then
 fi
 
 if [[ "$RUN_STIR" -eq 1 ]]; then
-    run_service stir "python -m pytest -m \"$STIR_SUITE_MARKERS\" -q"
+    run_service_allowing_no_tests stir "python -m pytest -m \"$STIR_SUITE_MARKERS\" -q"
 fi
 
 if [[ "$RUN_SIRF" -eq 1 ]]; then
-    run_service sirf "python -m pytest -m \"$SIRF_MARKERS\" -q"
+    run_service_allowing_no_tests sirf "python -m pytest -m \"$SIRF_MARKERS\" -q"
 fi
 
 if [[ "$RUN_PYTOMO" -eq 1 ]]; then
-    run_service pytomography "python -m pytest -m \"requires_pytomography and not requires_simind and not ci_skip\" -q"
+    run_service_allowing_no_tests pytomography "python -m pytest -m \"requires_pytomography and not requires_simind and not ci_skip\" -q"
 fi
 
 echo "[3/4] Verifying per-container import isolation..."
