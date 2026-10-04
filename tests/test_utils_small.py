@@ -12,11 +12,7 @@ def test_create_window_file_writes_expected_lines(tmp_path):
 
     win_file = win_stem.with_suffix(".win")
     assert win_file.exists()
-
-    lines = win_file.read_text().splitlines()
-    assert lines[0] == "140.0,160.0,0"
-    # Additional scatter-only line should be appended to encourage SIMIND output
-    assert lines[-1].endswith(",1")
+    assert win_file.read_text() == "140.0,160.0,0\n"
 
 
 @pytest.mark.unit

@@ -27,8 +27,14 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     SimulationError,
 )
-from simind_python_connector.utils.interfile import load_interfile_array
-from simind_python_connector.utils.simind_utils import create_window_file
+from simind_python_connector.utils.interfile import (
+    InterfileHeader,
+    load_interfile_array,
+)
+from simind_python_connector.utils.simind_utils import (
+    create_window_file,
+    validate_energy_windows,
+)
 
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
@@ -90,6 +96,8 @@ class SimindPythonConnector(BaseConnector):
         self._outputs: Optional[dict[str, ProjectionResult]] = None
         self._window_file_path: Optional[Path] = None
         self._mpi: Optional[tuple[int, bool]] = None
+        self._derived_keys: set[str] = set()
+        self._scatter_orders: list[int] = []
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -299,6 +307,10 @@ class SimindPythonConnector(BaseConnector):
             scatter_orders,
             output_filename=str(window_path),
         )
+        _, _, orders = validate_energy_windows(
+            lower_bounds, upper_bounds, scatter_orders
+        )
+        self._scatter_orders = orders
         self._window_file_path = window_path
 
     def run(
@@ -331,6 +343,13 @@ class SimindPythonConnector(BaseConnector):
                 run_switches_holder.set_switch(key, value)
             orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
 
+        # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin
+        # routine); primary is then tot - sca.
+        if self._scoring_routine_value() == ScoringRoutine.SCATTWIN.value and (
+            "CA" not in run_switches_holder.switches
+        ):
+            run_switches_holder.set_switch("CA", 1)
+
         config_path = self.output_dir / self.output_prefix
         self.config.save_file(config_path)
 
@@ -344,6 +363,7 @@ class SimindPythonConnector(BaseConnector):
         )
 
         header_files = self._ensure_interfile_headers()
+        header_files = header_files + self._derive_primary_headers(header_files)
         self._outputs = self._load_projection_outputs(header_files)
         return self._outputs
 
@@ -452,6 +472,51 @@ class SimindPythonConnector(BaseConnector):
 
         return hs_files
 
+    def _derive_primary_headers(self, header_files: list[Path]) -> list[Path]:
+        """Write pri_wN = tot_wN - sca_wN where SIMIND wrote tot and sca only."""
+        names = {path.name for path in header_files}
+        tot_prefix = f"{self.output_prefix}_tot_w"
+        derived = []
+        for tot_header in header_files:
+            if not tot_header.stem.startswith(tot_prefix):
+                continue
+            window = tot_header.stem[len(tot_prefix) :]
+            if self._scatter_orders and self._scatter_orders[int(window) - 1] != 0:
+                continue
+            sca_header = tot_header.with_name(f"{self.output_prefix}_sca_w{window}.hs")
+            pri_header = tot_header.with_name(f"{self.output_prefix}_pri_w{window}.hs")
+            if pri_header.name in names or sca_header.name not in names:
+                continue
+            try:
+                total = load_interfile_array(tot_header).array
+            except Exception as exc:
+                raise SimulationError(
+                    f"Could not load SIMIND output {tot_header}: {exc}"
+                ) from exc
+            try:
+                scatter = load_interfile_array(sca_header).array
+            except Exception as exc:
+                raise SimulationError(
+                    f"Could not load SIMIND output {sca_header}: {exc}"
+                ) from exc
+            if total.shape != scatter.shape:
+                raise SimulationError(
+                    f"Could not derive primary from {tot_header} and {sca_header}: "
+                    f"shape mismatch ({total.shape} vs {scatter.shape})"
+                )
+            pri_data = pri_header.with_suffix(".a00")
+            (total - scatter).astype("<f4").tofile(pri_data)
+            header = InterfileHeader.from_file(tot_header)
+            header.set("!name of data file", pri_data.name)
+            header.set("!number format", "float")
+            header.set("!number of bytes per pixel", 4)
+            header.set("imagedata byte order", "LITTLEENDIAN")
+            header.set("!data offset in bytes", 0)
+            header.write(pri_header)
+            derived.append(pri_header)
+        self._derived_keys = {self._extract_output_key(path) for path in derived}
+        return derived
+
     def _load_projection_outputs(
         self, header_files: list[Path]
     ) -> dict[str, ProjectionResult]:
@@ -470,7 +535,11 @@ class SimindPythonConnector(BaseConnector):
                 projection=interfile.array,
                 header_path=interfile.header_path,
                 data_path=interfile.data_path,
-                metadata=interfile.metadata,
+                metadata=(
+                    {**interfile.metadata, "derived": "tot - sca"}
+                    if key in self._derived_keys
+                    else interfile.metadata
+                ),
             )
 
         if not outputs:
@@ -496,14 +565,14 @@ class SimindPythonConnector(BaseConnector):
             stem = stem[len(self.output_prefix) :]
         return stem.lstrip("_") or header_path.stem
 
-    def _is_penetrate_routine(self) -> bool:
+    def _scoring_routine_value(self) -> Optional[int]:
         try:
-            scoring_routine = int(
-                round(float(self.config.get_value("scoring_routine")))
-            )
+            return int(round(float(self.config.get_value("scoring_routine"))))
         except Exception:
-            return False
-        return scoring_routine == ScoringRoutine.PENETRATE.value
+            return None
+
+    def _is_penetrate_routine(self) -> bool:
+        return self._scoring_routine_value() == ScoringRoutine.PENETRATE.value
 
 
 __all__ = [
