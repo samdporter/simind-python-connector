@@ -166,6 +166,15 @@ if [[ "$RUN_SIMIND_TESTS" == "1" && "$SIMIND_AVAILABLE" -eq 0 ]]; then
     RUN_SIMIND_TESTS=0
 fi
 
+if [[ "$RUN_SIMIND_TESTS" == "1" && "$SIMIND_AVAILABLE" -eq 1 ]]; then
+    SIMIND_MPI_PATH="$(dirname "$SIMIND_PATH")/simind_mpi"
+    if [[ ! -x "$SIMIND_MPI_PATH" ]]; then
+        echo "SIMIND MPI binary not found or not executable at '$SIMIND_MPI_PATH'." >&2
+        echo "SIMIND tests need the sibling simind_mpi build; install it next to '$SIMIND_PATH'." >&2
+        exit 1
+    fi
+fi
+
 run_service() {
     local service="$1"
     shift
@@ -176,6 +185,7 @@ run_service() {
         local container_bin="/workspace/${SIMIND_PATH#$ROOT_DIR/}"
         simind_env_args+=(
             -e "SIMIND_BIN=$container_bin"
+            -e "SIMIND_MPI_BIN=$(dirname "$container_bin")/simind_mpi"
             -e "SIMIND_SMC_DIR=$(dirname "$container_bin")/smc_dir/"
             -e "SIMIND_DATA_DIR=$(dirname "$container_bin")/smc_dir/"
             -e "SMC_DIR=$(dirname "$container_bin")/smc_dir/"
@@ -311,13 +321,16 @@ if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
         run_service python "python examples/02_runtime_switch_comparison.py"
         run_service python "python examples/03_multi_window.py"
         run_service python "python examples/05_scattwin_vs_penetrate_comparison.py"
+        run_service python "python -m pytest tests/test_simind_mpi.py -q -s"
     fi
     if [[ "$RUN_STIR" -eq 1 ]]; then
         run_service stir "python examples/07A_stir_adaptor_osem.py"
     fi
     if [[ "$RUN_SIRF" -eq 1 ]]; then
         run_service sirf "python examples/07B_sirf_adaptor_osem.py"
-        run_service sirf "python -m pytest -m \"$SIMIND_MARKERS\" -q"
+        # test_simind_mpi.py runs once in the python service (MPICH); the SIRF
+        # image uses OpenMPI and would only re-run it there.
+        run_service sirf "python -m pytest -m \"$SIMIND_MARKERS\" -q --ignore=tests/test_simind_mpi.py"
         run_service sirf "python -m pytest tests/test_geometry_isolation_forward_projection.py -q"
     fi
     if [[ "$RUN_PYTOMO" -eq 1 ]]; then

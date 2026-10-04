@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 pytestmark = pytest.mark.unit
 
+VALIDATION_SCRIPT = ROOT / "scripts" / "run_container_validation.sh"
+
 
 def test_run_all_examples_returns_nonzero_when_an_example_fails(monkeypatch):
     import importlib.util
@@ -186,6 +188,8 @@ def test_container_scripts_forward_smc_env_without_compose_no_build(
         "SIMIND_DATA_DIR": "/workspace/simind/smc_dir/",
         "SMC_DIR": "/workspace/simind/smc_dir/",
     }
+    if script_name == "run_container_validation.sh":
+        expected_env["SIMIND_MPI_BIN"] = "/workspace/simind/simind_mpi"
     for line in compose_runs:
         tokens = line.split()
         env_pairs = {
@@ -246,3 +250,78 @@ def test_validation_script_require_simind_fails_without_binary(
         timeout=120,
     )
     assert result.returncode == 1, result.stdout + result.stderr
+
+
+def test_validation_script_forwards_simind_mpi_bin_in_run_service():
+    script = VALIDATION_SCRIPT.read_text()
+    assert '-e "SIMIND_MPI_BIN=$(dirname "$container_bin")/simind_mpi"' in script
+
+
+def test_validation_script_requires_sibling_simind_mpi_for_simind_tests():
+    script = VALIDATION_SCRIPT.read_text()
+    assert (
+        '[[ "$RUN_SIMIND_TESTS" == "1" && "$SIMIND_AVAILABLE" -eq 1 ]]; then' in script
+    )
+    assert 'SIMIND_MPI_PATH="$(dirname "$SIMIND_PATH")/simind_mpi"' in script
+    assert '[[ ! -x "$SIMIND_MPI_PATH" ]]' in script
+
+
+def test_validation_script_runs_simind_mpi_test_in_python_service():
+    script = VALIDATION_SCRIPT.read_text()
+    assert (
+        'run_service python "python -m pytest tests/test_simind_mpi.py -q -s"' in script
+    )
+
+
+def test_validation_script_sirf_simind_selection_ignores_simind_mpi_test():
+    script = VALIDATION_SCRIPT.read_text()
+    sirf_line = next(
+        line
+        for line in script.splitlines()
+        if "run_service sirf" in line and "SIMIND_MARKERS" in line
+    )
+    assert "--ignore=tests/test_simind_mpi.py" in sirf_line
+
+
+def test_validation_script_fails_without_sibling_simind_mpi(tmp_path):
+    """Missing sibling simind_mpi is a hard failure, not a skip."""
+    repo = tmp_path / "repo"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "docker").mkdir()
+    shutil.copy(VALIDATION_SCRIPT, repo / "scripts" / "run_container_validation.sh")
+    shutil.copy(ROOT / "docker" / "compose.yaml", repo / "docker" / "compose.yaml")
+
+    repo_simind = repo / "simind"
+    repo_simind.mkdir()
+    executable = repo_simind / "simind"
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(executable.stat().st_mode | stat.S_IEXEC)
+    # No repo/simind/simind_mpi sibling.
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    # Fail loudly if docker is ever reached; the script must stop before that.
+    docker = bin_dir / "docker"
+    docker.write_text("#!/bin/sh\necho 'docker must not be called' >&2\nexit 99\n")
+    docker.chmod(docker.stat().st_mode | stat.S_IEXEC)
+
+    env = dict(os.environ)
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(repo / "scripts" / "run_container_validation.sh"),
+            "--only-core",
+            "--with-simind",
+            "--require-simind",
+            "--no-build",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+        timeout=120,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "simind_mpi" in result.stderr
