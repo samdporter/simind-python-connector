@@ -624,3 +624,49 @@ def test_python_connector_rejects_invalid_nn(tmp_path: Path):
     )
     with pytest.raises(ValueError, match="integer >= 1"):
         connector.add_runtime_switch("NN", 0.5)
+
+
+@pytest.mark.unit
+def test_python_connector_set_mpi_validates_processes(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    for bad in (0, -1, 1.5, True):
+        with pytest.raises(ValueError, match="integer >= 1"):
+            connector.set_mpi(bad)
+    with pytest.raises(ValueError, match="needs processes"):
+        connector.set_mpi(None, split_projections=True)
+
+
+@pytest.mark.unit
+def test_python_connector_split_mpi_needs_divisible_projections(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(29, 24)
+    connector.set_mpi(5, split_projections=True)
+    with pytest.raises(ValueError, match="multiple of the MPI processes"):
+        connector.run()
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_passes_mpi_settings_to_executor(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(29, 24)
+    connector.set_mpi(4, split_projections=True)
+    captured = {}
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
+    ):
+        captured.update(kwargs)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+
+    assert captured == {"mpi_processes": 4, "split_projections": True}

@@ -146,21 +146,80 @@ def test_executor_plain_command_includes_orbit_and_switches(
     assert command[4] == "/NN:2/RR:12345"
 
 
-def test_executor_mpi_command_uses_flag_form(
+def test_executor_mpi_replicate_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation(
+        "case01", runtime_switches={"NN": 2}, mpi_processes=4
+    )
+
+    assert calls[0][0] == [
+        "mpirun",
+        "-np",
+        "4",
+        "simind_mpi",
+        "case01",
+        "case01",
+        "/NN:2",
+    ]
+
+
+def test_executor_mpi_split_command_appends_mp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation(
+        "case01",
+        orbit_file=Path("/tmp/case01_orbit.cor"),
+        runtime_switches={"NN": 2},
+        mpi_processes=4,
+        split_projections=True,
+    )
+
+    assert calls[0][0] == [
+        "mpirun",
+        "-np",
+        "4",
+        "simind_mpi",
+        "case01",
+        "case01",
+        "case01_orbit.cor",
+        "/NN:2/MP",
+    ]
+
+
+def test_executor_mpi_binary_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIMIND_MPI_BIN", "/opt/simind/simind_mpi")
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", mpi_processes=2)
+
+    assert calls[0][0][3] == "/opt/simind/simind_mpi"
+
+
+def test_executor_split_requires_mpi_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(monkeypatch)
+    with pytest.raises(SimulationError, match="mpi_processes"):
+        SimindExecutor().run_simulation("case01", split_projections=True)
+
+
+def test_executor_renders_valueless_switches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SIMIND_BIN", raising=False)
     calls = _capture_run(monkeypatch)
 
-    SimindExecutor().run_simulation(
-        "case01",
-        runtime_switches={"MP": 4, "NN": 2},
-    )
+    SimindExecutor().run_simulation("case01", runtime_switches={"HO": True, "NN": 3})
 
-    command = calls[0][0]
-    assert command[:6] == ["mpirun", "-np", "4", "simind", "case01", "case01"]
-    assert command[-2:] == ["-p", "/MP/NN:2"]
-    assert "/MP:4" not in command[-1]
+    assert calls[0][0][-1] == "/HO/NN:3"
 
 
 def test_executor_rejects_whitespace_tokens(
