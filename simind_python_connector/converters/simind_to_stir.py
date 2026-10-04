@@ -9,10 +9,6 @@ from simind_python_connector.core.types import PenetrateOutputType
 from simind_python_connector.utils.interfile import InterfileHeader
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-
 @dataclass
 class ConversionConfig:
     """Configuration for SIMIND to STIR conversion."""
