@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `read_simind_density_image`, `normalise_key`, `parse_interfile_line`). Header key
   lookups ignore case, leading `!`/`#` and spacing.
 - `utils.simind_utils.validate_energy_windows` (public).
+- `converters.attenuation.density_to_attenuation`.
+- Runtime switches from the SIMIND 8 manual: `CA`, `FW`, `OU`, `DP`, `BG`, `HO`, `CO`, `X1`–`X6`.
 
 ### Changed
 - `SimindToStirConverter.convert_file` returns `None`;
@@ -20,6 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The STIR adaptor reads voxel sizes from `get_grid_spacing()`; the SIRF adaptor from
   `voxel_sizes()`.
 - pytest configuration lives in `pyproject.toml`.
+- `NN` must be an integer >= 1; `RR`/`SC` must be integers; `CA`/`DI` must be 0, 1 or 2.
+  Setting a switch to `None` removes it, and `True` writes a switch without a value.
+- MPI runs use `set_mpi(processes, split_projections=False)` and the `simind_mpi` binary
+  (`SIMIND_MPI_BIN`); the `MP` switch is rejected.
+- `quantization_scale` must be in (0, 1]. A warning reports activity that receives no
+  photon histories.
+- `output_prefix` must be lower case (SIMIND lowercases file names on Unix); orbit files
+  are copied to `{prefix}_orbit.cor`.
+- Attenuation helpers take photon energies in keV; packaged `.atn` tables are plain text.
+- Unreadable SIMIND outputs raise `SimulationError` instead of being skipped.
+- Python 3.10 or newer is required.
+- SCATTWIN runs pass `/CA:1`; `pri_wN` is derived as `tot_wN - sca_wN` when SIMIND does
+  not write it, and the synthetic extra scatter window is no longer written.
+- Projection rows (Index 77) follow the axial dimension; columns (Index 76) use
+  `max(dim_x, dim_y)`.
 
 ### Removed
 - `simind_python_connector.backends` (`get_backend`, `set_backend`, `reset_backend`,
@@ -41,6 +58,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `create_window_file` arguments `energy_window`, `lower_ew`, `upper_ew`.
 - `pytest.ini`, `pytest-ci.ini`, `requirements.txt`, `requirements-dev.txt`,
   `examples/run_all_examples.sh`, and the `requires_setr` marker.
+
+### Fixed
+- Importing the package no longer configures the root logger.
+- A negative Index 1 no longer breaks the mu-map to density conversion.
+- Stale `.res`, `.bis`, `.spe` and `.cor` files are removed before each run.
+- For non-square projections, acquisition `pixel_array` is `(tof, axial, view, bin)`, and
+  the DICOM matrix sizes and pixel spacing are no longer swapped.
 
 ## [1.0.1] - 2026-04-16
 
