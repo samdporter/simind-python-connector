@@ -83,22 +83,22 @@ class STIRSPECTAcquisitionDataBuilder:
         num_projections = int(self.header.get("!number of projections", 1))
         if self.pixel_array is None:
             self.pixel_array = np.zeros(
-                (1, matrix_size_1, num_projections, matrix_size_2), dtype=np.float32
+                (1, matrix_size_2, num_projections, matrix_size_1), dtype=np.float32
             )
         else:
             self.pixel_array = np.array(self.pixel_array, dtype=np.float32)
 
         expected_shape = (
             1,
-            matrix_size_1,
-            num_projections,
             matrix_size_2,
+            num_projections,
+            matrix_size_1,
         )
         if self.pixel_array.shape != expected_shape:
             raise ValueError(
                 f"pixel array shape {self.pixel_array.shape} does not match "
                 f"header dimensions {expected_shape} "
-                "(tof, bin, view, axial)"
+                "(tof, axial, view, bin)"
             )
 
         def _write(base_path: Path):
@@ -211,16 +211,18 @@ class STIRSPECTAcquisitionDataBuilder:
                 "Modality not found in DICOM. Retaining default '!imaging modality'."
             )
         try:
-            self.header["!matrix size [1]"] = str(ds.Rows)
-            self.header["!matrix size [2]"] = str(ds.Columns)
+            self.header["!matrix size [1]"] = str(ds.Columns)
+            self.header["!matrix size [2]"] = str(ds.Rows)
         except AttributeError:
             warnings.warn(
                 "Rows/Columns not found in DICOM. Retaining default matrix sizes."
             )
         try:
             pixel_spacing = ds.PixelSpacing
-            self.header["scaling factor (mm/pixel) [1]"] = str(pixel_spacing[0])
-            self.header["scaling factor (mm/pixel) [2]"] = str(pixel_spacing[1])
+            # DICOM PixelSpacing is [row spacing, column spacing]; Interfile
+            # [1] is the column/bin axis and [2] the row/axial axis.
+            self.header["scaling factor (mm/pixel) [1]"] = str(pixel_spacing[1])
+            self.header["scaling factor (mm/pixel) [2]"] = str(pixel_spacing[0])
         except AttributeError:
             warnings.warn(
                 "PixelSpacing not found in DICOM. Retaining default scaling factors."

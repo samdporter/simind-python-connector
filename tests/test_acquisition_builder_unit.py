@@ -98,17 +98,17 @@ def test_build_multi_energy_splits_windows(tmp_path, fake_create_acquisition):
         {"lower": 110.0, "upper": 130.0},
         {"lower": 130.0, "upper": 150.0},
     ]
-    builder.pixel_array = np.arange(1 * 4 * 4 * 2, dtype=np.float32).reshape(1, 4, 4, 2)
+    builder.pixel_array = np.arange(1 * 2 * 4 * 4, dtype=np.float32).reshape(1, 2, 4, 4)
 
     outputs = builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
 
     # Builder state must be reusable after a multi-energy build
     assert builder.header["!number of projections"] == "4"
-    assert builder.pixel_array.shape == (1, 4, 4, 2)
+    assert builder.pixel_array.shape == (1, 2, 4, 4)
     assert len(outputs) == 2
     # Each stub should see half the projections
     for idx, stub in enumerate(outputs, start=1):
-        assert stub.fill_data.shape == (1, 4, 2, 2)
+        assert stub.fill_data.shape == (1, 2, 2, 4)
         assert stub.write_calls == [str(tmp_path / f"multi_ew{idx}.hs")]
 
 
@@ -182,7 +182,7 @@ def test_build_multi_energy_rejects_non_divisible_projections(
         {"lower": 110.0, "upper": 130.0},
         {"lower": 130.0, "upper": 150.0},
     ]
-    builder.pixel_array = np.zeros((1, 4, 5, 2), dtype=np.float32)
+    builder.pixel_array = np.zeros((1, 2, 5, 4), dtype=np.float32)
 
     with pytest.raises(ValueError, match="divis"):
         builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
@@ -198,8 +198,8 @@ def test_acquisition_written_payload_matches_input(tmp_path, fake_create_acquisi
     builder.header["!matrix size [2]"] = "2"
     builder.header["!number of projections"] = "3"
 
-    one_hot = np.zeros((1, 4, 3, 2), dtype=np.float32)
-    one_hot[0, 3, 2, 1] = 7.0
+    one_hot = np.zeros((1, 2, 3, 4), dtype=np.float32)
+    one_hot[0, 1, 2, 3] = 7.0
     builder.pixel_array = one_hot
 
     output_prefix = tmp_path / "acq"
