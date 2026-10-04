@@ -14,20 +14,19 @@ import numpy as np
 from simind_python_connector.data import data_path
 
 
-def interpolate_attenuation_coefficient(filename, energy):
-    """Interpolate attenuation coefficient from tabulated data."""
-    # Skip the header lines
-    energies, coeffs = np.loadtxt(filename, unpack=True, skiprows=12)
-    return np.interp(energy, energies, coeffs)
+def interpolate_attenuation_coefficient(filename, energy_mev):
+    """Interpolate the mass attenuation coefficient [cm^2/g] from a table file."""
+    table = np.loadtxt(filename, ndmin=2)
+    return np.interp(energy_mev, table[:, 0], table[:, 1])
 
 
-def get_attenuation_coefficient(material, energy, file_path=None):
+def get_attenuation_coefficient(material, energy_kev, file_path=None):
     """
     Get attenuation coefficient for a given material and energy.
 
     Args:
         material (str): 'water' or 'bone'
-        energy (float): Photon energy in keV
+        energy_kev (float): Photon energy in keV
         file_path (str, optional): Override default data file path
 
     Returns:
@@ -53,7 +52,9 @@ def get_attenuation_coefficient(material, energy, file_path=None):
     if not filepath.exists():
         raise FileNotFoundError(f"Attenuation data file not found: {filepath}")
 
-    mass_attn_coeffs = interpolate_attenuation_coefficient(filepath, energy)
+    mass_attn_coeffs = interpolate_attenuation_coefficient(
+        filepath, energy_kev / 1000.0
+    )
 
     if material == "water":
         return mass_attn_coeffs * density_water
@@ -61,13 +62,13 @@ def get_attenuation_coefficient(material, energy, file_path=None):
         return mass_attn_coeffs * density_bone
 
 
-def hu_to_attenuation(image_array, photon_energy, file_path=None):
+def hu_to_attenuation(image_array, photon_energy_kev, file_path=None):
     """
     Convert Hounsfield Units to attenuation coefficients.
 
     Args:
         image_array (np.ndarray): Array of HU values
-        photon_energy (float): Photon energy in keV
+        photon_energy_kev (float): Photon energy in keV
         file_path (str, optional): Override default data file path
 
     Returns:
@@ -77,12 +78,9 @@ def hu_to_attenuation(image_array, photon_energy, file_path=None):
     HU_water = 0
     HU_bone = 1000
 
-    # Convert photon_energy to MeV from keV
-    photon_energy_mev = photon_energy / 1000
-
     # Get attenuation coefficients
-    mu_water = get_attenuation_coefficient("water", photon_energy_mev, file_path)
-    mu_bone = get_attenuation_coefficient("bone", photon_energy_mev, file_path)
+    mu_water = get_attenuation_coefficient("water", photon_energy_kev, file_path)
+    mu_bone = get_attenuation_coefficient("bone", photon_energy_kev, file_path)
 
     # For air, we assume negligible attenuation
     mu_air = 0.0
@@ -142,7 +140,7 @@ def hu_to_density(image_array):
     return density_map
 
 
-def attenuation_to_density(attenuation_array, photon_energy, file_path=None):
+def attenuation_to_density(attenuation_array, photon_energy_kev, file_path=None):
     """
     Convert attenuation coefficients to density values.
 
@@ -150,18 +148,15 @@ def attenuation_to_density(attenuation_array, photon_energy, file_path=None):
 
     Args:
         attenuation_array (np.ndarray): Array of attenuation coefficients in cm^-1
-        photon_energy (float): Photon energy in keV
+        photon_energy_kev (float): Photon energy in keV
         file_path (str, optional): Override default data file path
 
     Returns:
         np.ndarray: Density map in g/cm^3
     """
-    # Convert photon_energy to MeV
-    photon_energy_mev = photon_energy / 1000
-
     # Get attenuation coefficients
-    mu_water = get_attenuation_coefficient("water", photon_energy_mev, file_path)
-    mu_bone = get_attenuation_coefficient("bone", photon_energy_mev, file_path)
+    mu_water = get_attenuation_coefficient("water", photon_energy_kev, file_path)
+    mu_bone = get_attenuation_coefficient("bone", photon_energy_kev, file_path)
 
     # Densities
     # density_air = 0.001225  # g/cm^3  # Not used in this calculation
@@ -191,6 +186,28 @@ def attenuation_to_density(attenuation_array, photon_energy, file_path=None):
     density_map = np.clip(density_map, 0, 3.0)
 
     return density_map
+
+
+def density_to_attenuation(density_array, photon_energy_kev, file_path=None):
+    """
+    Convert density [g/cm^3] to linear attenuation [cm^-1].
+
+    Exact inverse of attenuation_to_density's water/bone bilinear model.
+    """
+    mu_water = get_attenuation_coefficient("water", photon_energy_kev, file_path)
+    mu_bone = get_attenuation_coefficient("bone", photon_energy_kev, file_path)
+    density_water = 1.0
+    density_bone = 1.85
+
+    density = np.maximum(np.asarray(density_array, dtype=float), 0.0)
+    return np.where(
+        density <= density_water,
+        mu_water * density,
+        mu_water
+        + (mu_bone - mu_water)
+        / (density_bone - density_water)
+        * (density - density_water),
+    )
 
 
 def load_schneider_data():

@@ -709,3 +709,25 @@ def test_python_connector_warns_when_activity_gets_no_histories(
     with caplog.at_level("WARNING"):
         connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
     assert "gets no photon histories" in caplog.text
+
+
+@pytest.mark.unit
+def test_python_connector_negative_photon_energy_converts_like_positive(
+    tmp_path: Path,
+):
+    written = []
+    for energy in (140.0, -140.0):
+        connector = SimindPythonConnector(
+            config_source=get("Example.yaml"),
+            output_dir=tmp_path / str(energy),
+            output_prefix="case01",
+        )
+        connector.get_config().set_flag(11, True)
+        connector.add_config_value(1, energy)
+        source = np.ones((4, 4, 4), dtype=np.float32)
+        _, density_path = connector.configure_voxel_phantom(
+            source, np.full_like(source, 0.15), voxel_size_mm=4.0
+        )
+        written.append(np.fromfile(density_path, dtype=np.uint16))
+    assert written[0].max() > 900  # water-like density, not ~0
+    assert np.array_equal(written[0], written[1])
