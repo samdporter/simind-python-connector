@@ -219,7 +219,7 @@ def test_python_connector_accepts_quantization_scale_parameter(tmp_path: Path):
 
 @pytest.mark.unit
 def test_python_connector_rejects_non_positive_quantization_scale(tmp_path: Path):
-    with pytest.raises(ValueError, match="quantization_scale must be > 0"):
+    with pytest.raises(ValueError, match=r"quantization_scale must be in \(0, 1\]"):
         SimindPythonConnector(
             config_source=get("AnyScan.yaml"),
             output_dir=tmp_path,
@@ -670,3 +670,42 @@ def test_python_connector_passes_mpi_settings_to_executor(tmp_path: Path):
     connector.run()
 
     assert captured == {"mpi_processes": 4, "split_projections": True}
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_quantization_scale_above_one(tmp_path: Path):
+    with pytest.raises(ValueError, match=r"quantization_scale must be in \(0, 1\]"):
+        SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            output_prefix="case01",
+            quantization_scale=1.5,
+        )
+
+
+@pytest.mark.unit
+def test_python_connector_full_scale_source_values(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.zeros((4, 4, 4), dtype=np.float32)
+    source[1, 1, 1], source[1, 1, 2], source[1, 1, 3] = 1.0, 0.6, 0.3
+    source_path, _ = connector.configure_voxel_phantom(
+        source, np.zeros_like(source), voxel_size_mm=4.0
+    )
+    written = np.fromfile(source_path, dtype=np.uint16).reshape(source.shape)
+    assert (written[1, 1, 1], written[1, 1, 2], written[1, 1, 3]) == (500, 300, 150)
+
+
+@pytest.mark.unit
+def test_python_connector_warns_when_activity_gets_no_histories(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.full((5, 5, 4), 0.0005, dtype=np.float32)
+    source[0, 0, 0] = 1.0
+    with caplog.at_level("WARNING"):
+        connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+    assert "gets no photon histories" in caplog.text

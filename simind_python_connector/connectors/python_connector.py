@@ -33,6 +33,8 @@ from simind_python_connector.utils.simind_utils import create_window_file
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
 PathLike = Union[str, os.PathLike[str]]
 
+ZERO_HISTORY_WARNING_FRACTION = 0.01
+
 
 @dataclass(frozen=True)
 class ProjectionResult:
@@ -68,8 +70,16 @@ class SimindPythonConnector(BaseConnector):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_prefix = output_prefix
         self.quantization_scale = float(quantization_scale)
-        if not math.isfinite(self.quantization_scale) or self.quantization_scale <= 0:
-            raise ValueError("quantization_scale must be > 0")
+        if (
+            not math.isfinite(self.quantization_scale)
+            or self.quantization_scale <= 0
+            or self.quantization_scale > 1
+        ):
+            raise ValueError(
+                "quantization_scale must be in (0, 1]: the source maximum is "
+                f"scaled to {MAX_SOURCE} x quantization_scale integer photon "
+                "histories. Use the NN runtime switch for more statistics."
+            )
 
         self.config = self._initialize_config(config_source)
         self.runtime_switches = RuntimeSwitches()
@@ -232,6 +242,19 @@ class SimindPythonConnector(BaseConnector):
         else:
             source_scaled = np.zeros_like(source_array)
         source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
+
+        total_activity = float(source_array.sum())
+        if total_activity > 0:
+            zero_history_fraction = (
+                float(source_array[source_u16 == 0].sum()) / total_activity
+            )
+            if zero_history_fraction > ZERO_HISTORY_WARNING_FRACTION:
+                self.logger.warning(
+                    "%.1f%% of the source activity is in voxels below the integer "
+                    "resolution and gets no photon histories; increase "
+                    "quantization_scale (maximum 1.0) to keep it",
+                    100 * zero_history_fraction,
+                )
 
         src_prefix = f"{self.output_prefix}_src"
         source_path = self.output_dir / f"{src_prefix}.smi"

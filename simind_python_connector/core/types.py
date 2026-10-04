@@ -161,11 +161,11 @@ class PenetrateOutputType(Enum):
 # =============================================================================
 
 SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
-# Maximum normalised value of source image
-# You would have expected this to be 65535, but it is not
-# I have no understanding why, but it is the case
-# 500 seems a reasonable value that improves precision
-# whilst not exceeding the maximum value (weird things happen)
+# Source-map voxel values are integer photon-history weights: SIMIND starts
+# that many histories in each voxel (times NN). The scale of the map sets the
+# statistics and run time, not the projection counts. Scaling the maximum to
+# 500 keeps enough integer resolution between voxel values without an
+# excessive number of histories; use NN for more statistics.
 MAX_SOURCE = 500
 
 
