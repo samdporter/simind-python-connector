@@ -78,6 +78,7 @@ class SimindPythonConnector(BaseConnector):
 
         self._outputs: Optional[dict[str, ProjectionResult]] = None
         self._window_file_path: Optional[Path] = None
+        self._mpi: Optional[tuple[int, bool]] = None
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -122,6 +123,29 @@ class SimindPythonConnector(BaseConnector):
     def add_config_value(self, index: int, value: Any) -> None:
         """Set a SIMIND config value."""
         self.config.set_value(index, value)
+
+    def set_mpi(
+        self, processes: Optional[int], split_projections: bool = False
+    ) -> None:
+        """Run SIMIND under MPI (mpirun + simind_mpi), or turn MPI off with None.
+
+        By default every MPI process simulates all projections and SIMIND
+        sums the results. With split_projections=True, /MP shares the
+        projections out; the number of projections (Index 29) must then be
+        a multiple of processes.
+        """
+        if processes is None:
+            if split_projections:
+                raise ValueError("split_projections needs processes")
+            self._mpi = None
+            return
+        if (
+            isinstance(processes, bool)
+            or not isinstance(processes, (int, np.integer))
+            or processes < 1
+        ):
+            raise ValueError(f"processes must be an integer >= 1, got {processes!r}")
+        self._mpi = (int(processes), bool(split_projections))
 
     def configure_voxel_phantom(
         self,
@@ -252,6 +276,19 @@ class SimindPythonConnector(BaseConnector):
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
 
+        mpi_kwargs = {}
+        if self._mpi is not None:
+            processes, split = self._mpi
+            if split:
+                num_projections = int(round(float(self.config.get_value(29))))
+                if num_projections % processes != 0:
+                    raise ValueError(
+                        f"split_projections needs the number of projections "
+                        f"({num_projections}) to be a multiple of the MPI "
+                        f"processes ({processes})"
+                    )
+            mpi_kwargs = {"mpi_processes": processes, "split_projections": split}
+
         # Runtime-operator switches apply to this run only; merge them into
         # a throwaway switch set instead of persistent connector state.
         run_switches_holder = RuntimeSwitches()
@@ -272,6 +309,7 @@ class SimindPythonConnector(BaseConnector):
             orbit_file,
             run_switches_holder.switches,
             cwd=self.output_dir,
+            **mpi_kwargs,
         )
 
         header_files = self._ensure_interfile_headers()

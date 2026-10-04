@@ -115,6 +115,11 @@ class PyTomographySimindAdaptor(BaseConnector):
     def add_runtime_switch(self, switch: str, value: Any) -> None:
         self.python_connector.add_runtime_switch(switch, value)
 
+    def set_mpi(
+        self, processes: Optional[int], split_projections: bool = False
+    ) -> None:
+        self.python_connector.set_mpi(processes, split_projections)
+
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
     ) -> Dict[str, torch.Tensor]:
