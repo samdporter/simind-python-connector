@@ -4,23 +4,24 @@ Packaged scanner presets (YAML or SMC).
 Example
 -------
 >>> from simind_python_connector.configs import get
->>> cfg = get("AnyScan.yaml")          # Path object
+>>> cfg = get("AnyScan.yaml")          # Traversable
 
 >>> from simind_python_connector.core import SimulationConfig
 >>> sim_cfg = SimulationConfig(cfg)    # load file
 """
 
 from importlib import resources as _res
-from pathlib import Path
+from importlib.resources.abc import Traversable
 from typing import Union
 
 
 __all__ = ["get", "list"]
 
 
-def get(name: str) -> Path:
+def get(name: str) -> Traversable:
     """
-    Return a **Path** to a bundled config file.
+    Return the bundled config file as an importlib.resources Traversable (a Path for
+    normal installs).
 
     Parameters
     ----------

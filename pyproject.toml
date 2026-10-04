@@ -7,7 +7,7 @@ name = "simind-python-connector"
 version = "1.0.1"
 description = "Python SIMIND Monte Carlo connector with STIR/SIRF/PyTomography adaptors"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [
     {name = "Sam Porter", email = "sam.porter.18@ucl.ac.uk"},
@@ -22,10 +22,10 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 keywords = ["SPECT", "Monte Carlo", "medical imaging", "SIMIND", "SIRF", "STIR"]
 dependencies = [
