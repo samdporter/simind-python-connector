@@ -613,3 +613,14 @@ def test_python_connector_cleanup_only_protects_window_file_it_wrote(tmp_path: P
 
     assert not stale_window.exists()
     assert (written_dir / "case01.win").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_invalid_nn(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    with pytest.raises(ValueError, match="integer >= 1"):
+        connector.add_runtime_switch("NN", 0.5)
