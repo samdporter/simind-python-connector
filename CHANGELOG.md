@@ -33,8 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Attenuation helpers take photon energies in keV; packaged `.atn` tables are plain text.
 - Unreadable SIMIND outputs raise `SimulationError` instead of being skipped.
 - Python 3.10 or newer is required.
-- SCATTWIN runs pass `/CA:1`; `pri_wN` is derived as `tot_wN - sca_wN` when SIMIND does
-  not write it, and the synthetic extra scatter window is no longer written.
+- SCATTWIN runs pass `/CA:1` only when the user has not set `CA`; `pri_wN` is derived as
+  `tot_wN - sca_wN` only for order-0 windows when SIMIND does not write it, and the
+  synthetic extra scatter window is no longer written.
+- The SIRF/STIR adaptors reject anisotropic or mismatched source/mu-map voxel sizes.
 - Projection rows (Index 77) follow the axial dimension; columns (Index 76) use
   `max(dim_x, dim_y)`.
 
