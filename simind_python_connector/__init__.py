@@ -25,6 +25,7 @@ def __getattr__(name: str) -> Any:
         "converters",
         "core",
         "data",
+        "normalisation",
         "utils",
     }:
         mod = importlib.import_module(f".{name}", __name__)
@@ -66,5 +67,6 @@ __all__ = [
     "converters",
     "core",
     "data",
+    "normalisation",
     "utils",
 ]
