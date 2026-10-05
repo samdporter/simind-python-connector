@@ -42,6 +42,8 @@ class _NativeSimindAdaptor(BaseConnector):
         photon_multiplier: int = 1,
         quantization_scale: float = 1.0,
         scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        mu_map_type: str = "attenuation",
+        mu_map_energy_kev: Optional[float] = None,
     ) -> None:
         self._require_backend()
         self.python_connector = SimindPythonConnector(
@@ -55,6 +57,8 @@ class _NativeSimindAdaptor(BaseConnector):
             if isinstance(scoring_routine, int)
             else scoring_routine
         )
+        self._mu_map_type = mu_map_type
+        self._mu_map_energy_kev = mu_map_energy_kev
         self._source: Any = None
         self._mu_map: Any = None
         self._outputs: Optional[dict[str, Any]] = None
@@ -74,6 +78,10 @@ class _NativeSimindAdaptor(BaseConnector):
     @abstractmethod
     def _voxel_sizes_mm(self, image: Any) -> tuple[float, float, float]:
         """Return the image voxel sizes in mm, in (z, y, x) order."""
+
+    @abstractmethod
+    def _origin_mm(self, image: Any) -> tuple[float, float, float]:
+        """Return the image origin in mm, in (z, y, x) order."""
 
     def set_source(self, source: Any) -> None:
         self._source = source
@@ -124,15 +132,16 @@ class _NativeSimindAdaptor(BaseConnector):
 
         source_arr = np.asarray(get_array(self._source), dtype=np.float32)
         mu_arr = np.asarray(get_array(self._mu_map), dtype=np.float32)
-        voxel_size_mm = self._voxel_sizes_mm(self._source)[0]
 
         if self._template_geometry is not None:
             self.python_connector.configure_acquisition(self._template_geometry)
         self.python_connector.configure_voxel_phantom(
             source=source_arr,
             mu_map=mu_arr,
-            voxel_size_mm=voxel_size_mm,
+            voxel_size_mm=self._voxel_sizes_mm(self._source),
             scoring_routine=self._scoring_routine,
+            mu_map_type=self._mu_map_type,
+            mu_map_energy_kev=self._mu_map_energy_kev,
         )
         raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
         if self._template_geometry is None:
@@ -219,13 +228,17 @@ class _NativeSimindAdaptor(BaseConnector):
 
         source_sizes = np.asarray(self._voxel_sizes_mm(self._source), dtype=float)
         mu_sizes = np.asarray(self._voxel_sizes_mm(self._mu_map), dtype=float)
-        if not np.allclose(source_sizes, source_sizes[0], atol=1e-3):
-            raise ValueError(
-                f"source voxel sizes {tuple(source_sizes)} mm (z, y, x) are not "
-                "isotropic; anisotropic voxels are not supported yet"
-            )
         if not np.allclose(source_sizes, mu_sizes, atol=1e-3):
             raise ValueError(
                 f"source and mu_map voxel sizes differ: {tuple(source_sizes)} "
                 f"vs {tuple(mu_sizes)} mm"
+            )
+
+        source_origin = np.asarray(self._origin_mm(self._source), dtype=float)
+        mu_origin = np.asarray(self._origin_mm(self._mu_map), dtype=float)
+        # rtol=0 makes atol=1e-3 mm the whole tolerance, like the size checks.
+        if not np.allclose(source_origin, mu_origin, atol=1e-3, rtol=0):
+            raise ValueError(
+                f"source and mu_map origins differ: {tuple(source_origin)} vs "
+                f"{tuple(mu_origin)} mm"
             )

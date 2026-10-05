@@ -57,6 +57,8 @@ class PyTomographySimindAdaptor(BaseConnector):
         voxel_size_mm: float = 4.0,
         quantization_scale: float = 1.0,
         scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        mu_map_type: str = "attenuation",
+        mu_map_energy_kev: Optional[float] = None,
     ) -> None:
         if torch is None:
             raise ImportError(
@@ -81,6 +83,8 @@ class PyTomographySimindAdaptor(BaseConnector):
             if isinstance(scoring_routine, int)
             else scoring_routine
         )
+        self._mu_map_type = mu_map_type
+        self._mu_map_energy_kev = mu_map_energy_kev
 
         self._source: Optional[torch.Tensor] = None
         self._mu_map: Optional[torch.Tensor] = None
@@ -145,6 +149,8 @@ class PyTomographySimindAdaptor(BaseConnector):
             mu_map=mu_map_zyx,
             voxel_size_mm=self.voxel_size_mm,
             scoring_routine=self._scoring_routine,
+            mu_map_type=self._mu_map_type,
+            mu_map_energy_kev=self._mu_map_energy_kev,
         )
         self.python_connector.set_energy_windows(*self._energy_windows)
 

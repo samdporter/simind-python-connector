@@ -16,7 +16,10 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 
 from simind_python_connector.connectors.base import BaseConnector
-from simind_python_connector.converters.attenuation import attenuation_to_density
+from simind_python_connector.converters.attenuation import (
+    attenuation_to_density,
+    hu_to_density_schneider,
+)
 from simind_python_connector.converters.simind_to_stir import SimindToStirConverter
 from simind_python_connector.core.config import RuntimeSwitches, SimulationConfig
 from simind_python_connector.core.executor import SimindExecutor
@@ -39,6 +42,24 @@ ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
 PathLike = Union[str, os.PathLike[str]]
 
 ZERO_HISTORY_WARNING_FRACTION = 0.01
+
+_MU_MAP_TYPES = ("attenuation", "density", "hu")
+
+
+def _split_voxel_size(voxel_size_mm) -> tuple[float, float]:
+    """Return (slice thickness, in-plane size) in mm from a scalar or (z, y, x)."""
+    if np.ndim(voxel_size_mm) == 0:
+        size = float(voxel_size_mm)
+        return size, size
+    try:
+        size_z, size_y, size_x = (float(v) for v in voxel_size_mm)
+    except ValueError as exc:
+        raise ValueError("voxel_size_mm must be a scalar or a (z, y, x) tuple") from exc
+    if abs(size_y - size_x) > 1e-3:
+        raise ValueError(
+            f"SIMIND needs square in-plane voxels, got y={size_y} mm and x={size_x} mm"
+        )
+    return size_z, size_x
 
 
 @dataclass(frozen=True)
@@ -204,15 +225,39 @@ class SimindPythonConnector(BaseConnector):
         self,
         source: np.ndarray,
         mu_map: np.ndarray,
-        voxel_size_mm: float = 4.0,
+        voxel_size_mm: Union[float, tuple[float, float, float]] = 4.0,
         scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        mu_map_type: str = "attenuation",
+        mu_map_energy_kev: Optional[float] = None,
     ) -> tuple[Path, Path]:
         """
         Configure voxel geometry and write source/density input files.
 
+        Args:
+            source: Activity distribution in array order (z, y, x).
+            mu_map: Attenuator, interpreted according to mu_map_type.
+            voxel_size_mm: One size, or (z, y, x); y and x must be equal.
+            scoring_routine: SIMIND scoring routine.
+            mu_map_type: "attenuation" (cm^-1 at mu_map_energy_kev), "density"
+                (g/cm^3) or "hu" (CT Hounsfield units, Schneider conversion).
+            mu_map_energy_kev: Energy the attenuation map is defined at;
+                defaults to abs(Index 1).
+
         Returns:
             Tuple of (source_file_path, density_file_path).
         """
+        if mu_map_type not in _MU_MAP_TYPES:
+            raise ValueError(
+                f"mu_map_type must be one of {', '.join(_MU_MAP_TYPES)}, "
+                f"got {mu_map_type!r}"
+            )
+        if mu_map_energy_kev is not None and not (
+            math.isfinite(float(mu_map_energy_kev)) and float(mu_map_energy_kev) > 0
+        ):
+            raise ValueError(
+                f"mu_map_energy_kev must be > 0, got {mu_map_energy_kev!r}"
+            )
+
         source_array = np.asarray(source, dtype=np.float32)
         mu_map_array = np.asarray(mu_map, dtype=np.float32)
 
@@ -221,14 +266,18 @@ class SimindPythonConnector(BaseConnector):
         if source_array.shape != mu_map_array.shape:
             raise ValueError("source and mu_map must have identical shapes")
 
-        vox_cm = float(voxel_size_mm) / SIMIND_VOXEL_UNIT_CONVERSION
-        if not math.isfinite(vox_cm) or vox_cm <= 0:
+        slice_mm, pixel_mm = _split_voxel_size(voxel_size_mm)
+        slice_cm = slice_mm / SIMIND_VOXEL_UNIT_CONVERSION
+        pixel_cm = pixel_mm / SIMIND_VOXEL_UNIT_CONVERSION
+        if not all(math.isfinite(v) and v > 0 for v in (slice_cm, pixel_cm)):
             raise ValueError("voxel_size_mm must be > 0")
         if source_array.size == 0 or mu_map_array.size == 0:
             raise ValueError("source and mu_map must not be empty")
         if not np.isfinite(source_array).all() or not np.isfinite(mu_map_array).all():
             raise ValueError("source and mu_map must contain only finite values")
-        if (source_array < 0).any() or (mu_map_array < 0).any():
+        if (source_array < 0).any() or (
+            mu_map_type != "hu" and (mu_map_array < 0).any()
+        ):
             raise ValueError("source and mu_map must be non-negative")
 
         if isinstance(scoring_routine, ScoringRoutine):
@@ -255,22 +304,23 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_flag(14, True)
         cfg.set_value(84, routine.value)
 
-        # Source geometry
-        cfg.set_value(2, dim_z * vox_cm / 2.0)
-        cfg.set_value(3, dim_x * vox_cm / 2.0)
-        cfg.set_value(4, dim_y * vox_cm / 2.0)
+        # Index 2 and 5 are half-lengths along the slice axis; SIMIND derives
+        # the slice thickness from them and the number of slices.
+        cfg.set_value(2, dim_z * slice_cm / 2.0)
+        cfg.set_value(3, dim_x * pixel_cm / 2.0)
+        cfg.set_value(4, dim_y * pixel_cm / 2.0)
         if self._acquisition is None:
-            cfg.set_value(28, vox_cm)
+            cfg.set_value(28, pixel_cm)
             # Projection rows (Index 77) run along the axis of rotation, which
             # is the slice direction of the maps (checked against SIMIND 8.0).
             cfg.set_value(76, max(dim_x, dim_y))
             cfg.set_value(77, dim_z)
 
         # Density geometry
-        cfg.set_value(5, dim_z * vox_cm / 2.0)
-        cfg.set_value(6, dim_x * vox_cm / 2.0)
-        cfg.set_value(7, dim_y * vox_cm / 2.0)
-        cfg.set_value(31, vox_cm)
+        cfg.set_value(5, dim_z * slice_cm / 2.0)
+        cfg.set_value(6, dim_x * pixel_cm / 2.0)
+        cfg.set_value(7, dim_y * pixel_cm / 2.0)
+        cfg.set_value(31, pixel_cm)
         cfg.set_value(33, 1)
         cfg.set_value(34, dim_z)
         cfg.set_value(78, dim_x)  # density map i
@@ -278,10 +328,11 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(81, dim_y)  # density map j
         cfg.set_value(82, dim_y)  # source map j
 
-        self.runtime_switches.set_switch("PX", vox_cm)
-        self._transaxial_extent_mm = (
-            max(dim_x, dim_y) * vox_cm * SIMIND_VOXEL_UNIT_CONVERSION
+        self.runtime_switches.set_switch("PX", pixel_cm)
+        self.runtime_switches.set_switch(
+            "TH", slice_cm if abs(slice_cm - pixel_cm) > 1e-9 else None
         )
+        self._transaxial_extent_mm = max(dim_x, dim_y) * pixel_mm
 
         source_max = float(source_array.max())
         if source_max > 0:
@@ -291,7 +342,6 @@ class SimindPythonConnector(BaseConnector):
         else:
             source_scaled = np.zeros_like(source_array)
         source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
-
         total_activity = float(source_array.sum())
         if total_activity > 0:
             zero_history_fraction = (
@@ -311,10 +361,10 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_data_file(6, src_prefix)
 
         if cfg.get_flag(11):
-            # A negative Index 1 asks SIMIND to read photon energies from the
-            # isotope file; its absolute value is still the window energy.
-            photon_energy = abs(float(cfg.get_value("photon_energy")))
-            density = attenuation_to_density(mu_map_array, photon_energy) * 1000.0
+            density = (
+                self._density_from_mu_map(mu_map_array, mu_map_type, mu_map_energy_kev)
+                * 1000.0
+            )
         else:
             density = np.zeros_like(mu_map_array)
 
@@ -327,6 +377,23 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_data_file(5, dns_prefix)
 
         return source_path, density_path
+
+    def _density_from_mu_map(
+        self,
+        mu_map_array: np.ndarray,
+        mu_map_type: str,
+        mu_map_energy_kev: Optional[float],
+    ) -> np.ndarray:
+        """Convert the mu-map input to density in g/cm^3."""
+        if mu_map_type == "density":
+            return mu_map_array
+        if mu_map_type == "hu":
+            return hu_to_density_schneider(mu_map_array)
+        if mu_map_energy_kev is None:
+            # A negative Index 1 asks SIMIND to read photon energies from the
+            # isotope file; its absolute value is still the window energy.
+            mu_map_energy_kev = abs(float(self.config.get_value("photon_energy")))
+        return attenuation_to_density(mu_map_array, mu_map_energy_kev)
 
     def configure_acquisition(self, geometry: ProjectionGeometry) -> None:
         """Use the projection geometry of a measured acquisition.

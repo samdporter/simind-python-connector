@@ -29,5 +29,10 @@ class StirSimindAdaptor(_NativeSimindAdaptor):
         spacing = image.get_grid_spacing()
         return (float(spacing[1]), float(spacing[2]), float(spacing[3]))
 
+    def _origin_mm(self, image: Any) -> tuple[float, float, float]:
+        # STIR coordinates are 1-based: [1] is z, [2] is y, [3] is x.
+        origin = image.get_origin()
+        return (float(origin[1]), float(origin[2]), float(origin[3]))
+
 
 __all__ = ["StirSimindAdaptor"]
