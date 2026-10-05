@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `utils.simind_utils.validate_energy_windows` (public).
 - `converters.attenuation.density_to_attenuation`.
 - Runtime switches from the SIMIND 8 manual: `CA`, `FW`, `OU`, `DP`, `BG`, `HO`, `CO`, `X1`–`X6`.
+- `set_activity(activity_mbq, time_per_projection_s=1.0)` on the connector and adaptors
+  (SIMIND Index 25).
+- `simind_python_connector.normalisation.scale_to_reference` and the "Normalising SIMIND
+  Output" docs page.
 
 ### Changed
 - `SimindToStirConverter.convert_file` returns `None`;

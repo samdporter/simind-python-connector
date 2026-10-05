@@ -65,6 +65,14 @@ Converters
    :undoc-members:
    :show-inheritance:
 
+Normalisation
+-------------
+
+.. automodule:: simind_python_connector.normalisation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Utilities
 ---------
 
