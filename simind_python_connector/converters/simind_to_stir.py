@@ -103,10 +103,10 @@ class OrbitFileRule(ConversionRule):
                         radii_cm.append(float(parts[0]))
 
             # Convert cm to mm
-            radii_mm = [int(round(r * 10)) for r in radii_cm]
+            radii_mm = [r * 10 for r in radii_cm]
 
-            # Format as STIR Radii array
-            radii_str = ", ".join(str(r) for r in radii_mm)
+            # Format as STIR Radii array; 0.1 mm keeps template geometry checks exact.
+            radii_str = ", ".join(f"{r:.1f}" for r in radii_mm)
             radii_line = f"Radii := {{{radii_str}}}"
 
             logging.info(
