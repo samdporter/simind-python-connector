@@ -28,5 +28,9 @@ class SirfSimindAdaptor(_NativeSimindAdaptor):
         z, y, x = image.voxel_sizes()
         return (float(z), float(y), float(x))
 
+    def _origin_mm(self, image: Any) -> tuple[float, float, float]:
+        z, y, x = image.get_geometrical_info().get_offset()
+        return (float(z), float(y), float(x))
+
 
 __all__ = ["SirfSimindAdaptor"]

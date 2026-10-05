@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import simind_python_connector.connectors.python_connector as connector_mod
 from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.core.types import ScoringRoutine, SimulationError
@@ -1180,3 +1181,154 @@ def test_run_warns_when_phantom_is_wider_than_the_field_of_view(
     with caplog.at_level("WARNING"):
         connector.run()
     assert "wider than the projection field of view" in caplog.text
+
+
+def _write_density(connector, mu_map, **kwargs):
+    connector.get_config().set_flag(11, True)
+    source = np.ones_like(mu_map, dtype=np.float32)
+    _, density_path = connector.configure_voxel_phantom(
+        source=source, mu_map=mu_map, **kwargs
+    )
+    return np.fromfile(density_path, dtype=np.uint16)
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_accepts_density_input(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    written = _write_density(
+        connector, np.full((3, 4, 5), 1.5, dtype=np.float32), mu_map_type="density"
+    )
+    assert np.all(written == 1500)
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_accepts_hu_input_with_negative_values(
+    tmp_path: Path, monkeypatch
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    hu_map = np.full((3, 4, 5), -1000.0, dtype=np.float32)
+    captured = {}
+
+    def fake_hu_to_density_schneider(values):
+        captured["input"] = values.copy()
+        return np.full_like(values, 1.25)
+
+    monkeypatch.setattr(
+        connector_mod, "hu_to_density_schneider", fake_hu_to_density_schneider
+    )
+    written = _write_density(connector, hu_map, mu_map_type="hu")
+    assert np.all(written == 1250)
+    assert np.array_equal(captured["input"], hu_map)
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_uses_explicit_mu_map_energy(tmp_path: Path):
+    mu = np.full((3, 4, 5), 0.096, dtype=np.float32)  # water at 511 keV
+    at_511 = _write_density(
+        SimindPythonConnector(get("Example.yaml"), tmp_path / "a", "case01"),
+        mu,
+        mu_map_energy_kev=511.0,
+    )
+    at_config = _write_density(
+        SimindPythonConnector(get("Example.yaml"), tmp_path / "b", "case01"), mu
+    )
+    assert abs(int(at_511[0]) - 1000) < 30
+    assert at_config[0] < 700  # read as 140 keV, the same mu means less density
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"mu_map_type": "unsupported"}, "mu_map_type must be one of"),
+        ({"mu_map_energy_kev": 0.0}, "mu_map_energy_kev must be > 0"),
+    ],
+)
+def test_configure_voxel_phantom_rejects_bad_mu_arguments(
+    tmp_path: Path, kwargs, message
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((3, 4, 5), dtype=np.float32)
+    with pytest.raises(ValueError, match=message):
+        connector.configure_voxel_phantom(source, np.ones_like(source), **kwargs)
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_rejects_negative_attenuation(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((3, 4, 5), dtype=np.float32)
+    with pytest.raises(ValueError, match="non-negative"):
+        connector.configure_voxel_phantom(source, -np.ones_like(source))
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_anisotropic_voxels(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((10, 6, 6), dtype=np.float32)
+    connector.configure_voxel_phantom(
+        source, np.zeros_like(source), voxel_size_mm=(8.0, 4.0, 4.0)
+    )
+    config = connector.get_config()
+    assert config.get_value(2) == pytest.approx(10 * 0.8 / 2)
+    assert config.get_value(5) == pytest.approx(10 * 0.8 / 2)
+    assert config.get_value(31) == pytest.approx(0.4)
+    assert config.get_value(28) == pytest.approx(0.4)
+    assert connector.runtime_switches.switches["PX"] == pytest.approx(0.4)
+    assert connector.runtime_switches.switches["TH"] == pytest.approx(0.8)
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_isotropic_voxels_remove_a_stale_th(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((4, 4, 4), dtype=np.float32)
+    connector.configure_voxel_phantom(
+        source, np.zeros_like(source), voxel_size_mm=(8.0, 4.0, 4.0)
+    )
+    assert connector.runtime_switches.switches["TH"] == pytest.approx(0.8)
+
+    connector.configure_voxel_phantom(
+        source, np.zeros_like(source), voxel_size_mm=(4.0, 4.0, 4.0)
+    )
+
+    assert "TH" not in connector.runtime_switches.switches
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_needs_square_in_plane_voxels(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((4, 4, 4), dtype=np.float32)
+    with pytest.raises(ValueError, match="square in-plane"):
+        connector.configure_voxel_phantom(
+            source, np.zeros_like(source), (4.0, 3.0, 4.0)
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "voxel_size_mm",
+    [(), (4.0,), (4.0, 4.0), (4.0, 4.0, 4.0, 4.0)],
+)
+def test_configure_voxel_phantom_rejects_bad_voxel_size_tuples(
+    tmp_path: Path, voxel_size_mm
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((4, 4, 4), dtype=np.float32)
+    with pytest.raises(ValueError) as excinfo:
+        connector.configure_voxel_phantom(source, np.zeros_like(source), voxel_size_mm)
+    assert str(excinfo.value) == "voxel_size_mm must be a scalar or a (z, y, x) tuple"

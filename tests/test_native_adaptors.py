@@ -23,17 +23,21 @@ pytestmark = pytest.mark.unit
 
 
 class _SirfLikeImage:
-    """Stand-in for sirf.STIR.ImageData: as_array() and voxel_sizes() in (z, y, x)."""
+    """Stand-in for sirf.STIR.ImageData; sizes and offset are in (z, y, x)."""
 
-    def __init__(self, array, voxel_sizes=(4.0, 4.0, 4.0)):
+    def __init__(self, array, voxel_sizes=(4.0, 4.0, 4.0), origin=(0.0, 0.0, 0.0)):
         self.array = np.asarray(array)
         self._voxel_sizes = voxel_sizes
+        self._origin = origin
 
     def as_array(self):
         return self.array
 
     def voxel_sizes(self):
         return self._voxel_sizes
+
+    def get_geometrical_info(self):
+        return SimpleNamespace(get_offset=lambda: self._origin)
 
 
 class _OneBasedCoordinate:
@@ -49,15 +53,19 @@ class _OneBasedCoordinate:
 class _StirLikeImage:
     """Stand-in for stir.FloatVoxelsOnCartesianGrid."""
 
-    def __init__(self, array, spacing=(4.0, 4.0, 4.0)):
+    def __init__(self, array, spacing=(4.0, 4.0, 4.0), origin=(0.0, 0.0, 0.0)):
         self.array = np.asarray(array)
         self._spacing = _OneBasedCoordinate(*spacing)
+        self._origin = _OneBasedCoordinate(*origin)
 
     def as_array(self):
         return self.array
 
     def get_grid_spacing(self):
         return self._spacing
+
+    def get_origin(self):
+        return self._origin
 
 
 def _patch_stir_backend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -146,12 +154,16 @@ def test_adaptor_run_forwards_expected_connector_inputs(
 
     captured: dict[str, object] = {}
 
-    def fake_configure_voxel_phantom(source, mu_map, voxel_size_mm, scoring_routine):
+    def fake_configure_voxel_phantom(
+        source, mu_map, voxel_size_mm, scoring_routine, mu_map_type, mu_map_energy_kev
+    ):
         captured.update(
             source=source,
             mu_map=mu_map,
             voxel_size_mm=voxel_size_mm,
             scoring_routine=scoring_routine,
+            mu_map_type=mu_map_type,
+            mu_map_energy_kev=mu_map_energy_kev,
         )
 
     def fake_run(runtime_operator=None):
@@ -176,8 +188,10 @@ def test_adaptor_run_forwards_expected_connector_inputs(
     assert np.asarray(captured["source"]).dtype == np.float32
     assert np.asarray(captured["mu_map"]).dtype == np.float32
     assert np.asarray(captured["source"]).shape == (2, 3, 4)
-    assert captured["voxel_size_mm"] == pytest.approx(4.0)
+    assert captured["voxel_size_mm"] == pytest.approx((4.0, 4.0, 4.0))
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
+    assert captured["mu_map_type"] == "attenuation"
+    assert captured["mu_map_energy_kev"] is None
     assert captured["runtime_operator"] is runtime_operator
 
 
@@ -243,15 +257,61 @@ def test_adaptor_rejects_invalid_photon_multiplier(
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-def test_adaptor_rejects_anisotropic_voxels(
+def test_adaptor_passes_anisotropic_voxel_sizes(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(
+        cls, tmp_path, mu_map_type="density", mu_map_energy_kev=None
+    )
+    adaptor.set_source(image_cls(np.ones((2, 3, 4)), (8.0, 4.0, 4.0)))
+    adaptor.set_mu_map(image_cls(np.ones((2, 3, 4)), (8.0, 4.0, 4.0)))
+    captured = {}
+    monkeypatch.setattr(
+        adaptor.python_connector,
+        "configure_voxel_phantom",
+        lambda **kwargs: captured.update(kwargs),
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+    adaptor.run()
+    assert captured["voxel_size_mm"] == (8.0, 4.0, 4.0)
+    assert captured["mu_map_type"] == "density"
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_rejects_mu_map_with_different_origin(
     cls, patch, image_cls, tmp_path, monkeypatch
 ):
     patch(monkeypatch)
     adaptor = _make_adaptor(cls, tmp_path)
-    adaptor.set_source(image_cls(np.zeros((2, 3, 4)), (2.0, 4.0, 4.0)))
-    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), (2.0, 4.0, 4.0)))
-    with pytest.raises(ValueError, match="not isotropic"):
+    adaptor.set_source(image_cls(np.zeros((2, 3, 4))))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), origin=(0.0, 0.0, 2.0)))
+    with pytest.raises(ValueError, match="origins differ"):
         adaptor.run()
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+@pytest.mark.parametrize("gap, matches", [(0.0009, True), (0.0011, False)])
+def test_adaptor_origin_tolerance_is_one_micron(
+    cls, patch, image_cls, tmp_path, monkeypatch, gap, matches
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_source(image_cls(np.zeros((2, 3, 4))))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), origin=(0.0, 0.0, gap)))
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_voxel_phantom", lambda **kwargs: None
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+    if matches:
+        adaptor.run()
+    else:
+        with pytest.raises(ValueError, match="origins differ"):
+            adaptor.run()
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
