@@ -6,12 +6,14 @@ import pytest
 from simind_python_connector.utils.interfile import (
     InterfileHeader,
     ProjectionGeometry,
+    check_geometry_match,
     load_interfile_array,
     normalise_key,
     parse_interfile_line,
     read_header,
     read_projection_geometry,
     read_simind_density_image,
+    write_in_template_geometry,
 )
 
 
@@ -527,3 +529,250 @@ def test_load_interfile_array_promotes_single_plane_to_3d(tmp_path: Path):
     loaded = load_interfile_array(header_path)
     assert loaded.array.shape == (1, 3, 4)
     assert np.array_equal(loaded.array[0], data)
+
+
+def _geometry(**changes):
+    values = dict(
+        num_projections=60,
+        extent_deg=360.0,
+        direction="CW",
+        start_angle_deg=180.0,
+        radius_mm=250.0,
+        radii_mm=None,
+        num_bins=64,
+        num_axial=32,
+        bin_size_mm=4.42,
+        axial_size_mm=4.42,
+        image_duration_s=1200.0,
+    )
+    values.update(changes)
+    return ProjectionGeometry(**values)
+
+
+@pytest.mark.unit
+def test_time_per_projection():
+    assert _geometry().time_per_projection_s == pytest.approx(20.0)
+    assert _geometry(image_duration_s=None).time_per_projection_s is None
+
+
+@pytest.mark.unit
+def test_geometry_match_within_tolerances():
+    template = _geometry(start_angle_deg=359.8)
+    produced = _geometry(
+        start_angle_deg=0.1, extent_deg=360.4, radius_mm=250.4, bin_size_mm=4.4205
+    )
+    assert check_geometry_match(produced, template) == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "changes, word",
+    [
+        ({"num_projections": 59}, "num_projections"),
+        ({"num_bins": 63}, "num_bins"),
+        ({"num_axial": 31}, "num_axial"),
+        ({"direction": "CCW"}, "direction"),
+        ({"extent_deg": 359.0}, "extent"),
+        ({"start_angle_deg": 181.0}, "start angle"),
+        ({"bin_size_mm": 4.43}, "bin_size_mm"),
+        ({"axial_size_mm": 4.43}, "axial_size_mm"),
+        ({"radius_mm": 251.0}, "radii"),
+    ],
+)
+def test_geometry_mismatch_is_reported(changes, word):
+    differences = check_geometry_match(_geometry(**changes), _geometry())
+    assert any(word in difference for difference in differences)
+
+
+@pytest.mark.unit
+def test_geometry_match_compares_non_circular_radii():
+    radii = tuple(240.0 + i for i in range(60))
+    template = _geometry(radius_mm=None, radii_mm=radii)
+    assert (
+        check_geometry_match(_geometry(radius_mm=None, radii_mm=radii), template) == []
+    )
+    shifted = tuple(r + 1.0 for r in radii)
+    produced = _geometry(radius_mm=None, radii_mm=shifted)
+    assert "radii" in check_geometry_match(produced, template)[0]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"extent_deg": 360.5},
+        {"start_angle_deg": 180.5},
+        {"start_angle_deg": -179.5},
+        {"bin_size_mm": 4.4205},
+        {"axial_size_mm": 4.4205},
+        {"radius_mm": 250.5},
+    ],
+)
+def test_geometry_match_accepts_differences_inside_tolerance(changes):
+    assert check_geometry_match(_geometry(**changes), _geometry()) == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "changes, word",
+    [
+        ({"extent_deg": 360.6}, "extent"),
+        ({"start_angle_deg": 180.6}, "start angle"),
+        ({"start_angle_deg": -179.4}, "start angle"),
+        ({"bin_size_mm": 4.4211}, "bin_size_mm"),
+        ({"axial_size_mm": 4.4211}, "axial_size_mm"),
+        ({"radius_mm": 250.6}, "radii"),
+    ],
+)
+def test_geometry_match_rejects_differences_outside_tolerance(changes, word):
+    differences = check_geometry_match(_geometry(**changes), _geometry())
+    assert any(word in difference for difference in differences)
+
+
+@pytest.mark.unit
+def test_geometry_match_compares_each_non_circular_radius():
+    radii = tuple(240.0 + i for i in range(60))
+    template = _geometry(radius_mm=None, radii_mm=radii)
+    inside = tuple(r + 0.5 * i / len(radii) for i, r in enumerate(radii))
+    assert (
+        check_geometry_match(_geometry(radius_mm=None, radii_mm=inside), template) == []
+    )
+    outside = tuple(r + (0.6 if i == 7 else 0.0) for i, r in enumerate(radii))
+    assert check_geometry_match(
+        _geometry(radius_mm=None, radii_mm=outside), template
+    ) == ["radii differ by more than 0.5 mm"]
+
+
+@pytest.mark.unit
+def test_geometry_match_reports_every_difference():
+    differences = check_geometry_match(
+        _geometry(
+            num_projections=59,
+            num_bins=63,
+            direction="CCW",
+            extent_deg=359.0,
+            start_angle_deg=181.0,
+            bin_size_mm=4.43,
+            axial_size_mm=4.43,
+            radius_mm=251.0,
+        ),
+        _geometry(),
+    )
+    assert len(differences) == 8
+    for word in (
+        "num_projections",
+        "num_bins",
+        "direction",
+        "extent",
+        "start angle",
+        "bin_size_mm",
+        "axial_size_mm",
+        "radii",
+    ):
+        assert any(word in difference for difference in differences)
+
+
+_TEMPLATE_TEXT = """!INTERFILE :=
+  !name of data file := template.s
+  !number format := short float
+  !number of bytes per pixel := 2
+  imagedata byte order := BIGENDIAN
+  data offset in bytes[1] := 512
+  !number of projections := 3
+  !matrix size [1] := 4
+  !matrix size [2] := 2
+  !END OF INTERFILE :=
+  """
+
+
+@pytest.mark.unit
+def test_write_in_template_geometry_rewrites_data_keys(tmp_path):
+    template = InterfileHeader.from_text(_TEMPLATE_TEXT)
+    array = np.arange(24, dtype=np.float64).reshape(3, 2, 4)
+
+    path = write_in_template_geometry(array, template, tmp_path / "copy.hs")
+
+    header = InterfileHeader.from_file(path)
+    assert header.get("name of data file") == "copy.s"
+    assert header.get("number format") == "float"
+    assert header.get("number of bytes per pixel") == "4"
+    assert header.get("imagedata byte order") == "LITTLEENDIAN"
+    assert header.get("data offset in bytes[1]") == "0"
+    assert header.get("number of projections") == "3"
+    loaded = load_interfile_array(path)
+    expected_storage = array.astype("<f4")
+    assert np.array_equal(loaded.array.ravel(), expected_storage.ravel())
+
+
+@pytest.mark.unit
+def test_write_in_template_geometry_checks_size(tmp_path):
+    template = InterfileHeader.from_text(_TEMPLATE_TEXT)
+    with pytest.raises(ValueError, match="expected 24"):
+        write_in_template_geometry(np.zeros(23), template, tmp_path / "copy.hs")
+
+
+def _template(offset_key=None):
+    """_TEMPLATE_TEXT with its data-offset line dropped or re-spelled."""
+    lines = [
+        line
+        for line in _TEMPLATE_TEXT.splitlines()
+        if "data offset in bytes" not in line and "data_offset_in_bytes" not in line
+    ]
+    if offset_key is not None:
+        lines.insert(4, f"{offset_key} := 512")
+    return InterfileHeader.from_text("\n".join(lines) + "\n")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "template_key, written_key",
+    [
+        ("data offset in bytes[1]", "data offset in bytes[1]"),
+        ("data_offset_in_bytes[1]", "data_offset_in_bytes[1]"),
+        (None, "data offset in bytes[1]"),
+    ],
+)
+def test_write_in_template_geometry_zeroes_the_data_offset(
+    tmp_path, template_key, written_key
+):
+    template = _template(template_key)
+    array = np.arange(24, dtype=np.float64).reshape(3, 2, 4)
+
+    path = write_in_template_geometry(array, template, tmp_path / "copy.hs")
+
+    assert InterfileHeader.from_file(path).get(written_key) == "0"
+    assert load_interfile_array(path).array.size == 24
+
+
+@pytest.mark.unit
+def test_write_in_template_geometry_writes_little_endian_float32(tmp_path):
+    template = InterfileHeader.from_text(_TEMPLATE_TEXT)
+    array = np.arange(24, dtype=np.float64).reshape(3, 2, 4)
+
+    path = write_in_template_geometry(array, template, tmp_path / "copy.hs")
+
+    payload = path.with_suffix(".s").read_bytes()
+    assert payload == array.astype("<f4").tobytes()
+    assert payload != array.astype(">f4").tobytes()
+
+
+@pytest.mark.unit
+def test_write_in_template_geometry_keeps_geometry_keys_and_the_template(tmp_path):
+    template = InterfileHeader.from_text(_TEMPLATE_TEXT)
+    before = template.as_dict()
+    array = np.arange(24, dtype=np.float64).reshape(3, 2, 4)
+
+    path = write_in_template_geometry(array, template, tmp_path / "copy.hs")
+
+    rewritten = {
+        "name of data file",
+        "number format",
+        "number of bytes per pixel",
+        "imagedata byte order",
+        "data offset in bytes [1]",
+    }
+    written = InterfileHeader.from_file(path).as_dict()
+    for key, value in before.items():
+        if key not in rewritten:
+            assert written[key] == value
+    assert template.as_dict() == before

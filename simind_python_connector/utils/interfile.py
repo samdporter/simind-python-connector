@@ -296,6 +296,12 @@ class ProjectionGeometry:
     axial_size_mm: float
     image_duration_s: Optional[float]
 
+    @property
+    def time_per_projection_s(self) -> Optional[float]:
+        if self.image_duration_s is None:
+            return None
+        return self.image_duration_s / self.num_projections
+
 
 _REQUIRED_GEOMETRY_KEYS = (
     "number of projections",
@@ -357,6 +363,92 @@ def read_projection_geometry(header: InterfileHeader) -> ProjectionGeometry:
     )
 
 
+def _radii(geometry: ProjectionGeometry) -> tuple[float, ...]:
+    if geometry.radii_mm is not None:
+        return geometry.radii_mm
+    return (geometry.radius_mm,) * geometry.num_projections
+
+
+def check_geometry_match(
+    produced: ProjectionGeometry, template: ProjectionGeometry
+) -> list[str]:
+    """Return readable differences between two geometries; empty means they match."""
+    differences = []
+    for name in ("num_projections", "num_bins", "num_axial", "direction"):
+        if getattr(produced, name) != getattr(template, name):
+            differences.append(
+                f"{name}: {getattr(produced, name)} != {getattr(template, name)}"
+            )
+    if abs(produced.extent_deg - template.extent_deg) > 0.5:
+        differences.append(
+            f"extent of rotation: {produced.extent_deg} != {template.extent_deg}"
+        )
+    start_gap = abs(
+        (produced.start_angle_deg - template.start_angle_deg + 180.0) % 360.0 - 180.0
+    )
+    if start_gap > 0.5:
+        differences.append(
+            f"start angle: {produced.start_angle_deg} != {template.start_angle_deg}"
+        )
+    for name in ("bin_size_mm", "axial_size_mm"):
+        if abs(getattr(produced, name) - getattr(template, name)) > 1e-3:
+            differences.append(
+                f"{name}: {getattr(produced, name)} != {getattr(template, name)}"
+            )
+    produced_radii, template_radii = _radii(produced), _radii(template)
+    if len(produced_radii) != len(template_radii):
+        differences.append(
+            f"number of radii: {len(produced_radii)} != {len(template_radii)}"
+        )
+    elif any(abs(a - b) > 0.5 for a, b in zip(produced_radii, template_radii)):
+        differences.append("radii differ by more than 0.5 mm")
+    return differences
+
+
+def write_in_template_geometry(
+    array: np.ndarray, template: InterfileHeader, header_path: PathLike
+) -> Path:
+    """Write array as float32 data described by a copy of the template header.
+
+    Only the data-file keys change: file name, number format, bytes per
+    pixel, byte order and data offset. The geometry keys are copied as-is.
+    A data offset of 0 is inserted when the template has no offset key.
+    """
+    header_path = Path(header_path)
+    values = template.as_dict()
+    sizes = [int(raw) for key, raw in values.items() if _MATRIX_SIZE_KEY.fullmatch(key)]
+    expected = int(np.prod(sizes))
+    if len(sizes) == 2:
+        expected *= int(values.get("number of projections", 1))
+    array = np.asarray(array)
+    if array.size != expected:
+        raise ValueError(
+            f"array holds {array.size} values, expected {expected} for the template"
+        )
+
+    data_path = header_path.with_suffix(".s")
+    array.astype("<f4").tofile(data_path)
+
+    header = template.copy()
+    header.set("!name of data file", data_path.name)
+    header.set("!number format", "float")
+    header.set("!number of bytes per pixel", 4)
+    header.set("imagedata byte order", "LITTLEENDIAN")
+    offset_keys = [
+        key
+        for key, _ in template.items()
+        if normalise_key(key).replace("_", " ").startswith("data offset in bytes")
+    ]
+    if offset_keys:
+        for key in offset_keys:
+            header.set(key, 0)
+    else:
+        # STIR needs the key spelled out, even when the template omits it.
+        header.set("data offset in bytes[1]", 0)
+    header.write(header_path)
+    return header_path
+
+
 def read_simind_density_image(
     header_path: PathLike,
 ) -> tuple[np.ndarray, tuple[float, float, float]]:
@@ -392,10 +484,12 @@ __all__ = [
     "InterfileEntry",
     "InterfileHeader",
     "ProjectionGeometry",
+    "check_geometry_match",
     "load_interfile_array",
     "normalise_key",
     "parse_interfile_line",
     "read_header",
     "read_projection_geometry",
     "read_simind_density_image",
+    "write_in_template_geometry",
 ]
