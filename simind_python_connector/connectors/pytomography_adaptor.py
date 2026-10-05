@@ -120,6 +120,11 @@ class PyTomographySimindAdaptor(BaseConnector):
     ) -> None:
         self.python_connector.set_mpi(processes, split_projections)
 
+    def set_activity(
+        self, activity_mbq: float, time_per_projection_s: float = 1.0
+    ) -> None:
+        self.python_connector.set_activity(activity_mbq, time_per_projection_s)
+
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
     ) -> Dict[str, torch.Tensor]:

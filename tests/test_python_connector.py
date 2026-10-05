@@ -970,3 +970,44 @@ def test_python_connector_cleanup_protects_fw_window_file(tmp_path: Path):
 
     assert "case01_custom.win" in seen["files"]
     assert "case01_old.win" not in seen["files"]
+
+
+@pytest.mark.unit
+def test_set_activity_writes_index_25_as_activity_times_time(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.set_activity(np.float32(250.0), time_per_projection_s=20.0)
+    assert connector.get_config().get_value(25) == pytest.approx(5000.0)
+
+    connector.set_activity(3.0)
+    assert connector.get_config().get_value(25) == pytest.approx(3.0)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "activity, seconds",
+    [
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (float("nan"), 1.0),
+        (1.0, 0.0),
+        (1.0, float("inf")),
+        (True, 1.0),
+        (1.0, True),
+        (np.bool_(True), 1.0),
+        (1.0, np.bool_(True)),
+        ("not-a-number", 1.0),
+        (1.0, None),
+        (1e308, 1e308),  # product overflows to inf
+        (5e-324, 0.5),  # product underflows to 0.0
+    ],
+)
+def test_set_activity_rejects_non_positive_or_non_finite(
+    tmp_path: Path, activity, seconds
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    with pytest.raises(ValueError, match="finite and > 0"):
+        connector.set_activity(activity, seconds)

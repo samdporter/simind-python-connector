@@ -167,6 +167,35 @@ class SimindPythonConnector(BaseConnector):
             raise ValueError(f"processes must be an integer >= 1, got {processes!r}")
         self._mpi = (int(processes), bool(split_projections))
 
+    def set_activity(
+        self, activity_mbq: float, time_per_projection_s: float = 1.0
+    ) -> None:
+        """Tell SIMIND the source activity, so projections come out on that scale.
+
+        SIMIND Index 25 holds activity x acquisition time per projection
+        (MBq x s); the manual assumes 1 s per projection otherwise. Index 25
+        does not change the number of photon histories: the source map's
+        integer values and NN set those.
+        """
+        for name, value in (
+            ("activity_mbq", activity_mbq),
+            ("time_per_projection_s", time_per_projection_s),
+        ):
+            try:
+                valid = (
+                    not isinstance(value, (bool, np.bool_))
+                    and math.isfinite(float(value))
+                    and float(value) > 0
+                )
+            except (TypeError, ValueError, OverflowError):
+                valid = False
+            if not valid:
+                raise ValueError(f"{name} must be finite and > 0, got {value!r}")
+        product = float(activity_mbq) * float(time_per_projection_s)
+        if not math.isfinite(product) or product <= 0:
+            raise ValueError(f"product must be finite and > 0, got {product!r}")
+        self.config.set_value(25, product)
+
     def configure_voxel_phantom(
         self,
         source: np.ndarray,

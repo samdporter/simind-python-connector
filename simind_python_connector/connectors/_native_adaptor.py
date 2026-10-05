@@ -88,6 +88,11 @@ class _NativeSimindAdaptor(BaseConnector):
     ) -> None:
         self.python_connector.set_mpi(processes, split_projections)
 
+    def set_activity(
+        self, activity_mbq: float, time_per_projection_s: float = 1.0
+    ) -> None:
+        self.python_connector.set_activity(activity_mbq, time_per_projection_s)
+
     def run(self, runtime_operator: Optional[RuntimeOperator] = None) -> dict[str, Any]:
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.

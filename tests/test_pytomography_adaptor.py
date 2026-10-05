@@ -273,3 +273,14 @@ def _make_wired_connector(tmp_path: Path, monkeypatch):
         lambda runtime_operator=None: raw_outputs,
     )
     return connector
+
+
+@pytest.mark.unit
+def test_pytomography_adaptor_set_activity_delegates(tmp_path: Path):
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    adaptor.set_activity(100.0, 15.0)
+    assert adaptor.get_config().get_value(25) == pytest.approx(100.0 * 15.0)
