@@ -11,13 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from simind_python_connector.data import data_path
-
-
-def interpolate_attenuation_coefficient(filename, energy_mev):
-    """Interpolate the mass attenuation coefficient [cm^2/g] from a table file."""
-    table = np.loadtxt(filename, ndmin=2)
-    return np.interp(energy_mev, table[:, 0], table[:, 1])
+from simind_python_connector.data import data_path, load_table
 
 
 def get_attenuation_coefficient(material, energy_kev, file_path=None):
@@ -36,25 +30,21 @@ def get_attenuation_coefficient(material, energy_kev, file_path=None):
     density_bone = 1.85  # g/cm^3 for cortical bone
 
     if material == "water":
-        filename = data_path("h2o.atn")
+        filename = "h2o.atn"
     elif material == "bone":
-        filename = data_path("bone.atn")
+        filename = "bone.atn"
     else:
         raise ValueError("Unknown material. Accepted values are 'water' or 'bone'.")
 
     if file_path:
-        # filename may already be an absolute packaged path; join only its
-        # basename so the override directory is honoured.
-        filepath = Path(file_path) / Path(str(filename)).name
+        filepath = Path(file_path) / filename
+        if not filepath.exists():
+            raise FileNotFoundError(f"Attenuation data file not found: {filepath}")
+        table = np.loadtxt(filepath, ndmin=2)
     else:
-        filepath = filename
+        table = load_table(filename)
 
-    if not filepath.exists():
-        raise FileNotFoundError(f"Attenuation data file not found: {filepath}")
-
-    mass_attn_coeffs = interpolate_attenuation_coefficient(
-        filepath, energy_kev / 1000.0
-    )
+    mass_attn_coeffs = np.interp(energy_kev / 1000.0, table[:, 0], table[:, 1])
 
     if material == "water":
         return mass_attn_coeffs * density_water
