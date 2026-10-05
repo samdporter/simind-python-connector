@@ -29,6 +29,7 @@ from simind_python_connector.core.types import (
 )
 from simind_python_connector.utils.interfile import (
     InterfileHeader,
+    ProjectionGeometry,
     load_interfile_array,
 )
 from simind_python_connector.utils.simind_utils import create_window_file
@@ -94,6 +95,9 @@ class SimindPythonConnector(BaseConnector):
         self._window_file_path: Optional[Path] = None
         self._mpi: Optional[tuple[int, bool]] = None
         self._derived_keys: set[str] = set()
+        self._acquisition: Optional[ProjectionGeometry] = None
+        self._acquisition_orbit: Optional[Path] = None
+        self._transaxial_extent_mm: Optional[float] = None
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -255,11 +259,12 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(2, dim_z * vox_cm / 2.0)
         cfg.set_value(3, dim_x * vox_cm / 2.0)
         cfg.set_value(4, dim_y * vox_cm / 2.0)
-        cfg.set_value(28, vox_cm)
-        # Projection rows (Index 77) run along the axis of rotation, which is
-        # the slice direction of the maps (checked against SIMIND 8.0).
-        cfg.set_value(76, max(dim_x, dim_y))
-        cfg.set_value(77, dim_z)
+        if self._acquisition is None:
+            cfg.set_value(28, vox_cm)
+            # Projection rows (Index 77) run along the axis of rotation, which
+            # is the slice direction of the maps (checked against SIMIND 8.0).
+            cfg.set_value(76, max(dim_x, dim_y))
+            cfg.set_value(77, dim_z)
 
         # Density geometry
         cfg.set_value(5, dim_z * vox_cm / 2.0)
@@ -274,6 +279,9 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(82, dim_y)  # source map j
 
         self.runtime_switches.set_switch("PX", vox_cm)
+        self._transaxial_extent_mm = (
+            max(dim_x, dim_y) * vox_cm * SIMIND_VOXEL_UNIT_CONVERSION
+        )
 
         source_max = float(source_array.max())
         if source_max > 0:
@@ -320,6 +328,59 @@ class SimindPythonConnector(BaseConnector):
 
         return source_path, density_path
 
+    def configure_acquisition(self, geometry: ProjectionGeometry) -> None:
+        """Use the projection geometry of a measured acquisition.
+
+        Index 30 is the signed rotation range (negative is counter-clockwise),
+        and STIR's start angle is SIMIND's plus 180 degrees, which the
+        converter adds back to the outputs.
+        """
+        if abs(geometry.bin_size_mm - geometry.axial_size_mm) > 1e-3:
+            raise ValueError(
+                "SIMIND has one projection pixel size, but the bin size "
+                f"({geometry.bin_size_mm} mm) and axial size "
+                f"({geometry.axial_size_mm} mm) differ"
+            )
+        if not 0.0 < geometry.extent_deg <= 360.0:
+            raise ValueError(
+                f"extent of rotation must be in (0, 360], got {geometry.extent_deg}"
+            )
+        if (
+            geometry.radii_mm is not None
+            and len(geometry.radii_mm) != geometry.num_projections
+        ):
+            raise ValueError(
+                f"{len(geometry.radii_mm)} radii given for "
+                f"{geometry.num_projections} projections"
+            )
+
+        cfg = self.config
+        cfg.set_flag(5, True)
+        cfg.set_value(29, geometry.num_projections)
+        sign = 1.0 if geometry.direction == "CW" else -1.0
+        cfg.set_value(30, sign * geometry.extent_deg)
+        cfg.set_value(41, (geometry.start_angle_deg + 180.0) % 360.0)
+        cfg.set_value(28, geometry.bin_size_mm / SIMIND_VOXEL_UNIT_CONVERSION)
+        cfg.set_value(76, geometry.num_bins)
+        cfg.set_value(77, geometry.num_axial)
+
+        if geometry.radii_mm is not None and len(set(geometry.radii_mm)) == 1:
+            cfg.set_value(12, geometry.radii_mm[0] / SIMIND_VOXEL_UNIT_CONVERSION)
+            self._acquisition_orbit = None
+            self._acquisition = geometry
+            return
+
+        if geometry.radii_mm is None:
+            cfg.set_value(12, geometry.radius_mm / SIMIND_VOXEL_UNIT_CONVERSION)
+            self._acquisition_orbit = None
+        else:
+            radii_cm = [r / SIMIND_VOXEL_UNIT_CONVERSION for r in geometry.radii_mm]
+            cfg.set_value(12, float(np.mean(radii_cm)))
+            orbit = self.output_dir / f"{self.output_prefix}_acquisition.cor"
+            orbit.write_text("".join(f"{r:.4f}\n" for r in radii_cm))
+            self._acquisition_orbit = orbit
+        self._acquisition = geometry
+
     def set_energy_windows(
         self,
         lower_bounds: Union[float, list[float]],
@@ -360,11 +421,22 @@ class SimindPythonConnector(BaseConnector):
         run_switches_holder = RuntimeSwitches()
         for key, value in self.runtime_switches.switches.items():
             run_switches_holder.set_switch(key, value)
-        orbit_file = None
+        orbit_file = self._acquisition_orbit
         if runtime_operator is not None:
             for key, value in runtime_operator.switches.items():
                 run_switches_holder.set_switch(key, value)
-            orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
+            if runtime_operator.orbit_file is not None:
+                orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
+
+        if self._acquisition is not None and self._transaxial_extent_mm is not None:
+            fov_mm = self._acquisition.num_bins * self._acquisition.bin_size_mm
+            if self._transaxial_extent_mm > fov_mm:
+                self.logger.warning(
+                    "The phantom (%.1f mm across) is wider than the projection "
+                    "field of view (%.1f mm)",
+                    self._transaxial_extent_mm,
+                    fov_mm,
+                )
 
         # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin
         # routine); primary is then tot - sca.
