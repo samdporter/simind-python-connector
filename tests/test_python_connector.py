@@ -6,6 +6,11 @@ import pytest
 from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.core.types import ScoringRoutine, SimulationError
+from simind_python_connector.utils.interfile import (
+    InterfileHeader,
+    ProjectionGeometry,
+    read_projection_geometry,
+)
 
 
 @pytest.mark.unit
@@ -1011,3 +1016,167 @@ def test_set_activity_rejects_non_positive_or_non_finite(
     )
     with pytest.raises(ValueError, match="finite and > 0"):
         connector.set_activity(activity, seconds)
+
+
+def _acquisition(**changes):
+    values = dict(
+        num_projections=60,
+        extent_deg=360.0,
+        direction="CW",
+        start_angle_deg=180.0,
+        radius_mm=250.0,
+        radii_mm=None,
+        num_bins=64,
+        num_axial=32,
+        bin_size_mm=4.42,
+        axial_size_mm=4.42,
+        image_duration_s=None,
+    )
+    values.update(changes)
+    return ProjectionGeometry(**values)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("direction, sign", [("CW", 1.0), ("CCW", -1.0)])
+def test_configure_acquisition_maps_to_simind_indices(tmp_path: Path, direction, sign):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.configure_acquisition(
+        _acquisition(direction=direction, start_angle_deg=90.0)
+    )
+    config = connector.get_config()
+    assert config.get_value(29) == 60
+    assert config.get_value(30) == pytest.approx(sign * 360.0)
+    assert config.get_value(41) == pytest.approx(270.0)
+    assert config.get_value(12) == pytest.approx(25.0)
+    assert config.get_value(28) == pytest.approx(0.442)
+    assert (config.get_value(76), config.get_value(77)) == (64, 32)
+    assert config.get_flag(5)
+    assert not (tmp_path / "case01_acquisition.cor").exists()
+
+
+@pytest.mark.unit
+def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    radii = tuple(240.0 + i for i in range(60))
+    connector.configure_acquisition(_acquisition(radius_mm=None, radii_mm=radii))
+
+    orbit = tmp_path / "case01_acquisition.cor"
+    lines = orbit.read_text().splitlines()
+    assert lines[0] == "24.0000" and lines[-1] == "29.9000" and len(lines) == 60
+
+    captured = []
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        captured.append(orbit_file)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+    override = tmp_path / "other.cor"
+    override.write_text("15.0\n")
+    connector.run(RuntimeOperator(orbit_file=override))
+    connector.run()
+
+    assert captured == [orbit, tmp_path / "case01_orbit.cor", orbit]
+    assert orbit.exists()
+
+
+@pytest.mark.unit
+def test_configure_acquisition_treats_equal_radii_as_circular(tmp_path: Path):
+    header = InterfileHeader.from_text(
+        "!number of projections := 3\n"
+        "!extent of rotation := 360\n"
+        "!direction of rotation := CW\n"
+        "start angle := 180\n"
+        "orbit := non-circular\n"
+        "Radii := {250, 250, 250}\n"
+        "!matrix size [1] := 64\n"
+        "scaling factor (mm/pixel) [1] := 4.42\n"
+        "!matrix size [2] := 32\n"
+        "scaling factor (mm/pixel) [2] := 4.42\n"
+    )
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.configure_acquisition(read_projection_geometry(header))
+    assert connector.get_config().get_value(12) == pytest.approx(25.0)
+    assert not (tmp_path / "case01_acquisition.cor").exists()
+
+
+@pytest.mark.unit
+def test_configure_acquisition_treats_an_equal_radii_tuple_as_circular(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.configure_acquisition(
+        _acquisition(
+            num_projections=3,
+            radius_mm=None,
+            radii_mm=(250.0, 250.0, 250.0),
+        )
+    )
+    assert connector.get_config().get_value(12) == pytest.approx(25.0)
+    assert not (tmp_path / "case01_acquisition.cor").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        ({"axial_size_mm": 4.0}, "one projection pixel size"),
+        ({"extent_deg": 0.0}, "extent"),
+        ({"extent_deg": 400.0}, "extent"),
+        ({"radius_mm": None, "radii_mm": (250.0, 260.0)}, "radii"),
+    ],
+)
+def test_configure_acquisition_validation(tmp_path: Path, changes, message):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    with pytest.raises(ValueError, match=message):
+        connector.configure_acquisition(_acquisition(**changes))
+
+
+@pytest.mark.unit
+def test_acquisition_values_win_over_voxel_phantom_in_either_order(tmp_path: Path):
+    source = np.ones((8, 8, 8), dtype=np.float32)
+    for order in ("phantom_first", "acquisition_first"):
+        connector = SimindPythonConnector(
+            config_source=get("Example.yaml"),
+            output_dir=tmp_path / order,
+            output_prefix="case01",
+        )
+        if order == "phantom_first":
+            connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+            connector.configure_acquisition(_acquisition())
+        else:
+            connector.configure_acquisition(_acquisition())
+            connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+        config = connector.get_config()
+        assert config.get_value(28) == pytest.approx(0.442)
+        assert (config.get_value(76), config.get_value(77)) == (64, 32)
+
+
+@pytest.mark.unit
+def test_run_warns_when_phantom_is_wider_than_the_field_of_view(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.configure_acquisition(_acquisition(num_bins=8))  # 35 mm field of view
+    source = np.ones((8, 16, 16), dtype=np.float32)  # 64 mm across
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    with caplog.at_level("WARNING"):
+        connector.run()
+    assert "wider than the projection field of view" in caplog.text
