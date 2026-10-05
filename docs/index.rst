@@ -8,6 +8,7 @@ simind-python-connector Documentation
    intro
    installation
    usage
+   normalisation
    backends
    geometry
    examples
