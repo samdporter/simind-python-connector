@@ -15,8 +15,20 @@ from simind_python_connector.connectors.python_connector import (
     SimindPythonConnector,
 )
 from simind_python_connector.core.config import SimulationConfig
-from simind_python_connector.core.types import PenetrateOutputType, ScoringRoutine
+from simind_python_connector.core.types import (
+    PenetrateOutputType,
+    ScoringRoutine,
+    SimulationError,
+)
 from simind_python_connector.utils import get_array
+from simind_python_connector.utils.interfile import (
+    InterfileHeader,
+    ProjectionGeometry,
+    check_geometry_match,
+    read_header,
+    read_projection_geometry,
+    write_in_template_geometry,
+)
 
 
 class _NativeSimindAdaptor(BaseConnector):
@@ -46,6 +58,8 @@ class _NativeSimindAdaptor(BaseConnector):
         self._source: Any = None
         self._mu_map: Any = None
         self._outputs: Optional[dict[str, Any]] = None
+        self._template_header: Optional[InterfileHeader] = None
+        self._template_geometry: Optional[ProjectionGeometry] = None
 
         self.add_runtime_switch("NN", photon_multiplier)
 
@@ -66,6 +80,15 @@ class _NativeSimindAdaptor(BaseConnector):
 
     def set_mu_map(self, mu_map: Any) -> None:
         self._mu_map = mu_map
+
+    def set_template(self, template: Any) -> None:
+        """Simulate in the geometry of a measured acquisition.
+
+        template is a backend projection object or a path to its .hs header.
+        Outputs are then returned in exactly that geometry.
+        """
+        self._template_header = read_header(template)
+        self._template_geometry = read_projection_geometry(self._template_header)
 
     def set_energy_windows(
         self,
@@ -103,6 +126,8 @@ class _NativeSimindAdaptor(BaseConnector):
         mu_arr = np.asarray(get_array(self._mu_map), dtype=np.float32)
         voxel_size_mm = self._voxel_sizes_mm(self._source)[0]
 
+        if self._template_geometry is not None:
+            self.python_connector.configure_acquisition(self._template_geometry)
         self.python_connector.configure_voxel_phantom(
             source=source_arr,
             mu_map=mu_arr,
@@ -110,10 +135,30 @@ class _NativeSimindAdaptor(BaseConnector):
             scoring_routine=self._scoring_routine,
         )
         raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
-        self._outputs = {
-            key: self._load_output(result.header_path)
-            for key, result in raw_outputs.items()
-        }
+        if self._template_geometry is None:
+            self._outputs = {
+                key: self._load_output(result.header_path)
+                for key, result in raw_outputs.items()
+            }
+            return self._outputs
+
+        first = next(iter(raw_outputs.values()))
+        produced = read_projection_geometry(
+            InterfileHeader.from_file(first.header_path)
+        )
+        differences = check_geometry_match(produced, self._template_geometry)
+        if differences:
+            raise SimulationError(
+                "SIMIND output geometry differs from the template: "
+                + "; ".join(differences)
+            )
+        prefix = self.python_connector.output_prefix
+        outputs = {}
+        for key, result in raw_outputs.items():
+            path = result.header_path.with_name(f"{prefix}_{key}_tmpl.hs")
+            write_in_template_geometry(result.projection, self._template_header, path)
+            outputs[key] = self._load_output(path)
+        self._outputs = outputs
         return self._outputs
 
     def get_outputs(self) -> Dict[str, Any]:

@@ -9,10 +9,14 @@ import pytest
 import simind_python_connector.connectors.sirf_adaptor as sirf_mod
 import simind_python_connector.connectors.stir_adaptor as stir_mod
 from simind_python_connector.configs import get
-from simind_python_connector.connectors.python_connector import RuntimeOperator
+from simind_python_connector.connectors.python_connector import (
+    ProjectionResult,
+    RuntimeOperator,
+)
 from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
 from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
-from simind_python_connector.core.types import ScoringRoutine
+from simind_python_connector.core.types import ScoringRoutine, SimulationError
+from simind_python_connector.utils.interfile import InterfileHeader
 
 
 pytestmark = pytest.mark.unit
@@ -268,3 +272,178 @@ def test_adaptor_set_activity_delegates(cls, patch, image_cls, tmp_path, monkeyp
     adaptor = _make_adaptor(cls, tmp_path)
     adaptor.set_activity(100.0, 15.0)
     assert adaptor.get_config().get_value(25) == pytest.approx(1500.0)
+
+
+_GEOMETRY_HEADER = """!INTERFILE :=
+  !name of data file := {data}
+  !number format := float
+  !number of bytes per pixel := 4
+  imagedata byte order := LITTLEENDIAN
+  !number of projections := 3
+  !extent of rotation := 360
+  !direction of rotation := {direction}
+  start angle := 180
+  Radius := 250
+  !matrix size [1] := 4
+  scaling factor (mm/pixel) [1] := 4.42
+  !matrix size [2] := 2
+  scaling factor (mm/pixel) [2] := 4.42
+  !END OF INTERFILE :=
+"""
+
+
+def _write_header(path, direction="CW"):
+    data = path.with_suffix(".s")
+    np.zeros((3, 2, 4), dtype=np.float32).tofile(data)
+    path.write_text(_GEOMETRY_HEADER.format(data=data.name, direction=direction))
+    return path
+
+
+def _fake_simind_run(adaptor, tmp_path, monkeypatch, direction="CW"):
+    simind_header = _write_header(tmp_path / "case01_tot_w1.hs", direction)
+    projection = np.arange(24, dtype=np.float32).reshape(3, 2, 4)
+
+    def fake_run(runtime_operator=None):
+        return {
+            "tot_w1": ProjectionResult(
+                projection=projection,
+                header_path=simind_header,
+                data_path=simind_header.with_suffix(".s"),
+                metadata={},
+            )
+        }
+
+    monkeypatch.setattr(adaptor.python_connector, "run", fake_run)
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_voxel_phantom", lambda **kwargs: None
+    )
+    return projection
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_with_template_returns_outputs_in_template_geometry(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    template = _write_header(tmp_path / "template.hs")
+    adaptor.set_template(template)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    configured = []
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_acquisition", configured.append
+    )
+    projection = _fake_simind_run(adaptor, tmp_path, monkeypatch)
+
+    outputs = adaptor.run()
+
+    assert configured[0].num_projections == 3
+    tmpl = tmp_path / "case01_tot_w1_tmpl.hs"
+    if cls is StirSimindAdaptor:
+        assert outputs["tot_w1"] == f"stir:{tmpl}"
+    else:
+        assert outputs["tot_w1"].path == str(tmpl)
+    expected_storage = projection.astype("<f4")
+    written = np.fromfile(tmpl.with_suffix(".s"), dtype="<f4")
+    assert np.array_equal(written, expected_storage.ravel())
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_with_template_rejects_mismatched_geometry(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_header(tmp_path / "template.hs", direction="CW"))
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_acquisition", lambda g: None
+    )
+    _fake_simind_run(adaptor, tmp_path, monkeypatch, direction="CCW")
+
+    with pytest.raises(SimulationError, match="direction"):
+        adaptor.run()
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_with_template_survives_a_second_run(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_header(tmp_path / "template.hs"))
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    tmpl = tmp_path / "case01_tot_w1_tmpl.hs"
+    values = iter([1.0, 7.0])
+
+    # Only the executor is mocked; the connector runs for real, so
+    # _clear_previous_outputs deletes the first run's files. Every call must
+    # therefore write the raw header and its data again.
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
+    ):
+        assert not list(Path(cwd).glob(f"{output_prefix}_*_tmpl.hs"))
+        raw_header = _write_header(Path(cwd) / f"{output_prefix}_tot_w1.hs")
+        level = next(values)
+        np.full((3, 2, 4), level, dtype=np.float32).tofile(raw_header.with_suffix(".s"))
+
+    monkeypatch.setattr(
+        adaptor.python_connector.executor, "run_simulation", fake_run_simulation
+    )
+
+    adaptor.run()
+
+    assert np.all(np.fromfile(tmpl.with_suffix(".s"), dtype="<f4") == 1.0)
+
+    adaptor.run()
+
+    raw = adaptor.python_connector.get_outputs()
+    assert all(not key.endswith("_tmpl") for key in raw)
+    assert np.all(np.fromfile(tmpl.with_suffix(".s"), dtype="<f4") == 7.0)
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_with_template_reports_every_mismatch(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_header(tmp_path / "template.hs", direction="CW"))
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_acquisition", lambda g: None
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_voxel_phantom", lambda **kwargs: None
+    )
+    projection = np.arange(24, dtype=np.float32).reshape(3, 2, 4)
+    raw_header = _write_header(tmp_path / "case01_tot_w1.hs", direction="CCW")
+    header = InterfileHeader.from_file(raw_header)
+    header.set("!number of projections", 5)
+    header.set("!matrix size [1]", 8)
+    header.set("Radius", 260)
+    header.write(raw_header)
+    monkeypatch.setattr(
+        adaptor.python_connector,
+        "run",
+        lambda runtime_operator=None: {
+            "tot_w1": ProjectionResult(
+                projection=projection,
+                header_path=raw_header,
+                data_path=raw_header.with_suffix(".s"),
+                metadata={},
+            )
+        },
+    )
+
+    with pytest.raises(SimulationError) as excinfo:
+        adaptor.run()
+
+    for word in ("direction", "num_projections", "num_bins", "radii"):
+        assert word in str(excinfo.value)
+    with pytest.raises(RuntimeError, match="Run the adaptor first"):
+        adaptor.get_outputs()
