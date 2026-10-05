@@ -828,6 +828,7 @@ def test_python_connector_derives_primary_from_total_and_scatter(tmp_path: Path)
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
     )
+    connector.set_energy_windows([126.0], [154.0], [0])
     total = np.arange(24, dtype=np.float32).reshape(2, 3, 4) + 10
     scatter = np.ones((2, 3, 4), dtype=np.float32)
 
@@ -893,3 +894,79 @@ def test_python_connector_derives_primary_only_for_order_zero_windows(
     assert np.array_equal(outputs["pri_w1"].projection, total - scatter)
     assert outputs["pri_w1"].metadata["derived"] == "tot - sca"
     assert "pri_w2" not in outputs
+
+
+@pytest.mark.unit
+def test_python_connector_derives_from_fw_window_orders(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+    connector.add_runtime_switch("FW", "case01_custom")
+    (tmp_path / "case01_custom.win").write_text("126.0,154.0,0\n92.0,124.0,0\n")
+    total = np.full((2, 3, 4), 10.0, dtype=np.float32)
+    scatter = np.full((2, 3, 4), 1.0, dtype=np.float32)
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        for window in (1, 2):
+            _write_named_projection(tmp_path, f"case01_tot_w{window}", total)
+            _write_named_projection(tmp_path, f"case01_sca_w{window}", scatter)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    outputs = connector.run()
+
+    assert np.array_equal(outputs["pri_w1"].projection, total - scatter)
+    assert np.array_equal(outputs["pri_w2"].projection, total - scatter)
+
+
+@pytest.mark.unit
+def test_python_connector_skips_pri_for_nonzero_order_window(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+    connector.add_runtime_switch("FW", "case01_custom")
+    (tmp_path / "case01_custom.win").write_text("126.0,154.0,0\n126.0,154.0,1\n")
+    total = np.full((2, 3, 4), 10.0, dtype=np.float32)
+    scatter = np.full((2, 3, 4), 1.0, dtype=np.float32)
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        for window in (1, 2):
+            _write_named_projection(tmp_path, f"case01_tot_w{window}", total)
+            _write_named_projection(tmp_path, f"case01_sca_w{window}", scatter)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    outputs = connector.run()
+
+    assert "pri_w1" in outputs
+    assert "pri_w2" not in outputs
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_protects_fw_window_file(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_runtime_switch("FW", "case01_custom")
+    keep = tmp_path / "case01_custom.win"
+    stale = tmp_path / "case01_old.win"
+    keep.write_text("126.0,154.0,0\n")
+    stale.write_text("126.0,154.0,0\n")
+    seen = {}
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        seen["files"] = sorted(path.name for path in tmp_path.iterdir())
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+
+    assert "case01_custom.win" in seen["files"]
+    assert "case01_old.win" not in seen["files"]

@@ -31,10 +31,7 @@ from simind_python_connector.utils.interfile import (
     InterfileHeader,
     load_interfile_array,
 )
-from simind_python_connector.utils.simind_utils import (
-    create_window_file,
-    validate_energy_windows,
-)
+from simind_python_connector.utils.simind_utils import create_window_file
 
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
@@ -97,7 +94,6 @@ class SimindPythonConnector(BaseConnector):
         self._window_file_path: Optional[Path] = None
         self._mpi: Optional[tuple[int, bool]] = None
         self._derived_keys: set[str] = set()
-        self._scatter_orders: list[int] = []
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -309,10 +305,6 @@ class SimindPythonConnector(BaseConnector):
             scatter_orders,
             output_filename=str(window_path),
         )
-        _, _, orders = validate_energy_windows(
-            lower_bounds, upper_bounds, scatter_orders
-        )
-        self._scatter_orders = orders
         self._window_file_path = window_path
 
     def run(
@@ -352,10 +344,12 @@ class SimindPythonConnector(BaseConnector):
         ):
             run_switches_holder.set_switch("CA", 1)
 
+        window_file = self._window_file_for_run(run_switches_holder.switches)
+
         config_path = self.output_dir / self.output_prefix
         self.config.save_file(config_path)
 
-        self._clear_previous_outputs()
+        self._clear_previous_outputs(window_file)
         self.executor.run_simulation(
             self.output_prefix,
             orbit_file,
@@ -365,7 +359,9 @@ class SimindPythonConnector(BaseConnector):
         )
 
         header_files = self._ensure_interfile_headers()
-        header_files = header_files + self._derive_primary_headers(header_files)
+        header_files = header_files + self._derive_primary_headers(
+            header_files, window_file
+        )
         self._outputs = self._load_projection_outputs(header_files)
         return self._outputs
 
@@ -380,24 +376,51 @@ class SimindPythonConnector(BaseConnector):
 
     _OUTPUT_SUFFIXES = {".h00", ".hs", ".a00", ".s", ".win"}
 
-    def _clear_previous_outputs(self) -> None:
+    def _window_file_for_run(self, switches: dict) -> Optional[Path]:
+        """Return the window file SIMIND reads for this run, if any."""
+        fw = switches.get("FW")
+        if fw:
+            return self.output_dir / f"{fw}.win"
+        if (
+            self._window_file_path is not None
+            and self._window_file_path.parent == self.output_dir
+        ):
+            return self._window_file_path
+        scattwin = self.output_dir / "scattwin.win"
+        return scattwin if scattwin.is_file() else None
+
+    @staticmethod
+    def _read_window_orders(window_file: Path) -> list[Optional[int]]:
+        """Scatter order of each window line; None for keyword or malformed lines."""
+        orders: list[Optional[int]] = []
+        for line in window_file.read_text().splitlines():
+            lowered = line.lower()
+            fields = line.split(",")
+            if "dew" in lowered or "tew" in lowered or len(fields) != 3:
+                orders.append(None)
+                continue
+            try:
+                value = float(fields[2])
+            except ValueError:
+                orders.append(None)
+                continue
+            orders.append(int(value) if value.is_integer() else None)
+        return orders
+
+    def _clear_previous_outputs(self, window_file: Optional[Path] = None) -> None:
         """Delete stale outputs from earlier runs sharing this prefix.
 
         Connector-written inputs (``{prefix}_src.smi`` / ``{prefix}_dns.dmi``)
         are protected because SIMIND still needs them on disk.
         """
+        if window_file is None:
+            window_file = self._window_file_for_run({})
         protected = {
             f"{self.output_prefix}_src.smi",
             f"{self.output_prefix}_dns.dmi",
         }
-        if (
-            self._window_file_path is not None
-            and self._window_file_path.parent == self.output_dir
-        ):
-            # Energy-window input written via set_energy_windows(); protect
-            # only that exact file, never a pre-existing one at the current
-            # prefix/location.
-            protected.add(self._window_file_path.name)
+        if window_file is not None and window_file.parent == self.output_dir:
+            protected.add(window_file.name)
         for slot in (5, 6):
             try:
                 protected.add(self.config.get_data_file(slot))
@@ -474,8 +497,14 @@ class SimindPythonConnector(BaseConnector):
 
         return hs_files
 
-    def _derive_primary_headers(self, header_files: list[Path]) -> list[Path]:
-        """Write pri_wN = tot_wN - sca_wN where SIMIND wrote tot and sca only."""
+    def _derive_primary_headers(
+        self, header_files: list[Path], window_file: Optional[Path]
+    ) -> list[Path]:
+        """Write pri_wN = tot_wN - sca_wN for order-0 windows."""
+        self._derived_keys = set()
+        if window_file is None or not window_file.is_file():
+            return []
+        orders = self._read_window_orders(window_file)
         names = {path.name for path in header_files}
         tot_prefix = f"{self.output_prefix}_tot_w"
         derived = []
@@ -483,7 +512,8 @@ class SimindPythonConnector(BaseConnector):
             if not tot_header.stem.startswith(tot_prefix):
                 continue
             window = tot_header.stem[len(tot_prefix) :]
-            if self._scatter_orders and self._scatter_orders[int(window) - 1] != 0:
+            index = int(window) - 1
+            if index >= len(orders) or orders[index] != 0:
                 continue
             sca_header = tot_header.with_name(f"{self.output_prefix}_sca_w{window}.hs")
             pri_header = tot_header.with_name(f"{self.output_prefix}_pri_w{window}.hs")
