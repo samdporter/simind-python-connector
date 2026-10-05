@@ -260,3 +260,11 @@ def test_adaptor_rejects_mu_map_with_different_spacing(
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), (3.0, 3.0, 3.0)))
     with pytest.raises(ValueError, match="voxel sizes differ"):
         adaptor.run()
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_set_activity_delegates(cls, patch, image_cls, tmp_path, monkeypatch):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_activity(100.0, 15.0)
+    assert adaptor.get_config().get_value(25) == pytest.approx(1500.0)
