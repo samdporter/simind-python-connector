@@ -184,8 +184,14 @@ class TestOrbitFileRule:
         line, context = rule.convert(";# Non-Uniform Orbit File := test.cor", {})
 
         # Check that Radii line was created
-        assert "Radii := {140, 155, 160, 140}" in line
+        assert "Radii := {140.0, 155.0, 160.0, 140.0}" in line
         assert ";# Non-Uniform Orbit File := test.cor" in line
+
+    def test_orbit_file_rule_keeps_tenths_of_a_millimetre(self, tmp_path):
+        (tmp_path / "test.cor").write_text("24.53\n")
+        rule = OrbitFileRule(input_file_dir=tmp_path)
+        line, _ = rule.convert(";# Non-Uniform Orbit File := test.cor", {})
+        assert "Radii := {245.3}" in line
 
     def test_orbit_file_rule_missing_file(self, tmp_path):
         """Test orbit file rule when .cor file doesn't exist."""
@@ -412,7 +418,7 @@ start angle := 0.000000
 
             # Verify radii are in mm (should be 150-195 based on our test data)
             radii_str = radii_line.split("{")[1].split("}")[0]
-            radii = [int(x.strip()) for x in radii_str.split(",")]
+            radii = [float(x.strip()) for x in radii_str.split(",")]
             assert all(140 <= r <= 200 for r in radii)
 
     def test_convert_file_default_output_name(self, tmp_path):
