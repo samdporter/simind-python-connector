@@ -22,6 +22,10 @@ pytestmark = [
     pytest.mark.requires_simind,
 ]
 
+# Full-statistics configuration: 64^3 voxels, 60 views, default
+# quantization_scale, correlation > 0.9, centre gap <= 1 bin. The reduced
+# sizes below run faster; correlation > 0.5 is authorised ONLY for the
+# recorded reduced-compute smoke run, not the standing criterion.
 _N = 16
 _VIEWS = 8
 _VOXEL = 4.42

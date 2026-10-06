@@ -16,7 +16,11 @@ from simind_python_connector.connectors.python_connector import (
 from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
 from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
 from simind_python_connector.core.types import ScoringRoutine, SimulationError
-from simind_python_connector.utils.interfile import InterfileHeader
+from simind_python_connector.utils.interfile import (
+    InterfileHeader,
+    check_geometry_match,
+    read_projection_geometry,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -407,6 +411,69 @@ def test_adaptor_with_template_returns_outputs_in_template_geometry(
     expected_storage = projection.astype("<f4")
     written = np.fromfile(tmpl.with_suffix(".s"), dtype="<f4")
     assert np.array_equal(written, expected_storage.ravel())
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_with_template_extent_within_tolerance_above_360(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    template = _write_header(tmp_path / "template.hs")
+    header = InterfileHeader.from_file(template)
+    header.set("!extent of rotation", 360.001)
+    header.write(template)
+    adaptor.set_template(template)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    projection = _fake_simind_run(adaptor, tmp_path, monkeypatch)
+
+    outputs = adaptor.run()
+
+    # configure_acquisition must not rewrite the template geometry
+    assert adaptor._template_geometry.extent_deg == pytest.approx(360.001)
+    assert (
+        check_geometry_match(
+            read_projection_geometry(
+                InterfileHeader.from_file(tmp_path / "case01_tot_w1.hs")
+            ),
+            adaptor._template_geometry,
+        )
+        == []
+    )
+    sign = 1.0 if adaptor._template_geometry.direction == "CW" else -1.0
+    assert adaptor.python_connector.get_config().get_value(30) == pytest.approx(
+        sign * 360.0
+    )
+    tmpl = tmp_path / "case01_tot_w1_tmpl.hs"
+    if cls is StirSimindAdaptor:
+        assert outputs["tot_w1"] == f"stir:{tmpl}"
+    else:
+        assert outputs["tot_w1"].path == str(tmpl)
+    expected_storage = projection.astype("<f4")
+    written = np.fromfile(tmpl.with_suffix(".s"), dtype="<f4")
+    assert np.array_equal(written, expected_storage.ravel())
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_set_template_failure_keeps_the_previous_template(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_header(tmp_path / "good.hs"))
+    previous_header = adaptor._template_header
+    previous_geometry = adaptor._template_geometry
+
+    broken = tmp_path / "broken.hs"
+    broken.write_text("!INTERFILE :=\n!END OF INTERFILE :=\n")
+
+    with pytest.raises(ValueError, match="missing projection geometry keys"):
+        adaptor.set_template(broken)
+
+    assert adaptor._template_header is previous_header
+    assert adaptor._template_geometry is previous_geometry
+    assert adaptor._template_geometry == read_projection_geometry(previous_header)
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)

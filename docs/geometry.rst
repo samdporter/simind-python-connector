@@ -117,7 +117,7 @@ the data are written under a copy of the template header:
    * - projections, bins, axial positions, direction
      - equal
    * - extent of rotation
-     - 0.5 degrees
+     - 0.5 degrees; up to 360.5 is accepted and clamped to 360 for SIMIND
    * - start angle
      - 0.5 degrees (modulo 360)
    * - bin and axial size

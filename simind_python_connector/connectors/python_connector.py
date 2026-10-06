@@ -398,8 +398,10 @@ class SimindPythonConnector(BaseConnector):
     def configure_acquisition(self, geometry: ProjectionGeometry) -> None:
         """Use the projection geometry of a measured acquisition.
 
-        Index 30 is the signed rotation range (negative is counter-clockwise),
-        and STIR's start angle is SIMIND's plus 180 degrees, which the
+        Index 30 is the signed rotation range (negative is counter-clockwise).
+        An extent within the 0.5-degree geometry tolerance above 360 is
+        written as a full turn, leaving the passed geometry untouched.
+        STIR's start angle is SIMIND's plus 180 degrees, which the
         converter adds back to the outputs.
         """
         if abs(geometry.bin_size_mm - geometry.axial_size_mm) > 1e-3:
@@ -408,9 +410,9 @@ class SimindPythonConnector(BaseConnector):
                 f"({geometry.bin_size_mm} mm) and axial size "
                 f"({geometry.axial_size_mm} mm) differ"
             )
-        if not 0.0 < geometry.extent_deg <= 360.0:
+        if not 0.0 < geometry.extent_deg <= 360.5:
             raise ValueError(
-                f"extent of rotation must be in (0, 360], got {geometry.extent_deg}"
+                f"extent of rotation must be in (0, 360.5], got {geometry.extent_deg}"
             )
         if (
             geometry.radii_mm is not None
@@ -424,8 +426,12 @@ class SimindPythonConnector(BaseConnector):
         cfg = self.config
         cfg.set_flag(5, True)
         cfg.set_value(29, geometry.num_projections)
+        # SIMIND rejects extents beyond a full circle, but STIR templates
+        # measured against a full turn report 360.001: that difference sits
+        # inside the 0.5-degree geometry tolerance, so SIMIND gets 360.
+        extent_deg = min(geometry.extent_deg, 360.0)
         sign = 1.0 if geometry.direction == "CW" else -1.0
-        cfg.set_value(30, sign * geometry.extent_deg)
+        cfg.set_value(30, sign * extent_deg)
         cfg.set_value(41, (geometry.start_angle_deg + 180.0) % 360.0)
         cfg.set_value(28, geometry.bin_size_mm / SIMIND_VOXEL_UNIT_CONVERSION)
         cfg.set_value(76, geometry.num_bins)
