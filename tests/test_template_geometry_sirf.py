@@ -211,13 +211,14 @@ def test_mixed_marker_underscore_scaling_keys_load_unscaled(tmp_path):
     assert written["quantification units"] == "1"
 
 
-def test_hash_shadowed_scaling_key_loads_unscaled(tmp_path):
+def test_hash_commented_scaling_key_is_ignored_and_active_key_resets(tmp_path):
     import sirf.STIR as sirf
 
     _template(tmp_path)
     template_path = tmp_path / "template.hs"
-    # A live scaling key followed by an ignored #-prefixed duplicate must both
-    # be reset, or the active key stays scaled.
+    # STIR treats a #-prefixed line as a comment (it does not scale), so the
+    # '#'-filed duplicate is ignored; only the live 'quantification units'
+    # key is reset to 1 by write_in_template_geometry.
     text = template_path.read_text().replace(
         "!END OF INTERFILE :=",
         "quantification units := 2.5\n"
@@ -225,6 +226,8 @@ def test_hash_shadowed_scaling_key_loads_unscaled(tmp_path):
         "!END OF INTERFILE :=",
     )
     header = InterfileHeader.from_text(text)
+    values = header.as_dict()
+    assert values["quantification units"] == "2.5"
 
     array = np.zeros((60, 64, 64), dtype=np.float32)
     array[59, 10, 50] = 1.0
@@ -235,3 +238,33 @@ def test_hash_shadowed_scaling_key_loads_unscaled(tmp_path):
     sirf_array = np.squeeze(copy.as_array())  # (axial, view, bin)
     assert np.array_equal(sirf_array, array.transpose(1, 0, 2))
     assert sirf_array.sum() == 3.0
+
+    written = read_header(path).as_dict()
+    assert written["quantification units"] == "1"
+    assert "#_!quantification_units_ := 9" in path.read_text()
+
+
+def test_hash_shadowed_direction_is_ignored_and_geometry_stays_compatible(tmp_path):
+    import sirf.STIR as sirf
+
+    _template(tmp_path)
+    template_path = tmp_path / "template.hs"
+    # A '#'-prefixed duplicate direction line is a comment for STIR, so the
+    # acquisition must stay CW; the written copy must remain loadable and
+    # geometrically compatible with the clean CW template.
+    text = template_path.read_text().replace(
+        "!END OF INTERFILE :=",
+        "#_!direction_of_rotation_ := CCW\n!END OF INTERFILE :=",
+    )
+    header = InterfileHeader.from_text(text)
+    assert read_projection_geometry(header).direction == "CW"
+
+    array = np.zeros((60, 64, 64), dtype=np.float32)
+    array[59, 10, 50] = 1.0
+
+    path = write_in_template_geometry(array, header, tmp_path / "copy.hs")
+    copy = sirf.AcquisitionData(str(path))
+    _ = copy - sirf.AcquisitionData(str(template_path))  # geometry must match
+    sirf_array = np.squeeze(copy.as_array())
+    assert sirf_array[10, 59, 50] == 1.0
+    assert sirf_array.sum() == 1.0

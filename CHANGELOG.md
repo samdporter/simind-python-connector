@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Interfile header parsing: only leading `!` and spacing are ignored in key
+  lookups; a line whose first non-blank character is `#` is a comment, never a
+  key (matching STIR, which does not honour `#`-prefixed settings). Migration:
+  a nonstandard template that used `#` as an active key prefix now has those
+  fields ignored (required fields fail loudly instead of loading silently
+  wrong); remove the `#` or use `!` where the line was meant to be active.
+
 ### Added
 - `simind_python_connector.utils.interfile`: one Interfile module (`InterfileHeader`,
   `read_header`, `load_interfile_array`, `ProjectionGeometry`, `read_projection_geometry`,
   `read_simind_density_image`, `normalise_key`, `parse_interfile_line`). Header key
-  lookups ignore case, leading `!`/`#` and spacing.
+  lookups ignore case, leading `!` and spacing; a `#`-prefixed line is a comment.
 - `utils.simind_utils.validate_energy_windows` (public).
 - `converters.attenuation.density_to_attenuation`.
 - Runtime switches from the SIMIND 8 manual: `CA`, `FW`, `OU`, `DP`, `BG`, `HO`, `CO`, `X1`–`X6`.

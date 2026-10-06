@@ -14,7 +14,7 @@ import numpy as np
 
 PathLike = Union[str, os.PathLike]
 
-_KEY_PREFIX = re.compile(r"^[!#\s]+")
+_KEY_PREFIX = re.compile(r"^[!\s]+")
 _WHITESPACE = re.compile(r"\s+")
 _BRACKET = re.compile(r"\s*\[")
 _MATRIX_SIZE_KEY = re.compile(r"matrix size \[(\d+)\]")
@@ -23,9 +23,9 @@ _MATRIX_SIZE_KEY = re.compile(r"matrix size \[(\d+)\]")
 def normalise_key(key: str) -> str:
     """Canonical form of an Interfile key, used for every lookup.
 
-    Leading '!' and '#' markers, letter case, spacing and '_' differ between
-    SIMIND, STIR and our own builders; STIR normalises '_' as a space, so
-    they are ignored here too.
+    Only '!', '_', letter case and spacing are ignored: they differ between
+    SIMIND, STIR and our own builders, and STIR normalises '_' as a space.
+    A leading '#' is not a key prefix; a '#' line is a comment.
     """
     key = key.replace("_", " ").replace("!", " ")
     key = _KEY_PREFIX.sub("", key.strip())
@@ -37,11 +37,12 @@ def normalise_key(key: str) -> str:
 def parse_interfile_line(line: str) -> tuple[Optional[str], Optional[str]]:
     """Return (key, value) for a 'key := value' line, else (None, None).
 
-    Comments (';'), blank lines and section headers ('key :=') are skipped.
+    Comments are ';' lines, or any line whose first non-blank character is
+    '#'. Blank lines and section headers ('key :=') are skipped too.
     Keys are returned as written; use normalise_key() to compare them.
     """
     line = line.strip()
-    if not line or line.startswith(";") or line.endswith(":="):
+    if not line or line.startswith((";", "#")) or line.endswith(":="):
         return None, None
     if ":=" not in line:
         return None, None
