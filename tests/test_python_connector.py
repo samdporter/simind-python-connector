@@ -1067,7 +1067,8 @@ def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path)
 
     orbit = tmp_path / "case01_acquisition.cor"
     lines = orbit.read_text().splitlines()
-    assert lines[0] == "24.0000" and lines[-1] == "29.9000" and len(lines) == 60
+    assert lines[0] == "      24.000    32" and lines[-1] == "      29.900    32"
+    assert len(lines) == 60
 
     captured = []
 
