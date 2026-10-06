@@ -444,7 +444,11 @@ class SimindPythonConnector(BaseConnector):
             radii_cm = [r / SIMIND_VOXEL_UNIT_CONVERSION for r in geometry.radii_mm]
             cfg.set_value(12, float(np.mean(radii_cm)))
             orbit = self.output_dir / f"{self.output_prefix}_acquisition.cor"
-            orbit.write_text("".join(f"{r:.4f}\n" for r in radii_cm))
+            # SIMIND's own .cor layout (Index 42 < 0 writes one radius per line
+            # in cm at %12.3f followed by the centre bin, num_bins / 2, at %6d).
+            orbit.write_text(
+                "".join(f"{r:12.3f}{geometry.num_bins // 2:6d}\n" for r in radii_cm)
+            )
             self._acquisition_orbit = orbit
         self._acquisition = geometry
 
