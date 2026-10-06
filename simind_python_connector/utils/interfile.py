@@ -50,6 +50,13 @@ def parse_interfile_line(line: str) -> tuple[Optional[str], Optional[str]]:
     return key.strip(), value.strip()
 
 
+def _is_interfile_terminator(line: str) -> bool:
+    """True for '!END OF INTERFILE': STIR stops parsing there."""
+    if not line.strip():
+        return False
+    return normalise_key(line).rstrip(":=").strip() == "end of interfile"
+
+
 def _format_value(value) -> str:
     if isinstance(value, (tuple, list)):
         return "{" + ", ".join(str(v) for v in value) + "}"
@@ -90,12 +97,20 @@ class InterfileHeader:
     @classmethod
     def from_file(cls, path: PathLike) -> "InterfileHeader":
         with open(path, "r") as file:
-            return cls([InterfileEntry.from_line(line) for line in file])
+            return cls.from_text(file.read())
 
     @classmethod
     def from_text(cls, text: str) -> "InterfileHeader":
-        lines = text.splitlines(keepends=True)
-        return cls([InterfileEntry.from_line(line) for line in lines])
+        entries: list[InterfileEntry] = []
+        terminated = False
+        for line in text.splitlines(keepends=True):
+            entry = InterfileEntry.from_line(line)
+            if terminated:
+                entry = InterfileEntry(text=entry.text, key=None, value=None)
+            elif _is_interfile_terminator(line):
+                terminated = True
+            entries.append(entry)
+        return cls(entries)
 
     def copy(self) -> "InterfileHeader":
         return InterfileHeader(

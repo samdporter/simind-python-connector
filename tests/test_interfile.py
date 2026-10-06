@@ -233,6 +233,24 @@ def test_header_handles_windows_line_endings():
 
 
 @pytest.mark.unit
+def test_keys_after_the_terminator_are_not_keys(tmp_path):
+    header = InterfileHeader.from_text(
+        "!direction of rotation := CW\n"
+        "!END OF INTERFILE :=\n"
+        "!direction of rotation := CCW\n"
+    )
+
+    assert header.get("direction of rotation") == "CW"
+    assert header.as_dict()["direction of rotation"] == "CW"
+    keys = [normalise_key(key) for key, _ in header.items()]
+    assert keys.count("direction of rotation") == 1
+
+    path = tmp_path / "header.hs"
+    header.write(path)
+    assert "!direction of rotation := CCW" in path.read_text()
+
+
+@pytest.mark.unit
 def test_as_dict_uses_normalised_keys():
     header = InterfileHeader.from_text(
         "!INTERFILE :=\nname of data file := test.v\n!matrix size [1] := 64\n"
