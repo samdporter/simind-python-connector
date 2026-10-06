@@ -95,3 +95,64 @@ def test_write_in_template_geometry_loads_non_unit_scaling_unscaled(tmp_path):
     assert sirf_array[10, 59, 50] == 1.0
     assert sirf_array[40, 3, 7] == 2.0
     assert sirf_array.sum() == 3.0
+
+
+def test_underscored_scaling_keys_load_unscaled(tmp_path):
+    import sirf.STIR as sirf
+
+    _template(tmp_path)
+    template_path = tmp_path / "template.hs"
+    # STIR normalises underscores as spaces, so SIMIND-style underscored
+    # keys must be recognised and reset by write_in_template_geometry too.
+    header = read_header(template_path)
+    header.set("image_scaling_factor[1]", "2.5")
+    header.set("quantification_units", "2.5")
+    header.write(template_path)
+    assert "image_scaling_factor[1] := 2.5" in template_path.read_text()
+    assert "quantification_units := 2.5" in template_path.read_text()
+
+    array = np.zeros((60, 64, 64), dtype=np.float32)
+    array[59, 10, 50] = 1.0
+    array[3, 40, 7] = 2.0
+
+    path = write_in_template_geometry(array, header, tmp_path / "copy.hs")
+    copy = sirf.AcquisitionData(str(path))
+    sirf_array = np.squeeze(copy.as_array())  # (axial, view, bin)
+    assert np.array_equal(sirf_array, array.transpose(1, 0, 2))
+    assert sirf_array[10, 59, 50] == 1.0
+    assert sirf_array[40, 3, 7] == 2.0
+    assert sirf_array.sum() == 3.0
+
+    written = read_header(path).as_dict()
+    assert written["image scaling factor [1]"] == "1"
+    assert written["quantification units"] == "1"
+
+
+@pytest.mark.parametrize(
+    "offset_key", ["data offset in bytes[1]", "data_offset_in_bytes"]
+)
+def test_indexed_or_underscored_offset_keys_are_replaced_by_the_unindexed_key(
+    tmp_path, offset_key
+):
+    import sirf.STIR as sirf
+
+    _template(tmp_path)
+    template_path = tmp_path / "template.hs"
+    header = read_header(template_path)
+    header.set(offset_key, "512")
+    header.write(template_path)
+    assert f"{offset_key} := 512" in template_path.read_text()
+
+    array = np.zeros((60, 64, 64), dtype=np.float32)
+    array[59, 10, 50] = 1.0
+
+    path = write_in_template_geometry(array, header, tmp_path / "copy.hs")
+    written = read_header(path).as_dict()
+    assert written["data offset in bytes"] == "0"
+    assert "data offset in bytes [1]" not in written
+
+    copy = sirf.AcquisitionData(str(path))
+    sirf_array = np.squeeze(copy.as_array())  # (axial, view, bin)
+    assert sirf_array.shape == (64, 60, 64)
+    assert sirf_array[10, 59, 50] == 1.0
+    assert sirf_array.sum() == 1.0

@@ -27,6 +27,10 @@ from simind_python_connector.utils.interfile import (
         ("Scaling Factor (mm/pixel)  [2]", "scaling factor (mm/pixel) [2]"),
         ("!image duration (sec)[1]", "image duration (sec) [1]"),
         ("  Radius ", "radius"),
+        ("image_scaling_factor[1]", "image scaling factor [1]"),
+        ("quantification_units", "quantification units"),
+        ("data_offset_in_bytes", "data offset in bytes"),
+        ("data offset in bytes[1]", "data offset in bytes [1]"),
     ],
 )
 def test_normalise_key(raw, expected):
@@ -124,6 +128,32 @@ def test_header_set_appends_a_missing_key_when_no_terminator():
     header = InterfileHeader.from_text("!a := 1\n")
     header.set("b", 2)
     assert header.items() == [("!a", "1"), ("b", "2")]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("terminator", ["!END OF INTERFILE :=", "!END OF INTERFILE:="])
+def test_header_set_inserts_before_both_terminator_spellings(tmp_path, terminator):
+    header = InterfileHeader.from_text(f"a := 1\n{terminator}\n")
+
+    header.set("b", 2)
+    path = tmp_path / "header.hs"
+    header.write(path)
+    lines = path.read_text().splitlines()
+    assert lines[1].startswith("b :=")
+    assert lines[-1] == terminator
+
+
+@pytest.mark.unit
+def test_header_remove_drops_every_matching_entry():
+    header = InterfileHeader.from_text(
+        "DATA_OFFSET_IN_BYTES := 8\n"
+        "name of data file := data.s\n"
+        "!data offset in bytes := 512\n"
+        "a := 1\n"
+    )
+    header.remove("data offset in bytes")
+    assert header.get("data offset in bytes") is None
+    assert header.items() == [("name of data file", "data.s"), ("a", "1")]
 
 
 @pytest.mark.unit
@@ -732,7 +762,8 @@ def test_write_in_template_geometry_rewrites_data_keys(tmp_path):
     assert header.get("number format") == "float"
     assert header.get("number of bytes per pixel") == "4"
     assert header.get("imagedata byte order") == "LITTLEENDIAN"
-    assert header.get("data offset in bytes[1]") == "0"
+    assert header.get("data_offset_in_bytes") == "0"
+    assert header.get("data offset in bytes[1]") is None
     assert header.get("number of projections") == "3"
     loaded = load_interfile_array(path)
     expected_storage = array.astype("<f4")
@@ -760,22 +791,17 @@ def _template(offset_key=None):
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "template_key, written_key",
-    [
-        ("data offset in bytes[1]", "data offset in bytes[1]"),
-        ("data_offset_in_bytes[1]", "data_offset_in_bytes[1]"),
-        (None, "data_offset_in_bytes"),
-    ],
+    "template_key", ["data offset in bytes[1]", "data_offset_in_bytes[1]", None]
 )
-def test_write_in_template_geometry_zeroes_the_data_offset(
-    tmp_path, template_key, written_key
-):
+def test_write_in_template_geometry_zeroes_the_data_offset(tmp_path, template_key):
     template = _template(template_key)
     array = np.arange(24, dtype=np.float64).reshape(3, 2, 4)
 
     path = write_in_template_geometry(array, template, tmp_path / "copy.hs")
 
-    assert InterfileHeader.from_file(path).get(written_key) == "0"
+    written = InterfileHeader.from_file(path)
+    assert written.get("data_offset_in_bytes") == "0"
+    assert written.get("data offset in bytes[1]") is None
     assert load_interfile_array(path).array.size == 24
 
 
@@ -804,7 +830,7 @@ def test_write_in_template_geometry_keeps_geometry_keys_and_the_template(tmp_pat
         "number format",
         "number of bytes per pixel",
         "imagedata byte order",
-        "data offset in bytes [1]",
+        "data offset in bytes [1]",  # removed; replaced by the unindexed key
         "image scaling factor [1]",
         "image scaling factor [2]",
         "quantification units",
@@ -813,6 +839,8 @@ def test_write_in_template_geometry_keeps_geometry_keys_and_the_template(tmp_pat
     for key, value in before.items():
         if key not in rewritten:
             assert written[key] == value
+    assert written["data offset in bytes"] == "0"
+    assert "data offset in bytes [1]" not in written
     assert written["image scaling factor [1]"] == "1"
     assert written["image scaling factor [2]"] == "1"
     assert written["quantification units"] == "1"
