@@ -95,6 +95,38 @@ def test_header_duplicate_keys_use_last_and_set_edits_it():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "key",
+    ["imagedata byte order", "data offset in bytes[1]"],
+)
+def test_header_set_inserts_a_missing_key_before_the_terminator(tmp_path, key):
+    header = InterfileHeader.from_text(
+        "!INTERFILE :=\n"
+        "!number of projections := 3\n"
+        "!extent of rotation := 360\n"
+        "!END OF INTERFILE :=\n"
+    )
+    assert key not in header.as_dict()
+
+    header.set(key, 0)
+    path = tmp_path / "header.hs"
+    header.write(path)
+
+    lines = path.read_text().splitlines()
+    inserted = next(i for i, line in enumerate(lines) if line.startswith(key))
+    terminator = next(i for i, line in enumerate(lines) if "!END OF INTERFILE" in line)
+    assert inserted < terminator
+    assert terminator == len(lines) - 1
+
+
+@pytest.mark.unit
+def test_header_set_appends_a_missing_key_when_no_terminator():
+    header = InterfileHeader.from_text("!a := 1\n")
+    header.set("b", 2)
+    assert header.items() == [("!a", "1"), ("b", "2")]
+
+
+@pytest.mark.unit
 def test_header_handles_windows_line_endings():
     header = InterfileHeader.from_text("!matrix size [1] := 64\r\nRadius := 200\r\n")
     assert header.get("matrix size [1]") == "64"
@@ -679,6 +711,9 @@ _TEMPLATE_TEXT = """!INTERFILE :=
   imagedata byte order := BIGENDIAN
   data offset in bytes[1] := 512
   !number of projections := 3
+  image scaling factor [1] := 2.5
+  image scaling factor [2] := 2.5
+  quantification units := 0.5
   !matrix size [1] := 4
   !matrix size [2] := 2
   !END OF INTERFILE :=
@@ -729,7 +764,7 @@ def _template(offset_key=None):
     [
         ("data offset in bytes[1]", "data offset in bytes[1]"),
         ("data_offset_in_bytes[1]", "data_offset_in_bytes[1]"),
-        (None, "data offset in bytes[1]"),
+        (None, "data_offset_in_bytes"),
     ],
 )
 def test_write_in_template_geometry_zeroes_the_data_offset(
@@ -770,9 +805,15 @@ def test_write_in_template_geometry_keeps_geometry_keys_and_the_template(tmp_pat
         "number of bytes per pixel",
         "imagedata byte order",
         "data offset in bytes [1]",
+        "image scaling factor [1]",
+        "image scaling factor [2]",
+        "quantification units",
     }
     written = InterfileHeader.from_file(path).as_dict()
     for key, value in before.items():
         if key not in rewritten:
             assert written[key] == value
+    assert written["image scaling factor [1]"] == "1"
+    assert written["image scaling factor [2]"] == "1"
+    assert written["quantification units"] == "1"
     assert template.as_dict() == before

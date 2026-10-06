@@ -95,8 +95,12 @@ class _NativeSimindAdaptor(BaseConnector):
         template is a backend projection object or a path to its .hs header.
         Outputs are then returned in exactly that geometry.
         """
-        self._template_header = read_header(template)
-        self._template_geometry = read_projection_geometry(self._template_header)
+        # Both are parsed before either is stored, so a rejected replacement
+        # leaves the previous template usable.
+        header = read_header(template)
+        geometry = read_projection_geometry(header)
+        self._template_header = header
+        self._template_geometry = geometry
 
     def set_energy_windows(
         self,

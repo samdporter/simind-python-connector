@@ -112,10 +112,25 @@ class InterfileHeader:
 
     def set(self, key: str, value) -> None:
         entry = self._find_last(key)
-        if entry is None:
-            self._entries.append(InterfileEntry.from_key_value(key, value))
-        else:
+        if entry is not None:
             entry.set_value(value)
+            return
+        new_entry = InterfileEntry.from_key_value(key, value)
+        # STIR stops parsing at !END OF INTERFILE, so a new key must go
+        # before it to be seen. The terminator line parses without a key.
+        terminator = next(
+            (
+                index
+                for index, entry in enumerate(self._entries)
+                if normalise_key(entry.key or entry.text.strip())
+                == "end of interfile :="
+            ),
+            None,
+        )
+        if terminator is None:
+            self._entries.append(new_entry)
+        else:
+            self._entries.insert(terminator, new_entry)
 
     def insert(self, index: int, key: str, value) -> None:
         index = max(0, min(index, len(self._entries)))
@@ -410,9 +425,12 @@ def write_in_template_geometry(
 ) -> Path:
     """Write array as float32 data described by a copy of the template header.
 
-    Only the data-file keys change: file name, number format, bytes per
-    pixel, byte order and data offset. The geometry keys are copied as-is.
-    A data offset of 0 is inserted when the template has no offset key.
+    The data-file keys change: file name, number format, bytes per pixel,
+    byte order and data offset. Every present `image scaling factor [n]`
+    key (STIR requires them equal) and `quantification units` is reset to
+    1, so the little-endian float payload loads unscaled. The geometry
+    keys are copied as-is. A data offset of 0 is inserted when the
+    template has no offset key.
     """
     header_path = Path(header_path)
     values = template.as_dict()
@@ -434,6 +452,12 @@ def write_in_template_geometry(
     header.set("!number format", "float")
     header.set("!number of bytes per pixel", 4)
     header.set("imagedata byte order", "LITTLEENDIAN")
+    for key, _ in template.items():
+        normalised = normalise_key(key)
+        if normalised.startswith("image scaling factor [") or (
+            normalised == "quantification units"
+        ):
+            header.set(key, 1)
     offset_keys = [
         key
         for key, _ in template.items()
@@ -443,8 +467,9 @@ def write_in_template_geometry(
         for key in offset_keys:
             header.set(key, 0)
     else:
-        # STIR needs the key spelled out, even when the template omits it.
-        header.set("data offset in bytes[1]", 0)
+        # STIR needs the key spelled out even when the template omits it,
+        # and parses only the un-indexed spelling.
+        header.set("data_offset_in_bytes", 0)
     header.write(header_path)
     return header_path
 

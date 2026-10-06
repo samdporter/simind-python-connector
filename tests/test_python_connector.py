@@ -10,6 +10,7 @@ from simind_python_connector.core.types import ScoringRoutine, SimulationError
 from simind_python_connector.utils.interfile import (
     InterfileHeader,
     ProjectionGeometry,
+    check_geometry_match,
     read_projection_geometry,
 )
 
@@ -1058,6 +1059,23 @@ def test_configure_acquisition_maps_to_simind_indices(tmp_path: Path, direction,
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("direction, sign", [("CW", 1.0), ("CCW", -1.0)])
+def test_configure_acquisition_clamps_extent_within_tolerance_for_simind(
+    tmp_path: Path, direction, sign
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    geometry = _acquisition(direction=direction, extent_deg=360.001)
+    connector.configure_acquisition(geometry)
+
+    assert connector.get_config().get_value(30) == pytest.approx(sign * 360.0)
+    # the template geometry itself keeps the measured value
+    assert geometry.extent_deg == pytest.approx(360.001)
+    assert check_geometry_match(_acquisition(direction=direction), geometry) == []
+
+
+@pytest.mark.unit
 def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
@@ -1134,6 +1152,7 @@ def test_configure_acquisition_treats_an_equal_radii_tuple_as_circular(tmp_path:
     [
         ({"axial_size_mm": 4.0}, "one projection pixel size"),
         ({"extent_deg": 0.0}, "extent"),
+        ({"extent_deg": 360.6}, "extent"),
         ({"extent_deg": 400.0}, "extent"),
         ({"radius_mm": None, "radii_mm": (250.0, 260.0)}, "radii"),
     ],
