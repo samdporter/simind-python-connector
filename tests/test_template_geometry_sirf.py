@@ -186,6 +186,21 @@ def test_indexed_or_underscored_offset_keys_are_replaced_by_the_unindexed_key(
     assert sirf_array.sum() == 1.0
 
 
+def test_keys_after_the_terminator_do_not_override_geometry(tmp_path):
+    import sirf.STIR as sirf
+
+    _template(tmp_path)
+    template_path = tmp_path / "template.hs"
+    text = template_path.read_text().replace(
+        "!END OF INTERFILE :=",
+        "!END OF INTERFILE :=\n!direction of rotation := CCW",
+    )
+    template_path.write_text(text)
+
+    assert read_projection_geometry(read_header(template_path)).direction == "CW"
+    assert sirf.AcquisitionData(str(template_path)) is not None
+
+
 def test_mixed_marker_underscore_scaling_keys_load_unscaled(tmp_path):
     import sirf.STIR as sirf
 
