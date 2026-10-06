@@ -7,14 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Interfile header parsing: only leading `!` and spacing are ignored in key
-  lookups; a line whose first non-blank character is `#` is a comment, never a
-  key (matching STIR, which does not honour `#`-prefixed settings). Migration:
-  a nonstandard template that used `#` as an active key prefix now has those
-  fields ignored (required fields fail loudly instead of loading silently
-  wrong); remove the `#` or use `!` where the line was meant to be active.
-
 ### Added
 - `simind_python_connector.utils.interfile`: one Interfile module (`InterfileHeader`,
   `read_header`, `load_interfile_array`, `ProjectionGeometry`, `read_projection_geometry`,
@@ -36,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Anisotropic voxels: `voxel_size_mm` may be `(z, y, x)` with square in-plane voxels.
 
 ### Changed
+- Interfile key lookups ignore only `!` and spacing; a line whose first non-blank
+  character is `#` is a comment, never a key (STIR does not honour `#` settings).
+  Migration: a nonstandard template that used `#` as an active key prefix now has
+  those fields ignored (required fields fail loudly); remove the `#` or use `!`.
+- Interfile key lookups canonicalise bracket indices (`[ 1 ]`/`[01]` = `[1]`), stop
+  at the `!END OF INTERFILE` terminator, and take the radius from `Radius` for a
+  circular `orbit` and `Radii` otherwise, matching STIR.
 - `SimindToStirConverter.convert_file` returns `None`;
   `create_penetrate_headers_from_template` returns component header paths.
 - The STIR adaptor reads voxel sizes from `get_grid_spacing()`; the SIRF adaptor from

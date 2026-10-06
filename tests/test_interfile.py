@@ -34,6 +34,8 @@ from simind_python_connector.utils.interfile import (
         ("quantification_units_", "quantification units"),
         ("_data_offset_in_bytes[1]", "data offset in bytes [1]"),
         ("!_END_OF_INTERFILE:=", "end of interfile:="),
+        ("scaling factor (mm/pixel) [ 1 ]", "scaling factor (mm/pixel) [1]"),
+        ("matrix size [01]", "matrix size [1]"),
         ("_!quantification_units_", "quantification units"),
         ("_!data_offset_in_bytes[1]", "data offset in bytes [1]"),
         ("image_scaling_factor!_[1]", "image scaling factor [1]"),
@@ -147,6 +149,8 @@ def test_header_set_appends_a_missing_key_when_no_terminator():
         "!END OF INTERFILE:=",
         "!_END_OF_INTERFILE:=",
         "_!END_OF_INTERFILE:=",
+        "!END OF INTERFILE",
+        "!END OF INTERFILE := ; end of header",
     ],
 )
 def test_header_set_inserts_before_both_terminator_spellings(tmp_path, terminator):
@@ -403,6 +407,43 @@ def test_read_projection_geometry_equal_radii_is_circular():
     geometry = read_projection_geometry(InterfileHeader.from_text(text))
     assert geometry.radius_mm == 250.0
     assert geometry.radii_mm is None
+
+
+@pytest.mark.unit
+def test_orbit_key_decides_between_radius_and_radii():
+    circular = _CIRCULAR_HEADER.replace(
+        "Radius := 250",
+        "orbit := circular\nRadius := 250\nRadii := {200, 210, 220}",
+    )
+    assert (
+        read_projection_geometry(InterfileHeader.from_text(circular)).radius_mm == 250.0
+    )
+
+    non_circular = _CIRCULAR_HEADER.replace(
+        "Radius := 250",
+        "orbit := non-circular\nRadius := 250\nRadii := {200, 210, 220}",
+    )
+    assert read_projection_geometry(
+        InterfileHeader.from_text(non_circular)
+    ).radii_mm == (200.0, 210.0, 220.0)
+
+    nonstandard = _CIRCULAR_HEADER.replace(
+        "Radius := 250", "orbit := noncircular\nRadii := {200, 210, 220}"
+    )
+    assert read_projection_geometry(
+        InterfileHeader.from_text(nonstandard)
+    ).radii_mm == (200.0, 210.0, 220.0)
+
+
+@pytest.mark.unit
+def test_bracket_index_whitespace_and_leading_zeros_collide():
+    text = _CIRCULAR_HEADER.replace(
+        "scaling factor (mm/pixel) [1] := 4.42",
+        "scaling factor (mm/pixel) [ 1 ] := 4.42\n"
+        "scaling factor (mm/pixel) [01] := 8.84",
+    )
+    geometry = read_projection_geometry(InterfileHeader.from_text(text))
+    assert geometry.bin_size_mm == 8.84
 
 
 @pytest.mark.unit

@@ -17,6 +17,7 @@ PathLike = Union[str, os.PathLike]
 _KEY_PREFIX = re.compile(r"^[!\s]+")
 _WHITESPACE = re.compile(r"\s+")
 _BRACKET = re.compile(r"\s*\[")
+_INDEX = re.compile(r"\[ *(\d+) *\]")
 _MATRIX_SIZE_KEY = re.compile(r"matrix size \[(\d+)\]")
 
 
@@ -31,6 +32,8 @@ def normalise_key(key: str) -> str:
     key = _KEY_PREFIX.sub("", key.strip())
     key = _WHITESPACE.sub(" ", key).strip()
     key = _BRACKET.sub(" [", key)
+    # STIR parses bracket indices numerically, so '[ 1 ]' and '[01]' are '[1]'.
+    key = _INDEX.sub(lambda match: f"[{int(match.group(1))}]", key)
     return key.lower()
 
 
@@ -51,10 +54,12 @@ def parse_interfile_line(line: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def _is_interfile_terminator(line: str) -> bool:
-    """True for '!END OF INTERFILE': STIR stops parsing there."""
-    if not line.strip():
+    """True for '!END OF INTERFILE' (any RHS): STIR stops parsing there."""
+    stripped = line.strip()
+    if not stripped:
         return False
-    return normalise_key(line).rstrip(":=").strip() == "end of interfile"
+    keyword = stripped.split(":=", 1)[0]
+    return normalise_key(keyword).strip() == "end of interfile"
 
 
 def _format_value(value) -> str:
@@ -140,8 +145,7 @@ class InterfileHeader:
             (
                 index
                 for index, entry in enumerate(self._entries)
-                if normalise_key(entry.key or entry.text.strip()).rstrip(":= ")
-                == "end of interfile"
+                if _is_interfile_terminator(entry.text)
             ),
             None,
         )
@@ -388,7 +392,12 @@ def read_projection_geometry(header: InterfileHeader) -> ProjectionGeometry:
 
     radius_mm: Optional[float] = None
     radii_mm: Optional[tuple[float, ...]] = None
-    if "radii" in values:
+    has_radii = "radii" in values
+    has_radius = "radius" in values
+    # STIR picks by `orbit` (default circular); fall back if that key is absent.
+    orbit = values.get("orbit", "").strip().lower()
+    prefer_radii = orbit != "" and orbit != "circular"
+    if has_radii and (prefer_radii or not has_radius):
         radii = tuple(float(v) for v in values["radii"].strip("{} ").split(","))
         mean = float(np.mean(radii))
         if float(np.std(radii)) / mean > 1e-6:
