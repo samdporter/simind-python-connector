@@ -23,10 +23,12 @@ _MATRIX_SIZE_KEY = re.compile(r"matrix size \[(\d+)\]")
 def normalise_key(key: str) -> str:
     """Canonical form of an Interfile key, used for every lookup.
 
-    Leading '!' and '#' markers, letter case and spacing differ between
-    SIMIND, STIR and our own builders, so they are ignored.
+    Leading '!' and '#' markers, letter case, spacing and '_' differ between
+    SIMIND, STIR and our own builders; STIR normalises '_' as a space, so
+    they are ignored here too.
     """
     key = _KEY_PREFIX.sub("", key.strip())
+    key = key.replace("_", " ")
     key = _WHITESPACE.sub(" ", key)
     key = _BRACKET.sub(" [", key)
     return key.lower()
@@ -122,8 +124,8 @@ class InterfileHeader:
             (
                 index
                 for index, entry in enumerate(self._entries)
-                if normalise_key(entry.key or entry.text.strip())
-                == "end of interfile :="
+                if normalise_key(entry.key or entry.text.strip()).rstrip(":= ")
+                == "end of interfile"
             ),
             None,
         )
@@ -131,6 +133,15 @@ class InterfileHeader:
             self._entries.append(new_entry)
         else:
             self._entries.insert(terminator, new_entry)
+
+    def remove(self, key: str) -> None:
+        """Drop every entry whose normalised key matches."""
+        wanted = normalise_key(key)
+        self._entries = [
+            entry
+            for entry in self._entries
+            if entry.key is None or normalise_key(entry.key) != wanted
+        ]
 
     def insert(self, index: int, key: str, value) -> None:
         index = max(0, min(index, len(self._entries)))
@@ -429,8 +440,10 @@ def write_in_template_geometry(
     byte order and data offset. Every present `image scaling factor [n]`
     key (STIR requires them equal) and `quantification units` is reset to
     1, so the little-endian float payload loads unscaled. The geometry
-    keys are copied as-is. A data offset of 0 is inserted when the
-    template has no offset key.
+    keys are copied as-is. Any template data-offset entry (any spelling
+    or index) is removed and a single un-indexed `data_offset_in_bytes :=
+    0` is inserted; STIR rejects the indexed spellings and only reads
+    that one.
     """
     header_path = Path(header_path)
     values = template.as_dict()
@@ -458,18 +471,10 @@ def write_in_template_geometry(
             normalised == "quantification units"
         ):
             header.set(key, 1)
-    offset_keys = [
-        key
-        for key, _ in template.items()
-        if normalise_key(key).replace("_", " ").startswith("data offset in bytes")
-    ]
-    if offset_keys:
-        for key in offset_keys:
-            header.set(key, 0)
-    else:
-        # STIR needs the key spelled out even when the template omits it,
-        # and parses only the un-indexed spelling.
-        header.set("data_offset_in_bytes", 0)
+    for key, _ in template.items():
+        if normalise_key(key).startswith("data offset in bytes"):
+            header.remove(key)
+    header.set("data_offset_in_bytes", 0)
     header.write(header_path)
     return header_path
 
