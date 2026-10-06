@@ -27,8 +27,8 @@ def normalise_key(key: str) -> str:
     SIMIND, STIR and our own builders; STIR normalises '_' as a space, so
     they are ignored here too.
     """
+    key = key.replace("_", " ").replace("!", " ")
     key = _KEY_PREFIX.sub("", key.strip())
-    key = key.replace("_", " ")
     key = _WHITESPACE.sub(" ", key).strip()
     key = _BRACKET.sub(" [", key)
     return key.lower()

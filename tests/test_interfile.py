@@ -34,6 +34,10 @@ from simind_python_connector.utils.interfile import (
         ("quantification_units_", "quantification units"),
         ("_data_offset_in_bytes[1]", "data offset in bytes [1]"),
         ("!_END_OF_INTERFILE:=", "end of interfile:="),
+        ("_!quantification_units_", "quantification units"),
+        ("_!data_offset_in_bytes[1]", "data offset in bytes [1]"),
+        ("image_scaling_factor!_[1]", "image scaling factor [1]"),
+        ("_!END_OF_INTERFILE:=", "end of interfile:="),
     ],
 )
 def test_normalise_key(raw, expected):
@@ -136,7 +140,12 @@ def test_header_set_appends_a_missing_key_when_no_terminator():
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "terminator",
-    ["!END OF INTERFILE :=", "!END OF INTERFILE:=", "!_END_OF_INTERFILE:="],
+    [
+        "!END OF INTERFILE :=",
+        "!END OF INTERFILE:=",
+        "!_END_OF_INTERFILE:=",
+        "_!END_OF_INTERFILE:=",
+    ],
 )
 def test_header_set_inserts_before_both_terminator_spellings(tmp_path, terminator):
     header = InterfileHeader.from_text(f"a := 1\n{terminator}\n")
@@ -803,6 +812,7 @@ def _template(offset_key=None):
         "data_offset_in_bytes[1]",
         "_data_offset_in_bytes[1]",
         "data_offset_in_bytes_",
+        "_!data_offset_in_bytes[1]",
         None,
     ],
 )

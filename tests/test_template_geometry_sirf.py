@@ -183,3 +183,28 @@ def test_indexed_or_underscored_offset_keys_are_replaced_by_the_unindexed_key(
     assert sirf_array.shape == (64, 60, 64)
     assert sirf_array[10, 59, 50] == 1.0
     assert sirf_array.sum() == 1.0
+
+
+def test_mixed_marker_underscore_scaling_keys_load_unscaled(tmp_path):
+    import sirf.STIR as sirf
+
+    _template(tmp_path)
+    template_path = tmp_path / "template.hs"
+    header = read_header(template_path)
+    header.set("image_scaling_factor!_[1]", "2.5")
+    header.set("_!quantification_units_", "2.5")
+    header.write(template_path)
+
+    array = np.zeros((60, 64, 64), dtype=np.float32)
+    array[59, 10, 50] = 1.0
+    array[3, 40, 7] = 2.0
+
+    path = write_in_template_geometry(array, header, tmp_path / "copy.hs")
+    copy = sirf.AcquisitionData(str(path))
+    sirf_array = np.squeeze(copy.as_array())  # (axial, view, bin)
+    assert np.array_equal(sirf_array, array.transpose(1, 0, 2))
+    assert sirf_array.sum() == 3.0
+
+    written = read_header(path).as_dict()
+    assert written["image scaling factor [1]"] == "1"
+    assert written["quantification units"] == "1"
