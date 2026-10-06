@@ -23,7 +23,7 @@ from simind_python_connector.utils.interfile import (
     [
         ("!matrix size [1]", "matrix size [1]"),
         ("matrix size[1]", "matrix size [1]"),
-        ("# scaling factor (mm/pixel) [3]", "scaling factor (mm/pixel) [3]"),
+        ("! scaling factor (mm/pixel) [3]", "scaling factor (mm/pixel) [3]"),
         ("Scaling Factor (mm/pixel)  [2]", "scaling factor (mm/pixel) [2]"),
         ("!image duration (sec)[1]", "image duration (sec) [1]"),
         ("  Radius ", "radius"),
@@ -55,6 +55,8 @@ def test_parse_interfile_line():
         "4.419600",
     )
     assert parse_interfile_line(";# This is a comment") == (None, None)
+    assert parse_interfile_line("#image scaling factor [1] := 2.5") == (None, None)
+    assert parse_interfile_line("   # indented comment := value") == (None, None)
     assert parse_interfile_line("!GENERAL DATA :=") == (None, None)
     assert parse_interfile_line("no separator here") == (None, None)
 
@@ -90,7 +92,7 @@ def test_header_insert(tmp_path):
 @pytest.mark.unit
 def test_header_lookup_ignores_prefix_case_and_spacing():
     header = InterfileHeader.from_text(
-        "scaling factor (mm/pixel) [1] := 4.42\n# Image Position := 1 2 3\n"
+        "scaling factor (mm/pixel) [1] := 4.42\n! Image Position := 1 2 3\n"
     )
     assert header.get("!scaling factor (mm/pixel) [1]") == "4.42"
     assert header.get("Scaling Factor (mm/pixel)[1]") == "4.42"
@@ -174,7 +176,7 @@ def test_header_remove_drops_every_matching_entry():
 @pytest.mark.unit
 def test_set_all_updates_every_normalised_equal_entry():
     header = InterfileHeader.from_text(
-        "quantification units := 2.5\n#_!quantification_units_ := 9\na := 1\n"
+        "quantification units := 2.5\n_!quantification_units_ := 9\na := 1\n"
     )
 
     header.set_all("quantification units", 1)
@@ -199,7 +201,7 @@ def test_write_in_template_geometry_resets_shadowed_scaling_and_data_file(tmp_pa
         "imagedata byte order := BIGENDIAN\n"
         "!name of data file := template.s\n"
         "quantification units := 2.5\n"
-        "#_!quantification_units_ := 9\n"
+        "_!quantification_units_ := 9\n"
         "name of data file := template.s\n"
         "!END OF INTERFILE :=\n"
     )
@@ -264,6 +266,76 @@ def test_read_header_from_object_with_write():
 def test_read_header_rejects_unsupported_objects():
     with pytest.raises(TypeError, match="path or an object"):
         read_header(object())
+
+
+@pytest.mark.unit
+def test_hash_lines_are_comments_and_untouched_by_editing(tmp_path):
+    text = (
+        "!INTERFILE :=\n"
+        "name of data file := data.s\n"
+        "#comment := value\n"
+        "  #indented comment := value\n"
+        "\t#tabbed comment := value\n"
+        "a note # with hash := {1, 2}\n"
+        "!END OF INTERFILE :=\n"
+    )
+    header = InterfileHeader.from_text(text)
+
+    assert parse_interfile_line("\t#tabbed comment := value") == (None, None)
+    assert "comment" not in header.as_dict()
+    assert header.get("a note # with hash") == "{1, 2}"
+
+    copy = header.copy()
+    copy.set("name of data file", "other.s")
+    copy.set_all("comment", "reset")
+    copy.remove("comment")
+
+    out = tmp_path / "copy.hs"
+    copy.write(out)
+    written = out.read_text()
+    assert "#comment := value" in written
+    assert "#indented comment := value" in written
+    assert "#tabbed comment := value" in written
+    for line in written.splitlines():
+        if line.startswith("#"):
+            assert line in text
+
+
+@pytest.mark.unit
+def test_commented_terminator_does_not_control_insertion(tmp_path):
+    header = InterfileHeader.from_text(
+        "a := 1\n;#!END OF INTERFILE :=\n!END OF INTERFILE :=\n"
+    )
+
+    header.set("b", 2)
+    path = tmp_path / "header.hs"
+    header.write(path)
+    lines = path.read_text().splitlines()
+    assert lines[2] == "b := 2"
+    assert lines[-1] == "!END OF INTERFILE :="
+
+
+@pytest.mark.unit
+def test_hash_shadowed_direction_is_ignored():
+    text = _CIRCULAR_HEADER.replace(
+        "!END OF INTERFILE :=",
+        "#_!direction_of_rotation_ := CCW\n!END OF INTERFILE :=",
+    )
+    geometry = read_projection_geometry(InterfileHeader.from_text(text))
+    assert geometry.direction == "CW"
+
+
+@pytest.mark.unit
+def test_required_geometry_key_only_behind_hash_is_missing():
+    # STIR treats '#'-prefixed lines as comments, so a field smuggled behind
+    # '#' must fail loudly instead of being normalised into a live key.
+    text = _CIRCULAR_HEADER.replace("!direction of rotation := CW", "").replace(
+        "start angle := 180",
+        "start angle := 180\n#direction of rotation := CW",
+    )
+    with pytest.raises(ValueError) as excinfo:
+        read_projection_geometry(InterfileHeader.from_text(text))
+    assert "direction of rotation" in str(excinfo.value)
 
 
 _CIRCULAR_HEADER = """!INTERFILE :=
@@ -343,7 +415,7 @@ def test_read_simind_density_image(tmp_path):
                 "!matrix size [3] := 4",
                 "scaling factor (mm/pixel) [1] := 1.5",
                 "scaling factor (mm/pixel) [2] := 2.5",
-                "# scaling factor (mm/pixel) [3] := 3.5",
+                "scaling factor (mm/pixel) [3] := 3.5",
             ]
         )
     )
