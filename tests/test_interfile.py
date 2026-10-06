@@ -172,6 +172,58 @@ def test_header_remove_drops_every_matching_entry():
 
 
 @pytest.mark.unit
+def test_set_all_updates_every_normalised_equal_entry():
+    header = InterfileHeader.from_text(
+        "quantification units := 2.5\n#_!quantification_units_ := 9\na := 1\n"
+    )
+
+    header.set_all("quantification units", 1)
+
+    values = [
+        value
+        for key, value in header.items()
+        if normalise_key(key) == "quantification units"
+    ]
+    assert values == ["1", "1"]
+    assert header.get("a") == "1"
+
+
+@pytest.mark.unit
+def test_write_in_template_geometry_resets_shadowed_scaling_and_data_file(tmp_path):
+    template = InterfileHeader.from_text(
+        "!matrix size [1] := 4\n"
+        "!matrix size [2] := 3\n"
+        "!number of projections := 2\n"
+        "!number format := unsigned integer\n"
+        "!number of bytes per pixel := 2\n"
+        "imagedata byte order := BIGENDIAN\n"
+        "!name of data file := template.s\n"
+        "quantification units := 2.5\n"
+        "#_!quantification_units_ := 9\n"
+        "name of data file := template.s\n"
+        "!END OF INTERFILE :=\n"
+    )
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+
+    path = write_in_template_geometry(array, template, tmp_path / "copy.hs")
+
+    written = InterfileHeader.from_file(path)
+    scaling = [
+        value
+        for key, value in written.items()
+        if normalise_key(key) == "quantification units"
+    ]
+    names = [
+        value
+        for key, value in written.items()
+        if normalise_key(key) == "name of data file"
+    ]
+    assert scaling == ["1", "1"]
+    assert names == ["copy.s", "copy.s"]
+    assert load_interfile_array(path).array.size == 24
+
+
+@pytest.mark.unit
 def test_header_handles_windows_line_endings():
     header = InterfileHeader.from_text("!matrix size [1] := 64\r\nRadius := 200\r\n")
     assert header.get("matrix size [1]") == "64"

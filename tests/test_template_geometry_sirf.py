@@ -3,6 +3,7 @@ import pytest
 
 from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
 from simind_python_connector.utils.interfile import (
+    InterfileHeader,
     read_header,
     read_projection_geometry,
     write_in_template_geometry,
@@ -208,3 +209,29 @@ def test_mixed_marker_underscore_scaling_keys_load_unscaled(tmp_path):
     written = read_header(path).as_dict()
     assert written["image scaling factor [1]"] == "1"
     assert written["quantification units"] == "1"
+
+
+def test_hash_shadowed_scaling_key_loads_unscaled(tmp_path):
+    import sirf.STIR as sirf
+
+    _template(tmp_path)
+    template_path = tmp_path / "template.hs"
+    # A live scaling key followed by an ignored #-prefixed duplicate must both
+    # be reset, or the active key stays scaled.
+    text = template_path.read_text().replace(
+        "!END OF INTERFILE :=",
+        "quantification units := 2.5\n"
+        "#_!quantification_units_ := 9\n"
+        "!END OF INTERFILE :=",
+    )
+    header = InterfileHeader.from_text(text)
+
+    array = np.zeros((60, 64, 64), dtype=np.float32)
+    array[59, 10, 50] = 1.0
+    array[3, 40, 7] = 2.0
+
+    path = write_in_template_geometry(array, header, tmp_path / "copy.hs")
+    copy = sirf.AcquisitionData(str(path))
+    sirf_array = np.squeeze(copy.as_array())  # (axial, view, bin)
+    assert np.array_equal(sirf_array, array.transpose(1, 0, 2))
+    assert sirf_array.sum() == 3.0

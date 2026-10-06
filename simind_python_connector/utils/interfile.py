@@ -143,6 +143,17 @@ class InterfileHeader:
             if entry.key is None or normalise_key(entry.key) != wanted
         ]
 
+    def set_all(self, key: str, value) -> None:
+        """Update every entry whose normalised key matches, inserting if none."""
+        wanted = normalise_key(key)
+        matched = False
+        for entry in self._entries:
+            if entry.key is not None and normalise_key(entry.key) == wanted:
+                entry.set_value(value)
+                matched = True
+        if not matched:
+            self.set(key, value)
+
     def insert(self, index: int, key: str, value) -> None:
         index = max(0, min(index, len(self._entries)))
         self._entries.insert(index, InterfileEntry.from_key_value(key, value))
@@ -461,16 +472,16 @@ def write_in_template_geometry(
     array.astype("<f4").tofile(data_path)
 
     header = template.copy()
-    header.set("!name of data file", data_path.name)
-    header.set("!number format", "float")
-    header.set("!number of bytes per pixel", 4)
-    header.set("imagedata byte order", "LITTLEENDIAN")
+    header.set_all("!name of data file", data_path.name)
+    header.set_all("!number format", "float")
+    header.set_all("!number of bytes per pixel", 4)
+    header.set_all("imagedata byte order", "LITTLEENDIAN")
     for key, _ in template.items():
         normalised = normalise_key(key)
         if normalised.startswith("image scaling factor [") or (
             normalised == "quantification units"
         ):
-            header.set(key, 1)
+            header.set_all(key, 1)
     for key, _ in template.items():
         if normalise_key(key).startswith("data offset in bytes"):
             header.remove(key)
