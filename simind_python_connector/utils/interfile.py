@@ -29,7 +29,7 @@ def normalise_key(key: str) -> str:
     """
     key = _KEY_PREFIX.sub("", key.strip())
     key = key.replace("_", " ")
-    key = _WHITESPACE.sub(" ", key)
+    key = _WHITESPACE.sub(" ", key).strip()
     key = _BRACKET.sub(" [", key)
     return key.lower()
 
