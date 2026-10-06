@@ -31,6 +31,9 @@ from simind_python_connector.utils.interfile import (
         ("quantification_units", "quantification units"),
         ("data_offset_in_bytes", "data offset in bytes"),
         ("data offset in bytes[1]", "data offset in bytes [1]"),
+        ("quantification_units_", "quantification units"),
+        ("_data_offset_in_bytes[1]", "data offset in bytes [1]"),
+        ("!_END_OF_INTERFILE:=", "end of interfile:="),
     ],
 )
 def test_normalise_key(raw, expected):
@@ -131,7 +134,10 @@ def test_header_set_appends_a_missing_key_when_no_terminator():
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("terminator", ["!END OF INTERFILE :=", "!END OF INTERFILE:="])
+@pytest.mark.parametrize(
+    "terminator",
+    ["!END OF INTERFILE :=", "!END OF INTERFILE:=", "!_END_OF_INTERFILE:="],
+)
 def test_header_set_inserts_before_both_terminator_spellings(tmp_path, terminator):
     header = InterfileHeader.from_text(f"a := 1\n{terminator}\n")
 
@@ -791,7 +797,14 @@ def _template(offset_key=None):
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "template_key", ["data offset in bytes[1]", "data_offset_in_bytes[1]", None]
+    "template_key",
+    [
+        "data offset in bytes[1]",
+        "data_offset_in_bytes[1]",
+        "_data_offset_in_bytes[1]",
+        "data_offset_in_bytes_",
+        None,
+    ],
 )
 def test_write_in_template_geometry_zeroes_the_data_offset(tmp_path, template_key):
     template = _template(template_key)

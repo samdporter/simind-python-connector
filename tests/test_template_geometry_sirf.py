@@ -128,6 +128,33 @@ def test_underscored_scaling_keys_load_unscaled(tmp_path):
     assert written["quantification units"] == "1"
 
 
+def test_boundary_underscore_scaling_keys_load_unscaled(tmp_path):
+    import sirf.STIR as sirf
+
+    _template(tmp_path)
+    template_path = tmp_path / "template.hs"
+    # STIR trims boundary underscores, so leading/trailing '_' spellings must
+    # be reset by write_in_template_geometry too.
+    header = read_header(template_path)
+    header.set("image_scaling_factor_[1]", "2.5")
+    header.set("quantification_units_", "2.5")
+    header.write(template_path)
+
+    array = np.zeros((60, 64, 64), dtype=np.float32)
+    array[59, 10, 50] = 1.0
+    array[3, 40, 7] = 2.0
+
+    path = write_in_template_geometry(array, header, tmp_path / "copy.hs")
+    copy = sirf.AcquisitionData(str(path))
+    sirf_array = np.squeeze(copy.as_array())
+    assert np.array_equal(sirf_array, array.transpose(1, 0, 2))
+    assert sirf_array.sum() == 3.0
+
+    written = read_header(path).as_dict()
+    assert written["image scaling factor [1]"] == "1"
+    assert written["quantification units"] == "1"
+
+
 @pytest.mark.parametrize(
     "offset_key", ["data offset in bytes[1]", "data_offset_in_bytes"]
 )
