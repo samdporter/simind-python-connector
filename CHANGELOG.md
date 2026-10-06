@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (SIMIND Index 25).
 - `simind_python_connector.normalisation.scale_to_reference` and the "Normalising SIMIND
   Output" docs page.
+- `configure_acquisition(geometry)` on the connector and `set_template(template)` on the
+  SIRF/STIR adaptors: simulate in a measured acquisition's geometry; outputs come back
+  in exactly that geometry after a tolerance check.
+- `utils.interfile.check_geometry_match`, `write_in_template_geometry` and
+  `ProjectionGeometry.time_per_projection_s`.
+- `mu_map_type` ("attenuation", "density", "hu") and `mu_map_energy_kev`.
+- Anisotropic voxels: `voxel_size_mm` may be `(z, y, x)` with square in-plane voxels.
 
 ### Changed
 - `SimindToStirConverter.convert_file` returns `None`;
@@ -40,7 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SCATTWIN runs pass `/CA:1` only when the user has not set `CA`; `pri_wN` is derived as
   `tot_wN - sca_wN` only for order-0 windows when SIMIND does not write it, and the
   synthetic extra scatter window is no longer written.
-- The SIRF/STIR adaptors reject anisotropic or mismatched source/mu-map voxel sizes.
+- The SIRF/STIR adaptors reject mismatched source/mu-map voxel sizes, and the connector
+  requires square in-plane voxels.
+- Non-circular orbit radii keep 0.1 mm precision in converted headers.
+- The SIRF/STIR adaptors check that source and mu-map spacing and origins match.
 - Projection rows (Index 77) follow the axial dimension; columns (Index 76) use
   `max(dim_x, dim_y)`.
 

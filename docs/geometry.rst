@@ -9,9 +9,9 @@ At-a-Glance Axis Conventions
 
 - STIR/SIRF image arrays are handled as ``(z, y, x)``.
 - STIR/SIRF projection arrays are often 4D with a singleton TOF axis:
-  ``(tof, bin, view, axial)``. For these, **view 0** is ``arr[0, :, 0, :]``.
+  ``(tof, axial, view, bin)``. For these, **view 0** is ``arr[0, :, 0, :]``.
 - Raw Interfile projection loading in ``utils.interfile`` is exposed as
-  ``(views, bins, axial)`` when no singleton TOF axis is present.
+  ``(view, axial, bin)`` when no singleton TOF axis is present.
 - ``PyTomographySimindAdaptor`` public object-space tensors are ``(x, y, z)``.
 - PyTomography object space is ``(x, y, z)`` (``Lx, Ly, Lz``).
 - PyTomography SIMIND projections from ``pytomography.io.SPECT.simind`` are
@@ -60,3 +60,76 @@ If reconstruction geometry looks wrong:
 3. Confirm PyTomography object-space tensors are in ``(x, y, z)``.
 4. Confirm attenuation-map orientation matches the reconstruction backend.
 5. Compare hotspot center-of-mass between source and recon in a common axis convention.
+
+Simulating a Measured Acquisition
+---------------------------------
+
+Give the SIRF or STIR adaptor the measured projection data (or its ``.hs``
+header) and SIMIND runs in exactly that geometry:
+
+.. code-block:: python
+
+    adaptor.set_template(measured)        # sirf.STIR.AcquisitionData or path
+    outputs = adaptor.run()
+    difference = outputs["tot_w1"] - measured   # same geometry
+
+The geometry maps onto SIMIND as follows:
+
+.. list-table::
+   :header-rows: 1
+
+   * - SIMIND setting
+     - Value from the template
+   * - Index 29
+     - number of projections
+   * - Index 30
+     - extent of rotation, positive for CW, negative for CCW
+   * - Index 41
+     - (start angle + 180) mod 360
+   * - Index 12
+     - ``radius_mm / 10`` (cm) for a circular orbit; for a non-circular orbit
+       ``mean(radii_mm) / 10``, and the per-projection radii are written to
+       ``{prefix}_acquisition.cor``, which the orbit file then overrides
+   * - Index 28
+     - bin size / 10 (cm); bin and axial sizes must be equal
+   * - Index 76, 77
+     - number of bins, number of axial positions
+
+A configured acquisition wins: once ``set_template()`` or
+``configure_acquisition()`` has run, the projection geometry of the phantom
+no longer changes it, whichever is configured first. There is no API to clear
+a configured acquisition, so build a new adaptor or connector for a different
+geometry.
+
+``ProjectionGeometry.time_per_projection_s`` is the frame time the header
+reports. Nothing sets it automatically: pass it to an explicit
+``set_activity(activity_mbq, time_per_projection_s=...)`` call if you want
+SIMIND Index 25 to use it.
+
+After the run, the output geometry is checked against the template before
+the data are written under a copy of the template header:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Field
+     - Tolerance
+   * - projections, bins, axial positions, direction
+     - equal
+   * - extent of rotation
+     - 0.5 degrees
+   * - start angle
+     - 0.5 degrees (modulo 360)
+   * - bin and axial size
+     - 0.001 mm
+   * - radius, or each radius
+     - 0.5 mm
+
+SIMIND centres the phantom on the rotation axis, so source and mu-map images
+must be centred on the axis, as SIRF/STIR SPECT reconstruction images are.
+Voxels may have a different slice thickness from their in-plane size; the
+in-plane size must be square.
+
+Mu-maps can be given as attenuation (``mu_map_type="attenuation"``, cm^-1 at
+``mu_map_energy_kev``, which defaults to ``abs(Index 1)``), density
+(``"density"``, g/cm^3) or CT Hounsfield units (``"hu"``).
