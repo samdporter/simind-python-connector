@@ -61,7 +61,7 @@ def _class_has_supported_marker(source: str, node: ast.ClassDef) -> bool:
 def test_all_tests_have_dependency_or_category_marker() -> None:
     missing: list[str] = []
 
-    for path in sorted(ROOT.glob("test_*.py")):
+    for path in sorted(ROOT.rglob("test_*.py")):
         source = path.read_text()
         tree = ast.parse(source)
         module_marked = _has_supported_module_marker(source, tree)
