@@ -39,6 +39,7 @@ dev = [
     "pytest>=6.0",
     "pytest-cov",
     "pytest-mock",
+    "scipy",
     "ruff",
     "sphinx",
     "sphinx-rtd-theme",
