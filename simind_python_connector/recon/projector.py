@@ -95,3 +95,18 @@ def reference_normaliser(
         )
 
     return normalise
+
+
+class SimindComponent:
+    """One scaled SIMIND output as a callable model, e.g. for ResidualCorrection."""
+
+    def __init__(self, projector: SimindProjector, component: str) -> None:
+        self.projector = projector
+        self.component = component
+
+    def __call__(self, image: Any) -> Any:
+        return self.projector.project(image)[self.component]
+
+    @property
+    def last_scale(self) -> Optional[float]:
+        return self.projector.last_scale
