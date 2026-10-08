@@ -7,9 +7,15 @@ explicitly.
 
 from simind_python_connector.recon.corrections import (
     CorrectionModel,
+    ResidualCorrection,
     ScatterCorrection,
 )
+from simind_python_connector.recon.diagnostics import (
+    effective_objective,
+    poisson_nll,
+)
 from simind_python_connector.recon.projector import (
+    SimindComponent,
     SimindProjector,
     reference_normaliser,
 )
@@ -23,9 +29,13 @@ from simind_python_connector.recon.updates import (
 __all__ = [
     "AdditiveUpdater",
     "CorrectionModel",
+    "ResidualCorrection",
     "ScatterCorrection",
+    "SimindComponent",
     "SimindProjector",
     "UpdateRecord",
     "UpdateSchedule",
+    "effective_objective",
+    "poisson_nll",
     "reference_normaliser",
 ]
