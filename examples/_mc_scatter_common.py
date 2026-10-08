@@ -55,7 +55,8 @@ def _distances():
 
 
 def phantom() -> tuple[np.ndarray, np.ndarray]:
-    """Water cylinder with a hot sphere (4:1 above background); (activity, mu)."""
+    """Water cylinder with a hot sphere (5:1: four above a background of one);
+    (activity, mu)."""
     to_axis, to_hot, from_centre_z = _distances()
     body = (to_axis <= (0.35 * N) ** 2) & (from_centre_z <= 0.3 * N)
     activity = np.where(body, 1.0, 0.0) + np.where(to_hot <= 3**2, 4.0, 0.0)
@@ -127,7 +128,8 @@ def simulate_measured(output_dir, template_data, activity_image, mu_image, seed=
 
 
 def fast_model_factory(mu_image: sirf.ImageData):
-    """SPECTUB with attenuation and no PSF: models the geometric primary only."""
+    """SPECTUB with attenuation and no PSF;
+    it omits the collimator and detector blur that SIMIND's b02 includes."""
 
     def make_model():
         matrix = sirf.SPECTUBMatrix()
