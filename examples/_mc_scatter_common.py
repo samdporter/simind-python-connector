@@ -141,7 +141,9 @@ def fast_model_factory(mu_image: sirf.ImageData):
     return make_model
 
 
-def scatter_updater(output_dir, template_data, mu_image, measured, full_model, every):
+def scatter_updater(
+    output_dir, template_data, mu_image, measured, full_model, every, stop_at=None
+):
     """SIMIND scatter scaled to the fast model (A2 route 2), from a zero start."""
     projector = SimindProjector(
         simind_adaptor(output_dir / "estimate", "estimate"),
@@ -152,7 +154,7 @@ def scatter_updater(output_dir, template_data, mu_image, measured, full_model, e
     )
     return AdditiveUpdater(
         ScatterCorrection(projector),
-        UpdateSchedule(every=every),
+        UpdateSchedule(every=every, stop_at=stop_at),
         measured.get_uniform_copy(0),
     )
 

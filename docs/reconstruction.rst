@@ -18,7 +18,14 @@ The forward model for the measured data :math:`y` is
 - :math:`A` is the fast SIRF linear model (e.g. SPECTUB with attenuation).
 - ``estimate`` is a correction model evaluated at the image of update
   :math:`k`, here SIMIND scatter.
-- :math:`\alpha \in (0, 1]` (``damping``) averages out Monte Carlo noise.
+- :math:`\alpha \in (0, 1]` (``damping``) averages out Monte Carlo noise, but
+  damping below 1 needs a non-zero starting term: starting from zero, the
+  term lags the estimate (a startup transient), and with roughly constant
+  statistics this biases the scatter low. At damping 0.5 a single update
+  gives :math:`D_1 = 0.5 \times \mathrm{estimate}`; if the estimate is
+  roughly constant between updates, after three updates the term is at
+  87.5% of the estimate. Start non-zero with ``CorrectionCallback.prime``
+  or a first estimate as ``initial_additive``.
 - :math:`\varepsilon` (``floor``) keeps the Poisson mean positive. Only
   :math:`\eta_k` is floored, so that later damped updates combine correctly.
 
@@ -146,10 +153,10 @@ iterations, i.e. subiterations for algorithms over subsets. ``first=0`` can
 trigger a refresh in the initial callback before the first algorithm update,
 but after initial objective evaluation.
 
-Example 10 uses ``run(40)`` and ``every=10``, producing records at
-``[10, 20, 30, 40]``. Only the first three affect later iterations. To avoid
-a refresh in a final callback at iteration N, callers can use ``stop_at=N``;
-that bound is exclusive.
+Example 10 uses ``run(40)``, ``every=10`` and ``stop_at=40``, producing
+records at ``[10, 20, 30]``, each consumed by a later iteration. Callers can
+use ``stop_at=N`` to avoid a refresh in a final callback at iteration N; that
+bound is exclusive.
 
 The OSEM outer loop calls ``update_now`` directly and does not use
 ``updater.schedule``. Its cadence is ``subiterations_per_update``, and
@@ -158,7 +165,14 @@ The OSEM outer loop calls ``update_now`` directly and does not use
 Each update costs one SIMIND run, so:
 
 - update every 1-2 epochs early on, when the image changes quickly;
-- use ``damping`` below 1 (e.g. 0.5) when the SIMIND statistics are low;
+- use ``damping`` below 1 (e.g. 0.5) when the SIMIND statistics are low, but
+  only from a non-zero starting term: starting from zero, the term lags the
+  estimate (a startup transient), and with roughly constant statistics
+  this biases the scatter low. At damping 0.5 a single update gives
+  :math:`D_1 = 0.5 \times \mathrm{estimate}`; if the estimate is roughly
+  constant between updates, after three updates the term is at 87.5% of
+  the estimate. Start non-zero with ``CorrectionCallback.prime`` or a
+  first estimate as ``initial_additive``;
 - for CIL, use ``stop_at`` to freeze the estimate for the final iterations.
 
 Examples 09 (SIRF OSEM) and 10 (CIL ISTA) show complete workflows; see

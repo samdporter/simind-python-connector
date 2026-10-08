@@ -2042,6 +2042,11 @@ dev = [
 examples = [
     { name = "matplotlib" },
 ]
+recon = [
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2057,12 +2062,13 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=5.4.0" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scipy", marker = "extra == 'dev'" },
+    { name = "scipy", marker = "extra == 'recon'" },
     { name = "sphinx", marker = "extra == 'dev'" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'dev'" },
     { name = "sphinx-rtd-theme", marker = "extra == 'dev'" },
     { name = "twine", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev", "examples"]
+provides-extras = ["dev", "examples", "recon"]
 
 [[package]]
 name = "six"

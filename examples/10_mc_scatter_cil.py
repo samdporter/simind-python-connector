@@ -7,9 +7,8 @@ Kullback-Leibler objectives. The AdaptiveSensitivity preconditioner with a
 unit step makes each ISTA step an MLEM update. A CorrectionCallback refreshes
 the SIMIND scatter estimate every 10 iterations and swaps it into the
 objectives. Installed CIL calls back at iteration 0 before the first update,
-then after later updates. This run records refreshes at 10, 20, 30 and 40;
-only the first three affect subsequent iterations, because 40 is the final
-callback.
+then after later updates. Passing stop_at=ITERATIONS (an exclusive bound)
+records refreshes at 10, 20 and 30 only, each consumed by a later iteration.
 
 Tiny on purpose: 32^3 voxels, 30 views, NN = 1. Needs SIRF, CIL and SIMIND.
 """
@@ -82,7 +81,13 @@ def main() -> None:
         measured, zero, make_model, NUM_SUBSETS, initial
     )
     updater = scatter_updater(
-        output_dir, template_data, mu_image, measured, full_model, UPDATE_EVERY
+        output_dir,
+        template_data,
+        mu_image,
+        measured,
+        full_model,
+        UPDATE_EVERY,
+        stop_at=ITERATIONS,
     )
     callback = CorrectionCallback(updater, objectives)
     corrected = _ista(objectives, initial, full_model, callbacks=[callback])
