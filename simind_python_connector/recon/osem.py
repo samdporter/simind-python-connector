@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import sirf.STIR as sirf
 
 
 def run_osem_with_corrections(
     acquisition_data: Any,
-    acq_model: Any,
+    acq_model_factory: Callable[[], Any],
     initial_image: Any,
     updater: Any,
     num_subsets: int,
@@ -19,11 +19,20 @@ def run_osem_with_corrections(
 ) -> Any:
     """Run OSEM in num_updates + 1 passes, refreshing the additive term in between.
 
-    STIR reads the additive term when the objective is set up, so each pass
-    builds a new objective and reconstructor. updater.schedule is not used.
+    acq_model_factory() must return a fresh, configured, not-yet-set-up SIRF
+    acquisition model each time, with independent model/matrix state and
+    the same linear operator settings. The current additive is installed
+    before reconstructor setup. On SIRF 3.10.1 / STIR 6.4, reusing a model
+    for another reconstruction can produce an all-zero image.
+
+    Each pass builds a fresh model, objective and reconstructor, continuing
+    from the preceding pass's image. initial_image is cloned and not modified.
+    updater.update_now is called between passes at completed subiterations;
+    updater.schedule is not used.
     """
     image = initial_image.clone()
     for k in range(num_updates + 1):
+        acq_model = acq_model_factory()
         acq_model.set_additive_term(updater.current)
         objective = sirf.make_Poisson_loglikelihood(acquisition_data)
         objective.set_acquisition_model(acq_model)

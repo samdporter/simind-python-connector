@@ -15,47 +15,72 @@ def test_run_osem_with_corrections_sets_each_additive_term(sirf_scene, monkeypat
 
     measured, image, make_model = sirf_scene
     fixed = measured * 0.1 + 0.5
+    correction = FixedCorrection(fixed)
     updater = AdditiveUpdater(
-        FixedCorrection(fixed),
+        correction,
         UpdateSchedule(every=1),
         measured.get_uniform_copy(0),
         floor=1e-3,
     )
-    model = make_model()
+    models = []
     seen = []
-    set_additive_term = model.set_additive_term
 
-    def spy(term):
-        seen.append(term.as_array().copy())
-        set_additive_term(term)
+    def recording_model_factory():
+        model = make_model()
+        models.append(model)
+        set_additive_term = model.set_additive_term
 
-    model.set_additive_term = spy
+        def spy(term):
+            seen.append((model, term.as_array().copy()))
+            set_additive_term(term)
+
+        model.set_additive_term = spy
+        return model
+
     initial = image.get_uniform_copy(1.0)
-
     objectives = []
+    objective_models = []
     make_objective = sirf.make_Poisson_loglikelihood
 
     def recording_make_objective(data):
         objective = make_objective(data)
         objectives.append(objective)
+        set_acquisition_model = objective.set_acquisition_model
+
+        def recording_set_acquisition_model(model):
+            objective_models.append(model)
+            set_acquisition_model(model)
+
+        objective.set_acquisition_model = recording_set_acquisition_model
         return objective
 
     monkeypatch.setattr(sirf, "make_Poisson_loglikelihood", recording_make_objective)
+    num_updates = 1
     result = run_osem_with_corrections(
         measured,
-        model,
+        recording_model_factory,
         initial,
         updater,
         num_subsets=3,
         subiterations_per_update=3,
-        num_updates=1,
+        num_updates=num_updates,
     )
 
-    assert len(objectives) == 2
-    assert objectives[0] is not objectives[1]
-    assert len(seen) == 2
-    np.testing.assert_allclose(seen[0], 1e-3)
-    np.testing.assert_allclose(seen[1], fixed.maximum(1e-3).as_array())
+    expected_passes = num_updates + 1
+    assert len(models) == expected_passes
+    assert len(objectives) == expected_passes
+    assert len(objective_models) == expected_passes
+    assert len(seen) == expected_passes
+    assert len({id(model) for model in models}) == expected_passes
+    assert len({id(objective) for objective in objectives}) == expected_passes
+    for model, objective_model, (additive_model, _) in zip(
+        models, objective_models, seen
+    ):
+        assert objective_model is model
+        assert additive_model is model
+    np.testing.assert_allclose(seen[0][1], 1e-3)
+    np.testing.assert_allclose(seen[1][1], fixed.maximum(1e-3).as_array())
+    assert correction.calls == num_updates
     assert [record.iteration for record in updater.history] == [3]
     assert np.isfinite(result.as_array()).all() and result.as_array().max() > 0
     np.testing.assert_array_equal(initial.as_array(), 1.0)
