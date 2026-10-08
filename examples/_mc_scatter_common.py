@@ -81,6 +81,22 @@ def contrast_error(reconstruction: sirf.ImageData, activity: np.ndarray) -> floa
     return abs(recon_ratio - true_ratio) / true_ratio
 
 
+def contrast_recovery(reconstruction: sirf.ImageData, activity: np.ndarray) -> float:
+    """NEMA contrast recovery of the hot core: 1 is perfect."""
+    core, background = _rois()
+    recon = reconstruction.as_array()
+    measured = recon[core].mean() / recon[background].mean() - 1.0
+    true = activity[core].mean() / activity[background].mean() - 1.0
+    return measured / true
+
+
+def background_cov(reconstruction: sirf.ImageData) -> float:
+    """Coefficient of variation in the background region."""
+    _, background = _rois()
+    values = reconstruction.as_array()[background]
+    return float(values.std() / values.mean())
+
+
 def template(output_dir: Path) -> sirf.AcquisitionData:
     sirf.AcquisitionData.set_storage_scheme("memory")
     return STIRSPECTAcquisitionDataBuilder(
@@ -98,23 +114,32 @@ def template(output_dir: Path) -> sirf.AcquisitionData:
     ).build(output_path=output_dir / "template")
 
 
-def simind_adaptor(output_dir: Path, prefix: str) -> SirfSimindAdaptor:
-    """PENETRATE at 140 keV with a 126-154 keV window and a LEHR collimator."""
+def simind_adaptor(
+    output_dir: Path,
+    prefix: str,
+    photon_energy_kev: float = 140.0,
+    window_kev: tuple[float, float] = (126.0, 154.0),
+    collimator: str = "ma-lehr",
+) -> SirfSimindAdaptor:
+    """PENETRATE with one photon energy, an energy window and a collimator."""
     adaptor = SirfSimindAdaptor(
         configs.get("Example.yaml"),
         str(output_dir),
         prefix,
         scoring_routine=ScoringRoutine.PENETRATE,
     )
-    adaptor.add_runtime_switch("CC", "ma-lehr")
-    adaptor.add_config_value(20, 154.0)  # upper energy threshold (keV)
-    adaptor.add_config_value(21, 126.0)  # lower energy threshold (keV)
+    adaptor.add_runtime_switch("CC", collimator)
+    adaptor.add_config_value(1, photon_energy_kev)
+    adaptor.add_config_value(20, window_kev[1])  # upper energy threshold (keV)
+    adaptor.add_config_value(21, window_kev[0])  # lower energy threshold (keV)
     return adaptor
 
 
-def simulate_measured(output_dir, template_data, activity_image, mu_image, seed=1):
+def simulate_measured(
+    output_dir, template_data, activity_image, mu_image, seed=1, **adaptor_settings
+):
     """SIMIND data with a known activity (A2 route 1) plus Poisson noise."""
-    adaptor = simind_adaptor(output_dir / "measured", "measured")
+    adaptor = simind_adaptor(output_dir / "measured", "measured", **adaptor_settings)
     adaptor.set_template(template_data)
     adaptor.set_source(activity_image)
     adaptor.set_mu_map(mu_image)
@@ -142,11 +167,18 @@ def fast_model_factory(mu_image: sirf.ImageData):
 
 
 def scatter_updater(
-    output_dir, template_data, mu_image, measured, full_model, every, stop_at=None
+    output_dir,
+    template_data,
+    mu_image,
+    measured,
+    full_model,
+    every,
+    stop_at=None,
+    **adaptor_settings,
 ):
     """SIMIND scatter scaled to the fast model (A2 route 2), from a zero start."""
     projector = SimindProjector(
-        simind_adaptor(output_dir / "estimate", "estimate"),
+        simind_adaptor(output_dir / "estimate", "estimate", **adaptor_settings),
         template_data,
         mu_image,
         normalise=reference_normaliser(full_model),
