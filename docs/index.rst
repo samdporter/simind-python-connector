@@ -11,6 +11,7 @@ simind-python-connector Documentation
    normalisation
    backends
    geometry
+   reconstruction
    examples
    api
    testing
