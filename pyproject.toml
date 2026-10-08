@@ -52,6 +52,9 @@ dev = [
 examples = [
     "matplotlib>=3.0.0",
 ]
+recon = [
+    "scipy",
+]
 
 [project.urls]
 Homepage = "https://github.com/samdporter/simind-python-connector"

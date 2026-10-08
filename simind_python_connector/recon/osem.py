@@ -30,6 +30,14 @@ def run_osem_with_corrections(
     updater.update_now is called between passes at completed subiterations;
     updater.schedule is not used.
     """
+    # Each pass rebuilds a reconstructor that restarts at subset 0, so a
+    # remainder would use some subsets more often and others never.
+    if subiterations_per_update % num_subsets != 0:
+        raise ValueError(
+            f"subiterations_per_update ({subiterations_per_update}) must be "
+            f"a multiple of num_subsets ({num_subsets})"
+        )
+
     image = initial_image.clone()
     for k in range(num_updates + 1):
         acq_model = acq_model_factory()

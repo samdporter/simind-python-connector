@@ -84,3 +84,30 @@ def test_run_osem_with_corrections_sets_each_additive_term(sirf_scene, monkeypat
     assert [record.iteration for record in updater.history] == [3]
     assert np.isfinite(result.as_array()).all() and result.as_array().max() > 0
     np.testing.assert_array_equal(initial.as_array(), 1.0)
+
+
+def test_run_osem_with_corrections_rejects_non_multiple_subiterations(sirf_scene):
+    from simind_python_connector.recon.osem import run_osem_with_corrections
+    from simind_python_connector.recon.updates import AdditiveUpdater, UpdateSchedule
+
+    measured, image, _ = sirf_scene
+    fixed = measured * 0.1 + 0.5
+    updater = AdditiveUpdater(
+        FixedCorrection(fixed),
+        UpdateSchedule(every=1),
+        measured.get_uniform_copy(0),
+    )
+
+    def make_model():
+        raise AssertionError("model factory called")
+
+    with pytest.raises(ValueError, match="multiple of"):
+        run_osem_with_corrections(
+            measured,
+            make_model,
+            image.get_uniform_copy(1.0),
+            updater,
+            num_subsets=5,
+            subiterations_per_update=3,
+            num_updates=1,
+        )
