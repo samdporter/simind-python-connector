@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Protocol
+from typing import Any, Callable, Optional, Protocol
 
 import numpy as np
 
@@ -70,3 +70,39 @@ def _smooth_views(data: Any, fwhm_bins: float) -> Any:
     out = data.clone()
     out.fill(smoothed.astype(np.float32))
     return out
+
+
+class ResidualCorrection:
+    """Fu & Qi residual correction: base_additive + A_acc(x) - A_fast(x).
+
+    As the fast model's additive term, it makes the fast forward projection of
+    x match the accurate one. Only forward projections use the accurate model
+    (Fu & Qi, Med Phys 37:704, 2010).
+
+    fast_model must be the full-data linear model without an additive term;
+    base_additive is whatever the accurate model does not include.
+    """
+
+    def __init__(
+        self,
+        accurate: Callable[[Any], Any],
+        fast_model: Any,
+        base_additive: Any,
+        mask: Any = None,
+    ) -> None:
+        self.accurate = accurate
+        self.fast_model = fast_model
+        self.base_additive = base_additive
+        self.mask = mask
+        self.last_accurate: Any = None
+
+    @property
+    def last_scale(self) -> Optional[float]:
+        return getattr(self.accurate, "last_scale", None)
+
+    def estimate(self, image: Any) -> Any:
+        x = image.maximum(0)
+        if self.mask is not None:
+            x = x * self.mask
+        self.last_accurate = self.accurate(x)
+        return self.base_additive + (self.last_accurate - self.fast_model.direct(x))
