@@ -72,3 +72,13 @@ def test_07_examples_use_minimal_example_yaml():
     ):
         text = (ROOT / "examples" / name).read_text()
         assert 'configs.get("Example.yaml")' in text
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "name", ["_mc_scatter_common.py", "09_mc_scatter_osem.py", "10_mc_scatter_cil.py"]
+)
+def test_mc_scatter_examples_use_neither_stir_nor_pytomography(name: str):
+    imports = _import_roots(ROOT / "examples" / name)
+    assert "stir" not in imports
+    assert "pytomography" not in imports
