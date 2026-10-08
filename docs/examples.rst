@@ -68,6 +68,17 @@ See the following examples for comprehensive use:
 
    Build a PyTomography adaptor workflow from DICOM-derived scanner/input data.
 
+9. **MC Scatter with SIRF OSEM** - ``examples/09_mc_scatter_osem.py``
+
+   Simulate "measured" data with SIMIND in a template geometry, then reconstruct
+   it with OSEM with and without a SIMIND scatter estimate that is refreshed every
+   2 epochs. Needs SIRF and SIMIND. See :doc:`reconstruction`.
+
+10. **MC Scatter with CIL** - ``examples/10_mc_scatter_cil.py``
+
+    The same data, reconstructed with CIL's ISTA and a ``CorrectionCallback``.
+    Needs SIRF, CIL and SIMIND.
+
 Running Examples
 ----------------
 
@@ -87,6 +98,8 @@ Each example can be run individually:
     python examples/08A_stir_adaptor_from_dicom.py
     python examples/08B_sirf_adaptor_from_dicom.py
     python examples/08C_pytomography_adaptor_from_dicom.py
+    python examples/09_mc_scatter_osem.py
+    python examples/10_mc_scatter_cil.py
 
 Or run all core Python connector examples sequentially:
 
@@ -118,6 +131,8 @@ Each example creates output in its own directory under ``output/``:
 - ``output/dicom_projection_objects/stir/`` - STIR adaptor setup from DICOM-derived inputs
 - ``output/dicom_projection_objects/sirf/`` - SIRF adaptor setup from DICOM-derived inputs
 - ``output/dicom_projection_objects/pytomography/`` - PyTomography adaptor setup from DICOM-derived inputs
+- ``output/mc_scatter_osem/`` - SIMIND scatter in SIRF OSEM
+- ``output/mc_scatter_cil/`` - SIMIND scatter in CIL ISTA
 
 Each OSEM example also writes a summary plot with:
 - input source slice

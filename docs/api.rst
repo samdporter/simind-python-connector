@@ -73,6 +73,24 @@ Normalisation
    :undoc-members:
    :show-inheritance:
 
+Reconstruction with SIMIND corrections
+--------------------------------------
+
+.. automodule:: simind_python_connector.recon.updates
+   :members:
+
+.. automodule:: simind_python_connector.recon.projector
+   :members:
+
+.. automodule:: simind_python_connector.recon.corrections
+   :members:
+
+.. automodule:: simind_python_connector.recon.cil
+   :members:
+
+.. automodule:: simind_python_connector.recon.osem
+   :members:
+
 Utilities
 ---------
 

@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ProjectionGeometry.time_per_projection_s`.
 - `mu_map_type` ("attenuation", "density", "hu") and `mu_map_energy_kev`.
 - Anisotropic voxels: `voxel_size_mm` may be `(z, y, x)` with square in-plane voxels.
+- Optional `simind_python_connector.recon` subpackage: a SIMIND-simulated additive
+  term in SIRF and CIL reconstructions, refreshed at chosen intervals.
+  - `UpdateSchedule`, `AdditiveUpdater` (damped, floored) and `UpdateRecord`.
+  - `SimindProjector` and `reference_normaliser` (A2 scaling at every update).
+  - `ScatterCorrection` (PENETRATE b01 − b02, or SCATTWIN scatter).
+  - `recon.cil`: `build_subset_objectives`, `set_subset_additive`,
+    `refresh_stochastic_state` and `CorrectionCallback`.
+  - `recon.osem.run_osem_with_corrections`.
+- Examples 09 (SIMIND scatter in SIRF OSEM) and 10 (in CIL ISTA).
 
 ### Changed
 - Interfile key lookups ignore only `!` and spacing; a line whose first non-blank
