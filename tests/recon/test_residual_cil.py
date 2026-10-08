@@ -48,4 +48,5 @@ def test_residual_correction_through_the_cil_callback(psf_scene):
             function.function.eta.as_array(),
             updater.current.get_subset(views).as_array(),
         )
+    assert len(recorded) == len(updater.history)
     assert all(later < earlier for earlier, later in zip(recorded, recorded[1:]))
