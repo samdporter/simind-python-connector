@@ -91,6 +91,9 @@ Reconstruction with SIMIND corrections
 .. automodule:: simind_python_connector.recon.osem
    :members:
 
+.. automodule:: simind_python_connector.recon.diagnostics
+   :members:
+
 Utilities
 ---------
 

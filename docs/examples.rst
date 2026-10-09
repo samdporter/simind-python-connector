@@ -79,6 +79,12 @@ See the following examples for comprehensive use:
     The same data, reconstructed with CIL's ISTA and a ``CorrectionCallback``.
     Needs SIRF, CIL and SIMIND.
 
+11. **Residual Correction** - ``examples/11_residual_correction.py``
+
+    Fu & Qi residual correction with SIMIND as the accurate forward model,
+    compared with the fast model alone and with a SIMIND scatter estimate.
+    Needs SIRF and SIMIND. See :doc:`reconstruction`.
+
 Running Examples
 ----------------
 
@@ -100,6 +106,7 @@ Each example can be run individually:
     python examples/08C_pytomography_adaptor_from_dicom.py
     python examples/09_mc_scatter_osem.py
     python examples/10_mc_scatter_cil.py
+    python examples/11_residual_correction.py
 
 Or run all core Python connector examples sequentially:
 
@@ -133,6 +140,7 @@ Each example creates output in its own directory under ``output/``:
 - ``output/dicom_projection_objects/pytomography/`` - PyTomography adaptor setup from DICOM-derived inputs
 - ``output/mc_scatter_osem/`` - SIMIND scatter in SIRF OSEM
 - ``output/mc_scatter_cil/`` - SIMIND scatter in CIL ISTA
+- ``output/residual_correction/`` - Residual correction with SIMIND
 
 Each OSEM example also writes a summary plot with:
 - input source slice
