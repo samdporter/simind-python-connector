@@ -234,20 +234,26 @@ terms on theirs. For a SIRF accurate model, pass ``accurate_model.direct``.
 In both SIMIND recipes the projector uses
 ``reference_normaliser(fast_model, "geom_coll_primary")``.
 
-Convergence to the accurate-model solution is proven when
-:math:`A_\mathrm{acc} = A_\mathrm{fast} B` with :math:`B` positive definite,
-e.g. an image blur. Scatter and penetration do not obviously fit this, so
-monitor convergence: ``effective_objective(measured, correction)`` is the
+The theorem behind the method converges to the accurate-model MAP solution
+when that solution is unique, each inner correction step converges, and
+:math:`A_\mathrm{acc} = A_\mathrm{fast} B` with :math:`B` having positive
+eigenvalues (e.g. an image blur). Scatter and septal penetration do not
+obviously fit, and this engine floors the additive term, which can discard a
+negative residual: the theorem therefore does not directly apply. Monitor
+convergence instead: ``effective_objective(measured, correction)`` is the
 accurate model's Poisson data term at the image of the last update. Log it
 from ``CorrectionCallback(on_update=...)``. A rising trend across updates,
 beyond Monte Carlo noise, means the update interval or the damping needs
-changing.
+changing. The PSF-residual container test is a fixed-budget data-domain
+regression check, not a convergence proof.
 
 Schedule guidance:
 
 - update every 1-5 epochs: ``every = epochs * num_subsets``;
-- set ``stop_at = total_iterations - every``: an update right before the end
-  has no effect; pass it to ``UpdateSchedule``, or directly to
+- set ``stop_at = total_iterations`` so the final-callback refresh is
+  skipped: ``stop_at`` is an exclusive bound, so this keeps every update that
+  can affect the reconstruction (an earlier bound is an optional, deliberate
+  freeze); pass it to ``UpdateSchedule``, or directly to
   ``scatter_updater(..., stop_at=stop_at)`` when using that helper;
 - use damping 0.5-1.0 with MC accurate models, but damping < 1 requires a
   non-zero starting additive term. From zero, use damping 1.0: otherwise the
