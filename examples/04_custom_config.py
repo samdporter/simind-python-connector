@@ -165,6 +165,9 @@ def demonstrate_new_api_usage():
 
     # Configure runtime/config switches and run
     connector.add_runtime_switch('NN', 10)
+    connector.configure_phantom(phantom)  # or configure_voxel_phantom(...)
+    # A configuration-defined phantom also works: without configure_phantom()
+    # the connector warns and runs the phantom from Index 14/15.
     outputs = connector.run()
     """
     )

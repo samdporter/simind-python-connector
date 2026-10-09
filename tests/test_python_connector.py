@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -1352,3 +1353,31 @@ def test_configure_voxel_phantom_rejects_bad_voxel_size_tuples(
     with pytest.raises(ValueError) as excinfo:
         connector.configure_voxel_phantom(source, np.zeros_like(source), voxel_size_mm)
     assert str(excinfo.value) == "voxel_size_mm must be a scalar or a (z, y, x) tuple"
+
+
+@pytest.mark.unit
+def test_run_warns_when_no_phantom_is_configured(tmp_path: Path, caplog):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.executor.run_simulation = lambda *args, **kwargs: None
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    with caplog.at_level(logging.WARNING):
+        connector.run()
+    assert "No phantom configured" in caplog.text
+
+
+@pytest.mark.unit
+def test_configure_voxel_phantom_suppresses_the_warning(tmp_path: Path, caplog):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.zeros((4, 4, 4), dtype=np.float32)
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+    connector.executor.run_simulation = lambda *args, **kwargs: None
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    with caplog.at_level(logging.WARNING):
+        connector.run()
+    assert "No phantom configured" not in caplog.text

@@ -81,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Projection rows (Index 77) follow the axial dimension; columns (Index 76) use
   `max(dim_x, dim_y)`.
 - Stale `.hct`/`.ict` files are removed before each run.
+- `SimindPythonConnector.run()` logs a warning when no phantom was configured and runs
+  the phantom defined by the configuration (Index 14/15).
 
 ### Removed
 - `simind_python_connector.backends` (`get_backend`, `set_backend`, `reset_backend`,
