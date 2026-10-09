@@ -146,13 +146,13 @@ class LibraryPhantom(Enum):
     """Voxel phantoms shipped in SIMIND's smc_dir.
 
     value = (Index 14/15 code, base name of the file in smc_dir,
-             Index 45 .zub table or None)
+             Index 45 section of the phantom.zub code table)
     """
 
-    ZUBAL_TORSO = (-2, "vox_man1", None)
-    ZUBAL_BRAIN = (-3, "vox_brn", None)
-    ZUBAL_WHOLE_BODY = (-4, "vox_man3", None)
-    NEMA_IQ = (-5, "nema", 4)
+    ZUBAL_TORSO = (-2, "vox_man", 1)
+    ZUBAL_BRAIN = (-3, "vox_brn", 2)
+    ZUBAL_WHOLE_BODY = (-4, "vox_man3", 1)
+    NEMA_IQ = (-5, "nema", 3)
 
 
 @dataclass(frozen=True, eq=False)
