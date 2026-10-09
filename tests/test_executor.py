@@ -217,9 +217,11 @@ def test_executor_renders_valueless_switches(
     monkeypatch.delenv("SIMIND_BIN", raising=False)
     calls = _capture_run(monkeypatch)
 
-    SimindExecutor().run_simulation("case01", runtime_switches={"HO": True, "NN": 3})
+    SimindExecutor().run_simulation(
+        "case01", runtime_switches={"IF": "case01.inp", "HO": True, "NN": 3}
+    )
 
-    assert calls[0][0][-1] == "/HO/NN:3"
+    assert calls[0][0][-1] == "/IF:case01.inp/HO/NN:3"
 
 
 def test_executor_rejects_whitespace_tokens(

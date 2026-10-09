@@ -23,7 +23,7 @@ from simind_python_connector.phantoms import (
 
 pytestmark = pytest.mark.unit
 
-_ANALYTIC_SWITCHES = {"BG", "HO", "CO", "FZ"} | {
+_ANALYTIC_SWITCHES = {"BG", "HO", "CO", "FZ", "IF"} | {
     f"{letter}{n}"
     for letter, count in (("A", 3), ("L", 6), ("M", 4))
     for n in range(1, count + 1)
@@ -113,8 +113,35 @@ def test_multiple_inserts_write_the_inp_file_and_switches(
     )
     assert _values(connector, (15, 2, 3, 4)) == [7, 10.0, 10.0, 10.0]
     switches = connector.runtime_switches.switches
+    assert switches["IF"] == "case01.inp"
     assert {key: switches[key] for key in expected} == expected
     assert not ({"BG", "HO", "CO"} - set(expected)) & set(switches)
+
+
+@pytest.mark.parametrize(
+    "next_phantom",
+    [
+        AnalyticPhantom(PointSource()),
+        LibraryPhantom.ZUBAL_TORSO,
+    ],
+)
+def test_reconfiguring_clears_the_insert_input_switch(tmp_path, next_phantom):
+    connector = _connector(tmp_path)
+    connector.configure_phantom(
+        AnalyticPhantom(
+            MultipleInserts(
+                HorizontalCylinder(5.0, (5.0, 5.0)),
+                (Insert((2.0, 2.0, 2.0), (3.0, 0.0, 0.0), 4.0),),
+                mode="hot",
+            ),
+            HorizontalCylinder(5.0, (5.0, 5.0)),
+        )
+    )
+    assert "IF" in connector.runtime_switches.switches
+
+    connector.configure_phantom(next_phantom)
+
+    assert "IF" not in connector.runtime_switches.switches
 
 
 def test_cardiac_source_sets_the_myocardial_switches(tmp_path):
