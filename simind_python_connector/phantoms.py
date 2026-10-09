@@ -1,9 +1,11 @@
 """Phantoms: SIMIND's built-in shapes and library phantoms, voxel phantoms, and
 phantomgen's NEMA/IEC body phantom.
 
-Analytic shapes use SIMIND's coordinates in cm: x is the patient axis (feet to
-head), y points to the patient's right seen from the feet, and z points towards
-the camera at angle 0 (anterior).
+Analytic shapes use SIMIND's coordinates in cm:
+
+- x is the patient axis (feet to head);
+- y points to the patient's right seen from the feet;
+- z points towards the camera at angle 0 (anterior).
 """
 
 from __future__ import annotations
@@ -289,14 +291,16 @@ def voxelise(
 ) -> tuple[np.ndarray, Optional[np.ndarray]]:
     """Return (activity, attenuator fraction) on a centred grid in (z, y, x) order.
 
-    Voxel [k, j, i] has its centre at SIMIND coordinates (cm)
+    Voxel [k, j, i] has its centre at SIMIND coordinates (cm), from the
+    manual's voxel-map orientation::
+
         X = -(k - (nz - 1) / 2) * dz,  Y = (i - (nx - 1) / 2) * dx,
         Z = -(j - (ny - 1) / 2) * dy,
-    from the manual's voxel-map orientation; the source is moved by
-    source_shift_cm. A voxel holds the fraction of its supersample**3
-    sub-voxel centres inside the shape, times the concentration (1 for plain
-    sources). A point source is the single nearest voxel. The attenuator
-    fraction is None without an attenuator.
+
+    The source is moved by source_shift_cm. A voxel holds the fraction of its
+    supersample**3 sub-voxel centres inside the shape, times the concentration
+    (1 for plain sources). A point source is the single nearest voxel. The
+    attenuator fraction is None without an attenuator.
     """
     nz, ny, nx = (int(n) for n in shape_zyx)
     dz, dy, dx = (float(v) / 10.0 for v in voxel_size_mm)
