@@ -7,8 +7,25 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-1.0.2 - 2026-10-09
+2.0.0 - 2026-10-09
 ------------------
+
+Breaking Changes
+~~~~~~~~~~~~~~~~
+
+- ``STIRSPECTAcquisitionDataBuilder`` no longer flips projection data along the
+  last axis.
+- Runtime-operator switches passed to ``run()`` apply to that run only. They
+  are no longer kept on the connector for later runs.
+- Each run deletes earlier outputs that share the output prefix before SIMIND
+  starts.
+- The STIR backend needs ``stirextra`` as well as ``stir``.
+- STIR/SIRF adaptors take the z voxel spacing from a different axis (see
+  Fixed). Results change for anisotropic voxels.
+- Invalid inputs now raise ``ValueError``: empty, non-finite or negative source
+  and attenuation maps, array shapes that do not match the header, and
+  ``output_prefix`` values that contain a path. Energy-window validation raises
+  ``ValueError`` instead of ``AssertionError``.
 
 Fixed
 ~~~~~

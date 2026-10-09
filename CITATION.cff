@@ -9,7 +9,7 @@ authors:
   given-names: Efstathios (Stahis)
   orcid: "https://orcid.org/0000-0002-8813-921X"
 date-released: 2026-10-09
-version: 1.0.2
+version: 2.0.0
 url: "https://github.com/samdporter/simind-python-connector"
 doi: 10.5281/zenodo.19605198
 license: Apache-2.0
