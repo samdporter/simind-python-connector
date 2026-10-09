@@ -14,11 +14,17 @@ from simind_python_connector.connectors.python_connector import (
     RuntimeOperator,
     SimindPythonConnector,
 )
+from simind_python_connector.converters.attenuation import get_attenuation_coefficient
 from simind_python_connector.core.config import SimulationConfig
 from simind_python_connector.core.types import (
     PenetrateOutputType,
     ScoringRoutine,
     SimulationError,
+)
+from simind_python_connector.phantoms import (
+    LibraryPhantom,
+    VoxelPhantom,
+    voxelise,
 )
 from simind_python_connector.utils import get_array
 from simind_python_connector.utils.interfile import (
@@ -27,6 +33,7 @@ from simind_python_connector.utils.interfile import (
     check_geometry_match,
     read_header,
     read_projection_geometry,
+    read_simind_density_image,
     write_in_template_geometry,
 )
 
@@ -61,6 +68,8 @@ class _NativeSimindAdaptor(BaseConnector):
         self._mu_map_energy_kev = mu_map_energy_kev
         self._source: Any = None
         self._mu_map: Any = None
+        self._phantom: Any = None
+        self._time_per_projection_s = 1.0
         self._outputs: Optional[dict[str, Any]] = None
         self._template_header: Optional[InterfileHeader] = None
         self._template_geometry: Optional[ProjectionGeometry] = None
@@ -83,11 +92,92 @@ class _NativeSimindAdaptor(BaseConnector):
     def _origin_mm(self, image: Any) -> tuple[float, float, float]:
         """Return the image origin in mm, in (z, y, x) order."""
 
+    @abstractmethod
+    def _image_like(self, template: Any, array: np.ndarray) -> Any:
+        """Return a native image with template's geometry holding array (z, y, x)."""
+
+    def _build_image(self, array: np.ndarray, voxel_sizes_mm: tuple) -> Any:
+        """Return a native image on its own grid, with voxel sizes in (z, y, x)."""
+        from simind_python_connector.builders import STIRSPECTImageDataBuilder
+
+        nz, ny, nx = array.shape
+        builder = STIRSPECTImageDataBuilder(
+            {
+                "!matrix size [1]": str(nx),
+                "!matrix size [2]": str(ny),
+                "!matrix size [3]": str(nz),
+                "scaling factor (mm/pixel) [1]": str(voxel_sizes_mm[2]),
+                "scaling factor (mm/pixel) [2]": str(voxel_sizes_mm[1]),
+                "scaling factor (mm/pixel) [3]": str(voxel_sizes_mm[0]),
+            },
+            backend=self._backend,
+        )
+        builder.set_pixel_array(array.astype(np.float32))
+        return builder.build()
+
     def set_source(self, source: Any) -> None:
         self._source = source
 
     def set_mu_map(self, mu_map: Any) -> None:
         self._mu_map = mu_map
+
+    def set_phantom(self, phantom: Any, *, time_per_projection_s: float = 1.0) -> None:
+        """Simulate an AnalyticPhantom, LibraryPhantom or VoxelPhantom.
+
+        An alternative to set_source/set_mu_map; time_per_projection_s is
+        used for VoxelPhantom (known activity, Index 25).
+        The scoring routine comes from the configuration (Index 84) for
+        analytic and library phantoms.
+        """
+        self._phantom = phantom
+        self._time_per_projection_s = time_per_projection_s
+        self._outputs = None
+
+    def get_ground_truth(self, image_template: Any) -> tuple[Any, Any]:
+        """Return (activity, mu) native images; mu in cm^-1 at abs(Index 1).
+
+        VoxelPhantom and AnalyticPhantom give images on image_template's grid.
+        A LibraryPhantom gives (None, mu) on SIMIND's own density grid, after
+        run(); its activity ground truth is not available.
+        """
+        if self._phantom is None:
+            raise RuntimeError(
+                "get_ground_truth needs a phantom set with set_phantom()"
+            )
+        energy = abs(float(self.get_config().get_value("photon_energy")))
+        mu_water = float(get_attenuation_coefficient("water", energy))
+
+        if isinstance(self._phantom, LibraryPhantom):
+            if self._outputs is None:
+                raise RuntimeError(
+                    "Run the adaptor first: library phantom densities come from "
+                    "SIMIND's aligned density output"
+                )
+            connector = self.python_connector
+            header = connector.output_dir / f"{connector.output_prefix}.hct"
+            density, voxel_sizes = read_simind_density_image(header)
+            return None, self._build_image(density * mu_water, voxel_sizes)
+
+        shape = tuple(np.asarray(get_array(image_template)).shape)
+        voxel_sizes = self._voxel_sizes_mm(image_template)
+        if isinstance(self._phantom, VoxelPhantom):
+            if shape != self._phantom.activity_mbq.shape or not np.allclose(
+                voxel_sizes, self._phantom.voxel_size_mm, atol=1e-3
+            ):
+                raise ValueError(
+                    f"The phantom grid {self._phantom.activity_mbq.shape} at "
+                    f"{self._phantom.voxel_size_mm} mm differs from the template "
+                    f"grid {shape} at {voxel_sizes} mm"
+                )
+            activity = self._phantom.activity_mbq
+            mu = self._phantom.density_g_cm3 * mu_water
+        else:
+            activity, attenuator = voxelise(self._phantom, shape, voxel_sizes)
+            mu = np.zeros(shape) if attenuator is None else attenuator * mu_water
+        return (
+            self._image_like(image_template, np.asarray(activity, dtype=np.float32)),
+            self._image_like(image_template, np.asarray(mu, dtype=np.float32)),
+        )
 
     def set_template(self, template: Any) -> None:
         """Simulate in the geometry of a measured acquisition.
@@ -132,21 +222,31 @@ class _NativeSimindAdaptor(BaseConnector):
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.
         self._outputs = None
-        self._validate_inputs()
-
-        source_arr = np.asarray(get_array(self._source), dtype=np.float32)
-        mu_arr = np.asarray(get_array(self._mu_map), dtype=np.float32)
-
-        if self._template_geometry is not None:
-            self.python_connector.configure_acquisition(self._template_geometry)
-        self.python_connector.configure_voxel_phantom(
-            source=source_arr,
-            mu_map=mu_arr,
-            voxel_size_mm=self._voxel_sizes_mm(self._source),
-            scoring_routine=self._scoring_routine,
-            mu_map_type=self._mu_map_type,
-            mu_map_energy_kev=self._mu_map_energy_kev,
-        )
+        if self._phantom is not None:
+            if self._source is not None or self._mu_map is not None:
+                raise ValueError(
+                    "Set either a phantom (set_phantom) or a source and mu_map, "
+                    "not both"
+                )
+            if self._template_geometry is not None:
+                self.python_connector.configure_acquisition(self._template_geometry)
+            self.python_connector.configure_phantom(
+                self._phantom, time_per_projection_s=self._time_per_projection_s
+            )
+        else:
+            self._validate_inputs()
+            source_arr = np.asarray(get_array(self._source), dtype=np.float32)
+            mu_arr = np.asarray(get_array(self._mu_map), dtype=np.float32)
+            if self._template_geometry is not None:
+                self.python_connector.configure_acquisition(self._template_geometry)
+            self.python_connector.configure_voxel_phantom(
+                source=source_arr,
+                mu_map=mu_arr,
+                voxel_size_mm=self._voxel_sizes_mm(self._source),
+                scoring_routine=self._scoring_routine,
+                mu_map_type=self._mu_map_type,
+                mu_map_energy_kev=self._mu_map_energy_kev,
+            )
         raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
         if self._template_geometry is None:
             self._outputs = {
