@@ -3,21 +3,31 @@ simind-python-connector Documentation
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Core simulation
 
    intro
    installation
    usage
    normalisation
-   backends
    geometry
    phantoms
-   reconstruction
+   backends
    examples
    api
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reconstruction with SIMIND corrections (optional)
+
+   reconstruction
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Project
+
    testing
-   changelog
    contributing
+   changelog
 
 Indices and tables
 ==================
