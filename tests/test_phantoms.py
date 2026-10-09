@@ -91,10 +91,10 @@ def test_cardiac_switches_with_a_defect():
 
 
 def test_library_phantom_values():
-    assert LibraryPhantom.NEMA_IQ.value == (-5, "nema", 4)
-    assert LibraryPhantom.ZUBAL_TORSO.value == (-2, "vox_man1", None)
-    assert LibraryPhantom.ZUBAL_BRAIN.value == (-3, "vox_brn", None)
-    assert LibraryPhantom.ZUBAL_WHOLE_BODY.value == (-4, "vox_man3", None)
+    assert LibraryPhantom.NEMA_IQ.value == (-5, "nema", 3)
+    assert LibraryPhantom.ZUBAL_TORSO.value == (-2, "vox_man", 1)
+    assert LibraryPhantom.ZUBAL_BRAIN.value == (-3, "vox_brn", 2)
+    assert LibraryPhantom.ZUBAL_WHOLE_BODY.value == (-4, "vox_man3", 1)
 
 
 def test_voxel_phantom_masks_default_to_empty():

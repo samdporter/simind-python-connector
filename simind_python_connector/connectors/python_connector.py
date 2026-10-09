@@ -59,6 +59,34 @@ _PHANTOM_SWITCHES = ("PX", "TH", "IF", "BG", "HO", "CO", "FZ") + tuple(
     for n in range(1, count + 1)
 )
 
+_ZUB_TABLE = "phantom.zub"
+
+
+def _find_zub_table() -> Path:
+    """Locate the phantom.zub code table in the installed SIMIND tree."""
+    roots = []
+    for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR"):
+        directory = os.environ.get(variable)
+        if directory:
+            roots.append(Path(directory).expanduser().resolve().parent)
+    root = os.environ.get("SIMIND_ROOT")
+    if root:
+        roots.append(Path(root).expanduser().resolve())
+    for executable in (os.environ.get("SIMIND_BIN"), "simind"):
+        located = shutil.which(executable) if executable else None
+        if located:
+            roots.append(Path(located).resolve().parent)
+
+    for base in roots:
+        for directory in ("tutorial", "smc_dir"):
+            candidate = base / directory / _ZUB_TABLE
+            if candidate.is_file():
+                return candidate
+    raise FileNotFoundError(
+        f"Could not find SIMIND's {_ZUB_TABLE} code table; look for it in a "
+        "tutorial/ or smc_dir/ below SIMIND_ROOT, SMC_DIR or the simind binary"
+    )
+
 
 def _split_voxel_size(voxel_size_mm) -> tuple[float, float]:
     """Return (slice thickness, in-plane size) in mm from a scalar or (z, y, x)."""
@@ -502,18 +530,21 @@ class SimindPythonConnector(BaseConnector):
     def _configure_library_phantom(self, phantom: LibraryPhantom) -> None:
         cfg = self.config
         cfg.set_flag(14, True)
-        code, base_name, zub_table = phantom.value
+        code, base_name, zub_section = phantom.value
         cfg.set_value(14, code)
         cfg.set_value(15, code)
         cfg.set_data_file(5, base_name)
         cfg.set_data_file(6, base_name)
         cfg.set_flag(11, True)
         cfg.set_flag(15, True)  # write the aligned density, the ground truth
+        # SIMIND resolves /FZ against its working directory, so the code table
+        # has to sit next to the run's inputs.
+        shutil.copy2(_find_zub_table(), self.output_dir / _ZUB_TABLE)
+        cfg.set_value(45, zub_section)
+        self.runtime_switches.set_switch("FZ", Path(_ZUB_TABLE).stem)
         if phantom is LibraryPhantom.NEMA_IQ:
             # SIMIND manual, voxel phantom table; the file is 364 wide, although
             # the table says 384.
-            cfg.set_value(45, zub_table)
-            self.runtime_switches.set_switch("FZ", "phantom")
             cfg.set_value(31, 0.1)
             cfg.set_value(2, 11.0)
             cfg.set_value(5, 11.0)

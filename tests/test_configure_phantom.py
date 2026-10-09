@@ -30,6 +30,17 @@ _ANALYTIC_SWITCHES = {"BG", "HO", "CO", "FZ", "IF"} | {
 }
 
 
+@pytest.fixture(autouse=True)
+def fake_zub_table(tmp_path_factory, monkeypatch):
+    """Stand in for the phantom.zub shipped in SIMIND's tutorial directory."""
+    import simind_python_connector.connectors.python_connector as python_connector
+
+    table = tmp_path_factory.mktemp("simind") / "phantom.zub"
+    table.write_text("== V8.0 Code Section 1\n")
+    monkeypatch.setattr(python_connector, "_find_zub_table", lambda: table)
+    return table
+
+
 def _connector(tmp_path: Path) -> SimindPythonConnector:
     return SimindPythonConnector(
         config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
@@ -164,7 +175,7 @@ def test_nema_library_phantom(tmp_path):
     assert _values(connector, (14, 15, 45, 31, 2, 5, 33, 34)) == [
         -5,
         -5,
-        4,
+        3,
         0.1,
         11.0,
         11.0,
@@ -175,21 +186,23 @@ def test_nema_library_phantom(tmp_path):
     assert (config.get_data_file(5), config.get_data_file(6)) == ("nema", "nema")
     assert config.get_flag(11) and config.get_flag(15)
     assert connector.runtime_switches.switches["FZ"] == "phantom"
+    assert (tmp_path / "phantom.zub").is_file()
     assert connector._phantom_mode == "library"
 
 
-def test_zubal_library_phantom_sets_only_codes_and_files(tmp_path):
+def test_zubal_library_phantom_sets_codes_files_and_table(tmp_path):
     connector = _connector(tmp_path)
-    before_45 = connector.get_config().get_value(45)
     connector.configure_phantom(LibraryPhantom.ZUBAL_TORSO)
     config = connector.get_config()
-    assert _values(connector, (14, 15)) == [-2, -2]
+    assert _values(connector, (14, 15, 45)) == [-2, -2, 1]
     assert (config.get_data_file(5), config.get_data_file(6)) == (
-        "vox_man1",
-        "vox_man1",
+        "vox_man",
+        "vox_man",
     )
-    assert config.get_value(45) == before_45
-    assert "FZ" not in connector.runtime_switches.switches
+    assert config.get_flag(11) and config.get_flag(15)
+    assert connector.runtime_switches.switches["FZ"] == "phantom"
+    assert (tmp_path / "phantom.zub").is_file()
+    assert connector._phantom_mode == "library"
 
 
 def test_voxel_phantom_uses_its_density_and_known_activity(tmp_path):
