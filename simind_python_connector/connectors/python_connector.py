@@ -638,6 +638,12 @@ class SimindPythonConnector(BaseConnector):
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
 
+        if self._phantom_mode is None:
+            self.logger.warning(
+                "No phantom configured; SIMIND will use the phantom defined by "
+                "the configuration (Index 14/15 and any files it references)."
+            )
+
         mpi_kwargs = {}
         if self._mpi is not None:
             processes, split = self._mpi
