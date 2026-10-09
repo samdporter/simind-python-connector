@@ -48,3 +48,13 @@ def test_effective_objective_needs_an_estimate_first():
     correction = SimpleNamespace(last_accurate=None, base_additive=FakeData([[[0.0]]]))
     with pytest.raises(ValueError, match="after the first estimate"):
         effective_objective(FakeData([[[1.0]]]), correction)
+
+
+def test_effective_objective_floors_a_zero_mean_bin_under_counts():
+    correction = SimpleNamespace(
+        last_accurate=FakeData([[[1.5, 0.0]]]), base_additive=FakeData([[[0.0, 0.0]]])
+    )
+    measured = FakeData([[[2.0, 3.0]]])
+
+    assert poisson_nll([2.0, 3.0], [1.5, 0.0]) == math.inf
+    assert np.isfinite(effective_objective(measured, correction))
