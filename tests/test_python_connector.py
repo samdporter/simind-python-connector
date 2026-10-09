@@ -1408,3 +1408,27 @@ def test_configure_voxel_phantom_suppresses_the_warning(tmp_path: Path, caplog):
     with caplog.at_level(logging.WARNING):
         connector.run()
     assert "No phantom configured" not in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("table_directory", ["tutorial", "smc_dir"])
+def test_find_zub_table_expands_home_relative_simind_bin(
+    tmp_path, monkeypatch, table_directory
+):
+    home = tmp_path / "home"
+    installation = home / "simind"
+    installation.mkdir(parents=True)
+    executable = installation / "simind"
+    executable.write_text("#!/bin/sh\n")
+    executable.chmod(0o755)
+    table = installation / table_directory / "phantom.zub"
+    table.parent.mkdir()
+    table.write_text("== V8.0 Code Section 1\n")
+    empty_path = tmp_path / "empty_path"
+    empty_path.mkdir()
+    for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR", "SIMIND_ROOT"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", str(empty_path))
+    monkeypatch.setenv("SIMIND_BIN", "~/simind/simind")
+    assert connector_mod._find_zub_table() == table.resolve()

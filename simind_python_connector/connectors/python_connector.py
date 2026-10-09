@@ -73,7 +73,11 @@ def _find_zub_table() -> Path:
     if root:
         roots.append(Path(root).expanduser().resolve())
     for executable in (os.environ.get("SIMIND_BIN"), "simind"):
-        located = shutil.which(executable) if executable else None
+        located = (
+            shutil.which(SimindExecutor._resolve_executable(executable))
+            if executable
+            else None
+        )
         if located:
             roots.append(Path(located).resolve().parent)
 
