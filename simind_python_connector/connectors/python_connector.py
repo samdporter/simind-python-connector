@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 
+from simind_python_connector import phantoms
 from simind_python_connector.connectors.base import BaseConnector
 from simind_python_connector.converters.attenuation import (
     attenuation_to_density,
@@ -30,6 +31,13 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     SimulationError,
 )
+from simind_python_connector.phantoms import (
+    AnalyticPhantom,
+    CardiacSource,
+    LibraryPhantom,
+    MultipleInserts,
+    VoxelPhantom,
+)
 from simind_python_connector.utils.interfile import (
     InterfileHeader,
     ProjectionGeometry,
@@ -44,6 +52,12 @@ PathLike = Union[str, os.PathLike[str]]
 ZERO_HISTORY_WARNING_FRACTION = 0.01
 
 _MU_MAP_TYPES = ("attenuation", "density", "hu")
+
+_PHANTOM_SWITCHES = ("PX", "TH", "BG", "HO", "CO", "FZ") + tuple(
+    f"{letter}{n}"
+    for letter, count in (("A", 3), ("L", 6), ("M", 4))
+    for n in range(1, count + 1)
+)
 
 
 def _split_voxel_size(voxel_size_mm) -> tuple[float, float]:
@@ -119,6 +133,7 @@ class SimindPythonConnector(BaseConnector):
         self._acquisition: Optional[ProjectionGeometry] = None
         self._acquisition_orbit: Optional[Path] = None
         self._transaxial_extent_mm: Optional[float] = None
+        self._phantom_mode: Optional[str] = None
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -221,6 +236,13 @@ class SimindPythonConnector(BaseConnector):
             raise ValueError(f"product must be finite and > 0, got {product!r}")
         self.config.set_value(25, product)
 
+    def _reset_phantom_settings(self) -> None:
+        """Remove the switches and map files of an earlier phantom set-up."""
+        for switch in _PHANTOM_SWITCHES:
+            self.runtime_switches.set_switch(switch, None)
+        self.config.set_data_file(5, "none")
+        self.config.set_data_file(6, "none")
+
     def configure_voxel_phantom(
         self,
         source: np.ndarray,
@@ -297,6 +319,7 @@ class SimindPythonConnector(BaseConnector):
             )
         dim_z, dim_y, dim_x = (int(v) for v in source_array.shape)
 
+        self._reset_phantom_settings()
         cfg = self.config
         cfg.set_flag(5, True)
         cfg.set_value(15, -1)
@@ -376,6 +399,7 @@ class SimindPythonConnector(BaseConnector):
         density_u16.tofile(density_path)
         cfg.set_data_file(5, dns_prefix)
 
+        self._phantom_mode = "voxel"
         return source_path, density_path
 
     def _density_from_mu_map(
@@ -394,6 +418,106 @@ class SimindPythonConnector(BaseConnector):
             # isotope file; its absolute value is still the window energy.
             mu_map_energy_kev = abs(float(self.config.get_value("photon_energy")))
         return attenuation_to_density(mu_map_array, mu_map_energy_kev)
+
+    def configure_phantom(
+        self,
+        phantom: Union[AnalyticPhantom, LibraryPhantom, VoxelPhantom],
+        *,
+        time_per_projection_s: float = 1.0,
+    ) -> None:
+        """Simulate an analytic, library or voxel phantom (see phantoms).
+
+        A VoxelPhantom has a known activity, so SIMIND is given it through
+        Index 25 (normalisation route 1); time_per_projection_s is only used for
+        VoxelPhantom. The last configure_phantom/configure_voxel_phantom call wins.
+        """
+        if isinstance(phantom, VoxelPhantom):
+            self.config.set_flag(11, True)
+            self.configure_voxel_phantom(
+                source=phantom.activity_mbq,
+                mu_map=phantom.density_g_cm3,
+                voxel_size_mm=phantom.voxel_size_mm,
+                mu_map_type="density",
+            )
+            self.set_activity(
+                float(np.sum(phantom.activity_mbq)), time_per_projection_s
+            )
+            return
+        if isinstance(phantom, LibraryPhantom):
+            self._reset_phantom_settings()
+            self._configure_library_phantom(phantom)
+            self._phantom_mode = "library"
+            return
+        if isinstance(phantom, AnalyticPhantom):
+            self._reset_phantom_settings()
+            self._configure_analytic_phantom(phantom)
+            self._phantom_mode = "analytic"
+            return
+        raise TypeError(
+            "phantom must be an AnalyticPhantom, LibraryPhantom or VoxelPhantom, "
+            f"got {type(phantom).__name__}"
+        )
+
+    def _configure_analytic_phantom(self, phantom: AnalyticPhantom) -> None:
+        cfg = self.config
+        code, half_dims = phantoms._code_and_half_dims(phantom.source)
+        cfg.set_value(15, code)
+        for index, value in zip((2, 3, 4), half_dims):
+            cfg.set_value(index, value)
+        for index, value in zip((16, 17, 18), phantom.source_shift_cm):
+            cfg.set_value(index, value)
+
+        if phantom.attenuator is None:
+            # A box around the source keeps SIMIND away from the voxel maps of
+            # an earlier set-up; with Flag 11 off it does not attenuate.
+            phantom_code, phantom_dims = 2, half_dims
+            cfg.set_flag(11, False)
+        else:
+            phantom_code, phantom_dims = phantoms._code_and_half_dims(
+                phantom.attenuator
+            )
+            cfg.set_flag(11, True)
+        cfg.set_value(14, phantom_code)
+        for index, value in zip((5, 6, 7), phantom_dims):
+            cfg.set_value(index, value)
+
+        source = phantom.source
+        if isinstance(source, MultipleInserts):
+            rows = "".join(
+                phantoms._insert_row(insert) + "\n" for insert in source.inserts
+            )
+            (self.output_dir / f"{self.output_prefix}.inp").write_text(rows)
+            if source.background is not None:
+                self.runtime_switches.set_switch("BG", source.background)
+            if source.mode == "hot":
+                self.runtime_switches.set_switch("HO", True)
+            elif source.mode == "cold":
+                self.runtime_switches.set_switch("CO", True)
+        elif isinstance(source, CardiacSource):
+            for switch, value in phantoms._cardiac_switches(source).items():
+                self.runtime_switches.set_switch(switch, value)
+
+    def _configure_library_phantom(self, phantom: LibraryPhantom) -> None:
+        cfg = self.config
+        code, base_name, zub_table = phantom.value
+        cfg.set_value(14, code)
+        cfg.set_value(15, code)
+        cfg.set_data_file(5, base_name)
+        cfg.set_data_file(6, base_name)
+        cfg.set_flag(11, True)
+        cfg.set_flag(15, True)  # write the aligned density, the ground truth
+        if phantom is LibraryPhantom.NEMA_IQ:
+            # SIMIND manual, voxel phantom table; the file is 364 wide, although
+            # the table says 384.
+            cfg.set_value(45, zub_table)
+            self.runtime_switches.set_switch("FZ", "phantom")
+            cfg.set_value(31, 0.1)
+            cfg.set_value(2, 11.0)
+            cfg.set_value(5, 11.0)
+            cfg.set_value(33, 1)
+            cfg.set_value(34, 110)
+            for index in (78, 79, 81, 82):
+                cfg.set_value(index, 364)
 
     def configure_acquisition(self, geometry: ProjectionGeometry) -> None:
         """Use the projection geometry of a measured acquisition.
@@ -619,7 +743,7 @@ class SimindPythonConnector(BaseConnector):
             ):
                 path.unlink()
 
-        for suffix in (".res", ".bis", ".spe", ".cor"):
+        for suffix in (".res", ".bis", ".spe", ".cor", ".hct", ".ict"):
             stale = self.output_dir / f"{self.output_prefix}{suffix}"
             if stale.is_file() and stale.name not in protected:
                 stale.unlink()
