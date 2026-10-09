@@ -31,7 +31,6 @@ _VALUE_TAKING_SWITCHES = [
     "FS",
     "FW",
     "FZ",
-    "IF",
     "IN",
     "L1",
     "L2",
@@ -59,8 +58,21 @@ _VALUE_TAKING_SWITCHES = [
     "X6",
 ]
 
-# The manual gives these without a value (/HO) or with an optional one (/PU).
-_VALUE_LESS_SWITCHES = ["CO", "FE", "HO", "I2", "LF", "PU", "QF", "SB", "UA", "WB"]
+# The manual gives these without a value (/HO), with an optional one (/PU), or
+# with the default input file implied (bare /IF, manual p. 57).
+_VALUE_LESS_SWITCHES = [
+    "CO",
+    "FE",
+    "HO",
+    "I2",
+    "IF",
+    "LF",
+    "PU",
+    "QF",
+    "SB",
+    "UA",
+    "WB",
+]
 
 
 @pytest.mark.parametrize("value", [1, 10, np.int64(5)])

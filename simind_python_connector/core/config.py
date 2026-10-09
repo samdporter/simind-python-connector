@@ -978,11 +978,13 @@ def _is_integer(value) -> bool:
     return isinstance(value, (int, np.integer)) and not isinstance(value, bool)
 
 
-# SIMIND manual v8.0: these switches are given without a value (/HO) or with
-# an optional one (/PU:0.25). Every other switch in RuntimeSwitches takes a
-# value, so True would render it as a bare /KEY with no value.
+# SIMIND manual v8.0: these switches are given without a value (/HO), with an
+# optional one (/PU:0.25), or with the value implied by the run (bare /IF
+# loads the default <base>.inp, manual p. 57). Every other switch in
+# RuntimeSwitches takes a value, so True would render it as a bare /KEY with
+# no value.
 _SWITCHES_WITHOUT_VALUE = frozenset(
-    {"FE", "HO", "CO", "I2", "LF", "PU", "QF", "SB", "UA", "WB"}
+    {"FE", "HO", "CO", "I2", "IF", "LF", "PU", "QF", "SB", "UA", "WB"}
 )
 
 
