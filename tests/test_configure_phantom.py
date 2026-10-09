@@ -259,6 +259,42 @@ def test_switching_to_voxel_clears_analytic_and_library_switches(tmp_path, previ
     assert connector._phantom_mode == "voxel"
 
 
+@pytest.mark.parametrize(
+    "replacement, expected_shift",
+    [
+        ("array", (0.0, 0.0, 0.0)),
+        ("voxel", (0.0, 0.0, 0.0)),
+        *[(phantom, (0.0, 0.0, 0.0)) for phantom in LibraryPhantom],
+        (AnalyticPhantom(PointSource()), (0.0, 0.0, 0.0)),
+        (
+            AnalyticPhantom(PointSource(), source_shift_cm=(-0.5, 0.25, 1.5)),
+            (-0.5, 0.25, 1.5),
+        ),
+    ],
+)
+def test_replacing_phantom_replaces_source_shift(tmp_path, replacement, expected_shift):
+    connector = _connector(tmp_path)
+    connector.configure_phantom(
+        AnalyticPhantom(
+            Ellipsoid((3.0, 2.0, 1.0)),
+            Box((5.0, 5.0, 5.0)),
+            source_shift_cm=(2.0, 1.0, -1.0),
+        )
+    )
+    assert _values(connector, (16, 17, 18)) == [2.0, 1.0, -1.0]
+
+    activity = np.ones((4, 4, 4), dtype=np.float32)
+    density = np.ones_like(activity)
+    if replacement == "array":
+        connector.configure_voxel_phantom(activity, density, 4.0, mu_map_type="density")
+    elif replacement == "voxel":
+        connector.configure_phantom(VoxelPhantom(activity, density, (4.0, 4.0, 4.0)))
+    else:
+        connector.configure_phantom(replacement)
+
+    assert _values(connector, (16, 17, 18)) == list(expected_shift)
+
+
 def test_unsupported_phantom_type(tmp_path):
     with pytest.raises(
         TypeError, match="AnalyticPhantom, LibraryPhantom or VoxelPhantom"
