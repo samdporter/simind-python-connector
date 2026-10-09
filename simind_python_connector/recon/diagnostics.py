@@ -25,13 +25,17 @@ def poisson_nll(measured: Any, mean: Any) -> float:
     return float(np.sum(mean[positive] - measured[positive] * np.log(mean[positive])))
 
 
-def effective_objective(measured: Any, correction: Any) -> float:
+def effective_objective(measured: Any, correction: Any, floor: float = 1e-5) -> float:
     """The accurate model's data term at the image of the last update.
 
-    A rising trend across updates, beyond Monte Carlo noise, means the update
-    interval or the damping needs changing.
+    The mean is floored the same way AdditiveUpdater floors the installed
+    additive term; without it a zero bin with measured counts would return
+    +inf. A rising trend across updates, beyond Monte Carlo noise, means the
+    update interval or the damping needs changing.
     """
     if correction.last_accurate is None:
         raise ValueError("effective_objective is available after the first estimate")
-    mean = correction.last_accurate + correction.base_additive
+    mean = (correction.last_accurate + correction.base_additive).maximum(
+        getattr(correction, "floor", floor)
+    )
     return poisson_nll(measured, mean)
