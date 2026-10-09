@@ -171,8 +171,8 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
     runtime_operator = RuntimeOperator(switches={"RR": 12345})
     outputs = connector.run(runtime_operator=runtime_operator)
 
-    expected_source_zyx = source_xyz.permute(2, 1, 0).numpy()
-    expected_mu_zyx = mu_xyz.permute(2, 1, 0).numpy()
+    expected_source_zyx = source_xyz.flip(2).permute(2, 1, 0).numpy()
+    expected_mu_zyx = mu_xyz.flip(2).permute(2, 1, 0).numpy()
     assert np.array_equal(captured["source"], expected_source_zyx)
     assert np.array_equal(captured["mu_map"], expected_mu_zyx)
     assert captured["voxel_size_mm"] == pytest.approx(3.5)
@@ -197,6 +197,77 @@ def test_pytomography_axis_helpers_roundtrip_through_simind_order() -> None:
     assert tuple(zyx.shape) == (4, 3, 2)
     assert tuple(restored.shape) == (2, 3, 4)
     assert torch.equal(restored, xyz)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("direction", ["from", "to"])
+def test_pytomography_axis_helpers_match_real_simind_reader(
+    tmp_path: Path, direction: str
+) -> None:
+    from pytomography.io.SPECT import simind as pytomo_simind
+
+    # Distinct dimensions and voxel values expose any axis or slice reversal.
+    simind_zyx = np.arange(4 * 3 * 2, dtype=np.float32).reshape(4, 3, 2)
+    simind_zyx.tofile(tmp_path / "asymmetric.ict")
+    header_path = tmp_path / "asymmetric.hct"
+    header_path.write_text(
+        "!INTERFILE :=\n"
+        "name of data file := asymmetric.ict\n"
+        "matrix size [1] := 2\n"
+        "matrix size [2] := 3\n"
+        "matrix size [3] := 4\n"
+        "!END OF INTERFILE :=\n"
+    )
+    pytomo_xyz = pytomo_simind.get_attenuation_map(
+        str(header_path), smi_index_22=3
+    ).cpu()
+    simind_tensor = torch.from_numpy(simind_zyx)
+
+    if direction == "from":
+        actual = PyTomographySimindAdaptor.from_simind_image_axes(simind_tensor)
+        expected = pytomo_xyz
+    else:
+        actual = PyTomographySimindAdaptor.to_simind_image_axes(pytomo_xyz)
+        expected = simind_tensor
+
+    assert actual.is_contiguous()
+    assert actual.dtype == torch.float32
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+@pytest.mark.integration
+@pytest.mark.requires_simind
+def test_pytomography_simind_smoke_preserves_axial_source_position(
+    tmp_path: Path,
+) -> None:
+    """Sparse, two-view smoke test of the source-to-projection slice order."""
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="axial_smoke",
+        photon_multiplier=1,
+        voxel_size_mm=4.0,
+        quantization_scale=0.01,
+    )
+    source_xyz = torch.zeros((16, 16, 16), dtype=torch.float32)
+    source_xyz[7:9, 7:9, 3:5] = 1.0
+    adaptor.set_source(source_xyz)
+    adaptor.set_mu_map(torch.zeros_like(source_xyz))
+    adaptor.set_energy_windows([126], [154], [0])
+    adaptor.add_config_value(19, 2)
+    adaptor.add_config_value(53, 0)
+    adaptor.add_config_value(29, 2)
+    adaptor.add_runtime_switch("CC", "ma-lehr")
+    adaptor.add_runtime_switch("RR", 7)
+    adaptor.run()
+
+    projection = adaptor.get_total_output().cpu()
+    assert tuple(projection.shape) == (2, 16, 16)
+    axial_counts = projection.sum(dim=(0, 1))
+    assert axial_counts.sum() > 0
+    axial_centre = ((axial_counts * torch.arange(16)).sum() / axial_counts.sum()).item()
+    print(f"SIMIND smoke test: axial source centre=3.5, projection={axial_centre:.3f}")
+    assert axial_centre == pytest.approx(3.5, abs=1.5)
 
 
 @pytest.mark.unit
