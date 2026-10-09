@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`recon.SimindComponent`) or a SIRF model as the accurate forward model, and the
   diagnostics `recon.poisson_nll` and `recon.effective_objective`.
 - Example 11 (residual correction with SIMIND).
+- `simind_python_connector.phantoms`: SIMIND's analytic phantoms (ellipsoid, box,
+  cylinders, point, cardiac, multiple inserts), library phantoms (Zubal, NEMA IQ),
+  `VoxelPhantom`, `voxelise` (analytic ground truth) and `nema_iec_phantom`
+  (phantomgen NEMA/IEC body phantom).
+- `SimindPythonConnector.configure_phantom`, and `set_phantom` / `get_ground_truth`
+  on the SIRF/STIR adaptors.
+- Example 12 (phantoms).
 
 ### Changed
 - Interfile key lookups ignore only `!` and spacing; a line whose first non-blank
@@ -73,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The SIRF/STIR adaptors check that source and mu-map spacing and origins match.
 - Projection rows (Index 77) follow the axial dimension; columns (Index 76) use
   `max(dim_x, dim_y)`.
+- Stale `.hct`/`.ict` files are removed before each run.
 
 ### Removed
 - `simind_python_connector.backends` (`get_backend`, `set_backend`, `reset_backend`,

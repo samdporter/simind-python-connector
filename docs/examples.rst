@@ -85,6 +85,11 @@ See the following examples for comprehensive use:
     compared with the fast model alone and with a SIMIND scatter estimate.
     Needs SIRF and SIMIND. See :doc:`reconstruction`.
 
+12. **Phantoms** - ``examples/12_phantoms.py``
+
+    Simulate phantomgen's NEMA/IEC body phantom with its known activity, or SIMIND's
+    multiple-inserts phantom when phantomgen is not installed. See :doc:`phantoms`.
+
 Running Examples
 ----------------
 
@@ -107,6 +112,7 @@ Each example can be run individually:
     python examples/09_mc_scatter_osem.py
     python examples/10_mc_scatter_cil.py
     python examples/11_residual_correction.py
+    python examples/12_phantoms.py
 
 Or run all core Python connector examples sequentially:
 
@@ -141,6 +147,7 @@ Each example creates output in its own directory under ``output/``:
 - ``output/mc_scatter_osem/`` - SIMIND scatter in SIRF OSEM
 - ``output/mc_scatter_cil/`` - SIMIND scatter in CIL ISTA
 - ``output/residual_correction/`` - Residual correction with SIMIND
+- ``output/phantoms/`` - Phantom simulations
 
 Each OSEM example also writes a summary plot with:
 - input source slice
