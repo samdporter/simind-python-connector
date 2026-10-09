@@ -46,6 +46,7 @@ class PyTomographySimindAdaptor(BaseConnector):
 
     Public tensor convention for this connector is object space ``(x, y, z)``.
     Internal SIMIND input files are written in SIMIND image order ``(z, y, x)``.
+    Conversion also reverses axial slices to match PyTomography's SIMIND reader.
     """
 
     def __init__(
@@ -246,23 +247,25 @@ class PyTomographySimindAdaptor(BaseConnector):
 
     @staticmethod
     def from_simind_image_axes(value: torch.Tensor) -> torch.Tensor:
-        """Convert SIMIND image order ``(z, y, x)`` to PyTomography ``(x, y, z)``."""
+        """Convert SIMIND ``(z, y, x)`` to PyTomography ``(x, y, z)``, reversing z."""
         if value.ndim != 3:
             raise ValueError(
                 "Expected 3D tensor for axis conversion, "
                 f"got shape {tuple(value.shape)}"
             )
-        return value.permute(2, 1, 0).contiguous().to(dtype=torch.float32)
+        # SIMIND's first slice is at the positive end of the axial direction.
+        # Match pytomography.io.SPECT.simind.get_attenuation_map (mu format).
+        return value.permute(2, 1, 0).flip(2).contiguous().to(dtype=torch.float32)
 
     @staticmethod
     def to_simind_image_axes(value: torch.Tensor) -> torch.Tensor:
-        """Convert PyTomography object order ``(x, y, z)`` to SIMIND ``(z, y, x)``."""
+        """Convert PyTomography ``(x, y, z)`` to SIMIND ``(z, y, x)``, reversing z."""
         if value.ndim != 3:
             raise ValueError(
                 "Expected 3D tensor for axis conversion, "
                 f"got shape {tuple(value.shape)}"
             )
-        return value.permute(2, 1, 0).contiguous().to(dtype=torch.float32)
+        return value.flip(2).permute(2, 1, 0).contiguous().to(dtype=torch.float32)
 
 
 __all__ = ["PyTomographySimindAdaptor", "RuntimeOperator"]
