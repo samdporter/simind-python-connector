@@ -330,3 +330,53 @@ def voxelise(
         inside = np.broadcast_to(_inside(phantom.attenuator, X, Y, Z), fine_shape)
         attenuator = _block_mean(inside.astype(np.float64), supersample)
     return activity, attenuator
+
+
+def nema_iec_phantom(
+    matrix_size_zyx: tuple[int, int, int],
+    voxel_size_mm: tuple[float, float, float],
+    preset: Union[str, dict] = "pet",
+    supersample: int = 1,
+    center_offset_mm: tuple[float, float, float] = (0.0, 0.0, 0.0),
+) -> VoxelPhantom:
+    """Build the NEMA/IEC body phantom with phantomgen.
+
+    preset "pet" or "earl" selects phantomgen's dict; a dict is passed through.
+    The activity (MBq per voxel) and the masks are used unchanged. The density
+    is mu divided by the median mu of the background fill, i.e. water
+    equivalent whatever energy phantomgen's mu values were defined at.
+    phantomgen's (Z, Y, X) arrays, with the cylinder axis along Z, are already
+    in the connector's (z, y, x) order.
+    """
+    try:
+        import phantomgen
+    except ImportError as exc:
+        raise ImportError(
+            "nema_iec_phantom needs phantomgen: pip install "
+            '"phantomgen @ git+https://github.com/varzakis/phantomgen"'
+        ) from exc
+
+    if isinstance(preset, str):
+        presets = {"pet": phantomgen.pet_nema_dict, "earl": phantomgen.earl_nema_dict}
+        if preset not in presets:
+            raise ValueError(
+                f"preset must be 'pet' or 'earl', or a dict; got {preset!r}"
+            )
+        nema_dict = presets[preset]
+    else:
+        nema_dict = preset
+
+    activity, mu, masks = phantomgen.create_nema(
+        matrix_size=tuple(int(n) for n in matrix_size_zyx),
+        voxel_size_mm=tuple(float(v) for v in voxel_size_mm),
+        nema_dict=nema_dict,
+        center_offset_mm=tuple(float(v) for v in center_offset_mm),
+        supersample=supersample,
+    )
+    fill_mu = float(np.median(mu[masks["background"] > 0]))
+    return VoxelPhantom(
+        activity_mbq=activity,
+        density_g_cm3=(mu / fill_mu).astype(np.float32),
+        voxel_size_mm=tuple(float(v) for v in voxel_size_mm),
+        masks=dict(masks),
+    )
