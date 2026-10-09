@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-09
+
 ### Added
 - `simind_python_connector.utils.interfile`: one Interfile module (`InterfileHeader`,
   `read_header`, `load_interfile_array`, `ProjectionGeometry`, `read_projection_geometry`,
@@ -106,11 +108,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `examples/run_all_examples.sh`, and the `requires_setr` marker.
 
 ### Fixed
+- PyTomography image-axis conversions reverse axial slices to match its SIMIND
+  reader, keeping source and attenuation maps aligned with native reconstruction
+  tensors. Real-reader regressions and a sparse SIMIND smoke test cover the fix.
 - Importing the package no longer configures the root logger.
 - A negative Index 1 no longer breaks the mu-map to density conversion.
 - Stale `.res`, `.bis`, `.spe` and `.cor` files are removed before each run.
 - For non-square projections, acquisition `pixel_array` is `(tof, axial, view, bin)`, and
   the DICOM matrix sizes and pixel spacing are no longer swapped.
+
+## [2.0.0] - 2026-10-09
+
+### Breaking Changes
+- `STIRSPECTAcquisitionDataBuilder` no longer flips projection data along the last axis.
+- Runtime-operator switches passed to `run()` apply to that run only. They are no longer
+  kept on the connector for later runs.
+- Each run deletes earlier outputs that share the output prefix before SIMIND starts.
+- The STIR backend needs `stirextra` as well as `stir`.
+- STIR/SIRF adaptors take the z voxel spacing from a different axis (see Fixed). Results
+  change for anisotropic voxels.
+- Invalid inputs now raise `ValueError`: empty, non-finite or negative source and
+  attenuation maps, array shapes that do not match the header, and `output_prefix`
+  values that contain a path. Energy-window validation raises `ValueError` instead of
+  `AssertionError`.
+
+### Fixed
+- The packaged `configs/input.smc` is now included in the wheel. SMC parsing handles
+  fixed-width fields and checks section counts.
+- STIR/SIRF adaptors read the z voxel spacing from the correct axis: `voxel_sizes()`
+  is `(z, y, x)`, and raw `get_grid_spacing()` is `(unused, z, y, x)`.
+- Voxel-map dimension indices 76, 77, 78, 79, 81 and 82 are set correctly.
+- The executor resolves `SIMIND_BIN` and accepts executable paths that contain spaces.
+  The connector no longer changes the process working directory.
+- Runtime switches apply to one run only. Output prefixes cannot escape the output
+  directory. Stale outputs are removed, and `.win`, `.smi` and `.dmi` inputs are kept.
+- Energy-window validation raises `ValueError` instead of failing an `assert`.
+- The Interfile loader honours data offsets, strips quoted values and rejects truncated
+  or oversized payloads. The SIMIND-to-STIR converter keeps data-file lines and applies
+  the radius scale factor.
+- Attenuation utilities handle the `rho*1000` selector and STIR `#` header keys, and
+  reject unknown attenuation types.
+- Image and acquisition builders validate array shapes, split multi-energy data
+  deterministically and no longer flip images. The DICOM builder handles missing timing
+  information and 2D pixel data.
+- Backend adaptors are imported lazily, so the core package imports without STIR, SIRF
+  or PyTomography.
+
+### Removed
+- The legacy `scripts/simulation.py`.
 
 ## [1.0.1] - 2026-04-16
 
