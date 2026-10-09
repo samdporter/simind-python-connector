@@ -4,10 +4,13 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: Porter
   given-names: Sam
-  orcid: "https://orcid.org/0000-0002-9848-2579"
+  orcid: "https://orcid.org/0000-0002-1815-4716"
 - family-names: Varzakis
   given-names: Efstathios (Stahis)
-  orcid: "https://orcid.org/0000-0002-8813-921X"
+  orcid: "https://orcid.org/0000-0003-3503-7754"
+- family-names: Thielemans
+  given-names: Kris
+  orcid: "https://orcid.org/0000-0001-6353-9538"
 date-released: 2026-10-09
 version: 2.0.0
 url: "https://github.com/samdporter/simind-python-connector"
