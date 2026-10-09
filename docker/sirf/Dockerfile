@@ -23,7 +23,7 @@ RUN python -m pip install --upgrade pip \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
     && python - <<'PY'
 import importlib
-for module in ("sirf.STIR", "pytest"):
+for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner"):
     importlib.import_module(module)
 print("SIRF Python modules available")
 PY

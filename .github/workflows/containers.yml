@@ -1,0 +1,52 @@
+name: Container tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+  pull_request:
+    paths:
+      - "simind_python_connector/recon/**"
+      - "simind_python_connector/connectors/**"
+      - "simind_python_connector/builders/**"
+      - "simind_python_connector/utils/interfile.py"
+      - "docker/**"
+
+jobs:
+  sirf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/sirf/Dockerfile
+          tags: simind-python-connector/sirf:ci
+          load: true
+          cache-from: type=gha,scope=sirf
+          cache-to: type=gha,mode=max,scope=sirf
+      - name: SIRF and CIL tests
+        run: >
+          docker run --rm -e CI=true -v "$PWD:/workspace" -w /workspace
+          simind-python-connector/sirf:ci
+          python -m pytest -q -m "(requires_sirf or requires_cil) and not requires_simind"
+
+  stir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/stir/Dockerfile
+          tags: simind-python-connector/stir:ci
+          load: true
+          cache-from: type=gha,scope=stir
+          cache-to: type=gha,mode=max,scope=stir
+      - name: STIR tests
+        run: >
+          docker run --rm -e CI=true -v "$PWD:/workspace" -w /workspace
+          simind-python-connector/stir:ci
+          python -m pytest -q -m "requires_stir and not requires_simind"
