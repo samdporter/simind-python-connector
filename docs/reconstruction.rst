@@ -175,5 +175,86 @@ Each update costs one SIMIND run, so:
   first estimate as ``initial_additive``;
 - for CIL, use ``stop_at`` to freeze the estimate for the final iterations.
 
-Examples 09 (SIRF OSEM) and 10 (CIL ISTA) show complete workflows; see
-:doc:`examples`.
+Residual correction (Fu & Qi)
+-----------------------------
+
+Fu and Qi (Med Phys 37:704, 2010) reconstruct with a fast model while matching
+the forward projection of an accurate one, by adding the residual to the
+background:
+
+.. math::
+
+   x^{(n+1)} = \arg\max_{x \ge 0} \Psi_\mathrm{fast}\big(x \mid y,\;
+   r + (A_\mathrm{acc} - A_\mathrm{fast})\, x^{(n)}\big)
+
+Only forward projections use the accurate model, and only at updates. This
+is the same engine as above with ``ResidualCorrection`` as the correction
+model; using SIMIND as the forward operator is the special case
+``A_acc = SIMIND``.
+
+.. code-block:: python
+
+    from simind_python_connector.recon import (
+        AdditiveUpdater, ResidualCorrection, SimindComponent, UpdateSchedule,
+    )
+
+    accurate = SimindComponent(projector, "all_interactions")
+    correction = ResidualCorrection(accurate, fast_model, base_additive=zero)
+    updater = AdditiveUpdater(correction, UpdateSchedule(every=10), zero, damping=1.0)
+
+``fast_model`` is the full-data linear model without an additive term. Give
+the reconstruction a separate model object, because the drivers set additive
+terms on theirs. For a SIRF accurate model, pass ``accurate_model.direct``.
+
+.. list-table:: Recipes
+   :header-rows: 1
+
+   * - Recipe
+     - Accurate model
+     - SIMIND settings
+     - ``base_additive``
+     - Corrects
+   * - Geometric residual
+     - ``SimindComponent(p, "geom_coll_primary")``
+     - PENETRATE, Index 53 = 0, Index 19 = 2
+     - a scatter estimate (fixed, or from ``ScatterCorrection``)
+     - collimator and detector response only
+   * - Full residual
+     - ``SimindComponent(p, "all_interactions")``
+     - PENETRATE, Index 53 = 1, Index 19 = 3
+     - background only (usually zero)
+     - resolution, scatter, penetration and collimator scatter in one run
+   * - PSF residual (no SIMIND)
+     - ``psf_model.direct`` (SPECTUB with a resolution model, or a
+       ``SeparableGaussianImageFilter`` image processor)
+     - none
+     - a scatter estimate
+     - resolution modelling at fast-model cost
+
+In both SIMIND recipes the projector uses
+``reference_normaliser(fast_model, "geom_coll_primary")``.
+
+Convergence to the accurate-model solution is proven when
+:math:`A_\mathrm{acc} = A_\mathrm{fast} B` with :math:`B` positive definite,
+e.g. an image blur. Scatter and penetration do not obviously fit this, so
+monitor convergence: ``effective_objective(measured, correction)`` is the
+accurate model's Poisson data term at the image of the last update. Log it
+from ``CorrectionCallback(on_update=...)``. A rising trend across updates,
+beyond Monte Carlo noise, means the update interval or the damping needs
+changing.
+
+Schedule guidance:
+
+- update every 1-5 epochs: ``every = epochs * num_subsets``;
+- set ``stop_at = total_iterations - every``: an update right before the end
+  has no effect; pass it to ``UpdateSchedule``, or directly to
+  ``scatter_updater(..., stop_at=stop_at)`` when using that helper;
+- use damping 0.5-1.0 with MC accurate models, but damping < 1 requires a
+  non-zero starting additive term. From zero, use damping 1.0: otherwise the
+  term lags the estimate and, with roughly constant statistics, biases the
+  scatter low. Use damping 1.0 with the noise-free PSF model.
+
+Example 11 compares the fast model alone, the SIMIND scatter estimate and the
+full residual.
+
+Examples 09 (SIRF OSEM), 10 (CIL ISTA) and 11 (residual correction) show complete workflows; see :doc:`examples`.

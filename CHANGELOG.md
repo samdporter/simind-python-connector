@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `refresh_stochastic_state` and `CorrectionCallback`.
   - `recon.osem.run_osem_with_corrections`.
 - Examples 09 (SIMIND scatter in SIRF OSEM) and 10 (in CIL ISTA).
+- Residual correction (Fu & Qi): `recon.ResidualCorrection` with SIMIND
+  (`recon.SimindComponent`) or a SIRF model as the accurate forward model, and the
+  diagnostics `recon.poisson_nll` and `recon.effective_objective`.
+- Example 11 (residual correction with SIMIND).
 
 ### Changed
 - Interfile key lookups ignore only `!` and spacing; a line whose first non-blank
