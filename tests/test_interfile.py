@@ -64,6 +64,103 @@ def test_parse_interfile_line():
 
 
 @pytest.mark.unit
+def test_environment_variable_in_a_value_is_expanded(monkeypatch):
+    monkeypatch.setenv("SIMIND_TEST_DATA_DIR", "/tmp/simind-data")
+    assert parse_interfile_line("name of data file := ${SIMIND_TEST_DATA_DIR}/x.s") == (
+        "name of data file",
+        "/tmp/simind-data/x.s",
+    )
+    # STIR substitutes the empty string for an unset variable.
+    assert parse_interfile_line("name of data file := ${SIMIND_TEST_UNSET}/x.s") == (
+        "name of data file",
+        "/x.s",
+    )
+
+
+@pytest.mark.unit
+def test_backslash_at_end_of_line_continues_the_value(tmp_path):
+    text = (
+        "!name of data file := my \\\n"
+        "data.s\n"
+        "scaling factor (mm/pixel) [1] := 4.4\\\n"
+        "2\n"
+        "!END OF INTERFILE :=\n"
+    )
+    header = InterfileHeader.from_text(text)
+
+    assert header.get("name of data file") == "my data.s"
+    assert header.get("scaling factor (mm/pixel) [1]") == "4.42"
+
+    out = tmp_path / "continued.hs"
+    header.write(out)
+    assert out.read_text() == text
+
+
+@pytest.mark.unit
+def test_colon_not_followed_by_equals_is_skipped_like_stir(tmp_path):
+    header = InterfileHeader.from_text(
+        "study description : routine := ok\n!END OF INTERFILE :\n!after := 2\n"
+    )
+    # The lone colon inside the key is skipped up to the ':='.
+    assert header.get("study description : routine") == "ok"
+    # STIR stops the keyword at a trailing colon, so '!END OF INTERFILE :'
+    # is the terminator: not a key itself, and later entries are hidden.
+    assert parse_interfile_line("!END OF INTERFILE :") == (None, None)
+    assert header.get("after") is None
+
+    header.set("b", 3)
+    path = tmp_path / "header.hs"
+    header.write(path)
+    assert path.read_text().splitlines() == [
+        "study description : routine := ok",
+        "b := 3",
+        "!END OF INTERFILE :",
+        "!after := 2",
+    ]
+
+
+@pytest.mark.unit
+def test_env_expanded_terminator_stops_parsing_and_controls_insertion(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SIMIND_TEST_END_MARKER", "END OF INTERFILE")
+    text = "a := 1\n!${SIMIND_TEST_END_MARKER} :=\nafter := 2\n"
+    header = InterfileHeader.from_text(text)
+    assert header.get("after") is None
+
+    header.set("b", 2)
+    path = tmp_path / "header.hs"
+    header.write(path)
+    assert path.read_text().splitlines() == [
+        "a := 1",
+        "b := 2",
+        "!${SIMIND_TEST_END_MARKER} :=",
+        "after := 2",
+    ]
+
+
+@pytest.mark.unit
+def test_set_inserts_before_a_terminator_split_across_continuations(tmp_path):
+    text = "a := 1\n!END OF INTER\\\nFILE :=\nafter := 2\n"
+    header = InterfileHeader.from_text(text)
+    assert header.get("after") is None
+
+    header.set("b", 2)
+    path = tmp_path / "header.hs"
+    header.write(path)
+    assert path.read_text() == "a := 1\nb := 2\n!END OF INTER\\\nFILE :=\nafter := 2\n"
+
+
+@pytest.mark.unit
+def test_get_keyword_stops_at_the_bracket_mid_keyword():
+    header = InterfileHeader.from_text(
+        "matrix size [1] junk := 64\nradius[ := 250\n!END OF INTERFILE :=\n"
+    )
+    assert header.get("matrix size [1]") == "64"
+    assert header.get("radius") == "250"
+
+
+@pytest.mark.unit
 def test_header_get_set_and_write(tmp_path):
     header_path = tmp_path / "test.hs"
     header_path.write_text(
@@ -665,6 +762,34 @@ def test_load_interfile_array_requires_matrix_sizes(tmp_path: Path):
                 "!INTERFILE :=",
                 "!number format := float",
                 "!number of bytes per pixel := 4",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="matrix size"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_rejects_a_missing_vectorised_matrix_size(
+    tmp_path: Path,
+):
+    # STIR raises when a vectorised 'matrix size [i]' key is missing.
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    np.arange(8, dtype=np.float32).tofile(data_path)
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!matrix size [1] := 4",
+                "!matrix size [3] := 2",
                 "!name of data file := projection.a00",
                 "!END OF INTERFILE :=",
             ]
