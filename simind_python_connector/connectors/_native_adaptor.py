@@ -231,7 +231,13 @@ class _NativeSimindAdaptor(BaseConnector):
             if self._template_geometry is not None:
                 self.python_connector.configure_acquisition(self._template_geometry)
             self.python_connector.configure_phantom(
-                self._phantom, time_per_projection_s=self._time_per_projection_s
+                self._phantom,
+                time_per_projection_s=self._time_per_projection_s,
+                scoring_routine=(
+                    self._scoring_routine
+                    if isinstance(self._phantom, VoxelPhantom)
+                    else None
+                ),
             )
         else:
             self._validate_inputs()
