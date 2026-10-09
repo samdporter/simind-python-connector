@@ -278,7 +278,7 @@ class SimindPythonConnector(BaseConnector):
         source: np.ndarray,
         mu_map: np.ndarray,
         voxel_size_mm: Union[float, tuple[float, float, float]] = 4.0,
-        scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
         mu_map_type: str = "attenuation",
         mu_map_energy_kev: Optional[float] = None,
     ) -> tuple[Path, Path]:
@@ -289,7 +289,8 @@ class SimindPythonConnector(BaseConnector):
             source: Activity distribution in array order (z, y, x).
             mu_map: Attenuator, interpreted according to mu_map_type.
             voxel_size_mm: One size, or (z, y, x); y and x must be equal.
-            scoring_routine: SIMIND scoring routine.
+            scoring_routine: Optional override for Index 84; None keeps the
+                configuration value.
             mu_map_type: "attenuation" (cm^-1 at mu_map_energy_kev), "density"
                 (g/cm^3) or "hu" (CT Hounsfield units, Schneider conversion).
             mu_map_energy_kev: Energy the attenuation map is defined at;
@@ -332,7 +333,9 @@ class SimindPythonConnector(BaseConnector):
         ):
             raise ValueError("source and mu_map must be non-negative")
 
-        if isinstance(scoring_routine, ScoringRoutine):
+        if scoring_routine is None:
+            routine = None
+        elif isinstance(scoring_routine, ScoringRoutine):
             routine = scoring_routine
         elif isinstance(scoring_routine, int) and not isinstance(scoring_routine, bool):
             try:
@@ -344,7 +347,7 @@ class SimindPythonConnector(BaseConnector):
                 ) from exc
         else:
             raise ValueError(
-                "scoring_routine must be a ScoringRoutine or int, got "
+                "scoring_routine must be None, a ScoringRoutine or int, got "
                 f"{type(scoring_routine).__name__}"
             )
         dim_z, dim_y, dim_x = (int(v) for v in source_array.shape)
@@ -355,7 +358,8 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(15, -1)
         cfg.set_value(14, -1)
         cfg.set_flag(14, True)
-        cfg.set_value(84, routine.value)
+        if routine is not None:
+            cfg.set_value(84, routine.value)
 
         # Index 2 and 5 are half-lengths along the slice axis; SIMIND derives
         # the slice thickness from them and the number of slices.
@@ -454,12 +458,15 @@ class SimindPythonConnector(BaseConnector):
         phantom: Union[AnalyticPhantom, LibraryPhantom, VoxelPhantom],
         *,
         time_per_projection_s: float = 1.0,
+        scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
     ) -> None:
         """Simulate an analytic, library or voxel phantom (see phantoms).
 
         A VoxelPhantom has a known activity, so SIMIND is given it through
         Index 25 (normalisation route 1); time_per_projection_s is only used for
         VoxelPhantom. The last configure_phantom/configure_voxel_phantom call wins.
+        scoring_routine overrides Index 84 for a VoxelPhantom only; None keeps
+        the configuration value.
         """
         if isinstance(phantom, VoxelPhantom):
             self.config.set_flag(11, True)
@@ -467,6 +474,7 @@ class SimindPythonConnector(BaseConnector):
                 source=phantom.activity_mbq,
                 mu_map=phantom.density_g_cm3,
                 voxel_size_mm=phantom.voxel_size_mm,
+                scoring_routine=scoring_routine,
                 mu_map_type="density",
             )
             self.set_activity(

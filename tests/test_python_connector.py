@@ -8,6 +8,7 @@ import simind_python_connector.connectors.python_connector as connector_mod
 from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.core.types import ScoringRoutine, SimulationError
+from simind_python_connector.phantoms import VoxelPhantom
 from simind_python_connector.utils.interfile import (
     InterfileHeader,
     ProjectionGeometry,
@@ -187,6 +188,32 @@ def test_python_connector_configure_voxel_phantom_rejects_invalid_scoring_routin
             source=source,
             mu_map=source.copy(),
             scoring_routine=999,
+        )
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.configure_voxel_phantom(
+            source=source,
+            mu_map=source.copy(),
+            scoring_routine=True,
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad_value", [True, 1.5, 999])
+def test_python_connector_configure_phantom_rejects_invalid_voxel_scoring_routine(
+    tmp_path: Path, bad_value
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    activity = np.ones((2, 3, 4), dtype=np.float32)
+    density = np.ones_like(activity)
+
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.configure_phantom(
+            VoxelPhantom(activity, density, (4.0, 4.0, 4.0)),
+            scoring_routine=bad_value,
         )
 
 

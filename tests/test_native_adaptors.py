@@ -613,7 +613,9 @@ def test_set_phantom_runs_configure_phantom(
     monkeypatch.setattr(
         adaptor.python_connector,
         "configure_phantom",
-        lambda p, time_per_projection_s: captured.append((p, time_per_projection_s)),
+        lambda p, time_per_projection_s, scoring_routine: captured.append(
+            (p, time_per_projection_s, scoring_routine)
+        ),
     )
     monkeypatch.setattr(
         adaptor.python_connector,
@@ -626,7 +628,53 @@ def test_set_phantom_runs_configure_phantom(
 
     adaptor.run()
 
-    assert captured == [(phantom, 5.0)]
+    assert captured == [(phantom, 5.0, None)]
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_propagates_the_voxel_scoring_routine(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path, scoring_routine=ScoringRoutine.PENETRATE)
+    activity = np.ones((2, 3, 4), dtype=np.float32)
+    density = np.full((2, 3, 4), 1.5, dtype=np.float32)
+    adaptor.set_phantom(VoxelPhantom(activity, density, (4.0, 4.0, 4.0)))
+
+    header = _write_header(tmp_path / "case01_tot_w1.hs")
+    projection = np.arange(24, dtype=np.float32).reshape(3, 2, 4)
+    observed: dict[str, object] = {}
+
+    # Only the run is stubbed; configure_phantom/configure_voxel_phantom run
+    # for real, so Index 84 and the maps are written by the connector itself.
+    def fake_run(runtime_operator=None):
+        observed["index_84"] = adaptor.get_config().get_value(84)
+        return {
+            "tot_w1": ProjectionResult(
+                projection=projection,
+                header_path=header,
+                data_path=header.with_suffix(".s"),
+                metadata={},
+            )
+        }
+
+    monkeypatch.setattr(adaptor.python_connector, "run", fake_run)
+
+    outputs = adaptor.run()
+
+    raw_header = str(header)
+    if cls is StirSimindAdaptor:
+        assert outputs["tot_w1"] == f"stir:{raw_header}"
+    else:
+        assert outputs["tot_w1"].path == raw_header
+    assert observed["index_84"] == ScoringRoutine.PENETRATE.value
+    assert adaptor.get_scoring_routine() == ScoringRoutine.PENETRATE
+    assert adaptor.get_config().get_value(25) == pytest.approx(activity.sum())
+
+    source_u16 = np.fromfile(tmp_path / "case01_src.smi", dtype=np.uint16)
+    density_u16 = np.fromfile(tmp_path / "case01_dns.dmi", dtype=np.uint16)
+    assert source_u16.size == activity.size and source_u16.max() > 0
+    assert density_u16.size == density.size and np.all(density_u16 == 1500)
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)

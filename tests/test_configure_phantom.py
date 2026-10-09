@@ -5,6 +5,7 @@ import pytest
 
 from simind_python_connector.configs import get
 from simind_python_connector.connectors.python_connector import SimindPythonConnector
+from simind_python_connector.core.types import ScoringRoutine
 from simind_python_connector.phantoms import (
     AnalyticPhantom,
     Box,
@@ -220,6 +221,37 @@ def test_voxel_phantom_uses_its_density_and_known_activity(tmp_path):
     assert connector.get_config().get_value(25) == pytest.approx(0.25 * 64 * 20.0)
     assert connector.get_config().get_flag(11)
     assert connector._phantom_mode == "voxel"
+
+
+@pytest.mark.parametrize("entry_point", ["array", "phantom"])
+@pytest.mark.parametrize(
+    "existing, overrides, expected",
+    [
+        (4, {}, 4),
+        (4, {"scoring_routine": None}, 4),
+        (1, {}, 1),
+        (0, {}, 0),
+        (1, {"scoring_routine": ScoringRoutine.PENETRATE}, 4),
+        (1, {"scoring_routine": 4}, 4),
+        (4, {"scoring_routine": ScoringRoutine.SCATTWIN}, 1),
+    ],
+)
+def test_voxel_configuration_scoring_precedence(
+    tmp_path, entry_point, existing, overrides, expected
+):
+    connector = _connector(tmp_path)
+    connector.add_config_value(84, existing)
+    activity = np.ones((2, 3, 4), dtype=np.float32)
+    density = np.ones_like(activity)
+    if entry_point == "array":
+        connector.configure_voxel_phantom(
+            activity, density, 4.0, mu_map_type="density", **overrides
+        )
+    else:
+        connector.configure_phantom(
+            VoxelPhantom(activity, density, (4.0, 4.0, 4.0)), **overrides
+        )
+    assert connector.get_config().get_value(84) == expected
 
 
 def test_switching_from_voxel_to_analytic_clears_voxel_settings(tmp_path):
