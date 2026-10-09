@@ -265,7 +265,9 @@ class SimindPythonConnector(BaseConnector):
         self.config.set_value(25, product)
 
     def _reset_phantom_settings(self) -> None:
-        """Remove the switches and map files of an earlier phantom set-up."""
+        """Remove the source shifts, switches and map files of an earlier phantom."""
+        for index in (16, 17, 18):
+            self.config.set_value(index, 0.0)
         for switch in _PHANTOM_SWITCHES:
             self.runtime_switches.set_switch(switch, None)
         self.config.set_data_file(5, "none")

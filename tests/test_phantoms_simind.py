@@ -12,6 +12,7 @@ from simind_python_connector.phantoms import (
     Insert,
     LibraryPhantom,
     MultipleInserts,
+    VoxelPhantom,
     voxelise,
 )
 from simind_python_connector.utils.interfile import (
@@ -213,4 +214,33 @@ def test_5_phantomgen_nema_by_route_1_matches_spectub(tmp_path):
         print(f"{name}: {phantom.activity_mbq[mask > 0].sum():.3f} MBq")
     print(f"SIMIND counts {sim.sum():.4g}")
     _, centre_gap = _compare("NEMA vs SPECTUB", sim, ref)
+    assert centre_gap <= 1.0
+
+
+def test_shifted_analytic_to_voxel_matches_fresh_connector(tmp_path):
+    analytic = AnalyticPhantom(
+        Ellipsoid((1.0, 1.0, 1.0)), _WATER, source_shift_cm=(2.0, 1.0, -1.0)
+    )
+    activity, density = voxelise(analytic, (_N,) * 3, (_VOXEL,) * 3, supersample=2)
+    voxel = VoxelPhantom(activity * 0.001, density, (_VOXEL,) * 3)
+
+    reused = _connector(tmp_path, "reused", num_projections=4)
+    reused.add_config_value(26, 0.01)
+    reused.configure_phantom(analytic)
+    assert reused.run()["tot_w1"].projection.sum() > 0
+
+    reused.configure_phantom(voxel)
+    actual = reused.run()["tot_w1"].projection
+
+    fresh = _connector(tmp_path, "fresh", num_projections=4)
+    fresh.add_config_value(26, 0.01)
+    fresh.configure_phantom(voxel)
+    expected = fresh.run()["tot_w1"].projection
+
+    for projection in (actual, expected):
+        assert np.isfinite(projection).all()
+        assert np.all(projection.sum(axis=(1, 2)) > 0)
+
+    correlation, centre_gap = _compare("reused vs fresh voxel", actual, expected)
+    assert correlation > 0.95
     assert centre_gap <= 1.0
