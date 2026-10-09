@@ -21,6 +21,7 @@ def pytest_collection_modifyitems(config, items):
         "requires_cil": _importable("cil"),
         "requires_pytomography": _importable("pytomography"),
         "requires_simind": shutil.which("simind") is not None,
+        "requires_phantomgen": _importable("phantomgen"),
     }
     in_ci = (
         os.getenv("CI", "false").lower() == "true"

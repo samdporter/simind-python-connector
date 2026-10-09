@@ -100,6 +100,7 @@ markers = [
     "requires_simind: tests that require SIMIND",
     "requires_pytomography: tests that require PyTomography",
     "requires_cil: tests that require CIL",
+    "requires_phantomgen: tests that require phantomgen",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

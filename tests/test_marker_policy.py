@@ -20,6 +20,7 @@ ALLOWED_MARKERS = {
     "requires_simind",
     "requires_pytomography",
     "requires_cil",
+    "requires_phantomgen",
 }
 
 
