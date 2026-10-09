@@ -23,6 +23,7 @@ install a licensed SIMIND installation.
 - [Full Documentation](https://simind-python-connector.readthedocs.io/)
 - [Installation](https://simind-python-connector.readthedocs.io/en/latest/installation.html)
 - [Backend Support](https://simind-python-connector.readthedocs.io/en/latest/backends.html) - adaptor dependency matrix
+- [Reconstruction with SIMIND corrections](https://simind-python-connector.readthedocs.io/en/latest/reconstruction.html)
 
 ## What This Package Does
 1. Runs SIMIND from Python with a minimal, explicit API.
@@ -32,6 +33,7 @@ install a licensed SIMIND installation.
 - **Connector-first API** - `SimindPythonConnector` for direct SIMIND execution from Python
 - **Package Adaptors** - STIR/SIRF/PyTomography adaptors for reconstruction workflows
 - **Native reconstruction workflows** - Use STIR/SIRF/PyTomography reconstruction tools with generated SIMIND data
+- **Reconstruction with SIMIND corrections (optional)** - `simind_python_connector.recon`: Monte Carlo scatter and Fu & Qi residual correction in SIRF OSEM and CIL algorithms
 - **Dual scoring support** - SCATTWIN and PENETRATE
 - **DICOM builders** - DICOM-driven setup utilities for scanner/input preparation
 - **Advanced Schneider2000 density conversion** - 44-segment HU-to-density mapping
