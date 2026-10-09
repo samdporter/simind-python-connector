@@ -218,3 +218,115 @@ def _cardiac_switches(source: CardiacSource) -> dict[str, float]:
             L6=defect.activity_ratio,
         )
     return switches
+
+
+def _inside(shape, X, Y, Z) -> np.ndarray:
+    """Boolean mask of the points (X, Y, Z), in cm, that lie inside shape."""
+    if isinstance(shape, Ellipsoid):
+        a, b, c = shape.half_axes_cm
+        return (X / a) ** 2 + (Y / b) ** 2 + (Z / c) ** 2 <= 1.0
+    if isinstance(shape, Box):
+        hx, hy, hz = shape.half_sizes_cm
+        return (np.abs(X) <= hx) & (np.abs(Y) <= hy) & (np.abs(Z) <= hz)
+    if isinstance(shape, HorizontalCylinder):
+        ry, rz = shape.semi_axes_cm
+        return (np.abs(X) <= shape.half_length_cm) & (
+            (Y / ry) ** 2 + (Z / rz) ** 2 <= 1.0
+        )
+    if isinstance(shape, VerticalCylinder):
+        rx, ry = shape.semi_axes_cm
+        return (np.abs(Z) <= shape.half_length_cm) & (
+            (X / rx) ** 2 + (Y / ry) ** 2 <= 1.0
+        )
+    raise NotImplementedError(f"voxelise does not support {type(shape).__name__}")
+
+
+def _insert_shape(insert: Insert):
+    # Insert sizes are taken as half-dimensions along x, y and z, like Index 2-4.
+    sx, sy, sz = insert.size_cm
+    if insert.shape == "sphere":
+        return Ellipsoid((sx, sy, sz))
+    if insert.shape == "horizontal_rod":
+        return HorizontalCylinder(sx, (sy, sz))
+    if insert.shape == "rectangular_rod":
+        return Box((sx, sy, sz))
+    if insert.shape == "vertical_rod":
+        return VerticalCylinder(sz, (sx, sy))
+    raise NotImplementedError(f"voxelise does not support {insert.shape} inserts")
+
+
+def _source_values(source, X, Y, Z) -> np.ndarray:
+    if isinstance(source, CardiacSource):
+        raise NotImplementedError("voxelise does not support CardiacSource")
+    if not isinstance(source, MultipleInserts):
+        return _inside(source, X, Y, Z).astype(np.float64)
+    if source.mode == "cold":
+        base = 1.0
+    elif source.mode == "hot" or source.background is None:
+        base = 0.0
+    else:
+        base = source.background
+    values = np.where(_inside(source.container, X, Y, Z), base, 0.0)
+    for insert in source.inserts:
+        px, py, pz = insert.position_cm
+        inside = _inside(_insert_shape(insert), X - px, Y - py, Z - pz)
+        value = 0.0 if source.mode == "cold" else abs(insert.concentration)
+        values = np.where(inside, value, values)
+    return values
+
+
+def _block_mean(values: np.ndarray, factor: int) -> np.ndarray:
+    nz, ny, nx = (n // factor for n in values.shape)
+    blocks = values.reshape(nz, factor, ny, factor, nx, factor)
+    return blocks.mean(axis=(1, 3, 5)).astype(np.float32)
+
+
+def voxelise(
+    phantom: AnalyticPhantom,
+    shape_zyx: tuple[int, int, int],
+    voxel_size_mm: tuple[float, float, float],
+    supersample: int = 1,
+) -> tuple[np.ndarray, Optional[np.ndarray]]:
+    """Return (activity, attenuator fraction) on a centred grid in (z, y, x) order.
+
+    Voxel [k, j, i] has its centre at SIMIND coordinates (cm)
+        X = -(k - (nz - 1) / 2) * dz,  Y = (i - (nx - 1) / 2) * dx,
+        Z = -(j - (ny - 1) / 2) * dy,
+    from the manual's voxel-map orientation; the source is moved by
+    source_shift_cm. A voxel holds the fraction of its supersample**3
+    sub-voxel centres inside the shape, times the concentration (1 for plain
+    sources). A point source is the single nearest voxel. The attenuator
+    fraction is None without an attenuator.
+    """
+    nz, ny, nx = (int(n) for n in shape_zyx)
+    dz, dy, dx = (float(v) / 10.0 for v in voxel_size_mm)
+    sx, sy, sz = phantom.source_shift_cm
+    offsets = (np.arange(supersample) + 0.5) / supersample - 0.5
+
+    def centres(n: int, size: float) -> np.ndarray:
+        return ((np.arange(n)[:, None] + offsets).ravel() - (n - 1) / 2) * size
+
+    X = -centres(nz, dz)[:, None, None]
+    Z = -centres(ny, dy)[None, :, None]
+    Y = centres(nx, dx)[None, None, :]
+    fine_shape = (X.shape[0], Z.shape[1], Y.shape[2])
+
+    if isinstance(phantom.source, PointSource):
+        k = round((nz - 1) / 2 - sx / dz)
+        j = round((ny - 1) / 2 - sz / dy)
+        i = round((nx - 1) / 2 + sy / dx)
+        if not (0 <= k < nz and 0 <= j < ny and 0 <= i < nx):
+            raise ValueError(
+                f"point source at {phantom.source_shift_cm} cm is outside the grid"
+            )
+        activity = np.zeros((nz, ny, nx), dtype=np.float32)
+        activity[k, j, i] = 1.0
+    else:
+        values = _source_values(phantom.source, X - sx, Y - sy, Z - sz)
+        activity = _block_mean(np.broadcast_to(values, fine_shape), supersample)
+
+    attenuator = None
+    if phantom.attenuator is not None:
+        inside = np.broadcast_to(_inside(phantom.attenuator, X, Y, Z), fine_shape)
+        attenuator = _block_mean(inside.astype(np.float64), supersample)
+    return activity, attenuator
