@@ -15,7 +15,15 @@ from simind_python_connector.connectors.python_connector import (
 )
 from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
 from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
+from simind_python_connector.converters.attenuation import get_attenuation_coefficient
 from simind_python_connector.core.types import ScoringRoutine, SimulationError
+from simind_python_connector.phantoms import (
+    AnalyticPhantom,
+    Box,
+    LibraryPhantom,
+    PointSource,
+    VoxelPhantom,
+)
 from simind_python_connector.utils.interfile import (
     InterfileHeader,
     check_geometry_match,
@@ -42,6 +50,12 @@ class _SirfLikeImage:
 
     def get_geometrical_info(self):
         return SimpleNamespace(get_offset=lambda: self._origin)
+
+    def clone(self):
+        return _SirfLikeImage(self.array.copy(), self._voxel_sizes, self._origin)
+
+    def fill(self, values):
+        self.array = np.asarray(values, dtype=np.float32).reshape(self.array.shape)
 
 
 class _OneBasedCoordinate:
@@ -70,6 +84,14 @@ class _StirLikeImage:
 
     def get_origin(self):
         return self._origin
+
+    def clone(self):
+        copy = _StirLikeImage(self.array.copy())
+        copy._spacing, copy._origin = self._spacing, self._origin
+        return copy
+
+    def fill(self, values):
+        self.array = np.fromiter(values, dtype=np.float32).reshape(self.array.shape)
 
 
 def _patch_stir_backend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -574,3 +596,121 @@ def test_adaptor_with_template_reports_every_mismatch(
         assert word in str(excinfo.value)
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_outputs()
+
+
+_MU_WATER = float(get_attenuation_coefficient("water", 150.0))  # AnyScan.yaml: Index 1
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_set_phantom_runs_configure_phantom(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    phantom = AnalyticPhantom(PointSource(), Box((5.0, 5.0, 5.0)))
+    adaptor.set_phantom(phantom, time_per_projection_s=5.0)
+    captured = []
+    monkeypatch.setattr(
+        adaptor.python_connector,
+        "configure_phantom",
+        lambda p, time_per_projection_s: captured.append((p, time_per_projection_s)),
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector,
+        "configure_voxel_phantom",
+        lambda **kwargs: pytest.fail("configure_voxel_phantom must not be called"),
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    adaptor.run()
+
+    assert captured == [(phantom, 5.0)]
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_phantom_and_source_together_are_rejected(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_phantom(LibraryPhantom.ZUBAL_TORSO)
+    adaptor.set_source(image_cls(np.zeros((2, 3, 4))))
+    with pytest.raises(ValueError, match="either a phantom"):
+        adaptor.run()
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_ground_truth_of_a_voxel_phantom(cls, patch, image_cls, tmp_path, monkeypatch):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    activity = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    density = np.full((2, 3, 4), 1.5, dtype=np.float32)
+    adaptor.set_phantom(VoxelPhantom(activity, density, (4.0, 4.0, 4.0)))
+
+    truth_activity, truth_mu = adaptor.get_ground_truth(image_cls(np.zeros((2, 3, 4))))
+
+    np.testing.assert_array_equal(truth_activity.as_array(), activity)
+    np.testing.assert_allclose(truth_mu.as_array(), 1.5 * _MU_WATER, rtol=1e-6)
+    with pytest.raises(ValueError, match="grid"):
+        adaptor.get_ground_truth(image_cls(np.zeros((2, 3, 5))))
+    with pytest.raises(ValueError, match="grid"):
+        adaptor.get_ground_truth(image_cls(np.zeros((2, 3, 4)), (2.0, 4.0, 4.0)))
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_ground_truth_of_an_analytic_phantom(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_phantom(AnalyticPhantom(Box((0.4, 0.4, 0.4)), Box((0.8, 0.8, 0.8))))
+
+    activity, mu = adaptor.get_ground_truth(image_cls(np.zeros((4, 4, 4))))
+
+    assert activity.as_array().sum() == pytest.approx(
+        8.0
+    )  # the central 2 x 2 x 2 voxels
+    np.testing.assert_allclose(mu.as_array(), _MU_WATER, rtol=1e-6)
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_ground_truth_of_a_library_phantom_needs_its_own_run(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_phantom(LibraryPhantom.ZUBAL_TORSO)
+    with pytest.raises(RuntimeError, match="Run the adaptor"):
+        adaptor.get_ground_truth(image_cls(np.zeros((2, 3, 4))))
+
+    (tmp_path / "case01.hct").write_text(
+        "!matrix size [1] := 4\n!matrix size [2] := 3\n!matrix size [3] := 2\n"
+        "scaling factor (mm/pixel) [1] := 2\nscaling factor (mm/pixel) [2] := 2\n"
+        "scaling factor (mm/pixel) [3] := 3\n"
+    )
+    np.full(24, 1000, dtype="<u2").tofile(tmp_path / "case01.ict")
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_phantom", lambda p, **k: None
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+    built = {}
+    monkeypatch.setattr(
+        adaptor,
+        "_build_image",
+        lambda array, sizes: built.update(array=array, sizes=sizes) or "image",
+    )
+    adaptor.run()
+
+    activity, mu = adaptor.get_ground_truth(image_cls(np.zeros((2, 3, 4))))
+
+    assert activity is None and mu == "image"
+    np.testing.assert_allclose(built["array"], _MU_WATER, rtol=1e-6)
+    assert built["sizes"] == (3.0, 2.0, 2.0)
+
+    adaptor.set_phantom(LibraryPhantom.ZUBAL_BRAIN)  # clears the outputs
+    with pytest.raises(RuntimeError, match="Run the adaptor"):
+        adaptor.get_ground_truth(image_cls(np.zeros((2, 3, 4))))

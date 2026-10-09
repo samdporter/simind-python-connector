@@ -17,6 +17,13 @@ except ImportError:  # pragma: no cover - optional dependency
 class SirfSimindAdaptor(_NativeSimindAdaptor):
     """Adaptor consuming/returning SIRF-native objects."""
 
+    _backend = "sirf"
+
+    def _image_like(self, template: Any, array: Any) -> Any:
+        image = template.clone()
+        image.fill(array)
+        return image
+
     def _require_backend(self) -> None:
         if sirf is None:
             raise ImportError("SirfSimindAdaptor requires the SIRF Python package.")

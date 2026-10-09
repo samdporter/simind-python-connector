@@ -17,6 +17,13 @@ except ImportError:  # pragma: no cover - optional dependency
 class StirSimindAdaptor(_NativeSimindAdaptor):
     """Adaptor consuming/returning STIR-native objects."""
 
+    _backend = "stir"
+
+    def _image_like(self, template: Any, array: Any) -> Any:
+        image = template.clone()
+        image.fill(array.flat)
+        return image
+
     def _require_backend(self) -> None:
         if stir is None:
             raise ImportError("StirSimindAdaptor requires the STIR Python package.")
