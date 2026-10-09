@@ -978,6 +978,14 @@ def _is_integer(value) -> bool:
     return isinstance(value, (int, np.integer)) and not isinstance(value, bool)
 
 
+# SIMIND manual v8.0: these switches are given without a value (/HO) or with
+# an optional one (/PU:0.25). Every other switch in RuntimeSwitches takes a
+# value, so True would render it as a bare /KEY with no value.
+_SWITCHES_WITHOUT_VALUE = frozenset(
+    {"FE", "HO", "CO", "I2", "LF", "PU", "QF", "SB", "UA", "WB"}
+)
+
+
 def _validate_switch_value(switch: str, value) -> None:
     if switch == "NN" and not (_is_integer(value) and value >= 1):
         raise ValueError(
@@ -988,12 +996,15 @@ def _validate_switch_value(switch: str, value) -> None:
         raise ValueError(f"{switch} must be an integer, got {value!r}")
     if switch in ("CA", "DI") and not (_is_integer(value) and value in (0, 1, 2)):
         raise ValueError(f"{switch} must be 0, 1 or 2, got {value!r}")
+    if value is True and switch not in _SWITCHES_WITHOUT_VALUE:
+        raise ValueError(f"{switch} requires a value, got {value!r}")
 
 
 class RuntimeSwitches:
     """SIMIND command-line switches (SIMIND manual v8.0, "Running simind").
 
-    A value of True stands for a switch without a value, e.g. /HO.
+    A value of True stands for a switch without a value, e.g. /HO. Switches
+    that require a value reject True.
     """
 
     def __init__(self):
