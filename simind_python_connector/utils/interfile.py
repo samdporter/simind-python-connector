@@ -152,13 +152,18 @@ class InterfileEntry:
     """One line of a header; key and value are None for non-key lines.
 
     text is the raw source, kept for lossless writing, and logical is the
-    continuation-joined line the parser sees.
+    continuation-joined line the parser sees. It defaults to text, so the
+    three-argument constructor keeps working.
     """
 
     text: str
     key: Optional[str]
     value: Optional[str]
-    logical: str
+    logical: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.logical is None:
+            self.logical = self.text
 
     @classmethod
     def from_line(cls, line: str, logical: Optional[str] = None) -> "InterfileEntry":
@@ -313,10 +318,22 @@ def _matrix_shape(values: dict[str, str]) -> tuple[int, ...]:
             sizes[int(match.group(1))] = int(raw)
     if not sizes:
         raise ValueError("No 'matrix size [i]' entries found in Interfile header")
-    if sorted(sizes) != list(range(1, len(sizes) + 1)):
-        # STIR raises when a vectorised 'matrix size [i]' key is missing.
+    # STIR sizes its matrix-information vectors from the declared dimension
+    # count; without 'number of dimensions' the entries present define it.
+    declared = values.get("number of dimensions")
+    if declared is None:
+        count, basis = len(sizes), "with no gaps"
+    else:
+        try:
+            count = int(declared)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid 'number of dimensions' in Interfile header: {declared!r}"
+            ) from exc
+        basis = "as declared by 'number of dimensions'"
+    if sorted(sizes) != list(range(1, count + 1)):
         raise ValueError(
-            f"'matrix size [i]' entries must be 1..{len(sizes)} with no gaps, "
+            f"'matrix size [i]' entries must be 1..{count} {basis}, "
             f"found {sorted(sizes)}"
         )
     ordered = [sizes[index] for index in sorted(sizes)]

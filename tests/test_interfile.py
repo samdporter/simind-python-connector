@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from simind_python_connector.utils.interfile import (
+    InterfileEntry,
     InterfileHeader,
     ProjectionGeometry,
     check_geometry_match,
@@ -94,6 +95,25 @@ def test_backslash_at_end_of_line_continues_the_value(tmp_path):
     out = tmp_path / "continued.hs"
     header.write(out)
     assert out.read_text() == text
+
+
+@pytest.mark.unit
+def test_interfile_entry_three_argument_constructor_derives_logical(tmp_path):
+    entry = InterfileEntry(text="a := 1\n", key="a", value="1")
+    assert entry.logical == "a := 1\n"
+
+    header = InterfileHeader(
+        [
+            entry,
+            InterfileEntry(text="!END OF INTERFILE :=\n", key=None, value=None),
+        ]
+    )
+
+    header.set("b", 2)
+
+    out = tmp_path / "legacy.hs"
+    header.write(out)
+    assert out.read_text().splitlines() == ["a := 1", "b := 2", "!END OF INTERFILE :="]
 
 
 @pytest.mark.unit
@@ -797,6 +817,94 @@ def test_load_interfile_array_rejects_a_missing_vectorised_matrix_size(
     )
 
     with pytest.raises(ValueError, match="matrix size"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_accepts_declared_dimensions(tmp_path: Path):
+    data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    data.tofile(data_path)
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!number of dimensions := 3",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    loaded = load_interfile_array(header_path)
+    assert loaded.array.shape == (2, 3, 4)
+    assert np.array_equal(loaded.array, data)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_rejects_a_missing_tail_for_declared_dimensions(
+    tmp_path: Path,
+):
+    # STIR sizes its matrix-information vectors from 'number of dimensions',
+    # so a missing trailing entry must fail instead of inferring a leading axis.
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    np.arange(12, dtype=np.float32).tofile(data_path)
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!number of dimensions := 3",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="number of dimensions"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_rejects_extra_matrix_size_for_declared_dimensions(
+    tmp_path: Path,
+):
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    np.arange(24, dtype=np.float32).tofile(data_path)
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!number of dimensions := 2",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="number of dimensions"):
         load_interfile_array(header_path)
 
 
