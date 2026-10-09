@@ -244,3 +244,25 @@ def test_run_removes_stale_aligned_density_files(tmp_path):
     connector.run()
 
     assert "case01.hct" not in seen["files"] and "case01.ict" not in seen["files"]
+
+
+@pytest.mark.parametrize(
+    "phantom",
+    [
+        AnalyticPhantom(PointSource()),
+        AnalyticPhantom(PointSource(), Box((5.0, 5.0, 5.0))),
+        *list(LibraryPhantom),
+        VoxelPhantom(
+            np.ones((2, 2, 2), dtype=np.float32),
+            np.ones((2, 2, 2), dtype=np.float32),
+            (4.0, 4.0, 4.0),
+        ),
+    ],
+)
+def test_configure_phantom_enables_interfile_headers(tmp_path, phantom):
+    connector = _connector(tmp_path)
+    connector.get_config().set_flag(14, False)
+
+    connector.configure_phantom(phantom)
+
+    assert connector.get_config().get_flag(14)

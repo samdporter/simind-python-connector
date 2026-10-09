@@ -460,6 +460,7 @@ class SimindPythonConnector(BaseConnector):
 
     def _configure_analytic_phantom(self, phantom: AnalyticPhantom) -> None:
         cfg = self.config
+        cfg.set_flag(14, True)
         code, half_dims = phantoms._code_and_half_dims(phantom.source)
         cfg.set_value(15, code)
         for index, value in zip((2, 3, 4), half_dims):
@@ -499,6 +500,7 @@ class SimindPythonConnector(BaseConnector):
 
     def _configure_library_phantom(self, phantom: LibraryPhantom) -> None:
         cfg = self.config
+        cfg.set_flag(14, True)
         code, base_name, zub_table = phantom.value
         cfg.set_value(14, code)
         cfg.set_value(15, code)
