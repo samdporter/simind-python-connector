@@ -37,29 +37,108 @@ def normalise_key(key: str) -> str:
     return key.lower()
 
 
+def _expand_env(line: str) -> str:
+    """Replace '${NAME}' with the environment variable, as STIR's reader does.
+
+    An unset variable becomes an empty string; an unterminated '${' is left as is.
+    """
+    while "${" in line:
+        start = line.find("${")
+        end = line.find("}", start + 2)
+        if end == -1:
+            break
+        line = (
+            line[:start] + os.environ.get(line[start + 2 : end], "") + line[end + 1 :]
+        )
+    return line
+
+
+def _find_keyword_end(line: str) -> int:
+    """Where STIR's get_keyword ends the keyword, or -1 if it runs to the end.
+
+    The keyword stops at ':=' or at an index '['. A ':' is skipped only when
+    another character follows and it is not '='; a ':' in the last column
+    stops the scan, so the keyword ends before it.
+    """
+    start = 0
+    while True:
+        colon = line.find(":", start)
+        bracket = line.find("[", start)
+        if bracket != -1 and (colon == -1 or bracket < colon):
+            return bracket
+        if colon == -1:
+            return -1
+        if colon + 1 < len(line) and line[colon + 1] != "=":
+            start = colon + 1
+            continue
+        return colon
+
+
 def parse_interfile_line(line: str) -> tuple[Optional[str], Optional[str]]:
     """Return (key, value) for a 'key := value' line, else (None, None).
 
-    Comments are ';' lines, or any line whose first non-blank character is
-    '#'. Blank lines and section headers ('key :=') are skipped too.
+    Follows STIR's reader: '${ENV}' is expanded first; comments are ';' lines,
+    or any line whose first non-blank character is '#'; the key ends at ':=' or
+    at an index '[', skipping any ':' that has a following character other
+    than '='. Blank lines, section headers and value-less keys are skipped
+    too.
     Keys are returned as written; use normalise_key() to compare them.
     """
-    line = line.strip()
-    if not line or line.startswith((";", "#")) or line.endswith(":="):
+    line = _expand_env(line).strip()
+    if not line or line.startswith((";", "#")):
         return None, None
-    if ":=" not in line:
+    end = _find_keyword_end(line)
+    if end == -1:
         return None, None
-    key, _, value = line.partition(":=")
-    return key.strip(), value.strip()
+    if line[end] == "[":
+        close = line.find("]", end)
+        key = line[: close + 1] if close != -1 else line[:end]
+    else:
+        key = line[:end]
+    equals = line.find("=")
+    if equals == -1:
+        return None, None
+    value = line[equals + 1 :].strip()
+    if not value:
+        return None, None
+    return key.strip(), value
 
 
 def _is_interfile_terminator(line: str) -> bool:
-    """True for '!END OF INTERFILE' (any RHS): STIR stops parsing there."""
-    stripped = line.strip()
+    """True for '!END OF INTERFILE' (any RHS): STIR stops parsing there.
+
+    `line` must already be continuation-joined; '${ENV}' is expanded here,
+    as during parsing.
+    """
+    stripped = _expand_env(line).strip()
     if not stripped:
         return False
-    keyword = stripped.split(":=", 1)[0]
+    end = _find_keyword_end(stripped)
+    keyword = stripped if end == -1 else stripped[:end]
     return normalise_key(keyword).strip() == "end of interfile"
+
+
+def _continuation_lines(text: str) -> list[tuple[str, str]]:
+    """Join physical lines ending in '\\', as STIR's reader does.
+
+    Returns (raw, logical) pairs: raw is the original text, so writing the
+    header back is lossless, and logical is what the parser sees.
+    """
+    pairs: list[tuple[str, str]] = []
+    raw = ""
+    logical = ""
+    for line in text.splitlines(keepends=True):
+        raw += line
+        logical += line.rstrip("\r\n")
+        if logical.endswith("\\"):
+            logical = logical[:-1]
+            continue
+        pairs.append((raw, logical))
+        raw = ""
+        logical = ""
+    if raw:
+        pairs.append((raw, logical))
+    return pairs
 
 
 def _format_value(value) -> str:
@@ -70,27 +149,38 @@ def _format_value(value) -> str:
 
 @dataclass
 class InterfileEntry:
-    """One line of a header; key and value are None for non-key lines."""
+    """One line of a header; key and value are None for non-key lines.
+
+    text is the raw source, kept for lossless writing, and logical is the
+    continuation-joined line the parser sees.
+    """
 
     text: str
     key: Optional[str]
     value: Optional[str]
+    logical: str
 
     @classmethod
-    def from_line(cls, line: str) -> "InterfileEntry":
-        key, value = parse_interfile_line(line)
+    def from_line(cls, line: str, logical: Optional[str] = None) -> "InterfileEntry":
+        """One entry from `line`; `logical` is parsed instead when a
+        continuation has joined several physical lines into one."""
+        if logical is None:
+            logical = line
+        key, value = parse_interfile_line(logical)
         if not line.endswith("\n"):
             line = line + "\n"
-        return cls(text=line, key=key, value=value)
+        return cls(text=line, key=key, value=value, logical=logical)
 
     @classmethod
     def from_key_value(cls, key: str, value) -> "InterfileEntry":
         value_str = _format_value(value)
-        return cls(text=f"{key} := {value_str}\n", key=key, value=value_str)
+        logical = f"{key} := {value_str}"
+        return cls(text=f"{logical}\n", key=key, value=value_str, logical=logical)
 
     def set_value(self, value) -> None:
         self.value = _format_value(value)
-        self.text = f"{self.key} := {self.value}\n"
+        self.logical = f"{self.key} := {self.value}"
+        self.text = f"{self.logical}\n"
 
 
 class InterfileHeader:
@@ -108,18 +198,20 @@ class InterfileHeader:
     def from_text(cls, text: str) -> "InterfileHeader":
         entries: list[InterfileEntry] = []
         terminated = False
-        for line in text.splitlines(keepends=True):
-            entry = InterfileEntry.from_line(line)
+        for raw, logical in _continuation_lines(text):
+            entry = InterfileEntry.from_line(raw, logical)
             if terminated:
-                entry = InterfileEntry(text=entry.text, key=None, value=None)
-            elif _is_interfile_terminator(line):
+                entry = InterfileEntry(
+                    text=entry.text, key=None, value=None, logical=entry.logical
+                )
+            elif _is_interfile_terminator(logical):
                 terminated = True
             entries.append(entry)
         return cls(entries)
 
     def copy(self) -> "InterfileHeader":
         return InterfileHeader(
-            [InterfileEntry(e.text, e.key, e.value) for e in self._entries]
+            [InterfileEntry(e.text, e.key, e.value, e.logical) for e in self._entries]
         )
 
     def _find_last(self, key: str) -> Optional[InterfileEntry]:
@@ -145,7 +237,7 @@ class InterfileHeader:
             (
                 index
                 for index, entry in enumerate(self._entries)
-                if _is_interfile_terminator(entry.text)
+                if _is_interfile_terminator(entry.logical)
             ),
             None,
         )
@@ -221,6 +313,12 @@ def _matrix_shape(values: dict[str, str]) -> tuple[int, ...]:
             sizes[int(match.group(1))] = int(raw)
     if not sizes:
         raise ValueError("No 'matrix size [i]' entries found in Interfile header")
+    if sorted(sizes) != list(range(1, len(sizes) + 1)):
+        # STIR raises when a vectorised 'matrix size [i]' key is missing.
+        raise ValueError(
+            f"'matrix size [i]' entries must be 1..{len(sizes)} with no gaps, "
+            f"found {sorted(sizes)}"
+        )
     ordered = [sizes[index] for index in sorted(sizes)]
     if any(size <= 0 for size in ordered):
         raise ValueError(f"Invalid matrix sizes in header: {ordered}")
