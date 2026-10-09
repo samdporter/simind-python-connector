@@ -53,7 +53,7 @@ ZERO_HISTORY_WARNING_FRACTION = 0.01
 
 _MU_MAP_TYPES = ("attenuation", "density", "hu")
 
-_PHANTOM_SWITCHES = ("PX", "TH", "BG", "HO", "CO", "FZ") + tuple(
+_PHANTOM_SWITCHES = ("PX", "TH", "IF", "BG", "HO", "CO", "FZ") + tuple(
     f"{letter}{n}"
     for letter, count in (("A", 3), ("L", 6), ("M", 4))
     for n in range(1, count + 1)
@@ -488,6 +488,7 @@ class SimindPythonConnector(BaseConnector):
                 phantoms._insert_row(insert) + "\n" for insert in source.inserts
             )
             (self.output_dir / f"{self.output_prefix}.inp").write_text(rows)
+            self.runtime_switches.set_switch("IF", f"{self.output_prefix}.inp")
             if source.background is not None:
                 self.runtime_switches.set_switch("BG", source.background)
             if source.mode == "hot":
