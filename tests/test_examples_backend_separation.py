@@ -30,6 +30,7 @@ def _import_roots(path: Path) -> set[str]:
         "04_custom_config.py",
         "05_scattwin_vs_penetrate_comparison.py",
         "06_schneider_density_conversion.py",
+        "12_phantoms.py",
     ),
 )
 def test_01_to_06_examples_are_python_connector_only(name: str):

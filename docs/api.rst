@@ -94,6 +94,12 @@ Reconstruction with SIMIND corrections
 .. automodule:: simind_python_connector.recon.diagnostics
    :members:
 
+Phantoms
+--------
+
+.. automodule:: simind_python_connector.phantoms
+   :members:
+
 Utilities
 ---------
 
