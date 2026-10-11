@@ -78,6 +78,7 @@ class SimindPythonConnector(BaseConnector):
 
         self._outputs: Optional[dict[str, ProjectionResult]] = None
         self._window_file_path: Optional[Path] = None
+        self._phantom_extent_mm: Optional[tuple[float, float]] = None
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -128,10 +129,14 @@ class SimindPythonConnector(BaseConnector):
         source: np.ndarray,
         mu_map: np.ndarray,
         voxel_size_mm: float = 4.0,
-        scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
     ) -> tuple[Path, Path]:
         """
         Configure voxel geometry and write source/density input files.
+
+        The projection pixel size and matrix (Index 28, 76, 77) come from the
+        configuration, not from the phantom. scoring_routine overrides Index 84;
+        None keeps the configuration value.
 
         Returns:
             Tuple of (source_file_path, density_file_path).
@@ -154,7 +159,9 @@ class SimindPythonConnector(BaseConnector):
         if (source_array < 0).any() or (mu_map_array < 0).any():
             raise ValueError("source and mu_map must be non-negative")
 
-        if isinstance(scoring_routine, ScoringRoutine):
+        if scoring_routine is None:
+            routine = None
+        elif isinstance(scoring_routine, ScoringRoutine):
             routine = scoring_routine
         elif isinstance(scoring_routine, int) and not isinstance(scoring_routine, bool):
             try:
@@ -166,7 +173,7 @@ class SimindPythonConnector(BaseConnector):
                 ) from exc
         else:
             raise ValueError(
-                "scoring_routine must be a ScoringRoutine or int, got "
+                "scoring_routine must be None, a ScoringRoutine or int, got "
                 f"{type(scoring_routine).__name__}"
             )
         dim_z, dim_y, dim_x = (int(v) for v in source_array.shape)
@@ -176,15 +183,13 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(15, -1)
         cfg.set_value(14, -1)
         cfg.set_flag(14, True)
-        cfg.set_value(84, routine.value)
+        if routine is not None:
+            cfg.set_value(84, routine.value)
 
         # Source geometry
         cfg.set_value(2, dim_z * vox_cm / 2.0)
         cfg.set_value(3, dim_x * vox_cm / 2.0)
         cfg.set_value(4, dim_y * vox_cm / 2.0)
-        cfg.set_value(28, vox_cm)
-        cfg.set_value(76, dim_x)
-        cfg.set_value(77, dim_y)
 
         # Density geometry
         cfg.set_value(5, dim_z * vox_cm / 2.0)
@@ -199,6 +204,8 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(82, dim_y)  # source map j
 
         self.runtime_switches.set_switch("PX", vox_cm)
+        voxel_mm = float(voxel_size_mm)
+        self._phantom_extent_mm = (max(dim_x, dim_y) * voxel_mm, dim_z * voxel_mm)
 
         source_max = float(source_array.max())
         if source_max > 0:
@@ -262,6 +269,26 @@ class SimindPythonConnector(BaseConnector):
             for key, value in runtime_operator.switches.items():
                 run_switches_holder.set_switch(key, value)
             orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
+
+        if self._phantom_extent_mm is not None:
+            bin_mm = float(self.config.get_value(28)) * SIMIND_VOXEL_UNIT_CONVERSION
+            width_mm, length_mm = self._phantom_extent_mm
+            fov_width_mm = float(self.config.get_value(76)) * bin_mm
+            fov_length_mm = float(self.config.get_value(77)) * bin_mm
+            if width_mm > fov_width_mm:
+                self.logger.warning(
+                    "The phantom (%.1f mm across) is wider than the projection "
+                    "field of view (%.1f mm)",
+                    width_mm,
+                    fov_width_mm,
+                )
+            if length_mm > fov_length_mm:
+                self.logger.warning(
+                    "The phantom (%.1f mm axially) is longer than the projection "
+                    "field of view (%.1f mm)",
+                    length_mm,
+                    fov_length_mm,
+                )
 
         config_path = self.output_dir / self.output_prefix
         self.config.save_file(config_path)

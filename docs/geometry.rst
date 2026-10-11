@@ -41,6 +41,27 @@ Units
   layout ``(unused, z, y, x)`` and use index 1; coordinate objects with a
   ``z`` accessor use that accessor directly.
 
+Projection Size
+---------------
+
+The projection bin size and matrix come from the configuration: Index 28 (bin
+size in cm), Index 76 (bins) and Index 77 (axial rows). Configuring a voxel
+phantom does not change them, so set them to cover the phantom; ``run()`` warns
+when the phantom is wider or longer than the projection field of view. The
+matrix does not have to be square.
+
+Some projectors need the projections sampled like the image. STIR's SPECTUB
+needs equal axial sampling, so the OSEM examples set Index 28 to the voxel size.
+
+Voxel Phantom Slices
+--------------------
+
+Image slices do not have to be square. The columns (x, Index 78 and 79) and
+rows (y, Index 81 and 82) of the source and density maps are set separately,
+and a SIMIND test checks that non-square slices give the same projections as
+the same slices padded to square. The voxels themselves must be square in-plane:
+SIMIND takes a single voxel side (Index 31 and the ``PX`` switch).
+
 Example Configuration Guardrails
 --------------------------------
 
@@ -51,6 +72,8 @@ are reproducible:
 - ``config[29]=24`` for projection count.
 - ``config[53]=0`` to keep collimator modeling geometric-only in these tests.
 - ``config[19]=2`` to keep a consistent mapping used by current examples.
+- ``config[28]=0.4``, ``config[76]=32`` and ``config[77]=32`` to put the
+  projections on the 4 mm, 32-voxel reconstruction grid.
 
 Debug Checklist
 ---------------

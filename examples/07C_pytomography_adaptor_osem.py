@@ -144,6 +144,10 @@ def main() -> None:
     adaptor.add_config_value(1, 140.0)
     adaptor.add_config_value(19, 2)
     adaptor.add_config_value(53, 0)
+    # Projections on the reconstruction grid: 32 x 32 bins of 4 mm (Index 28 in cm).
+    adaptor.add_config_value(28, 0.4)
+    adaptor.add_config_value(76, 32)
+    adaptor.add_config_value(77, 32)
     adaptor.run()
 
     projection_tensor = adaptor.get_total_output(window=1).to(dtype=torch.float32)
