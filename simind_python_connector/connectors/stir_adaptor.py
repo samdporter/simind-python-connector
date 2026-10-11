@@ -34,7 +34,7 @@ class StirSimindAdaptor(BaseConnector):
         output_prefix: str = "output",
         photon_multiplier: int = 1,
         quantization_scale: float = 1.0,
-        scoring_routine: ScoringRoutine | int = ScoringRoutine.SCATTWIN,
+        scoring_routine: ScoringRoutine | int | None = None,
     ) -> None:
         if stir is None:
             raise ImportError("StirSimindAdaptor requires the STIR Python package.")
@@ -134,7 +134,10 @@ class StirSimindAdaptor(BaseConnector):
         return sorted(self.get_outputs().keys())
 
     def get_scoring_routine(self) -> ScoringRoutine:
-        return self._scoring_routine
+        """The scoring_routine passed in, or else the configuration's Index 84."""
+        if self._scoring_routine is not None:
+            return self._scoring_routine
+        return ScoringRoutine(int(float(self.get_config().get_value(84))))
 
     def get_config(self) -> SimulationConfig:
         return self.python_connector.get_config()
