@@ -1,3 +1,6 @@
+import os
+from typing import NamedTuple
+
 import numpy as np
 import pytest
 
@@ -22,12 +25,47 @@ pytestmark = [
     pytest.mark.requires_simind,
 ]
 
-# Full-statistics configuration: 64^3 voxels, 60 views, default
-# quantization_scale, correlation > 0.9, centre gap <= 1 bin. The reduced
-# sizes below run faster; correlation > 0.5 is authorised ONLY for the
-# recorded reduced-compute smoke run, not the standing criterion.
-_N = 16
-_VIEWS = 8
+
+class _Profile(NamedTuple):
+    """Compute budget and acceptance thresholds for the A3 geometry checks."""
+
+    name: str
+    grid: int
+    views: int
+    quantization_scale: float
+    min_correlation: float
+    max_centre_gap: float
+
+
+# Smoke runs cheaply (16^3 voxels, 8 views, 10 photon histories per voxel) and
+# is the default. The full profile is the standing A3 release gate: 64^3
+# voxels, 60 views, 500 photon histories per voxel.
+_SMOKE_PROFILE = _Profile(
+    name="smoke",
+    grid=16,
+    views=8,
+    quantization_scale=0.02,
+    min_correlation=0.5,
+    max_centre_gap=1.0,
+)
+_FULL_PROFILE = _Profile(
+    name="full",
+    grid=64,
+    views=60,
+    quantization_scale=1.0,
+    min_correlation=0.9,
+    max_centre_gap=1.0,
+)
+_PROFILE_ENV = "SIMIND_A3_FULL_VALIDATION"
+
+
+def _select_profile() -> _Profile:
+    return _FULL_PROFILE if os.getenv(_PROFILE_ENV) == "1" else _SMOKE_PROFILE
+
+
+PROFILE = _select_profile()
+_N = PROFILE.grid
+_VIEWS = PROFILE.views
 _VOXEL = 4.42
 _SPHERE_OFFSET = max(2, _N // 5)
 _SPHERE_RADIUS_SQ = max(1, (_N // 10) ** 2)
@@ -115,7 +153,7 @@ def _simulate_and_compare(label, tmp_path, template, simind_inputs, reference_in
         get("Example.yaml"),
         str(tmp_path / "sim"),
         "case01",
-        quantization_scale=0.02,
+        quantization_scale=PROFILE.quantization_scale,
         scoring_routine=ScoringRoutine.PENETRATE,
     )
     adaptor.set_template(template)
@@ -160,7 +198,9 @@ def _simulate_and_compare(label, tmp_path, template, simind_inputs, reference_in
     correlation = np.corrcoef(sim.ravel(), ref.ravel())[0, 1]
     centre_gap = np.abs(_per_view_centres(sim) - _per_view_centres(ref)).max()
     print(
-        f"{label}: scale={scale:.4g} sim sum={sim.sum():.6g} "
+        f"[{PROFILE.name}] {label}: grid={_N}^3 views={_VIEWS} "
+        f"quantization_scale={PROFILE.quantization_scale} "
+        f"scale={scale:.4g} sim sum={sim.sum():.6g} "
         f"scaled sum={scaled_sim.sum():.6g} reference sum={ref.sum():.6g} "
         f"per-view ratio spread={spread:.3f} correlation={correlation:.3f} "
         f"max centre gap={centre_gap:.2f} bins"
@@ -175,8 +215,8 @@ def test_simind_in_template_geometry_matches_spectub(tmp_path, direction):
     correlation, centre_gap = _simulate_and_compare(
         direction, tmp_path, _template(tmp_path, direction), inputs, inputs
     )
-    assert correlation > 0.5  # reduced-compute smoke bound; statistics are minimal
-    assert centre_gap <= 1.0
+    assert correlation > PROFILE.min_correlation
+    assert centre_gap <= PROFILE.max_centre_gap
 
 
 def test_simind_non_circular_orbit_matches_spectub(tmp_path):
@@ -187,8 +227,8 @@ def test_simind_non_circular_orbit_matches_spectub(tmp_path):
     correlation, centre_gap = _simulate_and_compare(
         "non-circular", tmp_path, _template(tmp_path, radii=radii), inputs, inputs
     )
-    assert correlation > 0.5  # reduced-compute smoke bound; statistics are minimal
-    assert centre_gap <= 1.0
+    assert correlation > PROFILE.min_correlation
+    assert centre_gap <= PROFILE.max_centre_gap
 
 
 def test_simind_anisotropic_voxels_match_spectub(tmp_path):
@@ -204,5 +244,5 @@ def test_simind_anisotropic_voxels_match_spectub(tmp_path):
     correlation, centre_gap = _simulate_and_compare(
         "anisotropic", tmp_path, _template(tmp_path), simind_inputs, reference_inputs
     )
-    assert correlation > 0.5  # reduced-compute smoke bound; statistics are minimal
-    assert centre_gap <= 1.0
+    assert correlation > PROFILE.min_correlation
+    assert centre_gap <= PROFILE.max_centre_gap
