@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-10-11
+
+### Fixed
+- A negative Index 1 (energies from the isotope file) turned the mu map into near-vacuum;
+  it is now converted at `abs(Index 1)`.
+- Acquisition arrays use `(tof, axial, view, bin)`, and DICOM matrix sizes and pixel
+  spacing are no longer swapped, so non-square projections build correctly.
+  `create_stir_acqdata` takes `(bins, axial)` and uses the same layout.
+- The PyTomography adaptor reverses axial slices to match PyTomography's SIMIND reader;
+  reconstructions were flipped along z.
+- The STIR/SIRF adaptors raise a `ValueError` for non-cubic voxels instead of using the
+  z spacing for every axis.
+- The adaptors default `scoring_routine` to None, which keeps the configuration's
+  Index 84; they used to overwrite it with SCATTWIN.
+- The geometry docs give the projection axis orders correctly.
+- PyTomography PENETRATE and fallback outputs use the reader's `(view, bin, axial)`
+  order, and PyTomography scatter orders are validated like the core's.
+- The STIR/SIRF adaptors reject a mu map whose voxel size differs from the source's.
+- The legacy SIRF attenuation loader reverses the voxel sizes with the dimensions.
+- The SIRF wrapper's `maximum()` and `sapyb()` update the wrapped object.
+- Piecewise Schneider conversion gives HU outside the table the nearest segment's
+  density, so metal above 4001 HU no longer becomes air.
+- MPI runs use `$SIMIND_MPI_BIN`, else `simind_mpi` next to the serial binary, with
+  `/MP` and without a stray `-p`.
+- An output header that cannot be read raises instead of being skipped.
+- YAML export keeps unnamed parameters and flags.
+- New header keys are written before `!END OF INTERFILE`, and `set()` changes the
+  last duplicate key, the one readers use.
+- A header converted into another directory points at its data by absolute path, and
+  an orbit file named like an ignored key keeps its radii.
+- DICOM frames are split by `EnergyWindowVector` when present; each output declares
+  one window and its share of the duration.
+- `run()` sets Flags 5 and 14, which SIMIND needs to write readable headers, so
+  config-defined phantom runs work.
+- Example 07C no longer drops attenuation and PSF modelling silently, and the examples
+  accept `SIMIND_BIN`.
+- Importing the converter no longer configures root logging.
+- setuptools 77.0.3 or newer is required to build.
+
+### Changed
+- `get_attenuation_coefficient` takes keV, as documented.
+- `NN` must be an integer >= 1, switches reject None and bool values,
+  `quantization_scale` must be in (0, 1], and `output_prefix` must match
+  `[a-z0-9][a-z0-9_-]*` (SIMIND lowercases file names).
+- Publishing waits for the tests and checks the tag against the version; tests also
+  run on `release/**` branches.
+
 ## [1.1.0] - 2026-10-11
 
 Replaces 2.0.0 and 3.0.0, which were published by mistake and have been withdrawn.
