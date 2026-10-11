@@ -33,9 +33,9 @@ def test_get_attenuation_coefficient_reads_override_directory(
     attenuation_tables: Path,
 ) -> None:
     water = get_attenuation_coefficient(
-        "water", 0.10, file_path=str(attenuation_tables)
+        "water", 100.0, file_path=str(attenuation_tables)
     )
-    bone = get_attenuation_coefficient("bone", 0.10, file_path=str(attenuation_tables))
+    bone = get_attenuation_coefficient("bone", 100.0, file_path=str(attenuation_tables))
 
     expected_water = float(np.interp(0.10, [0.010, 0.500], [0.050, 0.200])) * 1.0
     expected_bone = float(np.interp(0.10, [0.010, 0.500], [0.090, 0.360])) * 1.85
@@ -44,11 +44,20 @@ def test_get_attenuation_coefficient_reads_override_directory(
     assert bone == pytest.approx(expected_bone)
 
 
+def test_get_attenuation_coefficient_takes_kev() -> None:
+    from simind_python_connector.converters.attenuation import hu_to_attenuation
+
+    water = get_attenuation_coefficient("water", 140.0)
+
+    assert water == pytest.approx(0.1545, abs=5e-4)
+    assert hu_to_attenuation(np.array([0.0]), 140.0)[0] == pytest.approx(water)
+
+
 def test_get_attenuation_coefficient_rejects_unknown_material(
     attenuation_tables: Path,
 ) -> None:
     with pytest.raises(ValueError, match="material"):
-        get_attenuation_coefficient("lead", 0.10, file_path=str(attenuation_tables))
+        get_attenuation_coefficient("lead", 100.0, file_path=str(attenuation_tables))
 
 
 class _FakeImageData:

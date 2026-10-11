@@ -66,7 +66,8 @@ def get_attenuation_coefficient(material, energy, file_path=None):
     if not filepath.exists():
         raise FileNotFoundError(f"Attenuation data file not found: {filepath}")
 
-    mass_attn_coeffs = interpolate_attenuation_coefficient(filepath, energy)
+    # The tables are in MeV.
+    mass_attn_coeffs = interpolate_attenuation_coefficient(filepath, energy / 1000)
 
     if material == "water":
         return mass_attn_coeffs * density_water
@@ -90,12 +91,9 @@ def hu_to_attenuation(image_array, photon_energy, file_path=None):
     HU_water = 0
     HU_bone = 1000
 
-    # Convert photon_energy to MeV from keV
-    photon_energy_mev = photon_energy / 1000
-
     # Get attenuation coefficients
-    mu_water = get_attenuation_coefficient("water", photon_energy_mev, file_path)
-    mu_bone = get_attenuation_coefficient("bone", photon_energy_mev, file_path)
+    mu_water = get_attenuation_coefficient("water", photon_energy, file_path)
+    mu_bone = get_attenuation_coefficient("bone", photon_energy, file_path)
 
     # For air, we assume negligible attenuation
     mu_air = 0.0
@@ -169,12 +167,9 @@ def attenuation_to_density(attenuation_array, photon_energy, file_path=None):
     Returns:
         np.ndarray: Density map in g/cm^3
     """
-    # Convert photon_energy to MeV
-    photon_energy_mev = photon_energy / 1000
-
     # Get attenuation coefficients
-    mu_water = get_attenuation_coefficient("water", photon_energy_mev, file_path)
-    mu_bone = get_attenuation_coefficient("bone", photon_energy_mev, file_path)
+    mu_water = get_attenuation_coefficient("water", photon_energy, file_path)
+    mu_bone = get_attenuation_coefficient("bone", photon_energy, file_path)
 
     # Densities
     # density_air = 0.001225  # g/cm^3  # Not used in this calculation
@@ -228,7 +223,8 @@ def hu_to_density_schneider_piecewise(image_array):
     Convert HU to density using exact Schneider2000 piecewise segments.
 
     Simple step function: any HU value between HU_lo and HU_hi gets the
-    exact density for that tissue segment.
+    exact density for that tissue segment. Values outside the table take the
+    density of the nearest segment.
 
     Args:
         image_array (np.ndarray): Array of HU values
@@ -238,11 +234,13 @@ def hu_to_density_schneider_piecewise(image_array):
     """
     schneider_data = load_schneider_data()
 
-    # Initialize output array with air density (default for unmapped values)
-    density_map = np.full_like(image_array, 0.001225, dtype=np.float32)
+    density_map = np.zeros(np.shape(image_array), dtype=np.float32)
 
     # Sort tissues by HU_lo for processing
     tissues = sorted(schneider_data.items(), key=lambda x: x[1]["HU_lo (HU)"])
+    image_array = np.clip(
+        image_array, tissues[0][1]["HU_lo (HU)"], tissues[-1][1]["HU_hi (HU)"]
+    )
 
     for tissue_name, tissue_data in tissues:
         hu_lo = tissue_data["HU_lo (HU)"]

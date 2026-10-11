@@ -102,6 +102,11 @@ class TestSchneiderDensityConversion:
         assert np.all(densities_piece >= 0)
         assert np.all(densities_interp <= 3.0)
         assert np.all(densities_piece <= 3.0)
+        # Beyond the table, the piecewise path saturates like the interpolated one.
+        outside = [0, 1, 3]
+        np.testing.assert_allclose(
+            densities_piece[outside], densities_interp[outside], rtol=1e-6
+        )
 
     def test_schneider_array_shapes(self):
         """Test that Schneider functions handle different array shapes."""
