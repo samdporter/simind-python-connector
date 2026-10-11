@@ -157,6 +157,37 @@ SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
 * ``tests/test_container_library_isolation.py`` for backend container import isolation.
 * ``tests/test_geometry_isolation_forward_projection.py`` and ``tests/test_osem_geometry_diagnostics.py`` for backend geometry diagnostics.
 
+A3 Measured-Geometry Validation Profiles
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``tests/test_measured_geometry_simind.py`` forwards a phantom through SIMIND and
+through SIRF's SPECTUB model in the same template geometry, covering CW, CCW,
+non-circular orbit and anisotropic-voxel cases. It selects its compute budget
+from an environment switch so the same checks can run cheaply or at full
+statistics:
+
+* **Smoke** (default) - 16x16x16 grid, 8 views, ``quantization_scale=0.02``,
+  correlation > 0.5, centre gap <= 1 bin. Fast enough for a local smoke check.
+* **Full** (``SIMIND_A3_FULL_VALIDATION=1``) - 64x64x64 grid, 60 views,
+  ``quantization_scale=1.0``, correlation > 0.9, centre gap <= 1 bin. This is
+  the standing A3 release gate.
+
+The grid, view count, phantom offsets, template and thresholds are all derived
+from the selected profile, and each run prints the profile, its settings and the
+measured correlation and centre gap. Put the SIMIND executable on ``PATH`` so
+the ``requires_simind`` check passes:
+
+.. code-block:: bash
+
+    export PATH="$PWD/simind:$PATH"
+    export SMC_DIR="$PWD/simind/smc_dir/"
+
+    # Smoke profile (default)
+    pytest tests/test_measured_geometry_simind.py -s
+
+    # Full validation profile (standing A3 release gate)
+    SIMIND_A3_FULL_VALIDATION=1 pytest tests/test_measured_geometry_simind.py -s
+
 Integration Test
 ~~~~~~~~~~~~~~~~
 
