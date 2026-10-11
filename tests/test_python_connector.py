@@ -378,8 +378,13 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
         )
 
     connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector.config.set_flag(5, False)
+    connector.config.set_flag(14, False)
     outputs = connector.run(RuntimeOperator(switches={"NN": 2, "RR": 12345}))
 
+    # SPECT Interfile headers are needed to read the outputs.
+    assert connector.config.get_flag(5)
+    assert connector.config.get_flag(14)
     assert captured["output_prefix"] == "case01"
     assert captured["runtime_switches"] == {"NN": 2, "RR": 12345}
 

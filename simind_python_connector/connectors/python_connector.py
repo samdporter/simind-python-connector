@@ -300,6 +300,10 @@ class SimindPythonConnector(BaseConnector):
                     fov_length_mm,
                 )
 
+        # Outputs are read from SPECT Interfile headers (.h00), which SIMIND
+        # writes only with Flag 5 (SPECT) and Flag 14 (Interfile) set.
+        self.config.set_flag(5, True)
+        self.config.set_flag(14, True)
         config_path = self.output_dir / self.output_prefix
         self.config.save_file(config_path)
 
