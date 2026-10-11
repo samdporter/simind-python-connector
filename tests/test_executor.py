@@ -150,6 +150,7 @@ def test_executor_mpi_command_uses_flag_form(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
     calls = _capture_run(monkeypatch)
 
     SimindExecutor().run_simulation(
@@ -157,10 +158,38 @@ def test_executor_mpi_command_uses_flag_form(
         runtime_switches={"MP": 4, "NN": 2},
     )
 
-    command = calls[0][0]
-    assert command[:6] == ["mpirun", "-np", "4", "simind", "case01", "case01"]
-    assert command[-2:] == ["-p", "/MP/NN:2"]
-    assert "/MP:4" not in command[-1]
+    assert calls[0][0] == [
+        "mpirun",
+        "-np",
+        "4",
+        "simind_mpi",
+        "case01",
+        "case01",
+        "/MP/NN:2",
+    ]
+
+
+def test_executor_mpi_uses_simind_mpi_next_to_custom_binary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SIMIND_BIN", str(tmp_path / "bin" / "simind"))
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": 2})
+
+    assert calls[0][0][3] == str(tmp_path / "bin" / "simind_mpi")
+
+
+def test_executor_mpi_prefers_simind_mpi_bin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SIMIND_MPI_BIN", str(tmp_path / "mpi" / "simind_mpi"))
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": 2})
+
+    assert calls[0][0][3] == str(tmp_path / "mpi" / "simind_mpi")
 
 
 def test_executor_rejects_whitespace_tokens(
