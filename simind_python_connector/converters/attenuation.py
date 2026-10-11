@@ -222,7 +222,8 @@ def hu_to_density_schneider_piecewise(image_array):
     Convert HU to density using exact Schneider2000 piecewise segments.
 
     Simple step function: any HU value between HU_lo and HU_hi gets the
-    exact density for that tissue segment.
+    exact density for that tissue segment. Values outside the table take the
+    density of the nearest segment.
 
     Args:
         image_array (np.ndarray): Array of HU values
@@ -232,11 +233,13 @@ def hu_to_density_schneider_piecewise(image_array):
     """
     schneider_data = load_schneider_data()
 
-    # Initialize output array with air density (default for unmapped values)
-    density_map = np.full_like(image_array, 0.001225, dtype=np.float32)
+    density_map = np.zeros(np.shape(image_array), dtype=np.float32)
 
     # Sort tissues by HU_lo for processing
     tissues = sorted(schneider_data.items(), key=lambda x: x[1]["HU_lo (HU)"])
+    image_array = np.clip(
+        image_array, tissues[0][1]["HU_lo (HU)"], tissues[-1][1]["HU_hi (HU)"]
+    )
 
     for tissue_name, tissue_data in tissues:
         hu_lo = tissue_data["HU_lo (HU)"]

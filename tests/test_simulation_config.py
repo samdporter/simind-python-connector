@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 
 from simind_python_connector import SimulationConfig
 from simind_python_connector.configs import get
@@ -52,6 +53,70 @@ def test_yaml_smc_yaml_round_trip_preserves_parameter_flags_and_files(tmp_path):
     assert restored.get_data_file("phantom_soft_tissue") == "custom_phantom"
     assert restored.get_data_file(12) == "custom_last_file"
     assert len(restored.flags) == len(original.flags)
+
+
+def test_smc_yaml_round_trip_keeps_unnamed_values_and_flags(tmp_path):
+    original = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    original.data[60] = 61.5
+    original.flags = original.flags[:15] + "T" + original.flags[16:]
+    yaml_path = tmp_path / "round_trip.yaml"
+    original.export_yaml(yaml_path)
+
+    restored = SimulationConfig(yaml_path)
+
+    assert restored.data == original.data
+    assert restored.flags == original.flags
+
+
+def test_smc_yaml_smc_round_trip_keeps_unnamed_extended_slots(tmp_path):
+    original = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    original.data[60] = 61.5
+    original.data[115] = -9.25
+    original.flags = original.flags[:24] + "T" + original.flags[25:]
+    yaml_path = tmp_path / "extended_round_trip.yaml"
+    original.export_yaml(yaml_path)
+
+    smc_path = SimulationConfig(yaml_path).save_file(tmp_path / "extended_round_trip")
+    restored = SimulationConfig(smc_path)
+
+    assert restored.data == original.data
+    assert restored.flags == original.flags
+
+
+def test_yaml_without_other_fields_still_loads(tmp_path):
+    original = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    original.data[60] = 61.5
+    yaml_path = tmp_path / "with_other_fields.yaml"
+    original.export_yaml(yaml_path)
+
+    document = yaml.safe_load(yaml_path.read_text())
+    document.pop("other_parameters")
+    document.pop("other_flags")
+    legacy_path = tmp_path / "legacy.yaml"
+    legacy_path.write_text(yaml.dump(document, sort_keys=False))
+
+    restored = SimulationConfig(legacy_path)
+
+    assert restored.get_value(11) == pytest.approx(11.0)
+    assert len(restored.data) == 101
+    assert restored.flags == original.flags[:15] + "F" * 15
+
+
+def test_smc_yaml_round_trip_keeps_named_values_files_and_text_variables(tmp_path):
+    original = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    original.set_value("photon_energy", 140.0)
+    original.set_data_file("phantom_soft_tissue", "custom_phantom.dat")
+    original.set_data_file(2, "custom_source.dat")
+    original.text_variables[1] = "custom text variable"
+    yaml_path = tmp_path / "named_round_trip.yaml"
+    original.export_yaml(yaml_path)
+
+    restored = SimulationConfig(yaml_path)
+
+    assert restored.get_value("photon_energy") == pytest.approx(140.0)
+    assert restored.get_data_file("phantom_soft_tissue") == "custom_phantom.dat"
+    assert restored.get_data_file(2) == "custom_source.dat"
+    assert restored.text_variables == original.text_variables
 
 
 def test_smc_round_trip_preserves_empty_comment(tmp_path):
