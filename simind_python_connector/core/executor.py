@@ -60,17 +60,18 @@ class SimindExecutor:
                 validated_switch_blob = self._validate_cli_token("".join(switch_parts))
 
         if validated_mp_value is not None:
+            # /MP splits the projections over the MPI processes, which only
+            # the separate simind_mpi binary supports.
             command = [
                 "mpirun",
                 "-np",
                 validated_mp_value,
-                validated_simind,
+                self._mpi_executable(validated_simind),
                 validated_output_prefix,
                 validated_output_prefix,
             ]
             if validated_orbit_name is not None:
                 command.append(validated_orbit_name)
-            command.append("-p")
             if validated_switch_blob is not None:
                 command.append(validated_switch_blob)
         else:
@@ -103,6 +104,16 @@ class SimindExecutor:
         if os.sep in executable or (os.altsep and os.altsep in executable):
             return str(Path(executable).expanduser().absolute())
         return executable
+
+    @staticmethod
+    def _mpi_executable(executable: str) -> str:
+        """$SIMIND_MPI_BIN, else simind_mpi next to a path-given serial binary."""
+        mpi_executable = os.environ.get("SIMIND_MPI_BIN")
+        if mpi_executable:
+            return str(Path(mpi_executable).expanduser().absolute())
+        if os.sep in executable or (os.altsep and os.altsep in executable):
+            return str(Path(executable).with_name("simind_mpi"))
+        return "simind_mpi"
 
     @staticmethod
     def _validate_cli_token(value: object, *, allow_whitespace: bool = False) -> str:
