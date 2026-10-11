@@ -163,8 +163,8 @@ class SimindPythonConnector(BaseConnector):
         self._mpi: Optional[tuple[int, bool]] = None
         self._derived_keys: set[str] = set()
         self._acquisition: Optional[ProjectionGeometry] = None
-        self._acquisition_orbit: Optional[Path] = None
-        self._transaxial_extent_mm: Optional[float] = None
+        self._acquisition_radii_cm: Optional[list[float]] = None
+        self._phantom_extent_mm: Optional[tuple[float, float]] = None
         self._phantom_mode: Optional[str] = None
 
     @staticmethod
@@ -269,13 +269,16 @@ class SimindPythonConnector(BaseConnector):
         self.config.set_value(25, product)
 
     def _reset_phantom_settings(self) -> None:
-        """Remove the source shifts, switches and map files of an earlier phantom."""
-        for index in (16, 17, 18):
-            self.config.set_value(index, 0.0)
+        """Remove the switches and map files of an earlier phantom, and the
+        source shifts an earlier analytic phantom set."""
+        if self._phantom_mode == "analytic":
+            for index in (16, 17, 18):
+                self.config.set_value(index, 0.0)
         for switch in _PHANTOM_SWITCHES:
             self.runtime_switches.set_switch(switch, None)
         self.config.set_data_file(5, "none")
         self.config.set_data_file(6, "none")
+        self._phantom_extent_mm = None
 
     def configure_voxel_phantom(
         self,
@@ -288,6 +291,11 @@ class SimindPythonConnector(BaseConnector):
     ) -> tuple[Path, Path]:
         """
         Configure voxel geometry and write source/density input files.
+
+        The projection size (Index 28, 76, 77) comes from the configuration or
+        configure_acquisition, not from the phantom. The connector reads SPECT
+        Interfile output, so this sets Flag 5 (SPECT) and Flag 14 (Interfile
+        headers).
 
         Args:
             source: Activity distribution in array order (z, y, x).
@@ -370,12 +378,6 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(2, dim_z * slice_cm / 2.0)
         cfg.set_value(3, dim_x * pixel_cm / 2.0)
         cfg.set_value(4, dim_y * pixel_cm / 2.0)
-        if self._acquisition is None:
-            cfg.set_value(28, pixel_cm)
-            # Projection rows (Index 77) run along the axis of rotation, which
-            # is the slice direction of the maps (checked against SIMIND 8.0).
-            cfg.set_value(76, max(dim_x, dim_y))
-            cfg.set_value(77, dim_z)
 
         # Density geometry
         cfg.set_value(5, dim_z * slice_cm / 2.0)
@@ -393,7 +395,7 @@ class SimindPythonConnector(BaseConnector):
         self.runtime_switches.set_switch(
             "TH", slice_cm if abs(slice_cm - pixel_cm) > 1e-9 else None
         )
-        self._transaxial_extent_mm = max(dim_x, dim_y) * pixel_mm
+        self._phantom_extent_mm = (max(dim_x, dim_y) * pixel_mm, dim_z * slice_mm)
 
         source_max = float(source_array.max())
         if source_max > 0:
@@ -470,10 +472,11 @@ class SimindPythonConnector(BaseConnector):
         Index 25 (normalisation route 1); time_per_projection_s is only used for
         VoxelPhantom. The last configure_phantom/configure_voxel_phantom call wins.
         scoring_routine overrides Index 84 for a VoxelPhantom only; None keeps
-        the configuration value.
+        the configuration value. Phantom interactions follow Flag 11 from the
+        configuration, except that an AnalyticPhantom sets it from whether it
+        has an attenuator.
         """
         if isinstance(phantom, VoxelPhantom):
-            self.config.set_flag(11, True)
             self.configure_voxel_phantom(
                 source=phantom.activity_mbq,
                 mu_map=phantom.density_g_cm3,
@@ -549,7 +552,6 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(15, code)
         cfg.set_data_file(5, base_name)
         cfg.set_data_file(6, base_name)
-        cfg.set_flag(11, True)
         cfg.set_flag(15, True)  # write the aligned density, the ground truth
         # SIMIND resolves /FZ against its working directory, so the code table
         # has to sit next to the run's inputs.
@@ -611,23 +613,17 @@ class SimindPythonConnector(BaseConnector):
 
         if geometry.radii_mm is not None and len(set(geometry.radii_mm)) == 1:
             cfg.set_value(12, geometry.radii_mm[0] / SIMIND_VOXEL_UNIT_CONVERSION)
-            self._acquisition_orbit = None
+            self._acquisition_radii_cm = None
             self._acquisition = geometry
             return
 
         if geometry.radii_mm is None:
             cfg.set_value(12, geometry.radius_mm / SIMIND_VOXEL_UNIT_CONVERSION)
-            self._acquisition_orbit = None
+            self._acquisition_radii_cm = None
         else:
             radii_cm = [r / SIMIND_VOXEL_UNIT_CONVERSION for r in geometry.radii_mm]
             cfg.set_value(12, float(np.mean(radii_cm)))
-            orbit = self.output_dir / f"{self.output_prefix}_acquisition.cor"
-            # SIMIND's own .cor layout (Index 42 < 0 writes one radius per line
-            # in cm at %12.3f followed by the centre bin, num_bins / 2, at %6d).
-            orbit.write_text(
-                "".join(f"{r:12.3f}{geometry.num_bins // 2:6d}\n" for r in radii_cm)
-            )
-            self._acquisition_orbit = orbit
+            self._acquisition_radii_cm = radii_cm
         self._acquisition = geometry
 
     def set_energy_windows(
@@ -676,21 +672,42 @@ class SimindPythonConnector(BaseConnector):
         run_switches_holder = RuntimeSwitches()
         for key, value in self.runtime_switches.switches.items():
             run_switches_holder.set_switch(key, value)
-        orbit_file = self._acquisition_orbit
+        orbit_file = None
+        if self._acquisition_radii_cm is not None:
+            orbit_file = self.output_dir / f"{self.output_prefix}_acquisition.cor"
+            # SIMIND's own .cor layout (Index 42 < 0 writes one radius per line
+            # in cm at %12.3f followed by the centre bin, Index 76 / 2, at %6d).
+            # Written here so a matrix size changed after the template counts.
+            centre_bin = int(self.config.get_value(76)) // 2
+            orbit_file.write_text(
+                "".join(
+                    f"{r:12.3f}{centre_bin:6d}\n" for r in self._acquisition_radii_cm
+                )
+            )
         if runtime_operator is not None:
             for key, value in runtime_operator.switches.items():
                 run_switches_holder.set_switch(key, value)
             if runtime_operator.orbit_file is not None:
                 orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
 
-        if self._acquisition is not None and self._transaxial_extent_mm is not None:
-            fov_mm = self._acquisition.num_bins * self._acquisition.bin_size_mm
-            if self._transaxial_extent_mm > fov_mm:
+        if self._phantom_extent_mm is not None:
+            bin_mm = float(self.config.get_value(28)) * SIMIND_VOXEL_UNIT_CONVERSION
+            width_mm, length_mm = self._phantom_extent_mm
+            fov_width_mm = float(self.config.get_value(76)) * bin_mm
+            fov_length_mm = float(self.config.get_value(77)) * bin_mm
+            if width_mm > fov_width_mm:
                 self.logger.warning(
                     "The phantom (%.1f mm across) is wider than the projection "
                     "field of view (%.1f mm)",
-                    self._transaxial_extent_mm,
-                    fov_mm,
+                    width_mm,
+                    fov_width_mm,
+                )
+            if length_mm > fov_length_mm:
+                self.logger.warning(
+                    "The phantom (%.1f mm axially) is longer than the projection "
+                    "field of view (%.1f mm)",
+                    length_mm,
+                    fov_length_mm,
                 )
 
         # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin

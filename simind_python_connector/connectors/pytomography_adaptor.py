@@ -57,7 +57,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         photon_multiplier: int = 1,
         voxel_size_mm: float = 4.0,
         quantization_scale: float = 1.0,
-        scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
         mu_map_type: str = "attenuation",
         mu_map_energy_kev: Optional[float] = None,
     ) -> None:

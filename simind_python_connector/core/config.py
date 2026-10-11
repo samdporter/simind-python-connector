@@ -718,14 +718,6 @@ class SimulationConfig:
         ):
             warnings.append("Photon energy outside typical range (10-500 keV)")
 
-        # Matrix size validation
-        matrix_i = self.get_value("matrix_size_image_i")
-        matrix_j = self.get_value("matrix_size_image_j")
-        if matrix_i != matrix_j:
-            warnings.append(
-                "Non-square matrix sizes may cause issues in some SIMIND versions"
-            )
-
         # Energy window validation
         upper_window = self.get_value("upper_window_threshold")
         lower_window = self.get_value("lower_window_threshold")

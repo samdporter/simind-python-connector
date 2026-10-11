@@ -208,7 +208,7 @@ def test_zubal_library_phantom_sets_codes_files_and_table(tmp_path):
 
 def test_voxel_phantom_uses_its_density_and_known_activity(tmp_path):
     connector = _connector(tmp_path)
-    connector.get_config().set_flag(11, False)
+    connector.get_config().set_flag(11, True)
     activity = np.full((4, 4, 4), 0.25, dtype=np.float32)
     density = np.full((4, 4, 4), 1.5, dtype=np.float32)
 
@@ -219,8 +219,20 @@ def test_voxel_phantom_uses_its_density_and_known_activity(tmp_path):
     written = np.fromfile(tmp_path / "case01_dns.dmi", dtype=np.uint16)
     assert np.all(written == 1500)
     assert connector.get_config().get_value(25) == pytest.approx(0.25 * 64 * 20.0)
-    assert connector.get_config().get_flag(11)
     assert connector._phantom_mode == "voxel"
+
+
+@pytest.mark.parametrize("phantom_kind", ["voxel", "library"])
+def test_phantoms_keep_flag_11_off_when_configured_off(tmp_path, phantom_kind):
+    connector = _connector(tmp_path)
+    connector.get_config().set_flag(11, False)
+    if phantom_kind == "voxel":
+        ones = np.ones((4, 4, 4), dtype=np.float32)
+        connector.configure_phantom(VoxelPhantom(ones, ones, (4.0, 4.0, 4.0)))
+    else:
+        connector.configure_phantom(LibraryPhantom.NEMA_IQ)
+
+    assert not connector.get_config().get_flag(11)
 
 
 @pytest.mark.parametrize("entry_point", ["array", "phantom"])
@@ -325,6 +337,22 @@ def test_replacing_phantom_replaces_source_shift(tmp_path, replacement, expected
         connector.configure_phantom(replacement)
 
     assert _values(connector, (16, 17, 18)) == list(expected_shift)
+
+
+@pytest.mark.parametrize("entry_point", ["array", "phantom"])
+def test_voxel_phantom_keeps_a_source_shift_set_beforehand(tmp_path, entry_point):
+    connector = _connector(tmp_path)
+    for index, value in zip((16, 17, 18), (1.5, -0.5, 2.0)):
+        connector.add_config_value(index, value)
+    activity = np.ones((4, 4, 4), dtype=np.float32)
+    if entry_point == "array":
+        connector.configure_voxel_phantom(
+            activity, activity, 4.0, mu_map_type="density"
+        )
+    else:
+        connector.configure_phantom(VoxelPhantom(activity, activity, (4.0, 4.0, 4.0)))
+
+    assert _values(connector, (16, 17, 18)) == [1.5, -0.5, 2.0]
 
 
 def test_unsupported_phantom_type(tmp_path):

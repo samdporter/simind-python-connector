@@ -95,11 +95,16 @@ The geometry maps onto SIMIND as follows:
    * - Index 76, 77
      - number of bins, number of axial positions
 
-A configured acquisition wins: once ``set_template()`` or
-``configure_acquisition()`` has run, the projection geometry of the phantom
-no longer changes it, whichever is configured first. There is no API to clear
-a configured acquisition, so build a new adaptor or connector for a different
-geometry.
+Without a template, the projection pixel size and matrix (Index 28, 76 and 77)
+come from the configuration. Configuring a phantom never changes them, so set
+them to cover the phantom; ``run()`` warns when the phantom is wider or longer
+than the projection field of view.
+
+``set_template()`` writes these settings when it is called. Values set with
+``add_config_value()`` afterwards win; the adaptor then warns and returns the
+outputs in SIMIND's geometry rather than the template's. There is no API to
+clear a configured acquisition, so build a new adaptor or connector for a
+different geometry.
 
 ``ProjectionGeometry.time_per_projection_s`` is the frame time the header
 reports. Nothing sets it automatically: pass it to an explicit
@@ -128,7 +133,11 @@ the data are written under a copy of the template header:
 SIMIND centres the phantom on the rotation axis, so source and mu-map images
 must be centred on the axis, as SIRF/STIR SPECT reconstruction images are.
 Voxels may have a different slice thickness from their in-plane size; the
-in-plane size must be square.
+in-plane size must be square, because SIMIND takes a single voxel side (Index 31
+and the ``PX`` switch). The slices themselves do not have to be square: the
+columns (x, Index 78 and 79) and rows (y, Index 81 and 82) of the maps are set
+separately, and a SIMIND test checks that non-square slices give the same
+projections as the same slices padded to square.
 
 Mu-maps can be given as attenuation (``mu_map_type="attenuation"``, cm^-1 at
 ``mu_map_energy_kev``, which defaults to ``abs(Index 1)``), density

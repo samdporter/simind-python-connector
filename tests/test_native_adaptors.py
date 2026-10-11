@@ -16,6 +16,7 @@ from simind_python_connector.connectors.python_connector import (
 from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
 from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
 from simind_python_connector.converters.attenuation import get_attenuation_coefficient
+from simind_python_connector.core.config import SimulationConfig
 from simind_python_connector.core.types import ScoringRoutine, SimulationError
 from simind_python_connector.phantoms import (
     AnalyticPhantom,
@@ -406,6 +407,87 @@ def _fake_simind_run(adaptor, tmp_path, monkeypatch, direction="CW"):
     return projection
 
 
+def _record_projection_settings(adaptor, image_cls, tmp_path, monkeypatch):
+    """Fake the SIMIND run and record the Index 28/76/77 it would be given."""
+    simind_header = _write_header(tmp_path / "case01_tot_w1.hs")
+    recorded = []
+
+    def fake_run(runtime_operator=None):
+        config = adaptor.python_connector.get_config()
+        recorded.append(tuple(config.get_value(index) for index in (28, 76, 77)))
+        return {
+            "tot_w1": ProjectionResult(
+                projection=np.zeros((3, 2, 4), dtype=np.float32),
+                header_path=simind_header,
+                data_path=simind_header.with_suffix(".s"),
+                metadata={},
+            )
+        }
+
+    monkeypatch.setattr(adaptor.python_connector, "run", fake_run)
+    adaptor.set_source(image_cls(np.ones((6, 10, 10), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((6, 10, 10), dtype=np.float32)))
+    return recorded
+
+
+def _output_path(cls, output):
+    return output.removeprefix("stir:") if cls is StirSimindAdaptor else output.path
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_without_template_uses_the_config_projection_size(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    recorded = _record_projection_settings(adaptor, image_cls, tmp_path, monkeypatch)
+    preset = SimulationConfig(get("AnyScan.yaml"))
+
+    outputs = adaptor.run()
+
+    assert recorded == [tuple(preset.get_value(index) for index in (28, 76, 77))]
+    assert recorded[0] != (1.0, 10, 6)  # never the phantom's size
+    assert _output_path(cls, outputs["tot_w1"]) == str(tmp_path / "case01_tot_w1.hs")
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_with_template_uses_the_template_projection_size(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_header(tmp_path / "template.hs"))
+    recorded = _record_projection_settings(adaptor, image_cls, tmp_path, monkeypatch)
+
+    outputs = adaptor.run()
+
+    assert recorded == [(pytest.approx(0.442), 4, 2)]
+    assert _output_path(cls, outputs["tot_w1"]) == str(
+        tmp_path / "case01_tot_w1_tmpl.hs"
+    )
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_projection_size_set_after_the_template_wins(
+    cls, patch, image_cls, tmp_path, monkeypatch, caplog
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_header(tmp_path / "template.hs"))
+    adaptor.add_config_value(28, 0.3)
+    adaptor.add_config_value(76, 8)
+    adaptor.add_config_value(77, 6)
+    recorded = _record_projection_settings(adaptor, image_cls, tmp_path, monkeypatch)
+
+    with caplog.at_level("WARNING"):
+        outputs = adaptor.run()
+        adaptor.run()
+
+    assert recorded == [(pytest.approx(0.3), 8, 6)] * 2
+    assert _output_path(cls, outputs["tot_w1"]) == str(tmp_path / "case01_tot_w1.hs")
+    assert "changed after set_template" in caplog.text
+
+
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
 def test_adaptor_with_template_returns_outputs_in_template_geometry(
     cls, patch, image_cls, tmp_path, monkeypatch
@@ -416,15 +498,11 @@ def test_adaptor_with_template_returns_outputs_in_template_geometry(
     adaptor.set_template(template)
     adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
-    configured = []
-    monkeypatch.setattr(
-        adaptor.python_connector, "configure_acquisition", configured.append
-    )
     projection = _fake_simind_run(adaptor, tmp_path, monkeypatch)
 
     outputs = adaptor.run()
 
-    assert configured[0].num_projections == 3
+    assert adaptor.python_connector.get_config().get_value(29) == 3
     tmpl = tmp_path / "case01_tot_w1_tmpl.hs"
     if cls is StirSimindAdaptor:
         assert outputs["tot_w1"] == f"stir:{tmpl}"
@@ -507,9 +585,6 @@ def test_adaptor_with_template_rejects_mismatched_geometry(
     adaptor.set_template(_write_header(tmp_path / "template.hs", direction="CW"))
     adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
-    monkeypatch.setattr(
-        adaptor.python_connector, "configure_acquisition", lambda g: None
-    )
     _fake_simind_run(adaptor, tmp_path, monkeypatch, direction="CCW")
 
     with pytest.raises(SimulationError, match="direction"):
@@ -563,9 +638,6 @@ def test_adaptor_with_template_reports_every_mismatch(
     adaptor.set_template(_write_header(tmp_path / "template.hs", direction="CW"))
     adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
-    monkeypatch.setattr(
-        adaptor.python_connector, "configure_acquisition", lambda g: None
-    )
     monkeypatch.setattr(
         adaptor.python_connector, "configure_voxel_phantom", lambda **kwargs: None
     )
@@ -762,3 +834,26 @@ def test_ground_truth_of_a_library_phantom_needs_its_own_run(
     adaptor.set_phantom(LibraryPhantom.ZUBAL_BRAIN)  # clears the outputs
     with pytest.raises(RuntimeError, match="Run the adaptor"):
         adaptor.get_ground_truth(image_cls(np.zeros((2, 3, 4))))
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_keeps_the_config_scoring_routine_by_default(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.add_config_value(84, ScoringRoutine.PENETRATE.value)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    observed = {}
+
+    def fake_run(runtime_operator=None):
+        observed["index_84"] = adaptor.get_config().get_value(84)
+        return {}
+
+    monkeypatch.setattr(adaptor.python_connector, "run", fake_run)
+
+    adaptor.run()
+
+    assert observed["index_84"] == ScoringRoutine.PENETRATE.value
+    assert adaptor.get_scoring_routine() == ScoringRoutine.PENETRATE
