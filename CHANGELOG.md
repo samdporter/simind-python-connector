@@ -5,9 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-10-09
+## [1.1.0] - 2026-10-11
+
+Replaces 2.0.0 and 3.0.0, which were published by mistake and have been withdrawn.
 
 ### Breaking Changes
+- The projection bin size and matrix (Index 28, 76, 77) come from the configuration.
+  `configure_voxel_phantom` no longer sets them from the phantom image, which made the
+  projections square whenever the image slices were square and took the number of axial
+  rows from the image height.
+- `configure_voxel_phantom` keeps the configured scoring routine (Index 84) unless
+  `scoring_routine` is given.
 - `STIRSPECTAcquisitionDataBuilder` no longer flips projection data along the last axis.
 - Runtime-operator switches passed to `run()` apply to that run only. They are no longer
   kept on the connector for later runs.
@@ -20,12 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values that contain a path. Energy-window validation raises `ValueError` instead of
   `AssertionError`.
 
+### Added
+- `run()` warns when a voxel phantom is wider or longer than the projection field of
+  view.
+
 ### Fixed
 - The packaged `configs/input.smc` is now included in the wheel. SMC parsing handles
   fixed-width fields and checks section counts.
 - STIR/SIRF adaptors read the z voxel spacing from the correct axis: `voxel_sizes()`
   is `(z, y, x)`, and raw `get_grid_spacing()` is `(unused, z, y, x)`.
-- Voxel-map dimension indices 76, 77, 78, 79, 81 and 82 are set correctly.
+- Voxel-map dimension indices 78, 79, 81 and 82 are set correctly.
 - The executor resolves `SIMIND_BIN` and accepts executable paths that contain spaces.
   The connector no longer changes the process working directory.
 - Runtime switches apply to one run only. Output prefixes cannot escape the output
@@ -44,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - The legacy `scripts/simulation.py`.
+- The "non-square matrix" warning from `SimulationConfig.validate_parameters`; SIMIND
+  supports non-square projections.
 
 ## [1.0.1] - 2026-04-16
 
