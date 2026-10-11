@@ -2,9 +2,16 @@ name: Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, "release/**" ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, "release/**" ]
+  workflow_call:
+    inputs:
+      ref:
+        description: Ref (for example a release tag) to check out and test
+        required: false
+        type: string
+        default: ""
 
 jobs:
   test:
@@ -14,6 +21,8 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -41,6 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -66,6 +77,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - name: Core container validation
         run: bash scripts/run_container_validation.sh --only-core
 
