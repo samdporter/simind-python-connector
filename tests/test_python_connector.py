@@ -597,6 +597,28 @@ def test_python_connector_configure_voxel_phantom_zeroes_density_when_attenuatio
 
 
 @pytest.mark.unit
+def test_python_connector_negative_index_1_converts_the_mu_map_at_its_magnitude(
+    tmp_path: Path,
+):
+    source = np.ones((2, 3, 4), dtype=np.float32)
+    mu_map = np.full_like(source, 0.15)
+    densities = []
+    for energy in (140.0, -140.0):
+        connector = SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path / str(energy),
+            output_prefix="case01",
+        )
+        connector.get_config().set_flag(11, True)
+        connector.add_config_value(1, energy)
+        _, density_path = connector.configure_voxel_phantom(source, mu_map)
+        densities.append(np.fromfile(density_path, dtype=np.uint16))
+
+    assert densities[0].min() > 900  # about water
+    assert np.array_equal(densities[0], densities[1])
+
+
+@pytest.mark.unit
 def test_python_connector_configure_voxel_phantom_accepts_scoring_routine_enum(
     tmp_path: Path,
 ):
