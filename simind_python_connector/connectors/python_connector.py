@@ -8,6 +8,7 @@ import contextlib
 import logging
 import math
 import os
+import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -169,20 +170,17 @@ class SimindPythonConnector(BaseConnector):
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
-        """Reject prefixes that could escape the output directory."""
-        if (
-            not isinstance(prefix, str)
-            or not prefix
-            or prefix in {".", ".."}
-            or "/" in prefix
-            or "\\" in prefix
-            or Path(prefix).is_absolute()
+        """Accept only prefixes SIMIND keeps unchanged in its file names.
+
+        SIMIND lowercases file names on Unix, a dot would be taken for a file
+        extension, and glob characters would break output discovery.
+        """
+        if not isinstance(prefix, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9_-]*", prefix
         ):
-            raise ValueError(f"output_prefix must be a plain filename, got {prefix!r}")
-        if prefix != prefix.lower():
             raise ValueError(
-                f"output_prefix must be lower case, got {prefix!r}: SIMIND "
-                "lowercases file names on Unix, so its outputs would not be found"
+                "output_prefix must contain only lowercase letters, digits, '_' "
+                f"and '-', got {prefix!r}"
             )
 
     @staticmethod
@@ -719,6 +717,12 @@ class SimindPythonConnector(BaseConnector):
 
         window_file = self._window_file_for_run(run_switches_holder.switches)
 
+        # Outputs are read from SPECT Interfile headers (.h00), which SIMIND
+        # writes only with Flag 5 (SPECT) and Flag 14 (Interfile) set. A
+        # configuration-defined phantom never goes through configure_phantom,
+        # so set them for every run.
+        self.config.set_flag(5, True)
+        self.config.set_flag(14, True)
         config_path = self.output_dir / self.output_prefix
         self.config.save_file(config_path)
 

@@ -27,7 +27,7 @@ class SimindExecutor:
         if mpi_executable is not None:
             self.mpi_executable = str(mpi_executable)
         else:
-            self.mpi_executable = os.environ.get("SIMIND_MPI_BIN") or "simind_mpi"
+            self.mpi_executable = os.environ.get("SIMIND_MPI_BIN") or None
 
     def run_simulation(
         self,
@@ -57,7 +57,7 @@ class SimindExecutor:
                 "-np",
                 self._validate_cli_token(mpi_processes),
                 self._validate_cli_token(
-                    self._resolve_executable(self.mpi_executable),
+                    self._mpi_executable(self.executable),
                     allow_whitespace=True,
                 ),
             ]
@@ -95,6 +95,15 @@ class SimindExecutor:
         if os.sep in executable or (os.altsep and os.altsep in executable):
             return str(Path(executable).expanduser().absolute())
         return executable
+
+    def _mpi_executable(self, serial_executable: str) -> str:
+        """Explicit or $SIMIND_MPI_BIN, else simind_mpi next to a path binary."""
+        if self.mpi_executable is not None:
+            return self._resolve_executable(self.mpi_executable)
+        serial = self._resolve_executable(serial_executable)
+        if os.sep in serial or (os.altsep and os.altsep in serial):
+            return str(Path(serial).with_name("simind_mpi"))
+        return "simind_mpi"
 
     @staticmethod
     def _validate_cli_token(value: object, *, allow_whitespace: bool = False) -> str:
