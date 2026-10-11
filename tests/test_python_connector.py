@@ -29,14 +29,45 @@ def test_python_connector_requires_run_before_get_outputs(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_python_connector_rejects_unsafe_output_prefixes(tmp_path: Path):
-    for bad_prefix in ("../escape", "/absolute", "", "a/b", "a\\b", ".."):
-        with pytest.raises(ValueError, match="output_prefix"):
-            SimindPythonConnector(
-                config_source=get("AnyScan.yaml"),
-                output_dir=tmp_path,
-                output_prefix=bad_prefix,
-            )
+@pytest.mark.parametrize(
+    "bad_prefix",
+    [
+        "../escape",
+        "/absolute",
+        "",
+        "a/b",
+        "a\\b",
+        "..",
+        "case.01",
+        "case[1]",
+        "Case01",
+        "-case",
+        "case 01",
+        "café",
+    ],
+)
+def test_python_connector_rejects_unsafe_output_prefixes(
+    tmp_path: Path, bad_prefix: str
+):
+    with pytest.raises(ValueError, match="output_prefix"):
+        SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            output_prefix=bad_prefix,
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("good_prefix", ["a", "case01", "case_01", "case-01", "9case"])
+def test_python_connector_accepts_safe_output_prefixes(
+    tmp_path: Path, good_prefix: str
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix=good_prefix,
+    )
+    assert connector.output_prefix == good_prefix
 
 
 @pytest.mark.unit
@@ -331,8 +362,13 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
         )
 
     connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector.config.set_flag(5, False)
+    connector.config.set_flag(14, False)
     outputs = connector.run(RuntimeOperator(switches={"NN": 2, "RR": 12345}))
 
+    # SPECT Interfile headers are needed to read the outputs.
+    assert connector.config.get_flag(5)
+    assert connector.config.get_flag(14)
     assert captured["output_prefix"] == "case01"
     assert captured["runtime_switches"] == {"NN": 2, "RR": 12345, "CA": 1}
 
@@ -768,16 +804,6 @@ def test_python_connector_raises_on_unparseable_output(tmp_path: Path):
     connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
     with pytest.raises(SimulationError, match="case01_air_w1"):
         connector.run()
-
-
-@pytest.mark.unit
-def test_python_connector_rejects_upper_case_prefix(tmp_path: Path):
-    with pytest.raises(ValueError, match="lower case"):
-        SimindPythonConnector(
-            config_source=get("AnyScan.yaml"),
-            output_dir=tmp_path,
-            output_prefix="Case01",
-        )
 
 
 @pytest.mark.unit

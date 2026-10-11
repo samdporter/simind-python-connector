@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 
 import numpy as np
@@ -8,9 +9,9 @@ from simind_python_connector import SimindPythonConnector
 
 
 def require_simind() -> None:
-    if shutil.which("simind") is None:
+    if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
         raise RuntimeError(
-            "SIMIND executable not found in PATH. "
+            "SIMIND executable not found ($SIMIND_BIN or simind on PATH). "
             "Install SIMIND before running this example."
         )
 

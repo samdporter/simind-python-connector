@@ -169,6 +169,7 @@ def test_executor_mpi_replicate_command(monkeypatch: pytest.MonkeyPatch) -> None
 def test_executor_mpi_split_command_appends_mp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
     monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
     calls = _capture_run(monkeypatch)
 
@@ -201,6 +202,72 @@ def test_executor_mpi_binary_from_environment(
     SimindExecutor().run_simulation("case01", mpi_processes=2)
 
     assert calls[0][0][3] == "/opt/simind/simind_mpi"
+
+
+def test_executor_mpi_explicit_binary_beats_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SIMIND_MPI_BIN", "/opt/simind/simind_mpi")
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor(mpi_executable="/custom/simind_mpi").run_simulation(
+        "case01", mpi_processes=2
+    )
+
+    assert calls[0][0][3] == "/custom/simind_mpi"
+
+
+def test_executor_mpi_uses_simind_mpi_next_to_custom_binary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SIMIND_BIN", str(tmp_path / "bin" / "simind"))
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", mpi_processes=2)
+
+    assert calls[0][0][3] == str(tmp_path / "bin" / "simind_mpi")
+
+
+def test_executor_mpi_uses_sibling_of_relative_binary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SIMIND_BIN", "./simind/simind")
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", mpi_processes=2, cwd=tmp_path / "out")
+
+    assert calls[0][0][3] == str(tmp_path / "simind" / "simind_mpi")
+
+
+def test_executor_mpi_uses_sibling_of_home_relative_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIMIND_BIN", "~/simind/bin/simind")
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", mpi_processes=2)
+
+    expected = (
+        Path("~/simind/bin/simind").expanduser().absolute().with_name("simind_mpi")
+    )
+    assert calls[0][0][3] == str(expected)
+
+
+def test_executor_mpi_accepts_space_containing_sibling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    simind_dir = tmp_path / "simind dir"
+    monkeypatch.setenv("SIMIND_BIN", str(simind_dir / "simind"))
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", mpi_processes=2)
+
+    assert calls[0][0][3] == str(simind_dir / "simind_mpi")
 
 
 def test_executor_split_requires_mpi_processes(
