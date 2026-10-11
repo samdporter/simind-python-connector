@@ -248,6 +248,10 @@ def test_pytomography_simind_smoke_preserves_axial_source_position(
     adaptor.add_config_value(19, 2)
     adaptor.add_config_value(53, 0)
     adaptor.add_config_value(29, 2)
+    # Projections on the source grid: 16 x 16 bins of 4 mm (Index 28 in cm).
+    adaptor.add_config_value(28, 0.4)
+    adaptor.add_config_value(76, 16)
+    adaptor.add_config_value(77, 16)
     adaptor.add_runtime_switch("CC", "ma-lehr")
     adaptor.add_runtime_switch("RR", 7)
     adaptor.run()
