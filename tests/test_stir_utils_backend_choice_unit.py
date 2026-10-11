@@ -70,7 +70,7 @@ def test_create_stir_acqdata_forwards_explicit_backend(monkeypatch):
 
     assert output["kind"] == "acquisition"
     assert output["backend"] == "stir"
-    assert captured["pixel_shape"] == (1, 3, 5, 4)
+    assert captured["pixel_shape"] == (1, 4, 5, 3)
 
 
 def test_stir_utils_backend_choice_rejects_invalid_value():

@@ -409,9 +409,9 @@ def create_stir_acqdata(
     """Create a uniform (zeros) STIR acquisition object.
 
     Args:
-        proj_matrix: Two-element projection matrix size in ``(radial, tangential)``.
+        proj_matrix: Two-element projection matrix size in ``(bins, axial)``.
         num_projections: Number of projection views.
-        pixel_size: Two-element pixel size in mm for ``(radial, tangential)``.
+        pixel_size: Two-element pixel size in mm for ``(bins, axial)``.
         backend: Optional explicit backend (``"sirf"`` or ``"stir"``).
 
     Returns:
@@ -435,7 +435,7 @@ def create_stir_acqdata(
         }
     )
     builder.pixel_array = np.zeros(
-        (1, proj_matrix[0], num_projections, proj_matrix[1]), dtype=np.float32
+        (1, proj_matrix[1], num_projections, proj_matrix[0]), dtype=np.float32
     )
     return builder.build()
 

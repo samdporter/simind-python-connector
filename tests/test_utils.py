@@ -72,20 +72,15 @@ def test_create_stir_image():
 
 def test_create_stir_acqdata():
     """Test creating STIR acquisition data."""
-    proj_matrix = [64, 64]
+    proj_matrix = [64, 32]  # (bins, axial)
     num_projections = 60
     pixel_size = [4.42, 4.42]
 
     acqdata = create_stir_acqdata(proj_matrix, num_projections, pixel_size)
 
-    # Check that acquisition data was created
     assert acqdata is not None
-
-    # Check that it has expected structure
-    acq_array = get_array(acqdata)
-    assert acq_array.shape[1] == proj_matrix[0]  # First dimension
-    assert acq_array.shape[2] == num_projections  # Number of projections
-    assert acq_array.shape[3] == proj_matrix[1]  # Second dimension
+    # STIR/SIRF arrays are (tof, axial, view, bin).
+    assert get_array(acqdata).shape == (1, 32, num_projections, 64)
 
 
 @pytest.mark.unit
