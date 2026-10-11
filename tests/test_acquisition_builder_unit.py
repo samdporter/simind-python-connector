@@ -125,6 +125,35 @@ def test_build_multi_energy_splits_windows(tmp_path, fake_create_acquisition):
 
 
 @pytest.mark.unit
+def test_build_multi_energy_selects_frames_with_the_window_vector(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "1"
+    builder.header["!matrix size [2]"] = "1"
+    builder.header["!number of projections"] = "4"
+    builder.header["!number of energy windows"] = "2"
+    builder.header["!image duration (sec)[1]"] = "2"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+    builder.energy_window_vector = [1, 2, 1, 2]
+    builder.pixel_array = np.array([10, 20, 11, 21], np.float32).reshape(1, 1, 4, 1)
+
+    outputs = builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+    assert outputs[0].fill_data.ravel().tolist() == [10, 11]
+    assert outputs[1].fill_data.ravel().tolist() == [20, 21]
+    header = (tmp_path / "multi_ew1.hs").read_text()
+    assert "!number of projections := 2" in header
+    assert "!number of energy windows := 1" in header
+    assert "!image duration (sec)[1] := 1" in header
+    assert header.rstrip().endswith("!END OF INTERFILE :=")
+    assert builder.header["!number of energy windows"] == "2"
+
+
+@pytest.mark.unit
 def test_build_with_explicit_backend_restores_global_backend(monkeypatch, tmp_path):
     from simind_python_connector.builders import acquisition_builder as builder_mod
 
