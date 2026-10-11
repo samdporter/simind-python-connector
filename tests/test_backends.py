@@ -7,6 +7,7 @@ between SIRF and STIR Python backends.
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 
@@ -365,3 +366,33 @@ def test_create_acquisition_data_accepts_path_objects(monkeypatch):
         assert wrapped.native_object.obj == ("acquisition", "/tmp/proj.hs")
     finally:
         reset_backend()
+
+
+@pytest.mark.requires_sirf
+def test_sirf_wrappers_update_in_place(tmp_path):
+    """SIRF's maximum() and sapyb() return new objects unless given out=."""
+    sirf = pytest.importorskip("sirf.STIR")
+
+    from simind_python_connector.backends.sirf_backend import (
+        SirfAcquisitionData,
+        SirfImageData,
+    )
+    from simind_python_connector.utils.stir_utils import create_stir_acqdata
+
+    native = sirf.ImageData()
+    native.initialise((2, 3, 4), (1.0, 1.0, 1.0))
+    native.fill(-1.0)
+    image = SirfImageData(native)
+    image.maximum(0)
+    assert np.all(image.as_array() == 0)
+
+    x = SirfImageData(native.get_uniform_copy(1.0))
+    y = SirfImageData(native.get_uniform_copy(2.0))
+    x.sapyb(2, y, 3)
+    np.testing.assert_allclose(x.as_array(), 8.0)
+
+    template = create_stir_acqdata([4, 3], 2, [1.0, 1.0], backend="sirf")
+    acq_x = SirfAcquisitionData(template.get_uniform_copy(1.0))
+    acq_y = SirfAcquisitionData(template.get_uniform_copy(2.0))
+    acq_x.sapyb(2, acq_y, 3)
+    np.testing.assert_allclose(acq_x.as_array(), 8.0)
