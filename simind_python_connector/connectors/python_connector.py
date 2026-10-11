@@ -68,8 +68,11 @@ class SimindPythonConnector(BaseConnector):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_prefix = output_prefix
         self.quantization_scale = float(quantization_scale)
-        if not math.isfinite(self.quantization_scale) or self.quantization_scale <= 0:
-            raise ValueError("quantization_scale must be > 0")
+        # Above 1 the source would be clipped at MAX_SOURCE, changing its shape.
+        if not 0 < self.quantization_scale <= 1:
+            raise ValueError(
+                f"quantization_scale must be in (0, 1], got {quantization_scale!r}"
+            )
 
         self.config = self._initialize_config(config_source)
         self.runtime_switches = RuntimeSwitches()
