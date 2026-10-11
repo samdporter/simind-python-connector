@@ -64,13 +64,86 @@ def test_python_connector_configure_voxel_phantom_sets_all_map_dimensions(
     )
 
     config = connector.get_config()
-    assert config.get_value(76) == pytest.approx(4)  # image i = dim_x
-    assert config.get_value(77) == pytest.approx(3)  # image j = dim_y
     assert config.get_value(78) == pytest.approx(4)  # density map i = dim_x
     assert config.get_value(79) == pytest.approx(4)  # source map i = dim_x
     assert config.get_value(81) == pytest.approx(3)  # density map j = dim_y
     assert config.get_value(82) == pytest.approx(3)  # source map j = dim_y
     assert config.get_value(34) == pytest.approx(2)  # number of density images
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_keeps_the_config_projection_size(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    config = connector.get_config()
+    preset = [config.get_value(index) for index in (28, 76, 77)]
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+    assert [config.get_value(index) for index in (28, 76, 77)] == preset
+
+    connector.add_config_value(28, 0.25)
+    connector.add_config_value(76, 96)
+    connector.add_config_value(77, 40)
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+    assert config.get_value(28) == pytest.approx(0.25)
+    assert (config.get_value(76), config.get_value(77)) == (96, 40)
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_keeps_the_config_scoring_routine(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, ScoringRoutine.PENETRATE.value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+
+    assert int(connector.get_config().get_value(84)) == ScoringRoutine.PENETRATE.value
+
+
+def _run_without_simind(connector: SimindPythonConnector) -> None:
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+
+
+@pytest.mark.unit
+def test_run_warns_when_the_phantom_is_larger_than_the_field_of_view(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(28, 0.4)
+    connector.add_config_value(76, 8)  # 32 mm across
+    connector.add_config_value(77, 8)  # 32 mm axially
+    source = np.ones((4, 16, 16), dtype=np.float32)  # 64 mm across, 16 mm axially
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+
+    with caplog.at_level("WARNING"):
+        _run_without_simind(connector)
+    assert "wider than the projection field of view" in caplog.text
+    assert "longer than" not in caplog.text
+
+    caplog.clear()
+    connector.add_config_value(76, 32)
+    connector.add_config_value(77, 2)  # 8 mm axially
+    with caplog.at_level("WARNING"):
+        _run_without_simind(connector)
+    assert "longer than the projection field of view" in caplog.text
+    assert "wider than" not in caplog.text
 
 
 @pytest.mark.unit
