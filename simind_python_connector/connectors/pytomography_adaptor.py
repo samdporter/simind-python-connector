@@ -167,8 +167,13 @@ class PyTomographySimindAdaptor(BaseConnector):
                     dtype=torch.float32
                 )
             else:
+                # Match get_projections: (view, axial, bin) -> (view, bin, axial)
+                # with the axial direction reversed.
                 projection = torch.from_numpy(
-                    value.projection.astype(np.float32, copy=False)
+                    np.ascontiguousarray(
+                        np.swapaxes(value.projection[:, ::-1, :], 1, 2),
+                        dtype=np.float32,
+                    )
                 )
                 # Fall back to converter-generated .hs header for metadata access.
                 header_path = value.header_path

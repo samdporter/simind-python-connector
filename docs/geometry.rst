@@ -15,7 +15,11 @@ At-a-Glance Axis Conventions
 - ``PyTomographySimindAdaptor`` public object-space tensors are ``(x, y, z)``.
 - PyTomography object space is ``(x, y, z)`` (``Lx, Ly, Lz``).
 - PyTomography SIMIND projections from ``pytomography.io.SPECT.simind`` are
-  ``(theta, r, z)``.
+  ``(theta, r, z)``, which is ``(view, bin, axial)``.
+- ``PyTomographySimindAdaptor`` uses that same ``(view, bin, axial)`` layout
+  even on its fallback path (outputs without a per-key ``.h00``, such as
+  PENETRATE): the core ``(view, axial, bin)`` array is transposed and its axial
+  direction reversed to match the reader.
 
 Practical Implication
 ---------------------

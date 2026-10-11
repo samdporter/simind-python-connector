@@ -39,7 +39,7 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
     connector.set_mu_map(mu_map)
     connector.set_energy_windows([126], [154], [0])
 
-    projection = np.arange(1 * 8 * 5 * 8, dtype=np.float32).reshape(1, 8, 5, 8)
+    projection = np.arange(8 * 5 * 7, dtype=np.float32).reshape(8, 5, 7)
     fake_result = ProjectionResult(
         projection=projection,
         header_path=tmp_path / "case01_tot_w1.hs",
@@ -56,8 +56,7 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
     outputs = connector.run()
 
     assert "tot_w1" in outputs
-    assert tuple(outputs["tot_w1"].shape) == (1, 8, 5, 8)
-    assert torch.equal(outputs["tot_w1"], torch.from_numpy(projection))
+    assert tuple(outputs["tot_w1"].shape) == (8, 7, 5)
     assert (
         connector.get_output_header_path("tot_w1") == fake_result.header_path.resolve()
     )
@@ -120,7 +119,7 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
             list(scatter_orders),
         )
 
-    projection = np.arange(1 * 8 * 5 * 8, dtype=np.float32).reshape(1, 8, 5, 8)
+    projection = np.arange(8 * 5 * 7, dtype=np.float32).reshape(8, 5, 7)
     raw_outputs = {
         "tot_w1": ProjectionResult(
             projection=projection,
@@ -257,6 +256,10 @@ def test_pytomography_simind_smoke_preserves_axial_source_position(
     adaptor.add_config_value(19, 2)
     adaptor.add_config_value(53, 0)
     adaptor.add_config_value(29, 2)
+    # Projections on the source grid: 16 x 16 bins of 4 mm (Index 28 in cm).
+    adaptor.add_config_value(28, 0.4)
+    adaptor.add_config_value(76, 16)
+    adaptor.add_config_value(77, 16)
     adaptor.add_runtime_switch("CC", "ma-lehr")
     adaptor.add_runtime_switch("RR", 7)
     adaptor.run()
@@ -310,13 +313,54 @@ def test_pytomography_fallback_branch_preserves_projection_values(
     monkeypatch.setattr(pyta, "pytomo_simind", None)
 
     outputs = connector.run()
-    expected = connector._raw["tot_w1"].projection
+    raw = connector._raw["tot_w1"].projection
 
-    assert torch.equal(outputs["tot_w1"], torch.from_numpy(expected))
+    # PyTomography's (view, bin, axial) order with the axial direction reversed.
+    expected = torch.from_numpy(raw[:, ::-1, :].transpose(0, 2, 1).copy())
+    assert torch.equal(outputs["tot_w1"], expected)
     assert (
         connector.get_output_header_path("tot_w1")
         == (tmp_path / "case01_tot_w1.hs").resolve()
     )
+
+
+@pytest.mark.unit
+def test_pytomography_fallback_branch_matches_real_reader(tmp_path: Path, monkeypatch):
+    """PENETRATE outputs have no per-key .h00, so they take the fallback."""
+    import simind_python_connector.connectors.pytomography_adaptor as pyta
+
+    real_reader = pytest.importorskip("pytomography.io.SPECT.simind")
+    connector = _make_wired_connector(tmp_path, monkeypatch)
+    raw = connector._raw["tot_w1"].projection
+    raw.tofile(tmp_path / "reference.a00")
+    header = tmp_path / "reference.h00"
+    header.write_text(
+        "!INTERFILE :=\n"
+        "!name of data file := reference.a00\n"
+        "!number format := short float\n"
+        "!number of bytes per pixel := 4\n"
+        "!total number of images := 2\n"
+        "!matrix size [1] := 4\n"
+        "!matrix size [2] := 3\n"
+        "!END OF INTERFILE :=\n"
+    )
+    expected = real_reader.get_projections(str(header)).cpu()
+    monkeypatch.setattr(pyta, "pytomo_simind", None)
+
+    outputs = connector.run()
+
+    assert tuple(outputs["tot_w1"].shape) == (2, 4, 3)
+    torch.testing.assert_close(outputs["tot_w1"], expected, rtol=0, atol=0)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("order", [1.5, -0.5, -1])
+def test_pytomography_rejects_invalid_scatter_orders(tmp_path: Path, order) -> None:
+    connector = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path
+    )
+    with pytest.raises(ValueError, match="Scatter orders"):
+        connector.set_energy_windows([126], [154], [order])
 
 
 def _make_wired_connector(tmp_path: Path, monkeypatch):
