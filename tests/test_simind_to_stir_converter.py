@@ -1,5 +1,7 @@
 """Tests for SIMIND to STIR converter."""
 
+from pathlib import Path
+
 import pytest
 
 from simind_python_connector.converters.simind_to_stir import (
@@ -68,6 +70,45 @@ class TestConversionRules:
         assert active_data_file == ["!name of data file := patient.a00"]
         assert ";patient name := John Doe" in content_lines
         assert ";!study ID := study123" in content_lines
+
+    def test_orbit_file_name_with_ignored_word_still_adds_radii(self, tmp_path):
+        (tmp_path / "patient.cor").write_text("20.0 0\n25.0 0\n")
+        h00_file = tmp_path / "output.h00"
+        h00_file.write_text(
+            "\n".join(
+                [
+                    "!INTERFILE :=",
+                    "!name of data file := output.a00",
+                    ";# Non-Uniform Orbit File := patient.cor",
+                    "!END OF INTERFILE :=",
+                ]
+            )
+        )
+
+        hs_file = tmp_path / "output.hs"
+        SimindToStirConverter().convert_file(str(h00_file), str(hs_file))
+
+        assert "Radii := {200.0, 250.0}" in hs_file.read_text()
+
+    def test_header_written_elsewhere_points_at_the_input_data(self, tmp_path):
+        h00_file = tmp_path / "output.h00"
+        h00_file.write_text(
+            "!INTERFILE :=\n!name of data file := output.a00\n!END OF INTERFILE :=\n"
+        )
+        other_dir = tmp_path / "other"
+        other_dir.mkdir()
+
+        hs_file = other_dir / "output.hs"
+        SimindToStirConverter().convert_file(str(h00_file), str(hs_file))
+
+        key, value = parse_interfile_line(
+            next(
+                line
+                for line in hs_file.read_text().splitlines()
+                if line.startswith("!name of data file")
+            )
+        )
+        assert Path(value) == (tmp_path / "output.a00").resolve()
 
     def test_start_angle_conversion_rule(self):
         """Test start angle conversion with offset."""
@@ -268,6 +309,44 @@ class TestSimindToStirConverter:
         assert outputs == {component.slug: header_path}
         assert f"patient name := {component.slug}_{binary_file.name}" in header_text
         assert component.description in header_text
+
+    def test_converter_resets_data_dir_between_calls(self, tmp_path):
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        h00_file = input_dir / "output.h00"
+        h00_file.write_text(
+            "!INTERFILE :=\n!name of data file := output.a00\n!END OF INTERFILE :=\n"
+        )
+        other_dir = tmp_path / "other"
+        other_dir.mkdir()
+
+        converter = SimindToStirConverter()
+        converter.convert_file(str(h00_file), str(other_dir / "output.hs"))
+
+        # The relocated-header rule must not leak into the next conversion.
+        line, _ = converter.convert_line("!name of data file := output.a00", {})
+        assert line == "!name of data file := output.a00"
+
+    def test_converter_repeated_orbit_conversions_keep_radii(self, tmp_path):
+        (tmp_path / "output.cor").write_text("20.0 0\n25.0 0\n")
+        h00_file = tmp_path / "output.h00"
+        h00_file.write_text(
+            "\n".join(
+                [
+                    "!INTERFILE :=",
+                    "!name of data file := output.a00",
+                    ";# Non-Uniform Orbit File := output.cor",
+                    "!END OF INTERFILE :=",
+                ]
+            )
+        )
+        hs_file = tmp_path / "output.hs"
+
+        converter = SimindToStirConverter()
+        converter.convert_file(str(h00_file), str(hs_file))
+        converter.convert_file(str(h00_file), str(hs_file))
+
+        assert "Radii := {200.0, 250.0}" in hs_file.read_text()
 
     def test_convert_line(self):
         """Test single line conversion."""
