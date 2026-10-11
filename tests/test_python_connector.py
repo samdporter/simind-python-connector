@@ -21,7 +21,18 @@ def test_python_connector_requires_run_before_get_outputs(tmp_path: Path):
 
 @pytest.mark.unit
 def test_python_connector_rejects_unsafe_output_prefixes(tmp_path: Path):
-    for bad_prefix in ("../escape", "/absolute", "", "a/b", "a\\b", ".."):
+    for bad_prefix in (
+        "../escape",
+        "/absolute",
+        "",
+        "a/b",
+        "a\\b",
+        "..",
+        "case.01",
+        "case[1]",
+        "Case01",
+        "-case",
+    ):
         with pytest.raises(ValueError, match="output_prefix"):
             SimindPythonConnector(
                 config_source=get("AnyScan.yaml"),
