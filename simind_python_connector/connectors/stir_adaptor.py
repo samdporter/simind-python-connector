@@ -165,6 +165,13 @@ class StirSimindAdaptor(BaseConnector):
                 f"source and mu_map must have matching shapes, got "
                 f"{source_shape} and {mu_shape}"
             )
+        source_voxel_mm = self._extract_voxel_size_mm(self._source)
+        mu_voxel_mm = self._extract_voxel_size_mm(self._mu_map)
+        if abs(source_voxel_mm - mu_voxel_mm) > 1e-3:
+            raise ValueError(
+                f"source and mu_map must have the same voxel size, got "
+                f"{source_voxel_mm} mm and {mu_voxel_mm} mm"
+            )
 
 
 __all__ = ["StirSimindAdaptor"]
