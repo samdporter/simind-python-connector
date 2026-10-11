@@ -69,3 +69,40 @@ def test_image_builder_rejects_pixel_array_shape_mismatch(loaded, tmp_path):
 
     with pytest.raises(ValueError, match="shape"):
         builder.build(output_path=tmp_path / "img")
+
+
+def test_image_builder_writes_new_keys_before_end_of_interfile(loaded, tmp_path):
+    builder = STIRSPECTImageDataBuilder(
+        header_overrides={
+            **_SMALL_HEADER,
+            "first pixel offset (mm) [1]": "-2",
+        }
+    )
+    builder.update_header({"first pixel offset (mm) [2]": "-1.5"})
+    builder.set_pixel_array(np.zeros((2, 3, 4), dtype=np.float32))
+
+    builder.build(output_path=tmp_path / "img")
+
+    lines = [
+        line for line in (tmp_path / "img.hv").read_text().splitlines() if line.strip()
+    ]
+    assert lines[-1] == "!END OF INTERFILE := "
+    assert "first pixel offset (mm) [1] := -2" in lines
+    assert "first pixel offset (mm) [2] := -1.5" in lines
+
+
+def test_image_builder_keeps_terminator_last_on_repeated_builds(loaded, tmp_path):
+    builder = STIRSPECTImageDataBuilder(header_overrides=_SMALL_HEADER)
+    builder.set_pixel_array(np.zeros((2, 3, 4), dtype=np.float32))
+    builder.build(output_path=tmp_path / "img")
+
+    builder.update_header({"first pixel offset (mm) [1]": "5"})
+    builder.build(output_path=tmp_path / "img")
+
+    lines = [
+        line for line in (tmp_path / "img.hv").read_text().splitlines() if line.strip()
+    ]
+    assert lines[-1] == "!END OF INTERFILE := "
+    assert [line for line in lines if line.startswith("first pixel offset")] == [
+        "first pixel offset (mm) [1] := 5"
+    ]

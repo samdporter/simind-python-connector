@@ -106,6 +106,8 @@ class STIRSPECTAcquisitionDataBuilder:
             raw_file_path = base_path.with_suffix(".s")
 
             self.header["name of data file"] = raw_file_path.name
+            # Keys added since an earlier build must come before the terminator.
+            self.header.pop("!END OF INTERFILE", None)
             self.header["!END OF INTERFILE"] = ""
 
             with open(header_path, "w") as f:
@@ -159,35 +161,65 @@ class STIRSPECTAcquisitionDataBuilder:
                 f"pixel array shape {self.pixel_array.shape} does not match "
                 f"declared {total_projections} projections"
             )
-        if total_projections % num_windows != 0:
-            raise ValueError(
-                f"Number of projections ({total_projections}) must be divisible "
-                f"by the number of energy windows ({num_windows})"
+        window_vector = getattr(self, "energy_window_vector", None)
+        if window_vector is not None:
+            window_vector = np.asarray(window_vector)
+            if len(window_vector) != total_projections:
+                raise ValueError(
+                    f"EnergyWindowVector has {len(window_vector)} entries for "
+                    f"{total_projections} frames"
+                )
+            if not np.issubdtype(window_vector.dtype, np.integer) or not np.all(
+                (window_vector >= 1) & (window_vector <= num_windows)
+            ):
+                raise ValueError(
+                    f"EnergyWindowVector entries must be window numbers "
+                    f"1..{num_windows}"
+                )
+            frames_per_window = [
+                np.flatnonzero(window_vector == idx + 1) for idx in range(num_windows)
+            ]
+            if any(frames.size == 0 for frames in frames_per_window):
+                raise ValueError(
+                    "EnergyWindowVector selects no frames for at least one "
+                    "energy window"
+                )
+        else:
+            if total_projections % num_windows != 0:
+                raise ValueError(
+                    f"Number of projections ({total_projections}) must be divisible "
+                    f"by the number of energy windows ({num_windows})"
+                )
+            # Without a window vector, assume one contiguous block per window.
+            frames_per_window = np.array_split(
+                np.arange(total_projections), num_windows
             )
-        projections_per_window = total_projections // num_windows
 
-        # number of projections needs dividing by number of energy windows
-        self.header["!number of projections"] = str(projections_per_window)
-
-        # split pixel_array into energy windows along 3rd axis
         original_pixel_array = self.pixel_array
+        original_header = dict(self.header)
+        duration = original_header.get("!image duration (sec)[1]")
         try:
-            pixel_array_list = np.array_split(original_pixel_array, num_windows, axis=2)
-
             acqdata_list = []
             for idx, ew in enumerate(self.energy_windows):
-                # Update header for this energy window.
+                frames = frames_per_window[idx]
+                self.header["!number of projections"] = str(len(frames))
+                self.header["!number of energy windows"] = "1"
                 self.header["energy window lower level[1]"] = ew["lower"]
                 self.header["energy window upper level[1]"] = ew["upper"]
-                suffix = f"_ew{idx + 1}"
-                output_path = output_path_base + suffix
-                self.pixel_array = pixel_array_list[idx]
+                if duration is not None:
+                    # Windows are acquired simultaneously, so each output
+                    # covers only its own frames.
+                    self.header["!image duration (sec)[1]"] = (
+                        f"{float(duration) * len(frames) / total_projections:g}"
+                    )
+                output_path = output_path_base + f"_ew{idx + 1}"
+                self.pixel_array = original_pixel_array[:, :, frames, :]
                 acqdata = self.build(output_path=output_path)
                 acqdata_list.append(acqdata)
             return acqdata_list
         finally:
             self.pixel_array = original_pixel_array
-            self.header["!number of projections"] = str(total_projections)
+            self.header = original_header
 
     def update_header_from_dicom(self, dicom_filepath):
         """
@@ -243,6 +275,10 @@ class STIRSPECTAcquisitionDataBuilder:
         try:
             ewi_seq_tag = (0x0054, 0x0012)
             self.energy_windows = []  # list to hold each energy window's info
+            vector = ds.get("EnergyWindowVector")
+            self.energy_window_vector = (
+                [int(v) for v in np.atleast_1d(vector)] if vector is not None else None
+            )
             if ewi_seq_tag in ds:
                 ewi_seq = ds[ewi_seq_tag].value
                 for ewi_item in ewi_seq:

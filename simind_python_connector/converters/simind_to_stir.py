@@ -218,8 +218,13 @@ class EnergyWindowRule(ConversionRule):
 class DataFileNameRule(ConversionRule):
     """Convert data file name references."""
 
-    def __init__(self, override_filename: Optional[str] = None):
+    def __init__(
+        self,
+        override_filename: Optional[str] = None,
+        data_dir: Optional[Path] = None,
+    ):
         self.override_filename = override_filename
+        self.data_dir = data_dir
 
     def matches(self, line: str) -> bool:
         return "!name of data file" in line
@@ -230,9 +235,13 @@ class DataFileNameRule(ConversionRule):
                 # Use the override filename
                 return f"!name of data file := {self.override_filename}", context
             else:
-                # Use existing filename from the header line
-                file = Path(line.split()[5])
-                return f"!name of data file := {file.stem + file.suffix}", context
+                # Use existing filename from the header line. A bare name only
+                # resolves next to the header, so a header written elsewhere
+                # needs the input directory to find its data.
+                file = Path(line.split()[5]).name
+                if self.data_dir is not None:
+                    file = str((self.data_dir / file).resolve())
+                return f"!name of data file := {file}", context
         except IndexError as e:
             logging.warning(f"Failed to convert data file name line '{line}': {e}")
             return line, context
@@ -245,7 +254,10 @@ class IgnorePatternRule(ConversionRule):
         self.patterns = patterns
 
     def matches(self, line: str) -> bool:
-        return any(pattern in line for pattern in self.patterns)
+        # Match keys only: values such as an orbit file name "patient.cor"
+        # must not comment out their line.
+        key = line.split(":=")[0]
+        return any(pattern in key for pattern in self.patterns)
 
     def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         return ";" + line, context
@@ -261,14 +273,16 @@ class SimindToStirConverter:
         self.logger = logging.getLogger(__name__)
 
     def _create_rules(
-        self, data_file_override: Optional[str] = None
+        self,
+        data_file_override: Optional[str] = None,
+        data_dir: Optional[Path] = None,
     ) -> List[ConversionRule]:
         """Create conversion rules in order of priority."""
         return [
             # Data-file names must be rewritten before ignore rules run:
             # ignored substrings such as "patient" otherwise comment out
             # data files whose paths happen to contain them.
-            DataFileNameRule(data_file_override),
+            DataFileNameRule(data_file_override, data_dir),
             IgnorePatternRule(self.config.ignored_patterns),
             OrbitFileRule(self.input_file_dir),  # Process orbit file before other rules
             RadiusConversionRule(self.config.radius_scale_factor),
@@ -329,12 +343,13 @@ class SimindToStirConverter:
         # Set input directory for orbit file resolution
         self.input_file_dir = Path(input_filename).parent
 
-        # Create rules with optional data file override
-        if data_file is not None:
-            self.rules = self._create_rules(data_file)
-        else:
-            # Recreate rules to pick up the new input_file_dir
-            self.rules = self._create_rules()
+        # A header written elsewhere must still find the data next to the input.
+        data_dir = None
+        if Path(output_filename).resolve().parent != self.input_file_dir.resolve():
+            data_dir = self.input_file_dir
+
+        # Recreate rules to pick up the new input_file_dir
+        self.rules = self._create_rules(data_file, data_dir)
 
         context = {"rotation_direction": None}
 
@@ -366,8 +381,7 @@ class SimindToStirConverter:
             raise
         finally:
             # Reset rules to default after conversion
-            if data_file is not None:
-                self.rules = self._create_rules()
+            self.rules = self._create_rules()
 
     def create_penetrate_headers_from_template(
         self, h00_file: str, output_prefix: str, output_dir: str

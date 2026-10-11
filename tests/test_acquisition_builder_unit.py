@@ -113,6 +113,146 @@ def test_build_multi_energy_splits_windows(tmp_path, fake_create_acquisition):
 
 
 @pytest.mark.unit
+def test_build_multi_energy_selects_frames_with_the_window_vector(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "1"
+    builder.header["!matrix size [2]"] = "1"
+    builder.header["!number of projections"] = "4"
+    builder.header["!number of energy windows"] = "2"
+    builder.header["!image duration (sec)[1]"] = "2"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+    builder.energy_window_vector = [1, 2, 1, 2]
+    builder.pixel_array = np.array([10, 20, 11, 21], np.float32).reshape(1, 1, 4, 1)
+
+    outputs = builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+    assert outputs[0].fill_data.ravel().tolist() == [10, 11]
+    assert outputs[1].fill_data.ravel().tolist() == [20, 21]
+    header = (tmp_path / "multi_ew1.hs").read_text()
+    assert "!number of projections := 2" in header
+    assert "!number of energy windows := 1" in header
+    assert "!image duration (sec)[1] := 1" in header
+    assert header.rstrip().endswith("!END OF INTERFILE :=")
+    assert builder.header["!number of energy windows"] == "2"
+
+
+@pytest.mark.unit
+def test_build_multi_energy_rejects_window_vector_wrong_length(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "1"
+    builder.header["!matrix size [2]"] = "1"
+    builder.header["!number of projections"] = "4"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+    builder.energy_window_vector = [1, 2, 1]
+    builder.pixel_array = np.zeros((1, 1, 4, 1), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="EnergyWindowVector has 3 entries"):
+        builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+
+@pytest.mark.unit
+def test_build_multi_energy_rejects_window_vector_bad_identifier(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "1"
+    builder.header["!matrix size [2]"] = "1"
+    builder.header["!number of projections"] = "4"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+    builder.energy_window_vector = [1, 2, 1, 3]
+    builder.pixel_array = np.zeros((1, 1, 4, 1), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="window numbers 1..2"):
+        builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+
+@pytest.mark.unit
+def test_build_multi_energy_rejects_empty_window_selection(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "1"
+    builder.header["!matrix size [2]"] = "1"
+    builder.header["!number of projections"] = "4"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+    builder.energy_window_vector = [1, 1, 1, 1]
+    builder.pixel_array = np.zeros((1, 1, 4, 1), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="no frames"):
+        builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+
+@pytest.mark.unit
+def test_build_multi_energy_restores_state_on_failure(
+    tmp_path, fake_create_acquisition, monkeypatch
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "1"
+    builder.header["!matrix size [2]"] = "1"
+    builder.header["!number of projections"] = "4"
+    builder.header["!number of energy windows"] = "2"
+    builder.energy_windows = [
+        {"lower": 110.0, "upper": 130.0},
+        {"lower": 130.0, "upper": 150.0},
+    ]
+    builder.energy_window_vector = [1, 2, 1, 2]
+    original_array = np.arange(4, dtype=np.float32).reshape(1, 1, 4, 1)
+    builder.pixel_array = original_array
+    original_header = dict(builder.header)
+
+    calls = {"count": 0}
+    real_build = builder.build
+
+    def flaky_build(output_path=None):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise RuntimeError("injected build failure")
+        return real_build(output_path=output_path)
+
+    monkeypatch.setattr(builder, "build", flaky_build)
+
+    with pytest.raises(RuntimeError, match="injected build failure"):
+        builder.build_multi_energy(output_path_base=str(tmp_path / "multi"))
+
+    assert builder.pixel_array is original_array
+    assert builder.header == original_header
+
+
+@pytest.mark.unit
+def test_build_keeps_terminator_last_after_header_update(
+    tmp_path, fake_create_acquisition
+):
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.header["!matrix size [1]"] = "2"
+    builder.header["!matrix size [2]"] = "2"
+    builder.header["!number of projections"] = "1"
+    builder.build(output_path=tmp_path / "acq")
+
+    builder.update_header({"first pixel offset (mm) [1]": "-2"})
+    builder.build(output_path=tmp_path / "acq")
+
+    lines = [line.strip() for line in (tmp_path / "acq.hs").read_text().splitlines()]
+    assert lines[-1] == "!END OF INTERFILE :="
+    assert "first pixel offset (mm) [1] := -2" in lines
+
+
+@pytest.mark.unit
 def test_build_forwards_explicit_backend(monkeypatch, tmp_path):
     from simind_python_connector.builders import acquisition_builder as builder_mod
 
