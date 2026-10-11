@@ -102,6 +102,30 @@ class TestSchneiderDensityConversion:
         assert np.all(densities_piece >= 0)
         assert np.all(densities_interp <= 3.0)
         assert np.all(densities_piece <= 3.0)
+        # Beyond the table, the piecewise path saturates like the interpolated one.
+        outside = [0, 1, 3]
+        np.testing.assert_allclose(
+            densities_piece[outside], densities_interp[outside], rtol=1e-6
+        )
+
+    def test_piecewise_saturates_to_endpoint_tissues(self):
+        """Out-of-range HU takes the nearest endpoint tissue, not air."""
+        hu_values = np.array([-2000, -500, 0, 800, 5000])
+
+        densities = hu_to_density_schneider_piecewise(hu_values)
+
+        assert densities.shape == hu_values.shape
+        assert densities.dtype == np.float32
+
+        air = get_schneider_tissue_info(-1050)["density_g_cm3"]
+        metal = get_schneider_tissue_info(4001)["density_g_cm3"]
+        assert densities[0] == pytest.approx(air, rel=1e-6)
+        assert densities[4] == pytest.approx(metal, rel=1e-6)
+
+        soft_tissue = get_schneider_tissue_info(0)["density_g_cm3"]
+        bone = get_schneider_tissue_info(800)["density_g_cm3"]
+        assert densities[2] == pytest.approx(soft_tissue, rel=1e-6)
+        assert densities[3] == pytest.approx(bone, rel=1e-6)
 
     def test_schneider_array_shapes(self):
         """Test that Schneider functions handle different array shapes."""
