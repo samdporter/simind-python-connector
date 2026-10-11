@@ -129,7 +129,7 @@ def test_stir_adaptor_run_validates_required_inputs(
         adaptor.run()
 
     source = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 1.0)
     )
     adaptor.set_source(source)
     with pytest.raises(ValueError, match="Both source and mu_map"):
@@ -147,10 +147,10 @@ def test_stir_adaptor_run_validates_shape_match(
     )
 
     source = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 1.0)
     )
     mu_map = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 5), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 5), dtype=np.float32), (1.0, 1.0, 1.0)
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
@@ -172,8 +172,8 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
 
     source_arr = np.arange(2 * 3 * 4, dtype=np.float64).reshape(2, 3, 4)
     mu_arr = np.ones_like(source_arr) * 0.15
-    source = _ImageWithVoxelSizes(source_arr, (1.0, 1.0, 4.25))
-    mu_map = _ImageWithVoxelSizes(mu_arr, (1.0, 1.0, 4.25))
+    source = _ImageWithVoxelSizes(source_arr, (1.0, 1.0, 1.0))
+    mu_map = _ImageWithVoxelSizes(mu_arr, (1.0, 1.0, 1.0))
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
 
@@ -211,61 +211,53 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
 
 
 def test_stir_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> None:
-    """Package contract: images report spacing as (z, y, x); the z component
-    is the first spatial element."""
-    voxel_sizes_image = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (2.0, 1.0, 4.0)
-    )
-    assert StirSimindAdaptor._extract_voxel_size_mm(voxel_sizes_image) == pytest.approx(
-        2.0
-    )
+    """Images report spacing as (z, y, x); raw STIR sequences prepend an unused
+    element. The connector takes one voxel size, so voxels must be cubic."""
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    for image in (
+        _ImageWithVoxelSizes(array, (2.0, 2.0, 2.0)),
+        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 2.0)),
+        _ImageWithGridSpacing(array, (2.0, 2.0, 2.0)),
+        _ImageWithNonIterableGridSpacing(
+            array, _NonIterableFloat3Coordinate(2.0, 2.0, 2.0)
+        ),
+    ):
+        assert StirSimindAdaptor._extract_voxel_size_mm(image) == pytest.approx(2.0)
 
-    # Four-element raw sequences follow STIR's (unused, z, y, x) layout
-    spacing_4d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (0.0, 2.0, 2.0, 5.0)
-    )
-    assert StirSimindAdaptor._extract_voxel_size_mm(spacing_4d_image) == pytest.approx(
-        2.0
-    )
+    for image in (
+        _ImageWithVoxelSizes(array, (3.0, 2.0, 2.0)),
+        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 5.0)),
+        _ImageWithNonIterableGridSpacing(
+            array, _NonIterableFloat3Coordinate(1.0, 2.0, 2.0)
+        ),
+    ):
+        with pytest.raises(ValueError, match="cubic voxels"):
+            StirSimindAdaptor._extract_voxel_size_mm(image)
 
-    # Three-element sequences are already in (z, y, x) order
-    spacing_3d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (6.0, 2.0, 1.0)
-    )
-    assert StirSimindAdaptor._extract_voxel_size_mm(spacing_3d_image) == pytest.approx(
-        6.0
-    )
-
-    float3_spacing_image = _ImageWithNonIterableGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32),
-        _NonIterableFloat3Coordinate(1.0, 2.0, 7.0),
-    )
-    assert StirSimindAdaptor._extract_voxel_size_mm(
-        float3_spacing_image
-    ) == pytest.approx(7.0)
-
-    with pytest.raises(ValueError, match="voxel_sizes\\(\\) or get_grid_spacing\\(\\)"):
+    with pytest.raises(ValueError, match=r"voxel_sizes\(\) or get_grid_spacing\(\)"):
         StirSimindAdaptor._extract_voxel_size_mm(
             _ImageWithoutSpacing(np.zeros((1, 1, 1)))
         )
 
 
-def test_extract_voxel_size_reads_z_from_non_iterable_fallbacks() -> None:
-    """at()/index-only coordinates follow STIR's (unused, z, y, x) ordering,
-    so index 1 carries the z spacing."""
-    at_only_image = _ImageWithNonIterableGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32),
-        _AtOnlyGridSpacing(9.0, 2.0, 3.0, 4.0),
+def test_extract_voxel_size_reads_non_iterable_fallbacks() -> None:
+    """at()/index-only coordinates follow STIR's 1-based (z, y, x) indexing."""
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    at_only = _ImageWithNonIterableGridSpacing(
+        array, _AtOnlyGridSpacing(9.0, 2.0, 2.0, 2.0)
     )
-    assert StirSimindAdaptor._extract_voxel_size_mm(at_only_image) == pytest.approx(2.0)
+    assert StirSimindAdaptor._extract_voxel_size_mm(at_only) == pytest.approx(2.0)
 
-    getitem_only_image = _ImageWithNonIterableGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32),
-        _GetItemOnlyGridSpacing(2.0, 3.0, 4.0),
+    getitem_only = _ImageWithNonIterableGridSpacing(
+        array, _GetItemOnlyGridSpacing(2.0, 2.0, 2.0)
     )
-    assert StirSimindAdaptor._extract_voxel_size_mm(
-        getitem_only_image
-    ) == pytest.approx(2.0)
+    assert StirSimindAdaptor._extract_voxel_size_mm(getitem_only) == pytest.approx(2.0)
+
+    anisotropic = _ImageWithNonIterableGridSpacing(
+        array, _AtOnlyGridSpacing(9.0, 4.0, 2.0, 2.0)
+    )
+    with pytest.raises(ValueError, match="cubic voxels"):
+        StirSimindAdaptor._extract_voxel_size_mm(anisotropic)
 
 
 def test_stir_adaptor_missing_component_errors_list_available_keys(
@@ -299,7 +291,7 @@ def test_sirf_adaptor_run_validates_required_inputs(
         adaptor.run()
 
     source = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 1.0)
     )
     adaptor.set_source(source)
     with pytest.raises(ValueError, match="Both source and mu_map"):
@@ -317,10 +309,10 @@ def test_sirf_adaptor_run_validates_shape_match(
     )
 
     source = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (1.0, 1.0, 1.0)
     )
     mu_map = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 5), dtype=np.float32), (1.0, 1.0, 4.0)
+        np.zeros((2, 3, 5), dtype=np.float32), (1.0, 1.0, 1.0)
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
@@ -342,8 +334,8 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
 
     source_arr = np.arange(2 * 3 * 4, dtype=np.float64).reshape(2, 3, 4)
     mu_arr = np.ones_like(source_arr) * 0.2
-    source = _ImageWithVoxelSizes(source_arr, (1.0, 1.0, 3.75))
-    mu_map = _ImageWithVoxelSizes(mu_arr, (1.0, 1.0, 3.75))
+    source = _ImageWithVoxelSizes(source_arr, (1.0, 1.0, 1.0))
+    mu_map = _ImageWithVoxelSizes(mu_arr, (1.0, 1.0, 1.0))
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
 
@@ -381,40 +373,30 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
 
 
 def test_sirf_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> None:
-    """Package contract: images report spacing as (z, y, x); the z component
-    is the first spatial element."""
-    voxel_sizes_image = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (3.0, 1.0, 4.0)
-    )
-    assert SirfSimindAdaptor._extract_voxel_size_mm(voxel_sizes_image) == pytest.approx(
-        3.0
-    )
+    """Images report spacing as (z, y, x); raw STIR sequences prepend an unused
+    element. The connector takes one voxel size, so voxels must be cubic."""
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    for image in (
+        _ImageWithVoxelSizes(array, (2.0, 2.0, 2.0)),
+        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 2.0)),
+        _ImageWithGridSpacing(array, (2.0, 2.0, 2.0)),
+        _ImageWithNonIterableGridSpacing(
+            array, _NonIterableFloat3Coordinate(2.0, 2.0, 2.0)
+        ),
+    ):
+        assert SirfSimindAdaptor._extract_voxel_size_mm(image) == pytest.approx(2.0)
 
-    # Four-element raw sequences follow STIR's (unused, z, y, x) layout
-    spacing_4d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (0.0, 3.0, 2.0, 5.0)
-    )
-    assert SirfSimindAdaptor._extract_voxel_size_mm(spacing_4d_image) == pytest.approx(
-        3.0
-    )
+    for image in (
+        _ImageWithVoxelSizes(array, (3.0, 2.0, 2.0)),
+        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 5.0)),
+        _ImageWithNonIterableGridSpacing(
+            array, _NonIterableFloat3Coordinate(1.0, 2.0, 2.0)
+        ),
+    ):
+        with pytest.raises(ValueError, match="cubic voxels"):
+            SirfSimindAdaptor._extract_voxel_size_mm(image)
 
-    # Three-element sequences are already in (z, y, x) order
-    spacing_3d_image = _ImageWithGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32), (6.0, 2.0, 1.0)
-    )
-    assert SirfSimindAdaptor._extract_voxel_size_mm(spacing_3d_image) == pytest.approx(
-        6.0
-    )
-
-    float3_spacing_image = _ImageWithNonIterableGridSpacing(
-        np.zeros((2, 3, 4), dtype=np.float32),
-        _NonIterableFloat3Coordinate(1.0, 2.0, 7.0),
-    )
-    assert SirfSimindAdaptor._extract_voxel_size_mm(
-        float3_spacing_image
-    ) == pytest.approx(7.0)
-
-    with pytest.raises(ValueError, match="voxel_sizes\\(\\) or get_grid_spacing\\(\\)"):
+    with pytest.raises(ValueError, match=r"voxel_sizes\(\) or get_grid_spacing\(\)"):
         SirfSimindAdaptor._extract_voxel_size_mm(
             _ImageWithoutSpacing(np.zeros((1, 1, 1)))
         )
@@ -460,11 +442,11 @@ def _make_adaptor(cls, tmp_path: Path):
         output_prefix="case01",
     )
     source = _ImageWithVoxelSizes(
-        np.zeros((2, 3, 4), dtype=np.float32), (2.0, 1.0, 4.0)
+        np.zeros((2, 3, 4), dtype=np.float32), (2.0, 2.0, 2.0)
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(
-        _ImageWithVoxelSizes(np.zeros_like(source.array), (2.0, 1.0, 4.0))
+        _ImageWithVoxelSizes(np.zeros_like(source.array), (2.0, 2.0, 2.0))
     )
     return adaptor
 
@@ -483,3 +465,33 @@ def _assert_failed_rerun_clears_cache(adaptor) -> None:
     assert adaptor._outputs is None
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_outputs()
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+def test_adaptor_keeps_the_config_scoring_routine_by_default(
+    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = cls(
+        config_source=get("AnyScan.yaml"),
+        output_dir=str(tmp_path),
+        output_prefix="case01",
+    )
+    adaptor.add_config_value(84, ScoringRoutine.PENETRATE.value)
+    image = _ImageWithVoxelSizes(np.ones((2, 3, 4), dtype=np.float32), (1.0, 1.0, 1.0))
+    adaptor.set_source(image)
+    adaptor.set_mu_map(image)
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    adaptor.run()
+
+    assert adaptor.get_scoring_routine() == ScoringRoutine.PENETRATE
+    assert int(adaptor.get_config().get_value(84)) == ScoringRoutine.PENETRATE.value
