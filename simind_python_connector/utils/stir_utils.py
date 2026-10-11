@@ -129,7 +129,7 @@ def get_sirf_attenuation_from_simind(
     origin_string = header_dict["# Image Position First image"]
     origin = [float(i) for i in origin_string.split(" ")][::-1]
 
-    image.initialise(dim=tuple(dim), vsize=tuple(vsize), origin=tuple(origin))
+    image.initialise(dim=tuple(dim), vsize=tuple(vsize[::-1]), origin=tuple(origin))
     attn = attn.reshape(dim)
 
     if attn_type == "mu":

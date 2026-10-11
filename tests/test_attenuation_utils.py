@@ -104,7 +104,8 @@ def test_get_sirf_attenuation_rho_times_1000_fills_image(
     filled = np.asarray(image.filled, dtype=np.float64)
     assert filled.shape == (4, 3, 2)
     assert filled.sum() > 0
-    assert image.init_args["vsize"] == pytest.approx((1.5, 2.5, 3.5))
+    # SIRF takes (z, y, x), like dim and origin.
+    assert image.init_args["vsize"] == pytest.approx((3.5, 2.5, 1.5))
 
 
 def test_get_sirf_attenuation_rejects_unknown_attn_type(
