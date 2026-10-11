@@ -419,6 +419,26 @@ def test_sirf_adaptor_missing_component_errors_list_available_keys(
         adaptor.get_penetrate_output("all_interactions")
 
 
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+def test_adaptor_rejects_mu_map_with_different_voxel_size(
+    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_mu_map(
+        _ImageWithVoxelSizes(np.zeros((2, 3, 4), dtype=np.float32), (4.0, 4.0, 4.0))
+    )
+
+    with pytest.raises(ValueError, match="same voxel size"):
+        adaptor.run()
+
+
 def test_stir_adaptor_clears_cached_outputs_on_failed_rerun(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
