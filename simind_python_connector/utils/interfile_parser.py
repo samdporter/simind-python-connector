@@ -151,11 +151,20 @@ class InterfileHeader:
         return default
 
     def set(self, key: str, value: Number) -> None:
-        for entry in self._entries:
+        # Readers take the last duplicate, as get() does.
+        for entry in reversed(self._entries):
             if entry.key == key:
                 entry.set_value(value)
                 return
-        self._entries.append(InterfileEntry.from_key_value(key, value))
+        end = next(
+            (
+                index
+                for index, entry in enumerate(self._entries)
+                if entry.text.strip().upper().startswith("!END OF INTERFILE")
+            ),
+            len(self._entries),
+        )
+        self._entries.insert(end, InterfileEntry.from_key_value(key, value))
 
     def insert(self, index: int, key: str, value: Number) -> None:
         entry = InterfileEntry.from_key_value(key, value)

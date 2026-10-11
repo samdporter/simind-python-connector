@@ -111,3 +111,33 @@ def test_image_builder_rejects_pixel_array_shape_mismatch(monkeypatch, tmp_path)
 
     with pytest.raises(ValueError, match="shape"):
         builder.build(output_path=tmp_path / "img")
+
+
+@pytest.mark.unit
+def test_image_builder_writes_new_keys_before_end_of_interfile(monkeypatch, tmp_path):
+    from simind_python_connector.builders import image_builder as builder_mod
+
+    monkeypatch.setattr(
+        builder_mod.BACKENDS.factories,
+        "create_image_data",
+        lambda header_path: DummyWrappedImage(header_path),
+    )
+
+    builder = STIRSPECTImageDataBuilder(
+        header_overrides={
+            "!matrix size [1]": "4",
+            "!matrix size [2]": "3",
+            "!matrix size [3]": "2",
+            "first pixel offset (mm) [1]": "-2",
+        }
+    )
+    builder.update_header({"first pixel offset (mm) [2]": "-1.5"})
+    builder.set_pixel_array(np.zeros((2, 3, 4), dtype=np.float32))
+    builder.build(output_path=tmp_path / "img")
+
+    lines = [
+        line for line in (tmp_path / "img.hv").read_text().splitlines() if line.strip()
+    ]
+    assert lines[-1] == "!END OF INTERFILE := "
+    assert "first pixel offset (mm) [1] := -2" in lines
+    assert "first pixel offset (mm) [2] := -1.5" in lines
