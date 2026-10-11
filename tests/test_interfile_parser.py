@@ -39,3 +39,22 @@ def test_interfile_header_insert(tmp_path):
 
     lines = header_path.read_text().splitlines()
     assert lines[1] == "b := {2, 2}"
+
+
+@pytest.mark.unit
+def test_interfile_header_set_changes_the_effective_duplicate_and_stays_before_end(
+    tmp_path,
+):
+    header_path = tmp_path / "dup.hs"
+    header_path.write_text(
+        "!INTERFILE :=\nRadius := 100\nRadius := 200\n!END OF INTERFILE :="
+    )
+    header = InterfileHeader.from_file(header_path)
+
+    header.set("Radius", 300)
+    header.set("new field", 42)
+    header.write(header_path)
+
+    assert header.get("Radius") == "300"
+    lines = header_path.read_text().splitlines()
+    assert lines[-2:] == ["new field := 42", "!END OF INTERFILE :="]

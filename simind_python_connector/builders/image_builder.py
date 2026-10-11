@@ -111,6 +111,9 @@ class STIRSPECTImageDataBuilder:
             header_path = base_path.with_suffix(".hv")
             raw_path = base_path.with_suffix(".v")
             self.header["!name of data file"] = raw_path.name
+            # Keys added after construction must come before the terminator.
+            self.header.pop("!END OF INTERFILE", None)
+            self.header["!END OF INTERFILE"] = ""
 
             with open(header_path, "w") as f:
                 line = 0
