@@ -88,7 +88,7 @@ class SirfImageData(ImageDataInterface):
 
     def maximum(self, value: float) -> None:
         """Apply element-wise maximum."""
-        self._obj.maximum(value)
+        self._obj.maximum(value, out=self._obj)
 
     @property
     def native_object(self):
@@ -150,7 +150,7 @@ class SirfImageData(ImageDataInterface):
             SirfImageData: self after modification (for chaining)
         """
         y_obj = y._obj if isinstance(y, SirfImageData) else y
-        self._obj.sapyb(a, y_obj, b)
+        self._obj.sapyb(a, y_obj, b, out=self._obj)
         return self
 
 
@@ -305,5 +305,5 @@ class SirfAcquisitionData(AcquisitionDataInterface):
             SirfAcquisitionData: self after modification (for chaining)
         """
         y_obj = y._obj if isinstance(y, SirfAcquisitionData) else y
-        self._obj.sapyb(a, y_obj, b)
+        self._obj.sapyb(a, y_obj, b, out=self._obj)
         return self
