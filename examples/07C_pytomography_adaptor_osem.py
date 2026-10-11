@@ -90,21 +90,13 @@ def _build_system_matrix(
 ) -> SPECTSystemMatrix:
     object_meta, proj_meta = pytomo_simind.get_metadata(str(projection_header))
 
-    obj2obj_transforms = []
-    try:
-        obj2obj_transforms.append(
-            SPECTAttenuationTransform(
-                attenuation_map=attenuation_map_xyz.to(dtype=torch.float32).contiguous()
-            )
-        )
-    except Exception:
-        pass
-
-    try:
-        psf_meta = pytomo_simind.get_psfmeta_from_header(str(projection_header))
-        obj2obj_transforms.append(SPECTPSFTransform(psf_meta=psf_meta))
-    except Exception:
-        pass
+    psf_meta = pytomo_simind.get_psfmeta_from_header(str(projection_header))
+    obj2obj_transforms = [
+        SPECTAttenuationTransform(
+            attenuation_map=attenuation_map_xyz.to(dtype=torch.float32).contiguous()
+        ),
+        SPECTPSFTransform(psf_meta=psf_meta),
+    ]
 
     return SPECTSystemMatrix(
         obj2obj_transforms=obj2obj_transforms,
