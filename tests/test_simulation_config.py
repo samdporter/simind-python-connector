@@ -102,6 +102,23 @@ def test_yaml_without_other_fields_still_loads(tmp_path):
     assert restored.flags == original.flags[:15] + "F" * 15
 
 
+def test_smc_yaml_round_trip_keeps_named_values_files_and_text_variables(tmp_path):
+    original = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    original.set_value("photon_energy", 140.0)
+    original.set_data_file("phantom_soft_tissue", "custom_phantom.dat")
+    original.set_data_file(2, "custom_source.dat")
+    original.text_variables[1] = "custom text variable"
+    yaml_path = tmp_path / "named_round_trip.yaml"
+    original.export_yaml(yaml_path)
+
+    restored = SimulationConfig(yaml_path)
+
+    assert restored.get_value("photon_energy") == pytest.approx(140.0)
+    assert restored.get_data_file("phantom_soft_tissue") == "custom_phantom.dat"
+    assert restored.get_data_file(2) == "custom_source.dat"
+    assert restored.text_variables == original.text_variables
+
+
 def test_smc_round_trip_preserves_empty_comment(tmp_path):
     original = SimulationConfig(get("AnyScan.yaml"))
     original.set_comment("")
