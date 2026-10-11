@@ -169,6 +169,7 @@ def test_executor_mpi_replicate_command(monkeypatch: pytest.MonkeyPatch) -> None
 def test_executor_mpi_split_command_appends_mp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
     monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
     calls = _capture_run(monkeypatch)
 
