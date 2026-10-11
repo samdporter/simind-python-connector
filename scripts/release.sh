@@ -64,78 +64,56 @@ fi
 
 log_info "Bumping version from ${CURRENT_VERSION} to ${NEW_VERSION}"
 
-# Update pyproject.toml version
-log_info "Updating pyproject.toml version..."
-sed -i.bak "s/^version = \"${CURRENT_VERSION}\"/version = \"${NEW_VERSION}\"/" "$PYPROJECT"
-rm -f "$PYPROJECT.bak"
-
-# Update CHANGELOG.md
-log_info "Adding version entry to CHANGELOG.md..."
-CURRENT_DATE=$(date +%Y-%m-%d)
-
-if ! grep -q "^## \[${NEW_VERSION}\]" "$CHANGELOG_MD"; then
-    # Find the line number of the last version entry
-    LAST_LINE=$(grep -n "^## \[" "$CHANGELOG_MD" | tail -1 | cut -d: -f1)
-    if [ -n "$LAST_LINE" ]; then
-        # Insert new version entry after the last one
-        sed -i.bak "${LAST_LINE}a\\
-\\
-## [${NEW_VERSION}] - ${CURRENT_DATE}\\
-\\
-### Added\\
-- Version bumped to ${NEW_VERSION}\\
-\\
-### Changed\\
-- Automated release preparation\\
-\\
-### Fixed\\
-- Updated test to use dynamic version" "$CHANGELOG_MD"
-        rm -f "$CHANGELOG_MD.bak"
-    fi
-fi
-
-# Update docs/changelog.rst
-log_info "Adding version entry to docs/changelog.rst..."
-
-# The RST changelog uses format: "1.0.1 - 2026-04-16" followed by "------------------"
-if ! grep -q "^${NEW_VERSION} - " "$CHANGELOG_RST"; then
-    # Find the line number of the first version entry (format: X.Y.Z - YYYY-MM-DD)
-    FIRST_VERSION_LINE=$(grep -n "^[0-9]\+\.[0-9]\+\.[0-9]\+ - " "$CHANGELOG_RST" | head -1 | cut -d: -f1)
-    if [ -n "$FIRST_VERSION_LINE" ]; then
-        # Insert new version entry before the first one (at the top)
-        sed -i.bak "${FIRST_VERSION_LINE}i\\
-${NEW_VERSION} - ${CURRENT_DATE}\\
-------------------------\\
-\\
-### Added\\
-- Version bumped to ${NEW_VERSION}\\
-\\
-### Changed\\
-- Automated release preparation\\
-\\
-### Fixed\\
-- Updated test to use dynamic version\\
-" "$CHANGELOG_RST"
-        rm -f "$CHANGELOG_RST.bak"
-    fi
-fi
-
-# Commit changes
-log_info "Committing changes..."
+RELEASE_DATE=$(date +%Y-%m-%d)
+TAG="v${NEW_VERSION}"
 cd "$PROJECT_ROOT"
-git add pyproject.toml CHANGELOG.md docs/changelog.rst
 
-if git diff --staged --quiet; then
-    log_warn "No changes staged. Nothing to commit."
-    exit 0
-else
-    git commit -m "chore(release): bump version to ${NEW_VERSION}"
-    log_info "Commit created: chore(release): bump version to ${NEW_VERSION}"
+# Release notes are written by hand before running this script.
+if ! grep -q "^## \[${NEW_VERSION}\]" "$CHANGELOG_MD"; then
+    log_error "CHANGELOG.md has no '## [${NEW_VERSION}]' entry. Write the release notes first."
+    exit 1
+fi
+if ! grep -q "^${NEW_VERSION} - " "$CHANGELOG_RST"; then
+    log_error "docs/changelog.rst has no '${NEW_VERSION} - <date>' entry. Write the release notes first."
+    exit 1
+fi
+if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+    log_error "Tag ${TAG} already exists."
+    exit 1
 fi
 
-log_info "Release preparation complete!"
+# Replace the version in one file and check that it changed.
+set_version() {
+    local file="$1"
+    local expression="$2"
+    sed -i.bak "$expression" "$file"
+    if cmp -s "$file" "$file.bak"; then
+        rm -f "$file.bak"
+        log_error "Could not update the version in $file"
+        exit 1
+    fi
+    rm -f "$file.bak"
+}
+
+log_info "Updating version sources..."
+set_version pyproject.toml "s/^version = \"${CURRENT_VERSION}\"/version = \"${NEW_VERSION}\"/"
+set_version simind_python_connector/__init__.py "s/__version__ = \"${CURRENT_VERSION}\"/__version__ = \"${NEW_VERSION}\"/"
+set_version docs/conf.py "s/^release = \"${CURRENT_VERSION}\"/release = \"${NEW_VERSION}\"/"
+set_version .zenodo.json "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/"
+set_version CITATION.cff "s/^version: ${CURRENT_VERSION}$/version: ${NEW_VERSION}/;s/^date-released: .*/date-released: ${RELEASE_DATE}/"
+set_version uv.lock "/^name = \"simind-python-connector\"$/{n;s/^version = \"${CURRENT_VERSION}\"$/version = \"${NEW_VERSION}\"/;}"
+
+log_info "Committing and tagging..."
+git add pyproject.toml simind_python_connector/__init__.py docs/conf.py .zenodo.json \
+    CITATION.cff uv.lock CHANGELOG.md docs/changelog.rst
+git commit -m "chore: release ${NEW_VERSION}"
+git tag -a "$TAG" -m "Release ${NEW_VERSION}"
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+log_info "Release ${NEW_VERSION} committed and tagged as ${TAG} on ${BRANCH}."
 echo ""
 echo "Next steps:"
-echo "  1. Run: gh release create ${NEW_VERSION} --title \"Release ${NEW_VERSION}\" --notes \"Automated release via script\""
-echo "  2. Push tags: git push origin main --tags"
-echo "  3. CI (publish.yml) will detect new tag and publish to PyPI"
+echo "  1. Push the branch and the tag: git push origin ${BRANCH} ${TAG}"
+echo "  2. Publish the release from that tag:"
+echo "     gh release create ${TAG} --verify-tag --title \"${NEW_VERSION}\" --notes-file <notes.md>"
+echo "  3. publish.yml runs the tests, checks ${TAG} against pyproject.toml and publishes to PyPI."
