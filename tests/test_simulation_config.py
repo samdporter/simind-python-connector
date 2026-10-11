@@ -54,6 +54,19 @@ def test_yaml_smc_yaml_round_trip_preserves_parameter_flags_and_files(tmp_path):
     assert len(restored.flags) == len(original.flags)
 
 
+def test_smc_yaml_round_trip_keeps_unnamed_values_and_flags(tmp_path):
+    original = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    original.data[60] = 61.0
+    original.flags = original.flags[:15] + "T" + original.flags[16:]
+    yaml_path = tmp_path / "round_trip.yaml"
+    original.export_yaml(yaml_path)
+
+    restored = SimulationConfig(yaml_path)
+
+    assert restored.data == original.data
+    assert restored.flags == original.flags
+
+
 def test_smc_round_trip_preserves_empty_comment(tmp_path):
     original = SimulationConfig(get("AnyScan.yaml"))
     original.set_comment("")
