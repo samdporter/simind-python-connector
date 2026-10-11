@@ -9,9 +9,9 @@ At-a-Glance Axis Conventions
 
 - STIR/SIRF image arrays are handled as ``(z, y, x)``.
 - STIR/SIRF projection arrays are often 4D with a singleton TOF axis:
-  ``(tof, bin, view, axial)``. For these, **view 0** is ``arr[0, :, 0, :]``.
+  ``(tof, axial, view, bin)``. For these, **view 0** is ``arr[0, :, 0, :]``.
 - Raw Interfile projection loading in ``interfile_numpy`` is exposed as
-  ``(views, bins, axial)`` when no singleton TOF axis is present.
+  ``(view, axial, bin)`` when no singleton TOF axis is present.
 - ``PyTomographySimindAdaptor`` public object-space tensors are ``(x, y, z)``.
 - PyTomography object space is ``(x, y, z)`` (``Lx, Ly, Lz``).
 - PyTomography SIMIND projections from ``pytomography.io.SPECT.simind`` are
