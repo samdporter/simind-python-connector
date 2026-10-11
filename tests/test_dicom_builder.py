@@ -1,5 +1,6 @@
 """DICOM conversion tests for the acquisition builder (no SIRF/STIR needed)."""
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -167,3 +168,25 @@ def test_dicom_energy_window_vector_is_read(tmp_path: Path):
     builder.update_header_from_dicom(str(dicom_path))
 
     assert builder.energy_window_vector == [1, 2, 1, 2]
+
+
+def test_dicom_non_integral_energy_window_vector_raises(tmp_path, monkeypatch):
+    from simind_python_connector.builders import acquisition_builder as builder_mod
+
+    dicom_path = _make_dicom(tmp_path / "bad_vector.dcm", frames=4)
+    real_dcmread = pydicom.dcmread
+
+    def dcmread_with_float_vector(path, *args, **kwargs):
+        ds = real_dcmread(path, *args, **kwargs)
+        with warnings.catch_warnings():
+            # pydicom warns that a float cannot be assigned to the US VR, but
+            # keeps it in memory, which is what the parser must reject.
+            warnings.simplefilter("ignore", UserWarning)
+            ds.EnergyWindowVector = [1, 1.5, 1, 2]
+        return ds
+
+    monkeypatch.setattr(builder_mod.pydicom, "dcmread", dcmread_with_float_vector)
+
+    builder = _new_builder()
+    with pytest.raises(ValueError, match="EnergyWindowVector"):
+        builder.update_header_from_dicom(str(dicom_path))
