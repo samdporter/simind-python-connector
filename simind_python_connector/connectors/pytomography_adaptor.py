@@ -24,6 +24,7 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     ValidationError,
 )
+from simind_python_connector.utils.simind_utils import _validate_energy_windows
 
 
 try:
@@ -105,25 +106,9 @@ class PyTomographySimindAdaptor(BaseConnector):
         upper_bounds: Union[float, list[float]],
         scatter_orders: Union[int, list[int]],
     ) -> None:
-        lowers = (
-            [float(lower_bounds)]
-            if isinstance(lower_bounds, (int, float))
-            else [float(v) for v in lower_bounds]
+        lowers, uppers, orders = _validate_energy_windows(
+            lower_bounds, upper_bounds, scatter_orders
         )
-        uppers = (
-            [float(upper_bounds)]
-            if isinstance(upper_bounds, (int, float))
-            else [float(v) for v in upper_bounds]
-        )
-        orders = (
-            [int(scatter_orders)]
-            if isinstance(scatter_orders, (int, float))
-            else [int(v) for v in scatter_orders]
-        )
-        if not (len(lowers) == len(uppers) == len(orders)):
-            raise ValueError(
-                "lower_bounds, upper_bounds, and scatter_orders must have equal lengths"
-            )
         self._energy_windows = (lowers, uppers, orders)
 
     def add_config_value(self, index: int, value: Any) -> None:
@@ -167,8 +152,13 @@ class PyTomographySimindAdaptor(BaseConnector):
                     dtype=torch.float32
                 )
             else:
+                # Match get_projections: (view, axial, bin) -> (view, bin, axial)
+                # with the axial direction reversed.
                 projection = torch.from_numpy(
-                    value.projection.astype(np.float32, copy=False)
+                    np.ascontiguousarray(
+                        np.swapaxes(value.projection[:, ::-1, :], 1, 2),
+                        dtype=np.float32,
+                    )
                 )
                 # Fall back to converter-generated .hs header for metadata access.
                 header_path = value.header_path
