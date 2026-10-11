@@ -1,3 +1,4 @@
+import builtins
 import importlib
 import sys
 import types
@@ -82,6 +83,16 @@ def _install_fake_stir(monkeypatch, calls):
     fake_stir.ProjDataInMemory = FakeProjDataInMemory
     monkeypatch.setitem(sys.modules, "stir", fake_stir)
     monkeypatch.setitem(sys.modules, "stirextra", types.ModuleType("stirextra"))
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        # The core container deliberately blocks real STIR imports, including
+        # cached modules. Supply only this test's fake and retain other guards.
+        if name == "stir":
+            return fake_stir
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
     return FakeProjDataInMemory
 
 
