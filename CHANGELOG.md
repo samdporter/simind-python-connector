@@ -7,32 +7,148 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- **Breaking:** `configure_voxel_phantom` no longer sets the projection pixel size and
-  matrix (Index 28, 76, 77) from the phantom image, which overwrote the configured
-  values and gave square projections for cubic phantoms (and cut off the axial field
-  of view for slices thicker than the pixels). They now come from the configuration
-  or from `configure_acquisition`/`set_template`.
+## [2.0.1] - 2026-10-11
+
+The supported successor to 1.1.1 and the replacement for the withdrawn 2.0.0 and
+3.0.0. It carries the A0–E next-major work that was published by mistake under
+2.0.0/3.0.0, together with the projection-geometry correction that followed.
+
+If you installed the withdrawn 3.0.0, reinstall this release explicitly:
+`pip install "simind-python-connector==2.0.1"` (a 2.x release does not
+auto-supersede an installed 3.0.0, because pip does not downgrade an already
+satisfied requirement).
+
+### Added
+- `simind_python_connector.utils.interfile`: one Interfile module
+  (`InterfileHeader`, `read_header`, `load_interfile_array`, `ProjectionGeometry`,
+  `read_projection_geometry`, `read_simind_density_image`, `normalise_key`,
+  `parse_interfile_line`). Header key lookups ignore case, leading `!` and spacing.
+- `simind_python_connector.normalisation.scale_to_reference` and the "Normalising
+  SIMIND Output" documentation, for putting SIMIND output on a known scale when the
+  activity is unknown.
+- `set_activity(activity_mbq, time_per_projection_s=1.0)` on the connector and
+  adaptors (SIMIND Index 25) for the known-activity route.
+- Measured acquisition geometry: `configure_acquisition(geometry)` on the connector
+  and `set_template(template)` on the SIRF/STIR adaptors simulate in a measured
+  acquisition's geometry and return outputs in exactly that geometry after a
+  tolerance check. `utils.interfile.check_geometry_match`,
+  `write_in_template_geometry` and `ProjectionGeometry.time_per_projection_s`
+  support it.
+- `mu_map_type` ("attenuation", "density", "hu") and `mu_map_energy_kev`, plus
+  `converters.attenuation.density_to_attenuation` and the public
+  `utils.simind_utils.validate_energy_windows`.
+- Anisotropic voxels: `voxel_size_mm` may be `(z, y, x)` with square in-plane voxels.
+- Runtime switches from the SIMIND 8 manual: `CA`, `FW`, `OU`, `DP`, `BG`, `HO`,
+  `CO`, `X1`–`X6`.
+- Optional `simind_python_connector.recon` subpackage: a SIMIND-simulated additive
+  term in SIRF and CIL reconstructions, refreshed at chosen intervals.
+  - `UpdateSchedule`, `AdditiveUpdater` (damped, floored) and `UpdateRecord`.
+  - `SimindProjector` and `reference_normaliser`.
+  - `ScatterCorrection` (PENETRATE b01 − b02, or SCATTWIN scatter).
+  - `recon.cil`: `build_subset_objectives`, `set_subset_additive`,
+    `refresh_stochastic_state` and `CorrectionCallback`.
+  - `recon.osem.run_osem_with_corrections`.
+- Residual correction (Fu & Qi): `recon.ResidualCorrection` with SIMIND
+  (`recon.SimindComponent`) or a SIRF model as the accurate forward model, and the
+  diagnostics `recon.poisson_nll` and `recon.effective_objective`.
+- `simind_python_connector.phantoms`: SIMIND's analytic phantoms (ellipsoid, box,
+  cylinders, point, cardiac, multiple inserts), library phantoms (Zubal, NEMA IQ),
+  `VoxelPhantom`, `voxelise` and `nema_iec_phantom`. `configure_phantom` on the
+  connector and `set_phantom` / `get_ground_truth` on the SIRF/STIR adaptors.
+- Examples 09–12 for the reconstruction and phantom workflows.
+
+### Changed
+- Python 3.10 or newer is required.
+- Configuration behaviour: the projection bin size and matrix (Index 28, 76, 77)
+  come from the configuration (or `configure_acquisition`/`set_template`), not from
+  the phantom image; rows (Index 77) follow the axial dimension and columns
+  (Index 76) use `max(dim_x, dim_y)`. `configure_voxel_phantom` keeps the configured
+  scoring routine (Index 84) unless told otherwise, `VoxelPhantom` and library
+  phantoms follow Flag 11 from the configuration, and configuring a phantom keeps
+  source shifts (Index 16–18) set beforehand.
 - `set_template` applies the template when called instead of on every `run()`, so
-  projection settings changed afterwards with `add_config_value` are no longer
-  overwritten. The outputs then come back in SIMIND's geometry, with a warning.
-- The non-circular orbit file is written at run time, so its centre bin follows the
-  current Index 76.
-- `run()` warns when a voxel phantom is wider or longer than the projection field of
-  view, with or without a template.
-- The adaptors default `scoring_routine` to None, which keeps the configuration's
-  Index 84; they used to overwrite it with SCATTWIN. `get_scoring_routine()` reports
-  the routine in use.
-- `VoxelPhantom` and library phantoms follow Flag 11 (phantom interactions) from the
-  configuration instead of forcing it on.
-- Configuring a phantom keeps source shifts (Index 16–18) set beforehand; only shifts
-  from an earlier analytic phantom are cleared.
+  projection settings changed afterwards with `add_config_value` are not overwritten.
+  The outputs then come back in SIMIND's geometry, with a warning.
+- Interfile key lookups ignore only `!` and spacing; a line whose first non-blank
+  character is `#` is a comment, never a key. Bracket indices are canonicalised
+  (`[ 1 ]`/`[01]` = `[1]`), lookup stops at the `!END OF INTERFILE` terminator, and
+  the radius is taken from `Radius` for a circular orbit and `Radii` otherwise,
+  matching STIR.
+- `NN` must be an integer >= 1; `RR`/`SC` must be integers; `CA`/`DI` must be 0, 1 or
+  2. Setting a switch to `None` removes it and `True` writes a switch without a
+  value. `quantization_scale` must be in (0, 1] and `output_prefix` must be lower
+  case.
+- MPI runs use `set_mpi(processes, split_projections=False)` and the `simind_mpi`
+  binary (`SIMIND_MPI_BIN`); the `MP` switch is rejected.
+- `get_attenuation_coefficient` takes photon energies in keV; the packaged `.atn`
+  tables are plain text.
+- Backend adaptors are imported lazily, so the core imports without STIR, SIRF or
+  PyTomography; the SIRF/STIR adaptors check that source and mu-map spacing, origins
+  and voxel sizes match.
+- The non-circular orbit file is written at run time so its centre bin follows the
+  current Index 76; non-circular orbit radii keep 0.1 mm precision in converted
+  headers.
 
 ### Removed
-- The "non-square matrix" warning from `SimulationConfig.validate_parameters`;
-  SIMIND supports non-square projection matrices.
+- `simind_python_connector.backends` (`get_backend`, `set_backend`, `reset_backend`,
+  `create_image_data`, `create_acquisition_data`, wrapper classes) and
+  `utils.backend_access`, `utils.import_helpers`, `utils.sirf_stir_utils`,
+  `utils.io_utils`, `utils.to_projdata_in_memory`.
+- `utils.stir_utils`, `utils.interfile_parser` and `utils.interfile_numpy`
+  (replaced by `utils.interfile`), `converters.dicom_to_stir` and
+  `connectors._spacing`.
+- `SimindToStirConverter.read_parameter`, `edit_parameter`, `add_parameter`,
+  `validate_and_fix_scaling_factors`, `validate_and_correct_radius`,
+  `add_custom_rule` and the `return_object` arguments.
+- The `NumpyConnector` alias, `core.types.ScatterType`, `OutputError`,
+  `OUTPUT_EXTENSIONS`, `ORBIT_FILE_EXTENSION`, `utils.simind_utils.SimindError` and
+  `SimindNotFoundError`, and the unused `create_window_file` energy-window
+  arguments.
+- `pytest.ini`, `pytest-ci.ini`, `requirements.txt`, `requirements-dev.txt`,
+  `examples/run_all_examples.sh` and the `requires_setr` marker.
+
+### Fixed
+- The projection pixel size and matrix set from the phantom image overwrote the
+  configured values and gave square projections for cubic phantoms (and cut off the
+  axial field of view for slices thicker than the pixels). `configure_voxel_phantom`
+  no longer sets Index 28, 76 or 77; they come from the configuration or from
+  `configure_acquisition`/`set_template`.
+- `run()` warns when a voxel phantom is wider or longer than the projection field of
+  view, with or without a template.
+- The adaptors default `scoring_routine` to None, keeping the configuration's
+  Index 84; they used to overwrite it with SCATTWIN. `get_scoring_routine()` reports
+  the routine in use.
+- PyTomography image-axis conversions reverse axial slices to match its SIMIND
+  reader, keeping source and attenuation maps aligned with native reconstruction
+  tensors.
+- Importing the package no longer configures the root logger; a negative Index 1 no
+  longer breaks the mu-map to density conversion.
+- Stale `.hct`/`.ict`, `.res`, `.bis`, `.spe` and `.cor` files are removed before
+  each run, and unreadable SIMIND outputs raise `SimulationError` instead of being
+  skipped.
+- The "non-square matrix" warning is gone from
+  `SimulationConfig.validate_parameters`; SIMIND supports non-square projection
+  matrices.
+
+### Known limitations
+- The optional SIRF/CIL scatter and residual correction workflows ship with the
+  documented [SPECTUB all-views-cache interference](docs/spectub_cache_interference.md):
+  two separately set-up SPECTUB models can interfere through the shared all-views
+  cache, which changes the residual correction and the reconstruction endpoint. No
+  cache fix or workaround ships in this release. This is an environment-specific,
+  reported limitation and is not a claim of deterministic reconstruction endpoints
+  or of resolved residual interference.
 
 ## [3.0.0] - 2026-10-09
+
+> **Withdrawn.** Published by mistake and yanked; do not use. See the 2.0.1 entry
+> above for the supported release.
+
+If you installed 3.0.0, reinstall the supported release with an exact pin:
+`pip install "simind-python-connector==2.0.1"` (or
+`pip install --force-reinstall "simind-python-connector==2.0.1"`). A 2.x release
+does not auto-supersede an installed 3.0.0, because pip does not downgrade an
+already satisfied requirement.
 
 ### Added
 - `simind_python_connector.utils.interfile`: one Interfile module (`InterfileHeader`,
@@ -144,6 +260,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2026-10-09
 
+> **Withdrawn.** Published by mistake and yanked; do not use. See the 2.0.1 entry
+> above for the supported release.
+
 ### Breaking Changes
 - `STIRSPECTAcquisitionDataBuilder` no longer flips projection data along the last axis.
 - Runtime-operator switches passed to `run()` apply to that run only. They are no longer
@@ -181,6 +300,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - The legacy `scripts/simulation.py`.
+
+## [1.1.1] - 2026-10-11
+
+### Fixed
+- A negative Index 1 (energies from the isotope file) turned the mu map into near-vacuum;
+  it is now converted at `abs(Index 1)`.
+- Acquisition arrays use `(tof, axial, view, bin)`, and DICOM matrix sizes and pixel
+  spacing are no longer swapped, so non-square projections build correctly.
+  `create_stir_acqdata` takes `(bins, axial)` and uses the same layout.
+- The PyTomography adaptor reverses axial slices to match PyTomography's SIMIND reader;
+  reconstructions were flipped along z.
+- The STIR/SIRF adaptors raise a `ValueError` for non-cubic voxels instead of using the
+  z spacing for every axis.
+- The adaptors default `scoring_routine` to None, which keeps the configuration's
+  Index 84; they used to overwrite it with SCATTWIN.
+- The geometry docs give the projection axis orders correctly.
+- PyTomography PENETRATE and fallback outputs use the reader's `(view, bin, axial)`
+  order, and PyTomography scatter orders are validated like the core's.
+- The STIR/SIRF adaptors reject a mu map whose voxel size differs from the source's.
+- The legacy SIRF attenuation loader reverses the voxel sizes with the dimensions.
+- The SIRF wrapper's `maximum()` and `sapyb()` update the wrapped object.
+- Piecewise Schneider conversion gives HU outside the table the nearest segment's
+  density, so metal above 4001 HU no longer becomes air.
+- MPI runs use `$SIMIND_MPI_BIN`, else `simind_mpi` next to the serial binary, with
+  `/MP` and without a stray `-p`.
+- An output header that cannot be read raises instead of being skipped.
+- YAML export keeps unnamed parameters and flags.
+- New header keys are written before `!END OF INTERFILE`, and `set()` changes the
+  last duplicate key, the one readers use.
+- A header converted into another directory points at its data by absolute path, and
+  an orbit file named like an ignored key keeps its radii.
+- DICOM frames are split by `EnergyWindowVector` when present; each output declares
+  one window and its share of the duration.
+- `run()` sets Flags 5 and 14, which SIMIND needs to write readable headers, so
+  config-defined phantom runs work.
+- Example 07C no longer drops attenuation and PSF modelling silently, and the examples
+  accept `SIMIND_BIN`.
+- Importing the converter no longer configures root logging.
+- setuptools 77.0.3 or newer is required to build.
+
+### Changed
+- `get_attenuation_coefficient` takes keV, as documented.
+- `NN` must be an integer >= 1, switches reject None and bool values,
+  `quantization_scale` must be in (0, 1], and `output_prefix` must match
+  `[a-z0-9][a-z0-9_-]*` (SIMIND lowercases file names).
+- Publishing waits for the tests and checks the tag against the version; tests also
+  run on `release/**` branches.
+
+## [1.1.0] - 2026-10-11
+
+Replaces 2.0.0 and 3.0.0, which were published by mistake and have been withdrawn.
+
+### Breaking Changes
+- The projection bin size and matrix (Index 28, 76, 77) come from the configuration.
+  `configure_voxel_phantom` no longer sets them from the phantom image, which made the
+  projections square whenever the image slices were square and took the number of axial
+  rows from the image height.
+- `configure_voxel_phantom` keeps the configured scoring routine (Index 84) unless
+  `scoring_routine` is given.
+- `STIRSPECTAcquisitionDataBuilder` no longer flips projection data along the last axis.
+- Runtime-operator switches passed to `run()` apply to that run only. They are no longer
+  kept on the connector for later runs.
+- Each run deletes earlier outputs that share the output prefix before SIMIND starts.
+- The STIR backend needs `stirextra` as well as `stir`.
+- STIR/SIRF adaptors take the z voxel spacing from a different axis (see Fixed). Results
+  change for anisotropic voxels.
+- Invalid inputs now raise `ValueError`: empty, non-finite or negative source and
+  attenuation maps, array shapes that do not match the header, and `output_prefix`
+  values that contain a path. Energy-window validation raises `ValueError` instead of
+  `AssertionError`.
+
+### Added
+- `run()` warns when a voxel phantom is wider or longer than the projection field of
+  view.
+
+### Fixed
+- The packaged `configs/input.smc` is now included in the wheel. SMC parsing handles
+  fixed-width fields and checks section counts.
+- STIR/SIRF adaptors read the z voxel spacing from the correct axis: `voxel_sizes()`
+  is `(z, y, x)`, and raw `get_grid_spacing()` is `(unused, z, y, x)`.
+- Voxel-map dimension indices 78, 79, 81 and 82 are set correctly.
+- The executor resolves `SIMIND_BIN` and accepts executable paths that contain spaces.
+  The connector no longer changes the process working directory.
+- Runtime switches apply to one run only. Output prefixes cannot escape the output
+  directory. Stale outputs are removed, and `.win`, `.smi` and `.dmi` inputs are kept.
+- Energy-window validation raises `ValueError` instead of failing an `assert`.
+- The Interfile loader honours data offsets, strips quoted values and rejects truncated
+  or oversized payloads. The SIMIND-to-STIR converter keeps data-file lines and applies
+  the radius scale factor.
+- Attenuation utilities handle the `rho*1000` selector and STIR `#` header keys, and
+  reject unknown attenuation types.
+- Image and acquisition builders validate array shapes, split multi-energy data
+  deterministically and no longer flip images. The DICOM builder handles missing timing
+  information and 2D pixel data.
+- Backend adaptors are imported lazily, so the core package imports without STIR, SIRF
+  or PyTomography.
+
+### Removed
+- The legacy `scripts/simulation.py`.
+- The "non-square matrix" warning from `SimulationConfig.validate_parameters`; SIMIND
+  supports non-square projections.
 
 ## [1.0.1] - 2026-04-16
 
