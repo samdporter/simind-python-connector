@@ -271,14 +271,32 @@ class STIRSPECTAcquisitionDataBuilder:
         except Exception as e:
             warnings.warn("Error accessing NumberOfFrames from DICOM: " + str(e))
 
-            # Extract energy window information
+        # A malformed EnergyWindowVector must propagate: the broad handler around
+        # the sequence parsing below would otherwise swallow it and leave an
+        # empty energy_windows, silently falling back to the ordinary build.
+        vector = ds.get("EnergyWindowVector")
+        if vector is None:
+            self.energy_window_vector = None
+        else:
+            self.energy_window_vector = []
+            for value in np.atleast_1d(vector):
+                try:
+                    number = float(value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"Invalid EnergyWindowVector entry {value!r}"
+                    ) from exc
+                if not number.is_integer():
+                    raise ValueError(
+                        "EnergyWindowVector entries must be whole window "
+                        f"numbers, got {value!r}"
+                    )
+                self.energy_window_vector.append(int(number))
+
+        # Extract energy window information
         try:
             ewi_seq_tag = (0x0054, 0x0012)
             self.energy_windows = []  # list to hold each energy window's info
-            vector = ds.get("EnergyWindowVector")
-            self.energy_window_vector = (
-                [int(v) for v in np.atleast_1d(vector)] if vector is not None else None
-            )
             if ewi_seq_tag in ds:
                 ewi_seq = ds[ewi_seq_tag].value
                 for ewi_item in ewi_seq:
