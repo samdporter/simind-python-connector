@@ -446,6 +446,18 @@ class SimulationConfig:
                     "filepath": self.data_files[idx],
                 }
 
+        # Unnamed slots are still read by SIMIND, so keep them too.
+        yaml_dict["other_parameters"] = {
+            idx: float(value)
+            for idx, value in enumerate(self.data, start=1)
+            if idx not in self.index_dict
+        }
+        yaml_dict["other_flags"] = {
+            idx: flag == "T"
+            for idx, flag in enumerate(self.flags, start=1)
+            if idx not in self.flag_dict
+        }
+
         return yaml_dict
 
     def _get_parameter_description(self, param_name):
@@ -704,6 +716,20 @@ class SimulationConfig:
         # Update text variables
         if "text_variables" in yaml_dict:
             self.text_variables = yaml_dict["text_variables"]
+
+        for idx, value in yaml_dict.get("other_parameters", {}).items():
+            idx = int(idx)
+            if idx > len(self.data):
+                self.data.extend([0.0] * (idx - len(self.data)))
+            self.data[idx - 1] = float(value)
+
+        flags = list(self.flags)
+        for idx, enabled in yaml_dict.get("other_flags", {}).items():
+            idx = int(idx)
+            if idx > len(flags):
+                flags.extend("F" * (idx - len(flags)))
+            flags[idx - 1] = "T" if enabled else "F"
+        self.flags = "".join(flags)
 
     def validate_parameters(self):
         """
