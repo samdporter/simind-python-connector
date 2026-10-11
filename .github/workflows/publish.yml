@@ -26,8 +26,8 @@ jobs:
       - name: Check the tag matches the package version
         run: |
           version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
-          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match version $version"
+          if [ "$GITHUB_REF_NAME" != "v${version}" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version v${version}"
             exit 1
           fi
       - name: Install build dependencies
