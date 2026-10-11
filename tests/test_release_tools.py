@@ -393,6 +393,22 @@ def test_late_malformed_field_changes_nothing(tmp_path: Path) -> None:
     assert _snapshot(project) == before
 
 
+def test_impossible_calendar_date_changes_nothing(tmp_path: Path) -> None:
+    impossible = "2026-02-30"
+    project = _build_project(
+        tmp_path,
+        markdown=_changelog_md(date=impossible),
+        rst=_changelog_rst(date=impossible),
+    )
+    before = _snapshot(project)
+
+    result = _run(project, VERSION, "--date", impossible)
+
+    assert result.returncode != 0
+    assert impossible in result.stderr
+    assert _snapshot(project) == before
+
+
 def test_check_passes_without_mutating(tmp_path: Path) -> None:
     project = _build_project(tmp_path, version=VERSION, date=DATE)
     before = _snapshot(project)
@@ -462,8 +478,41 @@ def test_publish_workflow_tests_the_release_tag_then_publishes() -> None:
     assert jobs["tests"]["uses"] == "./.github/workflows/tests.yml"
     assert "tests" in _needs(jobs["publish"])
     assert "tomllib" in text
-    assert "GITHUB_REF_NAME" in text
+    assert 'if [ "$GITHUB_REF_NAME" != "v${version}" ]; then' in text
     assert "${{ github.event.release.tag_name }}" in text
+
+
+def test_publish_workflow_rejects_a_tag_without_the_v_prefix(tmp_path: Path) -> None:
+    workflow = yaml.safe_load(_read(WORKFLOWS / "publish.yml"))
+    run = next(
+        step["run"]
+        for step in workflow["jobs"]["publish"]["steps"]
+        if step.get("name") == "Check the tag matches the package version"
+    )
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python"
+    fake_python.write_text("#!/usr/bin/env bash\necho 2.0.1\n")
+    fake_python.chmod(0o755)
+    env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+
+    bare = subprocess.run(
+        ["bash", "-c", run],
+        capture_output=True,
+        text=True,
+        env={**env, "GITHUB_REF_NAME": "2.0.1"},
+    )
+    prefixed = subprocess.run(
+        ["bash", "-c", run],
+        capture_output=True,
+        text=True,
+        env={**env, "GITHUB_REF_NAME": "v2.0.1"},
+    )
+
+    assert bare.returncode != 0
+    assert "does not match" in bare.stdout
+    assert prefixed.returncode == 0
 
 
 def test_tests_workflow_preserves_matrix_and_checks() -> None:

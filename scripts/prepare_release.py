@@ -13,6 +13,7 @@ Usage: python scripts/prepare_release.py VERSION --date YYYY-MM-DD [--check]
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import re
 import sys
@@ -179,6 +180,10 @@ def prepare(version: str, date: str, *, check: bool) -> None:
         raise PrepareError(f"invalid version {version!r}; expected X.Y.Z")
     if not _DATE_RE.match(date):
         raise PrepareError(f"invalid date {date!r}; expected YYYY-MM-DD")
+    try:
+        datetime.date.fromisoformat(date)
+    except ValueError as exc:
+        raise PrepareError(f"invalid date {date!r}; {exc}") from exc
 
     _validate_changelogs(
         CHANGELOG_MD.read_text(), CHANGELOG_RST.read_text(), version, date
