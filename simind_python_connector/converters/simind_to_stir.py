@@ -20,9 +20,6 @@ _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 create_acquisition_data = BACKENDS.factories.create_acquisition_data
 AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
 
 @dataclass
 class ConversionConfig:
