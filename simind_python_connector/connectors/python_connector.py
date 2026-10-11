@@ -422,12 +422,9 @@ class SimindPythonConnector(BaseConnector):
             try:
                 interfile = load_interfile_array(header_path)
             except Exception as exc:
-                self.logger.warning(
-                    "Skipping output %s due to parse/load error: %s",
-                    header_path,
-                    exc,
-                )
-                continue
+                raise RuntimeError(
+                    f"SIMIND output {header_path} could not be read: {exc}"
+                ) from exc
 
             key = self._extract_output_key(header_path)
             outputs[key] = ProjectionResult(
@@ -435,11 +432,6 @@ class SimindPythonConnector(BaseConnector):
                 header_path=interfile.header_path,
                 data_path=interfile.data_path,
                 metadata=interfile.metadata,
-            )
-
-        if not outputs:
-            raise RuntimeError(
-                f"No valid outputs were parsed from headers in {self.output_dir}"
             )
 
         return outputs

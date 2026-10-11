@@ -382,7 +382,7 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_python_connector_skips_malformed_interfile_outputs(tmp_path: Path):
+def test_python_connector_raises_for_malformed_interfile_outputs(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
@@ -436,10 +436,8 @@ def test_python_connector_skips_malformed_interfile_outputs(tmp_path: Path):
         )
 
     connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
-    outputs = connector.run(RuntimeOperator(switches={"NN": 1}))
-
-    assert "tot_w1" in outputs
-    assert "air_w1" not in outputs
+    with pytest.raises(RuntimeError, match="case01_air_w1.hs could not be read"):
+        connector.run(RuntimeOperator(switches={"NN": 1}))
 
 
 @pytest.mark.unit
