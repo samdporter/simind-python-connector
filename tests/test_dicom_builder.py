@@ -155,3 +155,15 @@ def test_missing_energy_windows_warns(tmp_path: Path):
         builder.update_header_from_dicom(str(dicom_path))
 
     assert not hasattr(builder, "energy_windows") or not builder.energy_windows
+
+
+def test_dicom_energy_window_vector_is_read(tmp_path: Path):
+    dicom_path = _make_dicom(tmp_path / "vector.dcm", frames=4)
+    ds = pydicom.dcmread(dicom_path)
+    ds.EnergyWindowVector = [1, 2, 1, 2]
+    ds.save_as(dicom_path)
+
+    builder = _new_builder()
+    builder.update_header_from_dicom(str(dicom_path))
+
+    assert builder.energy_window_vector == [1, 2, 1, 2]
