@@ -291,14 +291,38 @@ def test_python_connector_accepts_quantization_scale_parameter(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_python_connector_rejects_non_positive_quantization_scale(tmp_path: Path):
-    with pytest.raises(ValueError, match="quantization_scale must be > 0"):
+@pytest.mark.parametrize("scale", [0.0, -1.0, 2.0])
+def test_python_connector_rejects_quantization_scale_outside_unit_interval(
+    tmp_path: Path, scale: float
+):
+    # Above 1 the source is clipped at MAX_SOURCE, which changes its shape.
+    with pytest.raises(ValueError, match=r"quantization_scale must be in \(0, 1\]"):
         SimindPythonConnector(
             config_source=get("AnyScan.yaml"),
             output_dir=tmp_path,
             output_prefix="case01",
-            quantization_scale=0.0,
+            quantization_scale=scale,
         )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [0, -1, 1.5, None, True])
+def test_python_connector_rejects_invalid_nn(tmp_path: Path, value):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path
+    )
+    with pytest.raises(ValueError, match="NN"):
+        connector.add_runtime_switch("NN", value)
+
+
+@pytest.mark.unit
+def test_python_connector_accepts_integral_nn(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path
+    )
+    connector.add_runtime_switch("NN", 3)
+    connector.add_runtime_switch("Multiplier for scaling the number of counts", 2.0)
+    assert connector.runtime_switches.switches["NN"] == 2.0
 
 
 @pytest.mark.unit

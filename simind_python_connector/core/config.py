@@ -969,6 +969,19 @@ class SimulationConfig:
         return filepath.with_suffix(".smc")
 
 
+def _validate_switch_value(switch, value):
+    # The executor writes every switch as /XX:value.
+    if value is None or isinstance(value, bool):
+        raise ValueError(f"Switch {switch} requires a value, got {value!r}")
+    if switch == "NN":
+        is_integer = isinstance(value, (int, float)) and float(value).is_integer()
+        if not is_integer or value < 1:
+            raise ValueError(
+                "NN must be an integer >= 1 (SIMIND cuts off the simulation "
+                f"otherwise), got {value!r}"
+            )
+
+
 class RuntimeSwitches:
     def __init__(self):
         self.standard_switch_dict = {
@@ -1050,6 +1063,7 @@ class RuntimeSwitches:
 
     def _set_switch_by_switch(self, switch, value):
         if switch in self.combined_switch_dict:
+            _validate_switch_value(switch, value)
             self.switches[switch] = value
         else:
             raise ValueError(f"Switch {switch} is not recognised.")
@@ -1057,6 +1071,7 @@ class RuntimeSwitches:
     def _set_switch_by_name(self, name, value):
         for switch, description in self.combined_switch_dict.items():
             if description == name:
+                _validate_switch_value(switch, value)
                 self.switches[switch] = value
                 return
         raise ValueError(f"Switch {name} is not recognised.")
