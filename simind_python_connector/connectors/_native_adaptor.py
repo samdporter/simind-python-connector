@@ -38,6 +38,10 @@ from simind_python_connector.utils.interfile import (
 )
 
 
+# The SIMIND indices configure_acquisition sets from a template.
+_TEMPLATE_INDICES = (12, 28, 29, 30, 41, 76, 77)
+
+
 class _NativeSimindAdaptor(BaseConnector):
     """Adaptor taking and returning backend-native image and projection objects."""
 
@@ -48,7 +52,7 @@ class _NativeSimindAdaptor(BaseConnector):
         output_prefix: str = "output",
         photon_multiplier: int = 1,
         quantization_scale: float = 1.0,
-        scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
         mu_map_type: str = "attenuation",
         mu_map_energy_kev: Optional[float] = None,
     ) -> None:
@@ -73,6 +77,7 @@ class _NativeSimindAdaptor(BaseConnector):
         self._outputs: Optional[dict[str, Any]] = None
         self._template_header: Optional[InterfileHeader] = None
         self._template_geometry: Optional[ProjectionGeometry] = None
+        self._template_values: dict[int, float] = {}
 
         self.add_runtime_switch("NN", photon_multiplier)
 
@@ -155,6 +160,11 @@ class _NativeSimindAdaptor(BaseConnector):
                 )
             connector = self.python_connector
             header = connector.output_dir / f"{connector.output_prefix}.hct"
+            if not header.is_file():
+                raise RuntimeError(
+                    "SIMIND wrote no aligned density; it only does so with "
+                    "Flag 11 (phantom interactions) on"
+                )
             density, voxel_sizes = read_simind_density_image(header)
             return None, self._build_image(density * mu_water, voxel_sizes)
 
@@ -183,14 +193,21 @@ class _NativeSimindAdaptor(BaseConnector):
         """Simulate in the geometry of a measured acquisition.
 
         template is a backend projection object or a path to its .hs header.
-        Outputs are then returned in exactly that geometry.
+        Outputs are then returned in exactly that geometry. Projection
+        settings changed afterwards (add_config_value) win, and the outputs
+        then come back in SIMIND's geometry instead.
         """
         # Both are parsed before either is stored, so a rejected replacement
         # leaves the previous template usable.
         header = read_header(template)
         geometry = read_projection_geometry(header)
+        self.python_connector.configure_acquisition(geometry)
         self._template_header = header
         self._template_geometry = geometry
+        config = self.python_connector.get_config()
+        self._template_values = {
+            index: config.get_value(index) for index in _TEMPLATE_INDICES
+        }
 
     def set_energy_windows(
         self,
@@ -228,8 +245,6 @@ class _NativeSimindAdaptor(BaseConnector):
                     "Set either a phantom (set_phantom) or a source and mu_map, "
                     "not both"
                 )
-            if self._template_geometry is not None:
-                self.python_connector.configure_acquisition(self._template_geometry)
             self.python_connector.configure_phantom(
                 self._phantom,
                 time_per_projection_s=self._time_per_projection_s,
@@ -243,8 +258,6 @@ class _NativeSimindAdaptor(BaseConnector):
             self._validate_inputs()
             source_arr = np.asarray(get_array(self._source), dtype=np.float32)
             mu_arr = np.asarray(get_array(self._mu_map), dtype=np.float32)
-            if self._template_geometry is not None:
-                self.python_connector.configure_acquisition(self._template_geometry)
             self.python_connector.configure_voxel_phantom(
                 source=source_arr,
                 mu_map=mu_arr,
@@ -253,8 +266,18 @@ class _NativeSimindAdaptor(BaseConnector):
                 mu_map_type=self._mu_map_type,
                 mu_map_energy_kev=self._mu_map_energy_kev,
             )
+        config = self.python_connector.get_config()
+        template_overridden = self._template_geometry is not None and any(
+            config.get_value(index) != value
+            for index, value in self._template_values.items()
+        )
         raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
-        if self._template_geometry is None:
+        if template_overridden:
+            self.python_connector.logger.warning(
+                "Projection settings were changed after set_template; the outputs "
+                "are in SIMIND's geometry, not the template's"
+            )
+        if self._template_geometry is None or template_overridden:
             self._outputs = {
                 key: self._load_output(result.header_path)
                 for key, result in raw_outputs.items()
@@ -311,7 +334,10 @@ class _NativeSimindAdaptor(BaseConnector):
         return sorted(self.get_outputs().keys())
 
     def get_scoring_routine(self) -> ScoringRoutine:
-        return self._scoring_routine
+        """The scoring_routine passed in, or else the configuration's Index 84."""
+        if self._scoring_routine is not None:
+            return self._scoring_routine
+        return ScoringRoutine(int(float(self.get_config().get_value(84))))
 
     def get_config(self) -> SimulationConfig:
         return self.python_connector.get_config()

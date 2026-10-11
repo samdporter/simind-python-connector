@@ -70,7 +70,9 @@ brain/vox_brn = 2, whole body/vox_man3 = 1, NEMA/nema = 3) and use
 resolves ``/FZ`` against its working directory. The NEMA IQ phantom also uses
 the manual's settings (Index 31 = 0.1 cm, Index 2 = Index 5 = 11 cm, a
 364 x 364 x 110 map). Flag 15 makes SIMIND write the aligned density, which is
-the only ground truth available for these phantoms.
+the only ground truth available for these phantoms. SIMIND only writes it with
+Flag 11 (interactions in the phantom) on; library and voxel phantoms take
+Flag 11 from the configuration.
 
 phantomgen and voxel phantoms
 -----------------------------

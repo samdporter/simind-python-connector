@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Breaking:** `configure_voxel_phantom` no longer sets the projection pixel size and
+  matrix (Index 28, 76, 77) from the phantom image, which overwrote the configured
+  values and gave square projections for cubic phantoms (and cut off the axial field
+  of view for slices thicker than the pixels). They now come from the configuration
+  or from `configure_acquisition`/`set_template`.
+- `set_template` applies the template when called instead of on every `run()`, so
+  projection settings changed afterwards with `add_config_value` are no longer
+  overwritten. The outputs then come back in SIMIND's geometry, with a warning.
+- The non-circular orbit file is written at run time, so its centre bin follows the
+  current Index 76.
+- `run()` warns when a voxel phantom is wider or longer than the projection field of
+  view, with or without a template.
+- The adaptors default `scoring_routine` to None, which keeps the configuration's
+  Index 84; they used to overwrite it with SCATTWIN. `get_scoring_routine()` reports
+  the routine in use.
+- `VoxelPhantom` and library phantoms follow Flag 11 (phantom interactions) from the
+  configuration instead of forcing it on.
+- Configuring a phantom keeps source shifts (Index 16–18) set beforehand; only shifts
+  from an earlier analytic phantom are cleared.
+
+### Removed
+- The "non-square matrix" warning from `SimulationConfig.validate_parameters`;
+  SIMIND supports non-square projection matrices.
+
 ## [3.0.0] - 2026-10-09
 
 ### Added

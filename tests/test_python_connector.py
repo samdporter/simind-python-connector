@@ -73,8 +73,6 @@ def test_python_connector_configure_voxel_phantom_sets_all_map_dimensions(
     )
 
     config = connector.get_config()
-    assert config.get_value(76) == pytest.approx(4)  # columns = max(dim_x, dim_y)
-    assert config.get_value(77) == pytest.approx(2)  # rows = dim_z (axial)
     assert config.get_value(78) == pytest.approx(4)  # density map i = dim_x
     assert config.get_value(79) == pytest.approx(4)  # source map i = dim_x
     assert config.get_value(81) == pytest.approx(3)  # density map j = dim_y
@@ -83,7 +81,7 @@ def test_python_connector_configure_voxel_phantom_sets_all_map_dimensions(
 
 
 @pytest.mark.unit
-def test_python_connector_configure_voxel_phantom_uses_axial_projection_rows(
+def test_python_connector_configure_voxel_phantom_keeps_projection_matrix(
     tmp_path: Path,
 ):
     connector = SimindPythonConnector(
@@ -91,16 +89,18 @@ def test_python_connector_configure_voxel_phantom_uses_axial_projection_rows(
         output_dir=tmp_path,
         output_prefix="case01",
     )
+    connector.add_config_value(28, 0.25)
+    connector.add_config_value(76, 96)
+    connector.add_config_value(77, 40)
 
-    # dim_y (4) exceeds dim_x (3), so the columns follow dim_y.
     source = np.zeros((2, 4, 3), dtype=np.float32)
     source[0, 0, 0] = 1.0
 
     connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
 
     config = connector.get_config()
-    assert config.get_value(76) == pytest.approx(4)  # columns = max(dim_x, dim_y)
-    assert config.get_value(77) == pytest.approx(2)  # rows = dim_z (axial)
+    assert config.get_value(28) == pytest.approx(0.25)
+    assert (config.get_value(76), config.get_value(77)) == (96, 40)
     assert config.get_value(78) == pytest.approx(3)  # density map i = dim_x
     assert config.get_value(79) == pytest.approx(3)  # source map i = dim_x
     assert config.get_value(81) == pytest.approx(4)  # density map j = dim_y
@@ -1110,12 +1110,7 @@ def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path)
     )
     radii = tuple(240.0 + i for i in range(60))
     connector.configure_acquisition(_acquisition(radius_mm=None, radii_mm=radii))
-
     orbit = tmp_path / "case01_acquisition.cor"
-    lines = orbit.read_text().splitlines()
-    assert lines[0] == "      24.000    32" and lines[-1] == "      29.900    32"
-    assert len(lines) == 60
-
     captured = []
 
     def fake_run_simulation(
@@ -1127,6 +1122,10 @@ def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path)
     connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
     connector.run()
+    lines = orbit.read_text().splitlines()
+    assert lines[0] == "      24.000    32" and lines[-1] == "      29.900    32"
+    assert len(lines) == 60
+
     override = tmp_path / "other.cor"
     override.write_text("15.0\n")
     connector.run(RuntimeOperator(orbit_file=override))
@@ -1134,6 +1133,11 @@ def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path)
 
     assert captured == [orbit, tmp_path / "case01_orbit.cor", orbit]
     assert orbit.exists()
+
+    # The centre bin follows a matrix size changed after the template.
+    connector.add_config_value(76, 128)
+    connector.run()
+    assert orbit.read_text().splitlines()[0] == "      24.000    64"
 
 
 @pytest.mark.unit
@@ -1229,6 +1233,27 @@ def test_run_warns_when_phantom_is_wider_than_the_field_of_view(
     with caplog.at_level("WARNING"):
         connector.run()
     assert "wider than the projection field of view" in caplog.text
+
+
+@pytest.mark.unit
+def test_run_warns_when_phantom_is_longer_than_the_field_of_view(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(28, 0.4)
+    connector.add_config_value(76, 64)
+    connector.add_config_value(77, 8)  # 32 mm axially
+    source = np.ones((16, 8, 8), dtype=np.float32)  # 64 mm axially
+    connector.configure_voxel_phantom(source, np.zeros_like(source), 4.0)
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    with caplog.at_level("WARNING"):
+        connector.run()
+    assert "longer than the projection field of view" in caplog.text
+    assert "wider than" not in caplog.text
 
 
 def _write_density(connector, mu_map, **kwargs):
@@ -1330,7 +1355,6 @@ def test_configure_voxel_phantom_anisotropic_voxels(tmp_path: Path):
     assert config.get_value(2) == pytest.approx(10 * 0.8 / 2)
     assert config.get_value(5) == pytest.approx(10 * 0.8 / 2)
     assert config.get_value(31) == pytest.approx(0.4)
-    assert config.get_value(28) == pytest.approx(0.4)
     assert connector.runtime_switches.switches["PX"] == pytest.approx(0.4)
     assert connector.runtime_switches.switches["TH"] == pytest.approx(0.8)
 
