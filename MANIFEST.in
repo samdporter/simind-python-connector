@@ -4,6 +4,10 @@ recursive-include simind_python_connector/data *.atn
 recursive-include simind_python_connector/data *.json
 recursive-include simind_python_connector/configs *.smc *.yaml
 recursive-include docs *.rst *.py
+include docs/spectub_cache_interference.md
+include docs/_static/.gitkeep
+prune docs/superpowers
+prune docs/_build
 recursive-include tests *.py
 recursive-include examples *.py
 global-exclude __pycache__
