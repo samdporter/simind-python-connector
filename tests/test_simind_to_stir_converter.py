@@ -592,6 +592,37 @@ class TestPenetrateFallbackLogging:
             assert len(matching) == 1
             assert MISSING_BACKEND_ERROR in matching[0].getMessage()
 
+    def test_genuine_load_failure_warns_and_falls_back(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        h00_file = make_penetrate_outputs(tmp_path)
+
+        def _factory(_header_path):
+            raise OSError("corrupt interfile data")
+
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", True)
+        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", _factory)
+
+        with caplog.at_level(logging.DEBUG):
+            outputs = SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
+        assert set(outputs) == {component.slug for component in PenetrateOutputType}
+        for component in PenetrateOutputType:
+            assert outputs[component.slug] == str(component_header(tmp_path, component))
+
+        fallbacks = [
+            record
+            for record in caplog.records
+            if record.getMessage().startswith("Falling back to file path")
+        ]
+        assert len(fallbacks) == len(PenetrateOutputType)
+        assert all(record.levelno == logging.WARNING for record in fallbacks)
+        assert all(
+            "corrupt interfile data" in record.getMessage() for record in fallbacks
+        )
+
     def test_header_write_failure_still_warns(self, tmp_path, monkeypatch, caplog):
         h00_file = make_penetrate_outputs(tmp_path)
         component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK

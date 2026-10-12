@@ -488,8 +488,12 @@ class SimindToStirConverter:
             if SIRF_AVAILABLE and AcquisitionData is not type(None):
                 return AcquisitionData(str(header_path))
         except Exception as exc:
-            # Expected whenever no backend is installed: keep it out of WARNING.
-            self.logger.debug(
+            # A missing backend surfaces as ImportError and is expected; a
+            # backend that is installed but cannot read the file is a real
+            # failure and must be visible at WARNING.
+            level = logging.DEBUG if isinstance(exc, ImportError) else logging.WARNING
+            self.logger.log(
+                level,
                 "Falling back to file path for %s due to load error: %s",
                 header_path,
                 exc,
