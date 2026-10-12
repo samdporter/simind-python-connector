@@ -238,6 +238,20 @@ def test_container_scripts_forward_smc_env_without_compose_no_build(
         assert env_pairs == expected_env, line
 
 
+def test_python_image_provisions_mpich_and_compat_symlinks():
+    """SIMIND's MPI binary links the historical MPICH SONAMEs, so the core
+    image must install MPICH and expose the libmpi/libmpifort names."""
+    dockerfile = (ROOT / "docker" / "python" / "Dockerfile").read_text()
+    assert "apt-get install -y --no-install-recommends mpich" in dockerfile
+    assert "docker/python/install_mpich_compat.sh" in dockerfile
+
+    compat = ROOT / "docker" / "python" / "install_mpich_compat.sh"
+    assert compat.stat().st_mode & stat.S_IXUSR
+    script = compat.read_text()
+    assert "link_if_missing libmpich.so.12 libmpi.so.12" in script
+    assert "link_if_missing libmpichfort.so.12 libmpifort.so.12" in script
+
+
 def test_dockerignore_excludes_local_heavy_paths():
     ignore = (ROOT / ".dockerignore").read_text().splitlines()
     for pattern in (
