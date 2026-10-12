@@ -7,6 +7,7 @@
 
 ### Author: Sam Porter
 
+import math
 import os
 import re
 from pathlib import Path
@@ -997,6 +998,18 @@ class SimulationConfig:
 
 def _validate_switch_value(switch, value):
     # The executor writes every switch as /XX:value.
+    if switch == "MP":
+        is_integer = not isinstance(value, bool) and isinstance(value, (int, float))
+        if is_integer and isinstance(value, int):
+            # ints are always finite; avoid float() on very large values.
+            is_integer = value >= 1
+        elif is_integer:
+            is_integer = (
+                math.isfinite(value) and float(value).is_integer() and value >= 1
+            )
+        if not is_integer:
+            raise ValueError(f"MP must be an integer >= 1, got {value!r}")
+        return
     if value is None or isinstance(value, bool):
         raise ValueError(f"Switch {switch} requires a value, got {value!r}")
     if switch == "NN":

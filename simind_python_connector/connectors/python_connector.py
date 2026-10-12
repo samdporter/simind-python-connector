@@ -51,6 +51,7 @@ class RuntimeOperator:
 
     switches: Dict[str, Any] = field(default_factory=dict)
     orbit_file: Optional[PathLike] = None
+    timeout: Optional[float] = None
 
 
 class SimindPythonConnector(BaseConnector):
@@ -83,20 +84,24 @@ class SimindPythonConnector(BaseConnector):
         self._outputs: Optional[dict[str, ProjectionResult]] = None
         self._window_file_path: Optional[Path] = None
         self._phantom_extent_mm: Optional[tuple[float, float]] = None
+        self._orbit_source_paths: tuple[Path, ...] = ()
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
         """Accept only prefixes SIMIND keeps unchanged in its file names.
 
         SIMIND lowercases file names on Unix, a dot would be taken for a file
-        extension, and glob characters would break output discovery.
+        extension, and glob characters would break output discovery. A hyphen
+        is rejected too: SIMIND V8 treats it as an argument delimiter and
+        splits its positional filename arguments, so the run would open the
+        wrong file and silently produce nothing.
         """
         if not isinstance(prefix, str) or not re.fullmatch(
-            r"[a-z0-9][a-z0-9_-]*", prefix
+            r"[a-z0-9][a-z0-9_]*", prefix
         ):
             raise ValueError(
-                "output_prefix must contain only lowercase letters, digits, '_' "
-                f"and '-', got {prefix!r}"
+                "output_prefix must start with a lowercase letter or digit and "
+                f"contain only lowercase letters, digits and '_', got {prefix!r}"
             )
 
     @staticmethod
@@ -268,6 +273,7 @@ class SimindPythonConnector(BaseConnector):
     ) -> dict[str, ProjectionResult]:
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
+        self._orbit_source_paths = ()
 
         # Runtime-operator switches apply to this run only; merge them into
         # a throwaway switch set instead of persistent connector state.
@@ -275,10 +281,12 @@ class SimindPythonConnector(BaseConnector):
         for key, value in self.runtime_switches.switches.items():
             run_switches_holder.set_switch(key, value)
         orbit_file = None
+        run_timeout: Optional[float] = None
         if runtime_operator is not None:
             for key, value in runtime_operator.switches.items():
                 run_switches_holder.set_switch(key, value)
             orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
+            run_timeout = runtime_operator.timeout
 
         if self._phantom_extent_mm is not None:
             bin_mm = float(self.config.get_value(28)) * SIMIND_VOXEL_UNIT_CONVERSION
@@ -313,6 +321,7 @@ class SimindPythonConnector(BaseConnector):
             orbit_file,
             run_switches_holder.switches,
             cwd=self.output_dir,
+            timeout=run_timeout,
         )
 
         header_files = self._ensure_interfile_headers()
@@ -353,6 +362,12 @@ class SimindPythonConnector(BaseConnector):
                 protected.add(self.config.get_data_file(slot))
             except KeyError:
                 pass
+        for orbit_source in self._orbit_source_paths:
+            # A caller-supplied orbit may live in output_dir and match the
+            # output patterns; never delete it (or a canonical symlink's
+            # referent) out from under SIMIND.
+            if orbit_source.parent.resolve() == self.output_dir:
+                protected.add(orbit_source.name)
         for path in sorted(self.output_dir.iterdir()):
             if not path.is_file() or path.name in protected:
                 continue
@@ -372,16 +387,41 @@ class SimindPythonConnector(BaseConnector):
         if orbit_file is None:
             return None
 
-        orbit_path = Path(orbit_file).expanduser().resolve()
+        supplied_path = Path(orbit_file).expanduser()
+        orbit_path = supplied_path.resolve()
         if not orbit_path.exists():
             raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+        self._orbit_source_paths = (supplied_path, orbit_path)
 
-        if orbit_path.parent == self.output_dir:
-            return orbit_path
+        # Stage under a connector-owned name so a user-supplied orbit never
+        # clobbers a protected input (e.g. {prefix}_src.smi) that happens to
+        # share its basename.
+        target = self.output_dir / f"{self.output_prefix}_orbit.cor"
+        if orbit_path == target:
+            return target
 
-        copied_path = self.output_dir / orbit_path.name
-        shutil.copy2(orbit_path, copied_path)
-        return copied_path
+        # The supplied path may itself be the canonical destination, possibly
+        # as a symlink to somewhere else. Compare its location without following
+        # the final link and leave the caller's path alone in that case.
+        if supplied_path.parent.resolve() / supplied_path.name == target:
+            return target
+
+        # Drop any pre-existing alias (a symlink or hardlink to the orbit
+        # source) so copy2 writes a real file instead of following the link.
+        if target.is_symlink() or target.exists():
+            # On a case-insensitive filesystem a differently-cased spelling is
+            # the same directory entry. Compare lstat identities (not the
+            # dereferenced file) so a destination symlink to the source is
+            # still replaced, but the caller's source is never unlinked.
+            try:
+                same_entry = os.path.samestat(os.lstat(target), os.lstat(supplied_path))
+            except OSError:
+                same_entry = False
+            if same_entry:
+                return target
+            target.unlink()
+        shutil.copy2(orbit_path, target)
+        return target
 
     def _ensure_interfile_headers(self) -> list[Path]:
         if self._is_penetrate_routine():

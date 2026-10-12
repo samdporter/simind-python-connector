@@ -1,6 +1,7 @@
 """Unit tests for the SIMIND process executor."""
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,31 @@ def _capture_run(monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
 
     def fake_run(command, **kwargs):
         calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(
+        "simind_python_connector.core.executor.subprocess.run", fake_run
+    )
+    return calls
+
+
+def _capture_run_with_output(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
+) -> list[tuple]:
+    calls: list[tuple] = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        if stdout:
+            kwargs["stdout"].write(stdout)
+        if stderr:
+            kwargs["stderr"].write(stderr)
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command)
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(
@@ -244,3 +270,307 @@ def test_executor_translates_called_process_errors(
 
     with pytest.raises(SimulationError, match="failed"):
         SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_exit_zero_error_banner_on_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="simulation started\nSIMIND error number: 42\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 42"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_exit_zero_error_banner_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stderr="fatal condition\nSIMIND error number: 7\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_does_not_match_diagnostic_split_across_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Neither stream contains the full numbered pattern on its own.
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="SIMIND",
+        stderr=" error number: 1\n",
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_error_banner_case_and_whitespace_insensitively(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="SiMiNd   ErRoR   NuMbEr :   123\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 123"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_divider_only_error_banner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="========================= Error\n")
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error:"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_ignores_lowercase_divider_banner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="========================= error\n")
+
+    SimindExecutor().run_simulation("case01")
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        "",
+        "relative error estimate: 0.01\n",
+        "no errors were found\n",
+        "Error: something benign happened\n",
+        "=== Error handling summary ===\n",
+    ],
+)
+def test_executor_ignores_benign_error_words(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=stdout)
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_replays_captured_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(
+        monkeypatch, stdout="simind stdout\n", stderr="simind stderr\n"
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+    captured = capsys.readouterr()
+    assert "simind stdout" in captured.out
+    assert "simind stderr" in captured.err
+
+
+def test_executor_invalid_utf8_does_not_hide_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command, **kwargs):
+        kwargs["stdout"].buffer.write(b"SIMIND error number: 9\n\xff\xfe")
+        kwargs["stdout"].flush()
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(
+        "simind_python_connector.core.executor.subprocess.run", fake_run
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 9"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_excerpt_is_bounded_but_keeps_number(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = ("x" * 3000) + "\nSIMIND error number: 123\n" + ("y" * 3000)
+    _capture_run_with_output(monkeypatch, stdout=output)
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "error number 123" in message
+    assert "y" * 10 not in message
+    excerpt = message.split("): ", 1)[1]
+    assert len(excerpt) <= 2000
+
+
+def test_executor_nonzero_exit_replays_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(monkeypatch, stderr="crash output\n", returncode=1)
+
+    with pytest.raises(SimulationError, match="SIMIND execution failed"):
+        SimindExecutor().run_simulation("case01")
+
+    assert "crash output" in capsys.readouterr().err
+
+
+def test_executor_forwards_timeout_to_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", timeout=5)
+
+    assert calls[0][1]["timeout"] == 5
+
+
+def test_executor_defaults_to_unlimited_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01")
+
+    assert calls[0][1]["timeout"] is None
+
+
+def test_executor_accepts_large_representable_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", timeout=10**6)
+
+    assert calls[0][1]["timeout"] == 1e6
+
+
+def test_executor_rejects_unrepresentable_timeout_without_launch(
+    tmp_path: Path,
+) -> None:
+    # No subprocess.run mock: the real validation must reject the huge int
+    # before subprocess.run computes its float deadline (which would overflow).
+    with pytest.raises(
+        SimulationError, match=r"timeout must be a finite number > 0 seconds"
+    ):
+        SimindExecutor(executable=sys.executable).run_simulation(
+            "case01", cwd=tmp_path, timeout=10**400
+        )
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [True, False, "1", 0, 0.0, -1, -0.5, float("nan"), float("inf"), float("-inf")],
+)
+def test_executor_rejects_invalid_timeouts(
+    monkeypatch: pytest.MonkeyPatch, timeout
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(
+        SimulationError, match=r"timeout must be a finite number > 0 seconds"
+    ):
+        SimindExecutor().run_simulation("case01", timeout=timeout)
+
+    assert calls == []
+
+
+def test_executor_translates_timeout_expired(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_timeout(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs.get("timeout"))
+
+    monkeypatch.setattr(
+        "simind_python_connector.core.executor.subprocess.run", raise_timeout
+    )
+
+    with pytest.raises(SimulationError, match="timed out after 3 seconds") as excinfo:
+        SimindExecutor().run_simulation("case01", timeout=3)
+
+    assert isinstance(excinfo.value.__cause__, subprocess.TimeoutExpired)
+
+
+def test_executor_real_subprocess_timeout_raises_promptly(tmp_path: Path) -> None:
+    script = tmp_path / "slow_simind.py"
+    script.write_text("import time\ntime.sleep(30)\n")
+
+    with pytest.raises(SimulationError, match="timed out after 0.2 seconds"):
+        SimindExecutor(executable=sys.executable).run_simulation(
+            str(script), cwd=tmp_path, timeout=0.2
+        )
+
+
+@pytest.mark.parametrize("mp_value", [1, 2, 4, 2.0, "4"])
+def test_executor_accepts_valid_mp(monkeypatch: pytest.MonkeyPatch, mp_value) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": mp_value})
+
+    command = calls[0][0]
+    assert command[0:3] == ["mpirun", "-np", str(int(mp_value))]
+    assert "/MP" in command
+
+
+def test_executor_accepts_large_integer_mp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+    large_mp = 10**400
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": large_mp})
+
+    assert calls[0][0][1:3] == ["-np", str(large_mp)]
+
+
+@pytest.mark.parametrize(
+    "mp_value",
+    ["9" * 5000, "\u0664"],
+)
+def test_executor_rejects_unusable_digit_string_mp(
+    monkeypatch: pytest.MonkeyPatch, mp_value
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="MP must be an integer >= 1"):
+        SimindExecutor().run_simulation("case01", runtime_switches={"MP": mp_value})
+
+    assert calls == []
+
+
+def test_executor_normalises_integral_float_mp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": 2.0})
+
+    assert calls[0][0][1:3] == ["-np", "2"]
+
+
+def test_executor_keeps_mp_switch_flag_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": 4, "NN": 2})
+
+    command = calls[0][0]
+    assert command[-1] == "/MP/NN:2"
+    assert "/MP:4" not in command
+
+
+@pytest.mark.parametrize(
+    "mp_value",
+    [0, -1, 2.5, None, True, False, float("nan"), float("inf"), "", "4.0", "abc", "-2"],
+)
+def test_executor_rejects_invalid_mp(monkeypatch: pytest.MonkeyPatch, mp_value) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="MP must be an integer >= 1"):
+        SimindExecutor().run_simulation("case01", runtime_switches={"MP": mp_value})
+
+    assert calls == []

@@ -1,9 +1,11 @@
 """Tests for SIMIND to STIR converter."""
 
+import logging
 from pathlib import Path
 
 import pytest
 
+from simind_python_connector.converters import simind_to_stir
 from simind_python_connector.converters.simind_to_stir import (
     ConversionConfig,
     DataFileNameRule,
@@ -17,7 +19,10 @@ from simind_python_connector.converters.simind_to_stir import (
     StartAngleConversionRule,
 )
 from simind_python_connector.core.types import PenetrateOutputType
-from simind_python_connector.utils.interfile_parser import parse_interfile_line
+from simind_python_connector.utils.interfile_parser import (
+    InterfileHeader,
+    parse_interfile_line,
+)
 
 
 @pytest.mark.unit
@@ -509,3 +514,132 @@ def test_conversion_config_defaults():
     assert len(config.ignored_patterns) > 0
     assert "program" in config.ignored_patterns
     assert "patient" in config.ignored_patterns
+
+
+MISSING_BACKEND_ERROR = "Neither SIRF nor STIR Python found"
+
+
+def make_penetrate_outputs(tmp_path) -> Path:
+    """Create the PENETRATE .h00 template plus one binary per component."""
+    h00_file = tmp_path / "output.h00"
+    h00_file.write_text(
+        "\n".join(
+            [
+                "!name of data file := output.a00",
+                "patient name := phantom",
+                "!study ID := study123",
+                "data description := placeholder",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+    for component in PenetrateOutputType:
+        (tmp_path / f"output.b{component.value:02d}").write_bytes(b"\x00\x00\x00\x00")
+    return h00_file
+
+
+def component_header(tmp_path, component) -> Path:
+    return tmp_path / f"output_component_{component.value:02d}.hs"
+
+
+@pytest.mark.unit
+class TestPenetrateFallbackLogging:
+    """Missing backends are an expected fallback, so they must not warn."""
+
+    @staticmethod
+    def patch_missing_backend(monkeypatch):
+        def _factory(_header_path):
+            raise ImportError(MISSING_BACKEND_ERROR)
+
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", True)
+        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", _factory)
+
+    def test_missing_backend_falls_back_at_debug_without_warning(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        h00_file = make_penetrate_outputs(tmp_path)
+        self.patch_missing_backend(monkeypatch)
+
+        with caplog.at_level(logging.DEBUG):
+            outputs = SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
+        assert set(outputs) == {component.slug for component in PenetrateOutputType}
+        for component in PenetrateOutputType:
+            header = component_header(tmp_path, component)
+            assert header.exists()
+            assert outputs[component.slug] == str(header)
+
+        noisy = [
+            record
+            for record in caplog.records
+            if record.levelno >= logging.WARNING
+            and "Falling back to file path" in record.getMessage()
+        ]
+        assert noisy == []
+
+        fallbacks = [
+            record
+            for record in caplog.records
+            if record.getMessage().startswith("Falling back to file path")
+        ]
+        assert len(fallbacks) == len(PenetrateOutputType)
+        assert all(record.levelno == logging.DEBUG for record in fallbacks)
+        for component in PenetrateOutputType:
+            header = str(component_header(tmp_path, component))
+            matching = [record for record in fallbacks if header in record.getMessage()]
+            assert len(matching) == 1
+            assert MISSING_BACKEND_ERROR in matching[0].getMessage()
+
+    def test_header_write_failure_still_warns(self, tmp_path, monkeypatch, caplog):
+        h00_file = make_penetrate_outputs(tmp_path)
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        binary_name = f"output.b{component.value:02d}"
+        failing_name = component_header(tmp_path, component).name
+        original_write = InterfileHeader.write
+
+        def failing_write(self, path, *args, **kwargs):
+            if Path(path).name == failing_name:
+                raise OSError("disk full while writing header")
+            return original_write(self, path, *args, **kwargs)
+
+        monkeypatch.setattr(InterfileHeader, "write", failing_write)
+
+        with caplog.at_level(logging.WARNING):
+            outputs = SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
+        assert component.slug not in outputs
+        assert len(outputs) == len(PenetrateOutputType) - 1
+        assert any(
+            record.levelno == logging.WARNING
+            and "Failed to create header" in record.getMessage()
+            and binary_name in record.getMessage()
+            and "disk full while writing header" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_successful_factory_result_is_returned(self, tmp_path, monkeypatch):
+        h00_file = make_penetrate_outputs(tmp_path)
+        backend_object = object()
+        loaded_paths = []
+
+        def _factory(header_path):
+            loaded_paths.append(header_path)
+            return backend_object
+
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", True)
+        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", _factory)
+
+        outputs = SimindToStirConverter().create_penetrate_headers_from_template(
+            str(h00_file), "output", str(tmp_path)
+        )
+
+        assert len(outputs) == len(PenetrateOutputType)
+        assert all(value is backend_object for value in outputs.values())
+        assert loaded_paths == [
+            str(component_header(tmp_path, component))
+            for component in PenetrateOutputType
+        ]

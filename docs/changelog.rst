@@ -7,6 +7,41 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+1.1.2 - 2026-10-12
+------------------
+
+Added
+~~~~~
+
+- ``RuntimeOperator(timeout=...)`` takes a limit in seconds; a run that exceeds
+  it stops and raises ``SimulationError``. The default remains unlimited.
+
+Changed
+~~~~~~~
+
+- NumPy is capped at ``>=1.20.0,<2.0`` package-wide: the STIR and SIRF
+  bindings are compiled against NumPy 1.x and crash with NumPy 2.
+- PENETRATE per-component fallback diagnostics are logged at DEBUG instead of
+  WARNING: quiet by default, the detail is retained at DEBUG.
+- The duplicate single-window scatter file was investigated on a real SIMIND
+  V8.0 run: the extra ``.win`` line is REQUIRED (without it SIMIND emits no
+  scatter/air outputs), so the behaviour is intentionally retained and is now
+  documented and covered by a real-binary regression test.
+
+Fixed
+~~~~~
+
+- ``-`` is rejected in ``output_prefix``: SIMIND treats it as an argument
+  delimiter, so the run silently produced no output.
+- Orbit files are always staged as ``{prefix}_orbit.cor``, so an orbit can no
+  longer overwrite the source, density or window inputs when basenames
+  collide.
+- SIMIND error diagnostics are detected even when SIMIND exits 0 and raise
+  ``SimulationError``; previously the run failed later with a misleading
+  missing-output error.
+- ``MP`` (MPI process count) must be an integer >= 1; ``MP=0`` previously ran
+  a single process silently.
+
 1.1.1 - 2026-10-11
 ------------------
 

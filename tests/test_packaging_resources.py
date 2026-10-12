@@ -1,11 +1,13 @@
 """Packaged-resource inventory and wheel-content guarantees."""
 
+import email
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
 
 from simind_python_connector.configs import get
 from simind_python_connector.configs import list as list_configs
@@ -111,3 +113,42 @@ def test_configs_load_from_zipped_install(tmp_path: Path):
     )
     assert result.returncode == 0, result.stderr[-1500:]
     assert "OK" in result.stdout
+
+
+def test_wheel_metadata_caps_numpy_below_2(tmp_path: Path):
+    """STIR/SIRF binaries are NumPy 1.x ABI, so NumPy 2 must not be allowed."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "build",
+            "--wheel",
+            "--outdir",
+            str(tmp_path),
+            str(ROOT),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+
+    wheel = next(tmp_path.glob("*.whl"))
+    with zipfile.ZipFile(wheel) as archive:
+        metadata_name = next(
+            name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+        )
+        message = email.message_from_string(archive.read(metadata_name).decode("utf-8"))
+
+    requirements = [
+        Requirement(value) for value in message.get_all("Requires-Dist", [])
+    ]
+    numpy_requirements = [req for req in requirements if req.name == "numpy"]
+    assert len(numpy_requirements) == 1, numpy_requirements
+    requirement = numpy_requirements[0]
+    # Unconditional: not qualified with an extra such as ``extra == "examples"``.
+    assert requirement.marker is None, requirement.marker
+    for version in ("1.20.0", "1.26.4"):
+        assert requirement.specifier.contains(version), version
+    for version in ("1.19.5", "2.0.0", "2.5.4"):
+        assert not requirement.specifier.contains(version), version

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simind-python-connector"
-version = "1.1.1"
+version = "1.1.2"
 description = "Python SIMIND Monte Carlo connector with STIR/SIRF/PyTomography adaptors"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -29,7 +29,7 @@ classifiers = [
 ]
 keywords = ["SPECT", "Monte Carlo", "medical imaging", "SIMIND", "SIRF", "STIR"]
 dependencies = [
-    "numpy>=1.20.0",
+    "numpy>=1.20.0,<2.0",
     "pydicom>=2.0.0",
     "pyyaml>=5.4.0",
 ]

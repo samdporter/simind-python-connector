@@ -35,6 +35,13 @@ Install the examples extra if you want to run the plotting examples:
 
     pip install "simind-python-connector[examples]"
 
+NumPy Version
+-------------
+
+The package pins NumPy to ``>=1.20.0,<2.0``. The STIR and SIRF Python
+bindings are compiled against NumPy 1.x and crash with NumPy 2, so NumPy 2 is
+not supported until those bindings are rebuilt against it.
+
 Development Install
 -------------------
 

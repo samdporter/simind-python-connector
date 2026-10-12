@@ -487,8 +487,9 @@ class SimindToStirConverter:
                 return create_acquisition_data(str(header_path))
             if SIRF_AVAILABLE and AcquisitionData is not type(None):
                 return AcquisitionData(str(header_path))
-        except Exception as exc:  # pragma: no cover - backend-specific failures
-            self.logger.warning(
+        except Exception as exc:
+            # Expected whenever no backend is installed: keep it out of WARNING.
+            self.logger.debug(
                 "Falling back to file path for %s due to load error: %s",
                 header_path,
                 exc,

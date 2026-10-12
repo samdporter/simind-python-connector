@@ -56,6 +56,10 @@ For example plotting dependencies:
 pip install "simind-python-connector[examples]"
 ```
 
+**NumPy**: the package requires `numpy>=1.20.0,<2.0`. The STIR and SIRF
+bindings are compiled against NumPy 1.x and crash with NumPy 2, so the `<2.0`
+cap applies package-wide.
+
 ### Adaptor Dependencies
 
 `SimindPythonConnector` works without SIRF/STIR/PyTomography.

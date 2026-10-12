@@ -197,7 +197,7 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
     )
     monkeypatch.setattr(adaptor.python_connector, "run", fake_run)
 
-    runtime_operator = RuntimeOperator(switches={"RR": 12345})
+    runtime_operator = RuntimeOperator(switches={"RR": 12345}, timeout=42.0)
     outputs = adaptor.run(runtime_operator=runtime_operator)
 
     assert outputs["tot_w1"] == f"stir:{tmp_path / 'case01_tot_w1.hs'}"
@@ -359,7 +359,7 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
     )
     monkeypatch.setattr(adaptor.python_connector, "run", fake_run)
 
-    runtime_operator = RuntimeOperator(switches={"RR": 12345})
+    runtime_operator = RuntimeOperator(switches={"RR": 12345}, timeout=42.0)
     outputs = adaptor.run(runtime_operator=runtime_operator)
 
     assert outputs["tot_w1"].path == str(tmp_path / "case01_tot_w1.hs")
