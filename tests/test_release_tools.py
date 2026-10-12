@@ -30,6 +30,23 @@ DATE = "2026-10-11"
 OLD_VERSION = "3.0.0"
 OLD_DATE = "2026-10-09"
 
+GUIDE = ROOT / "docs" / "contributing.rst"
+
+VERSION_SURFACES = (
+    "pyproject.toml",
+    "uv.lock",
+    "CHANGELOG.md",
+    "docs/changelog.rst",
+    "CITATION.cff",
+    ".zenodo.json",
+    "simind_python_connector/__init__.py",
+    "docs/conf.py",
+)
+
+BLANKET_STAGING = re.compile(
+    r"git\s+add\s+(?:-[A-Za-z]+|--[A-Za-z-]+|\.)(?=\s|$)", re.MULTILINE
+)
+
 
 def _changelog_md(version: str = VERSION, date: str = DATE) -> str:
     return f"""# Changelog
@@ -222,6 +239,56 @@ def _run(project: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _read(path: Path) -> str:
     return path.read_text()
+
+
+def _bash_blocks(text: str) -> list[str]:
+    """Bodies of the ``.. code-block:: bash`` directives in an RST document."""
+    lines = text.splitlines()
+    blocks: list[str] = []
+    i = 0
+    while i < len(lines):
+        if not lines[i].strip().startswith(".. code-block:: bash"):
+            i += 1
+            continue
+        i += 1
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+        body: list[str] = []
+        while i < len(lines) and (not lines[i].strip() or lines[i][0].isspace()):
+            body.append(lines[i])
+            i += 1
+        blocks.append("\n".join(body))
+    return blocks
+
+
+def _staged_paths(instruction: str) -> list[str]:
+    """Arguments of the first ``git add`` command, continuations joined."""
+    command = re.sub(r"\\\n\s*", " ", instruction)
+    match = re.search(r"^\s*git add\s+(.+)$", command, re.MULTILINE)
+    assert match, "no git add command found"
+    return match.group(1).split()
+
+
+def _release_guide_staging() -> str:
+    blocks = [block for block in _bash_blocks(_read(GUIDE)) if "git add" in block]
+    assert len(blocks) == 1, "expected exactly one staging command in the guide"
+    return blocks[0]
+
+
+def _run_release_wrapper(tmp_path: Path) -> str:
+    """Run release.sh in a throwaway project and return its printed instructions."""
+    today = datetime.date.today().isoformat()
+    project = _build_project(
+        tmp_path, markdown=_changelog_md(date=today), rst=_changelog_rst(date=today)
+    )
+    result = subprocess.run(
+        ["bash", "scripts/release.sh", VERSION],
+        cwd=project,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
 
 
 def _snapshot(project: Path) -> dict[str, str]:
@@ -453,6 +520,57 @@ def test_release_wrapper_has_no_git_side_effects(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert not marker.exists(), "release.sh invoked git"
     assert f'version = "{VERSION}"' in _read(project / "pyproject.toml")
+
+
+def test_release_guide_stages_exactly_the_eight_version_surfaces() -> None:
+    assert set(_staged_paths(_release_guide_staging())) == set(VERSION_SURFACES)
+
+
+def test_release_wrapper_prints_the_same_staging_paths(tmp_path: Path) -> None:
+    guide = _staged_paths(_release_guide_staging())
+    wrapper = _staged_paths(_run_release_wrapper(tmp_path))
+
+    assert set(wrapper) == set(guide)
+    assert set(wrapper) == set(VERSION_SURFACES)
+
+
+def test_staged_diff_review_precedes_the_commit_instruction(tmp_path: Path) -> None:
+    for text in (_read(GUIDE), _run_release_wrapper(tmp_path)):
+        add = text.index("git add ")
+        diff = text.index("git diff --cached", add)
+        commit = text.index("git commit")
+
+        assert add < diff < commit
+
+
+def test_index_is_inspected_before_staging(tmp_path: Path) -> None:
+    for text in (_read(GUIDE), _run_release_wrapper(tmp_path)):
+        add = text.index("git add ")
+
+        assert text.index("git status") < add
+        assert text.index("git diff --cached") < add
+
+
+def test_corrections_are_committed_before_the_metadata_commit() -> None:
+    guide = _read(GUIDE)
+    corrections = re.search(
+        r"Implementation or test corrections are committed\s+separately[^.]*\.", guide
+    )
+
+    assert corrections
+    assert corrections.start() < guide.index('git commit -m "chore: release')
+
+
+def test_no_blanket_staging_in_instruction_blocks() -> None:
+    guide_blocks = _bash_blocks(_read(GUIDE))
+    wrapper_script = [
+        line
+        for line in _read(SCRIPTS / "release.sh").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+
+    for text in [*guide_blocks, "\n".join(wrapper_script)]:
+        assert not BLANKET_STAGING.search(text)
 
 
 def test_publish_workflow_tests_the_release_tag_then_publishes() -> None:
