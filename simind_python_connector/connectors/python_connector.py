@@ -110,6 +110,30 @@ def _split_voxel_size(voxel_size_mm) -> tuple[float, float]:
     return size_z, size_x
 
 
+def _same_file_entry(a: Path, b: Path) -> bool:
+    """True when both paths name the same directory entry, links included."""
+    try:
+        return os.path.samestat(os.lstat(a), os.lstat(b))
+    except OSError:
+        return False
+
+
+def _file_identity(path: Path) -> set[tuple[int, int]]:
+    """Device/inode of a path and, when it is a link, of its referent.
+
+    The link's own identity catches a hardlink alias of the file; the
+    dereferenced identity catches a symlink alias.
+    """
+    identities = set()
+    for stat_fn in (os.lstat, os.stat):
+        try:
+            details = stat_fn(path)
+        except OSError:
+            continue
+        identities.add((details.st_dev, details.st_ino))
+    return identities
+
+
 @dataclass(frozen=True)
 class ProjectionResult:
     """Projection array together with the header and binary file references."""
@@ -168,6 +192,7 @@ class SimindPythonConnector(BaseConnector):
         self._acquisition_radii_cm: Optional[list[float]] = None
         self._phantom_extent_mm: Optional[tuple[float, float]] = None
         self._phantom_mode: Optional[str] = None
+        self._orbit_source_paths: tuple[Path, ...] = ()
 
     @staticmethod
     def _validate_output_prefix(prefix: str) -> None:
@@ -649,6 +674,7 @@ class SimindPythonConnector(BaseConnector):
     ) -> dict[str, ProjectionResult]:
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
+        self._orbit_source_paths = ()
 
         if self._phantom_mode is None:
             self.logger.warning(
@@ -792,7 +818,10 @@ class SimindPythonConnector(BaseConnector):
         """Delete stale outputs from earlier runs sharing this prefix.
 
         Connector-written inputs (``{prefix}_src.smi`` / ``{prefix}_dns.dmi``)
-        are protected because SIMIND still needs them on disk.
+        are protected because SIMIND still needs them on disk. The
+        caller-supplied orbit source is protected too, by name and by file
+        identity, so cleanup cannot delete it through a symlink, a hardlink or
+        a differently-cased spelling on a case-insensitive filesystem.
         """
         if window_file is None:
             window_file = self._window_file_for_run({})
@@ -807,8 +836,17 @@ class SimindPythonConnector(BaseConnector):
                 protected.add(self.config.get_data_file(slot))
             except KeyError:
                 pass
+        protected_ids: set[tuple[int, int]] = set()
+        for orbit_source in self._orbit_source_paths:
+            if orbit_source.parent.resolve() == self.output_dir:
+                protected.add(orbit_source.name)
+            protected_ids |= _file_identity(orbit_source)
+
+        def is_protected(path: Path) -> bool:
+            return path.name in protected or bool(_file_identity(path) & protected_ids)
+
         for path in sorted(self.output_dir.iterdir()):
-            if not path.is_file() or path.name in protected:
+            if not path.is_file() or is_protected(path):
                 continue
             stem_ok = path.stem == self.output_prefix or path.stem.startswith(
                 f"{self.output_prefix}_"
@@ -824,21 +862,38 @@ class SimindPythonConnector(BaseConnector):
 
         for suffix in (".res", ".bis", ".spe", ".cor", ".hct", ".ict"):
             stale = self.output_dir / f"{self.output_prefix}{suffix}"
-            if stale.is_file() and stale.name not in protected:
+            if stale.is_file() and not is_protected(stale):
                 stale.unlink()
 
     def _prepare_orbit_file(self, orbit_file: Optional[PathLike]) -> Optional[Path]:
         if orbit_file is None:
             return None
 
-        orbit_path = Path(orbit_file).expanduser().resolve()
+        supplied_path = Path(orbit_file).expanduser()
+        orbit_path = supplied_path.resolve()
         if not orbit_path.exists():
             raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+        self._orbit_source_paths = (supplied_path, orbit_path)
 
-        # SIMIND lowercases file names, so pass it a lower-case copy.
+        # SIMIND lowercases file names, so pass it a lower-case copy staged
+        # under a connector-owned name. The caller's orbit may share its
+        # basename with a protected input, so it is never used in place.
         target = self.output_dir / f"{self.output_prefix}_orbit.cor"
-        if orbit_path != target:
-            shutil.copy2(orbit_path, target)
+        if orbit_path == target or _same_file_entry(target, supplied_path):
+            return target
+
+        # Drop a pre-existing alias at the target (for example a symlink to
+        # the orbit source) so copy2 writes a real file instead of following
+        # the link. Never unlink the caller's own file: on a case-insensitive
+        # filesystem, or when the supplied path is an external symlink whose
+        # referent is the target, the target is that same directory entry.
+        if target.is_symlink() or target.exists():
+            if _same_file_entry(target, supplied_path) or _same_file_entry(
+                target, orbit_path
+            ):
+                return target
+            target.unlink()
+        shutil.copy2(orbit_path, target)
         return target
 
     def _ensure_interfile_headers(self) -> list[Path]:
