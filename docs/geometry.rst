@@ -105,9 +105,16 @@ them to cover the phantom; ``run()`` warns when the phantom is wider or longer
 than the projection field of view.
 
 ``set_template()`` writes these settings when it is called. Values set with
-``add_config_value()`` afterwards win; the adaptor then warns and returns the
-outputs in SIMIND's geometry rather than the template's. There is no API to
-clear a configured acquisition, so build a new adaptor or connector for a
+``add_config_value()`` afterwards usually win; the adaptor then warns and
+returns the outputs in SIMIND's geometry rather than the template's. The
+exception is Index 12 when the template has non-circular radii: the per-view
+radii are stored and written to the acquisition orbit file, which overrides
+Index 12, and changing Index 12 does not clear them. Editing Index 12 to
+``15.0`` therefore does not turn a non-circular template into a 150 mm circular
+orbit. To switch to a circular orbit, replace the acquisition with a circular
+``configure_acquisition()`` geometry, or replace the template with a circular
+one via ``set_template()``. There is no API to clear a configured acquisition
+outright; replace it as above, or build a new adaptor or connector for a
 different geometry.
 
 ``ProjectionGeometry.time_per_projection_s`` is the frame time the header
@@ -115,8 +122,12 @@ reports. Nothing sets it automatically: pass it to an explicit
 ``set_activity(activity_mbq, time_per_projection_s=...)`` call if you want
 SIMIND Index 25 to use it.
 
-After the run, the output geometry is checked against the template before
-the data are written under a copy of the template header:
+After the run, and only when no tracked projection setting has changed, the
+output geometry is checked against the template before the data are written
+under a copy of the template header. A change to any tracked setting (Index 12,
+28, 29, 30, 41, 76 or 77) returns the raw converted SIMIND headers instead, with
+no copying and no checking, even when the change is an Index 12 edit that the
+stored non-circular orbit makes ineffective:
 
 .. list-table::
    :header-rows: 1

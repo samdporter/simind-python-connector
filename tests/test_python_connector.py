@@ -1167,6 +1167,67 @@ def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path)
 
 
 @pytest.mark.unit
+def test_index_12_edit_does_not_clear_a_stored_non_circular_orbit(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    radii = tuple(240.0 + i for i in range(60))
+    connector.configure_acquisition(_acquisition(radius_mm=None, radii_mm=radii))
+    orbit = tmp_path / "case01_acquisition.cor"
+
+    connector.add_config_value(12, 15.0)
+    assert connector.get_config().get_value(12) == pytest.approx(15.0)
+
+    captured = []
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        captured.append((connector.get_config().get_value(12), orbit_file))
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+
+    connector.run()
+    connector.run()
+
+    assert captured == [(pytest.approx(15.0), orbit)] * 2
+    lines = orbit.read_text().splitlines()
+    assert lines[0] == "      24.000    32" and lines[-1] == "      29.900    32"
+    assert len(lines) == 60
+
+
+@pytest.mark.unit
+def test_replacing_a_non_circular_acquisition_with_a_circular_one_clears_the_orbit(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.configure_acquisition(
+        _acquisition(radius_mm=None, radii_mm=tuple(240.0 + i for i in range(60)))
+    )
+    connector.add_config_value(12, 15.0)
+
+    connector.configure_acquisition(_acquisition())
+
+    assert connector.get_config().get_value(12) == pytest.approx(25.0)
+    captured = []
+    connector.executor.run_simulation = (  # type: ignore[assignment]
+        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
+            captured.append(orbit_file)
+        )
+    )
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+
+    connector.run()
+
+    assert captured == [None]
+
+
+@pytest.mark.unit
 def test_configure_acquisition_treats_equal_radii_as_circular(tmp_path: Path):
     header = InterfileHeader.from_text(
         "!number of projections := 3\n"
