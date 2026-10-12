@@ -513,6 +513,25 @@ def test_executor_rejects_invalid_timeouts(
     assert calls == []
 
 
+def test_executor_validate_timeout_returns_float_or_none() -> None:
+    assert SimindExecutor.validate_timeout(None) is None
+
+    validated = SimindExecutor.validate_timeout(5)
+    assert validated == 5.0
+    assert isinstance(validated, float)
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [True, False, "1", 0, 0.0, -1, -0.5, float("nan"), float("inf"), float("-inf")],
+)
+def test_executor_validate_timeout_rejects_invalid_values(timeout) -> None:
+    with pytest.raises(
+        SimulationError, match=r"timeout must be a finite number > 0 seconds"
+    ):
+        SimindExecutor.validate_timeout(timeout)
+
+
 def test_executor_translates_timeout_expired(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -284,10 +284,12 @@ class SimindPythonConnector(BaseConnector):
         orbit_file = None
         run_timeout: Optional[float] = None
         if runtime_operator is not None:
+            # Validate before staging the orbit or clearing prior outputs so an
+            # invalid timeout cannot disturb existing files.
+            run_timeout = SimindExecutor.validate_timeout(runtime_operator.timeout)
             for key, value in runtime_operator.switches.items():
                 run_switches_holder.set_switch(key, value)
             orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
-            run_timeout = runtime_operator.timeout
 
         if self._phantom_extent_mm is not None:
             bin_mm = float(self.config.get_value(28)) * SIMIND_VOXEL_UNIT_CONVERSION
