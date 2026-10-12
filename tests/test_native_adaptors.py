@@ -948,3 +948,106 @@ def test_adaptor_keeps_the_config_scoring_routine_by_default(
 
     assert observed["index_84"] == ScoringRoutine.PENETRATE.value
     assert adaptor.get_scoring_routine() == ScoringRoutine.PENETRATE
+
+
+def _stub_zub_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stand in for the phantom.zub code table shipped with SIMIND."""
+    import simind_python_connector.connectors.python_connector as python_connector
+
+    table = tmp_path / "simind" / "phantom.zub"
+    table.parent.mkdir()
+    table.write_text("== V8.0 Code Section 1\n")
+    monkeypatch.setattr(python_connector, "_find_zub_table", lambda: table)
+
+
+def _record_scoring_routine_at_execution(adaptor, monkeypatch) -> list[ScoringRoutine]:
+    """Stub the external execution and record Index 84 as SIMIND would read it."""
+    executed: list[ScoringRoutine] = []
+
+    def fake_run(runtime_operator=None):
+        config = adaptor.get_config()
+        executed.append(ScoringRoutine(int(float(config.get_value(84)))))
+        return {}
+
+    monkeypatch.setattr(adaptor.python_connector, "run", fake_run)
+    return executed
+
+
+_SCORING_PHANTOMS = [
+    pytest.param(AnalyticPhantom(PointSource(), Box((5.0, 5.0, 5.0))), id="analytic"),
+    pytest.param(LibraryPhantom.ZUBAL_TORSO, id="library"),
+]
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+@pytest.mark.parametrize("phantom", _SCORING_PHANTOMS)
+@pytest.mark.parametrize("override", [None, ScoringRoutine.PENETRATE])
+def test_scoring_report_of_a_configured_phantom_is_the_config_value(
+    cls, patch, image_cls, phantom, override, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    _stub_zub_table(tmp_path, monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path, scoring_routine=override)
+    adaptor.add_config_value(84, ScoringRoutine.SCATTWIN.value)
+    adaptor.set_phantom(phantom)
+    reported_before = adaptor.get_scoring_routine()
+    executed = _record_scoring_routine_at_execution(adaptor, monkeypatch)
+
+    adaptor.run()
+
+    assert reported_before is ScoringRoutine.SCATTWIN
+    assert executed == [ScoringRoutine.SCATTWIN]
+    assert adaptor.get_scoring_routine() is ScoringRoutine.SCATTWIN
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_scoring_report_of_source_inputs_keeps_the_override(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path, scoring_routine=ScoringRoutine.PENETRATE)
+    adaptor.add_config_value(84, ScoringRoutine.SCATTWIN.value)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    reported_before = adaptor.get_scoring_routine()
+    executed = _record_scoring_routine_at_execution(adaptor, monkeypatch)
+
+    adaptor.run()
+
+    assert reported_before is ScoringRoutine.PENETRATE
+    assert executed == [ScoringRoutine.PENETRATE]
+    assert adaptor.get_scoring_routine() is ScoringRoutine.PENETRATE
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_scoring_report_follows_phantom_mode_switches(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    _stub_zub_table(tmp_path, monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path, scoring_routine=ScoringRoutine.PENETRATE)
+    adaptor.add_config_value(84, ScoringRoutine.SCATTWIN.value)
+    executed = _record_scoring_routine_at_execution(adaptor, monkeypatch)
+
+    adaptor.set_phantom(AnalyticPhantom(PointSource(), Box((5.0, 5.0, 5.0))))
+    assert adaptor.get_scoring_routine() is ScoringRoutine.SCATTWIN
+    adaptor.run()
+
+    activity = np.ones((2, 3, 4), dtype=np.float32)
+    adaptor.set_phantom(VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)))
+    assert adaptor.get_scoring_routine() is ScoringRoutine.PENETRATE
+    adaptor.run()
+
+    # The voxel run left Index 84 at the override; put the config back in
+    # conflict so the library run must not report the previous run's routine.
+    adaptor.add_config_value(84, ScoringRoutine.SCATTWIN.value)
+    adaptor.set_phantom(LibraryPhantom.ZUBAL_TORSO)
+    assert adaptor.get_scoring_routine() is ScoringRoutine.SCATTWIN
+    adaptor.run()
+
+    assert adaptor.get_scoring_routine() is ScoringRoutine.SCATTWIN
+    assert executed == [
+        ScoringRoutine.SCATTWIN,
+        ScoringRoutine.PENETRATE,
+        ScoringRoutine.SCATTWIN,
+    ]
