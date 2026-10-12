@@ -36,7 +36,7 @@ class SimindExecutor:
         orbit_file: Optional[Path] = None,
         runtime_switches: Optional[Dict] = None,
         cwd: Union[str, Path, None] = None,
-        mpi_processes: Optional[int] = None,
+        mpi_processes: Optional[Union[int, float, str]] = None,
         split_projections: bool = False,
     ) -> None:
         prefix = self._validate_cli_token(output_prefix)
@@ -47,7 +47,13 @@ class SimindExecutor:
                 f"which would split the filename arguments), got {prefix!r}"
             )
 
-        if split_projections and mpi_processes is None:
+        mpi_count = (
+            self._validate_mp_count(mpi_processes)
+            if mpi_processes is not None
+            else None
+        )
+
+        if split_projections and mpi_count is None:
             raise SimulationError("split_projections needs mpi_processes")
 
         switch_parts = []
@@ -60,11 +66,11 @@ class SimindExecutor:
         # SIMIND manual (MPI section): MPI runs use the separate simind_mpi
         # build. Without /MP every rank simulates all projections and the
         # results are summed; /MP shares the projections out instead.
-        if mpi_processes is not None:
+        if mpi_count is not None:
             command = [
                 "mpirun",
                 "-np",
-                self._validate_cli_token(mpi_processes),
+                mpi_count,
                 self._validate_cli_token(
                     self._mpi_executable(self.executable),
                     allow_whitespace=True,
@@ -112,6 +118,30 @@ class SimindExecutor:
         if os.sep in serial or (os.altsep and os.altsep in serial):
             return str(Path(serial).with_name("simind_mpi"))
         return "simind_mpi"
+
+    @staticmethod
+    def _validate_mp_count(value: object) -> str:
+        """Normalise an MPI process count to a plain integer string.
+
+        Accepts Python ints, integral floats and digit-only strings so callers
+        can pass a count from configuration without surprises. ``bool`` is
+        rejected explicitly, and round-tripping through ``float`` is avoided so
+        very large ints keep their exact value.
+        """
+        message = f"mpi_processes must be an integer >= 1, got {value!r}"
+        if isinstance(value, bool):
+            raise SimulationError(message)
+        if isinstance(value, int):
+            count = value
+        elif isinstance(value, float) and value.is_integer():
+            count = int(value)
+        elif isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+            count = int(value)
+        else:
+            raise SimulationError(message)
+        if count < 1:
+            raise SimulationError(message)
+        return str(count)
 
     @staticmethod
     def _validate_cli_token(value: object, *, allow_whitespace: bool = False) -> str:
