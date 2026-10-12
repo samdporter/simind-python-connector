@@ -6,7 +6,7 @@ Installation
 Prerequisites
 -------------
 
-- Python 3.9+
+- Python 3.10+
 - A separate SIMIND installation for running simulations. SIMIND is not
   distributed with this package or installed by pip.
 - Optional backend libraries depending on workflow:

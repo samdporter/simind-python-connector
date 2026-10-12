@@ -12,8 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stops and raises `SimulationError`. The default remains unlimited.
 
 ### Changed
-- NumPy is capped at `>=1.20.0,<2.0` package-wide: the STIR and SIRF bindings are
-  compiled against NumPy 1.x and crash with NumPy 2.
+- Python ≥3.10 is now required (`requires-python` and the metadata/classifiers
+  are updated accordingly); previously the metadata claimed 3.9+.
+- NumPy is capped at `>=1.20.0,<2.0` package-wide: this cap is a binary-ABI /
+  backend-compatibility guard for the legacy 1.1.x line, because the STIR and
+  SIRF bindings are compiled against NumPy 1.x and crash with NumPy 2. It is not
+  a Python-version constraint.
 - PENETRATE per-component fallback diagnostics are logged at DEBUG instead of
   WARNING: quiet by default, the detail is retained at DEBUG.
 - The duplicate single-window scatter file was investigated on a real SIMIND V8.0
