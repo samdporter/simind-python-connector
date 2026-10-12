@@ -5,7 +5,7 @@ Python SIMIND Monte Carlo Connector.
 [![Tests](https://github.com/samdporter/simind-python-connector/workflows/Tests/badge.svg)](https://github.com/samdporter/simind-python-connector/actions)
 [![Documentation Status](https://readthedocs.org/projects/simind-python-connector/badge/?version=latest)](https://simind-python-connector.readthedocs.io/en/latest/?badge=latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 
 A Python toolkit that lets you run SIMIND from Python and use the outputs in
 common reconstruction ecosystems (STIR, SIRF, PyTomography).
@@ -56,9 +56,11 @@ For example plotting dependencies:
 pip install "simind-python-connector[examples]"
 ```
 
-**NumPy**: the package requires `numpy>=1.20.0,<2.0`. The STIR and SIRF
-bindings are compiled against NumPy 1.x and crash with NumPy 2, so the `<2.0`
-cap applies package-wide.
+**NumPy**: the package requires `numpy>=1.20.0,<2.0`. The `<2.0` cap is a
+binary-ABI / backend-compatibility guard for the legacy 1.1.x line: the STIR
+and SIRF bindings are compiled against NumPy 1.x and crash with NumPy 2, so the
+cap applies package-wide. It is not a Python-version constraint; interpreter
+support is stated separately as Python 3.10+.
 
 ### Adaptor Dependencies
 
@@ -77,7 +79,7 @@ Install from conda:
 conda install -c conda-forge stir "numpy<2.0"
 ```
 
-**Important**: As of November 2025, the STIR conda package (v6.3.0) requires NumPy < 2.0 due to binary compatibility issues with NumPy 2.x. The package was compiled against NumPy 1.x and will crash with memory errors if NumPy 2.x is installed. This should be resolved in future STIR releases.
+**Important**: As of November 2025, the STIR conda package (v6.3.0) requires NumPy < 2.0 due to binary compatibility issues with NumPy 2.x. The package was compiled against NumPy 1.x and will crash with memory errors if NumPy 2.x is installed. This should be resolved in future STIR releases. Like the package-wide pin, this is a backend binary-ABI compatibility guard, not a Python-version constraint.
 
 Or build from source:
 ```bash
