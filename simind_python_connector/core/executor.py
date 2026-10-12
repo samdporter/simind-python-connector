@@ -44,24 +44,7 @@ class SimindExecutor:
         *,
         timeout: Union[int, float, None] = None,
     ) -> None:
-        validated_timeout = None
-        if timeout is not None:
-            if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
-                raise SimulationError(
-                    f"timeout must be a finite number > 0 seconds, got {timeout!r}"
-                )
-            try:
-                # subprocess computes a float deadline, so an int it cannot
-                # represent must be rejected before the launch.
-                validated_timeout = float(timeout)
-            except OverflowError as exc:
-                raise SimulationError(
-                    f"timeout must be a finite number > 0 seconds, got {timeout!r}"
-                ) from exc
-            if not math.isfinite(validated_timeout) or validated_timeout <= 0:
-                raise SimulationError(
-                    f"timeout must be a finite number > 0 seconds, got {timeout!r}"
-                )
+        validated_timeout = self.validate_timeout(timeout)
 
         mp_present = False
         mp_value = None
@@ -165,6 +148,35 @@ class SimindExecutor:
         # diagnostic split across the boundary that neither stream contains.
         self._raise_for_reported_error(stdout_text)
         self._raise_for_reported_error(stderr_text)
+
+    @staticmethod
+    def validate_timeout(
+        timeout: Union[int, float, None],
+    ) -> Optional[float]:
+        """Return ``timeout`` as a float, rejecting unsafe values.
+
+        ``timeout`` must be a finite number > 0 seconds; ``None`` passes
+        through as ``None``.
+        """
+        if timeout is None:
+            return None
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+            raise SimulationError(
+                f"timeout must be a finite number > 0 seconds, got {timeout!r}"
+            )
+        try:
+            # subprocess computes a float deadline, so an int it cannot
+            # represent must be rejected before the launch.
+            validated_timeout = float(timeout)
+        except OverflowError as exc:
+            raise SimulationError(
+                f"timeout must be a finite number > 0 seconds, got {timeout!r}"
+            ) from exc
+        if not math.isfinite(validated_timeout) or validated_timeout <= 0:
+            raise SimulationError(
+                f"timeout must be a finite number > 0 seconds, got {timeout!r}"
+            )
+        return validated_timeout
 
     @staticmethod
     def _read_and_replay(stdout_file, stderr_file) -> tuple[str, str]:

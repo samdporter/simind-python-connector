@@ -7,7 +7,11 @@ import pytest
 
 from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
-from simind_python_connector.core.types import MAX_SOURCE, ScoringRoutine
+from simind_python_connector.core.types import (
+    MAX_SOURCE,
+    ScoringRoutine,
+    SimulationError,
+)
 
 
 def _case_insensitive_filesystem() -> bool:
@@ -1059,6 +1063,31 @@ def test_python_connector_forwards_timeout_for_one_run_only(tmp_path: Path):
     connector.run()
 
     assert timeouts == [30.0, None]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), "5"])
+def test_python_connector_invalid_timeout_preserves_existing_outputs(
+    tmp_path: Path, timeout
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    stale = tmp_path / "case01_tot_w1.hs"
+    stale.write_text("stale")
+    orbit_source = tmp_path / "orbit.cor"
+    orbit_source.write_text("orbit")
+    staged_orbit = tmp_path / "case01_orbit.cor"
+
+    with pytest.raises(
+        SimulationError, match=r"timeout must be a finite number > 0 seconds"
+    ):
+        connector.run(RuntimeOperator(timeout=timeout, orbit_file=orbit_source))
+
+    assert stale.read_text() == "stale"
+    assert not staged_orbit.exists()
 
 
 @pytest.mark.unit
