@@ -346,7 +346,9 @@ class SimindPythonConnector(BaseConnector):
         """Delete stale outputs from earlier runs sharing this prefix.
 
         Connector-written inputs (``{prefix}_src.smi`` / ``{prefix}_dns.dmi``)
-        are protected because SIMIND still needs them on disk.
+        are protected because SIMIND still needs them on disk. A caller-supplied
+        orbit source and any symlink or hardlink alias of it are protected by
+        file identity.
         """
         protected = {
             f"{self.output_prefix}_src.smi",
@@ -365,14 +367,30 @@ class SimindPythonConnector(BaseConnector):
                 protected.add(self.config.get_data_file(slot))
             except KeyError:
                 pass
+
+        # A caller-supplied orbit may live in output_dir and match the output
+        # patterns; never delete it (or an alias of it) out from under SIMIND.
+        # Compare directory entries by lstat so a differently-cased spelling on
+        # a case-insensitive filesystem is still recognised, and dereferenced
+        # files by stat so a symlink or hardlink alias is protected too.
+        orbit_entries: list[os.stat_result] = []
+        orbit_referents: list[os.stat_result] = []
         for orbit_source in self._orbit_source_paths:
-            # A caller-supplied orbit may live in output_dir and match the
-            # output patterns; never delete it (or a canonical symlink's
-            # referent) out from under SIMIND.
             if orbit_source.parent.resolve() == self.output_dir:
-                protected.add(orbit_source.name)
+                with contextlib.suppress(OSError):
+                    orbit_entries.append(os.lstat(self.output_dir / orbit_source.name))
+            with contextlib.suppress(OSError):
+                orbit_referents.append(os.stat(orbit_source.resolve()))
+
         for path in sorted(self.output_dir.iterdir()):
             if not path.is_file() or path.name in protected:
+                continue
+            if any(os.path.samestat(os.lstat(path), entry) for entry in orbit_entries):
+                continue
+            if any(
+                os.path.samestat(os.stat(path), referent)
+                for referent in orbit_referents
+            ):
                 continue
             stem_ok = path.stem == self.output_prefix or path.stem.startswith(
                 f"{self.output_prefix}_"
@@ -415,11 +433,17 @@ class SimindPythonConnector(BaseConnector):
             # On a case-insensitive filesystem a differently-cased spelling is
             # the same directory entry. Compare lstat identities (not the
             # dereferenced file) so a destination symlink to the source is
-            # still replaced, but the caller's source is never unlinked.
-            try:
-                same_entry = os.path.samestat(os.lstat(target), os.lstat(supplied_path))
-            except OSError:
-                same_entry = False
+            # still replaced, but the caller's source is never unlinked. The
+            # resolved referent is checked too: an external symlink may point
+            # at a differently-cased spelling of the canonical target.
+            same_entry = False
+            for candidate in (supplied_path, orbit_path):
+                try:
+                    if os.path.samestat(os.lstat(target), os.lstat(candidate)):
+                        same_entry = True
+                        break
+                except OSError:
+                    continue
             if same_entry:
                 return target
             target.unlink()
