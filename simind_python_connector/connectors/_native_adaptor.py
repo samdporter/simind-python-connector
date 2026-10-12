@@ -343,8 +343,16 @@ class _NativeSimindAdaptor(BaseConnector):
         return sorted(self.get_outputs().keys())
 
     def get_scoring_routine(self) -> ScoringRoutine:
-        """The scoring_routine passed in, or else the configuration's Index 84."""
-        if self._scoring_routine is not None:
+        """The scoring routine run() uses for the current inputs.
+
+        A VoxelPhantom or source/mu-map inputs run with the scoring_routine
+        passed to the constructor when one was supplied; an analytic or
+        library phantom always runs with the configuration's Index 84, so the
+        constructor's value is ignored for them.
+        """
+        if self._scoring_routine is not None and (
+            self._phantom is None or isinstance(self._phantom, VoxelPhantom)
+        ):
             return self._scoring_routine
         return ScoringRoutine(int(float(self.get_config().get_value(84))))
 
