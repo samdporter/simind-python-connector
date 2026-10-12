@@ -75,7 +75,12 @@ Changed
 - ``set_template`` applies the template when called instead of on every
   ``run()``, so projection settings changed afterwards with
   ``add_config_value`` are not overwritten. The outputs then come back in
-  SIMIND's geometry, with a warning.
+  SIMIND's geometry, with a warning. The exception is Index 12 with a
+  non-circular template: its per-view radii are stored and written to the
+  acquisition orbit file, which overrides Index 12, and changing Index 12 does
+  not clear them. To switch to a circular orbit, replace the acquisition with a
+  circular ``configure_acquisition()`` geometry or supply a circular template
+  via ``set_template()``.
 - Interfile key lookups ignore only ``!`` and spacing; a line whose first
   non-blank character is ``#`` is a comment, never a key. Bracket indices are
   canonicalised, lookup stops at the ``!END OF INTERFILE`` terminator, and the
@@ -124,7 +129,13 @@ Fixed
   field of view, with or without a template.
 - The adaptors default ``scoring_routine`` to None, keeping the configuration's
   Index 84; they used to overwrite it with SCATTWIN.
-  ``get_scoring_routine()`` reports the routine in use.
+  ``get_scoring_routine()`` now follows the phantom-specific execution
+  precedence of ``run()``: an analytic or library phantom always uses Index 84,
+  while a ``VoxelPhantom`` or source/mu-map inputs keep the constructor's
+  override.
+- Example 12's phantomgen branch configures a 128 x 128 projection grid of
+  4.42 mm pixels to match its NEMA phantom, instead of inheriting the profile's
+  32 x 32 grid.
 - PyTomography image-axis conversions reverse axial slices to match its SIMIND
   reader, keeping source and attenuation maps aligned with native
   reconstruction tensors.
