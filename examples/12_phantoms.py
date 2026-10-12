@@ -67,6 +67,12 @@ def main() -> None:
         connector.add_config_value(77, 64)
         connector.configure_phantom(jaszczak_like())
     else:
+        # The projection grid is no longer derived from the phantom, so match it
+        # to the phantom instead of inheriting Example.yaml's 32 x 32 grid.
+        nz, _, nx = phantom.activity_mbq.shape
+        connector.add_config_value(28, phantom.voxel_size_mm[2] / 10.0)
+        connector.add_config_value(76, nx)
+        connector.add_config_value(77, nz)
         connector.configure_phantom(phantom, time_per_projection_s=10.0)
         for name, mask in sorted(phantom.masks.items()):
             print(f"{name:12s} {phantom.activity_mbq[mask > 0].sum():9.3f} MBq")
