@@ -65,17 +65,45 @@ updates the machine version surfaces.
    ``uv.lock`` (the root package only), ``CITATION.cff``, ``.zenodo.json``,
    ``simind_python_connector/__init__.py`` and ``docs/conf.py``. It fails without
    changing anything when a note or field is missing or malformed.
-3. Review the changes and commit them, then tag the release commit and push the
-   branch and the tag:
+3. Inspect the working tree and the index before staging anything. ``git status``
+   lists the files the preparation script rewrote and ``git diff --cached`` shows
+   what is already staged. Implementation or test corrections are committed
+   separately, in their own commit, before the metadata-preparation commit.
+   Anything already staged must not ride along in the release commit.
 
    .. code-block:: bash
 
-      git add -A
+      git status
+      git diff --cached
+
+4. Stage exactly the eight version surfaces, then read back what is staged:
+
+   .. code-block:: bash
+
+      git add pyproject.toml uv.lock CHANGELOG.md docs/changelog.rst \
+          CITATION.cff .zenodo.json simind_python_connector/__init__.py docs/conf.py
+      git diff --cached --stat
+      git diff --cached
+
+   The staged diff must contain only those eight paths; unstage anything else
+   before committing.
+
+5. Commit the staged metadata:
+
+   .. code-block:: bash
+
       git commit -m "chore: release X.Y.Z"
+
+6. Only after the validation run passes and the final reviewer approves, tag the
+   release commit and push the branch and the tag:
+
+   .. code-block:: bash
+
       git tag -a vX.Y.Z -m "Release X.Y.Z"
       git push origin HEAD vX.Y.Z
 
-4. Publish the GitHub release from that tag:
+7. Finally, once validation has passed and the final reviewer approves, publish
+   the GitHub release from the pushed tag:
 
    .. code-block:: bash
 
