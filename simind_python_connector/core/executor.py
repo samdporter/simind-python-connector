@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from .config import _validate_switch_value
-from .types import SimulationError
+from .types import OUTPUT_PREFIX_PATTERN, SimulationError
 
 
 _SIMIND_ERROR_NUMBER_PATTERN = re.compile(
@@ -78,6 +78,13 @@ class SimindExecutor:
             self._resolve_executable(), allow_whitespace=True
         )
         validated_output_prefix = self._validate_cli_token(output_prefix)
+        if not re.fullmatch(OUTPUT_PREFIX_PATTERN, validated_output_prefix):
+            raise SimulationError(
+                "output_prefix must start with a lowercase letter or digit and "
+                "contain only lowercase letters, digits and '_'; a hyphen is an "
+                "argument delimiter in SIMIND V8 and would split the positional "
+                f"filename arguments, got {output_prefix!r}"
+            )
         validated_orbit_name = (
             self._validate_cli_token(orbit_file.name) if orbit_file else None
         )

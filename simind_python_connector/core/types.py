@@ -182,6 +182,9 @@ SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
 MAX_SOURCE = 500
 ORBIT_FILE_EXTENSION = ".cor"
 OUTPUT_EXTENSIONS = [".h00", ".a00", ".hs"]
+# SIMIND V8 treats '-' as an argument delimiter and splits its positional
+# filename arguments, so a hyphenated prefix can silently produce no output.
+OUTPUT_PREFIX_PATTERN = r"[a-z0-9][a-z0-9_]*"
 
 
 __all__ = [
@@ -200,4 +203,5 @@ __all__ = [
     "MAX_SOURCE",
     "ORBIT_FILE_EXTENSION",
     "OUTPUT_EXTENSIONS",
+    "OUTPUT_PREFIX_PATTERN",
 ]
