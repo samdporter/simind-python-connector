@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
+import re
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from .config import _validate_switch_value
 from .types import SimulationError
+
+
+_SIMIND_ERROR_NUMBER_PATTERN = re.compile(
+    r"\bSIMIND\s+error\s+number\s*:\s*(\d+)\b", re.IGNORECASE
+)
+_SIMIND_ERROR_DIVIDER_PATTERN = re.compile(
+    r"^[ \t]*={3,}[ \t]*Error[ \t]*$", re.MULTILINE
+)
+_ERROR_EXCERPT_LIMIT = 2000
 
 
 class SimindExecutor:
@@ -27,11 +41,34 @@ class SimindExecutor:
         orbit_file: Optional[Path] = None,
         runtime_switches: Optional[Dict] = None,
         cwd: Union[str, Path, None] = None,
+        *,
+        timeout: Union[int, float, None] = None,
     ) -> None:
+        validated_timeout = None
+        if timeout is not None:
+            if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+                raise SimulationError(
+                    f"timeout must be a finite number > 0 seconds, got {timeout!r}"
+                )
+            try:
+                # subprocess computes a float deadline, so an int it cannot
+                # represent must be rejected before the launch.
+                validated_timeout = float(timeout)
+            except OverflowError as exc:
+                raise SimulationError(
+                    f"timeout must be a finite number > 0 seconds, got {timeout!r}"
+                ) from exc
+            if not math.isfinite(validated_timeout) or validated_timeout <= 0:
+                raise SimulationError(
+                    f"timeout must be a finite number > 0 seconds, got {timeout!r}"
+                )
+
+        mp_present = False
         mp_value = None
         if runtime_switches:
             for key, value in runtime_switches.items():
                 if str(key).lower() == "mp":
+                    mp_present = True
                     mp_value = value
                     break
 
@@ -44,9 +81,7 @@ class SimindExecutor:
         validated_orbit_name = (
             self._validate_cli_token(orbit_file.name) if orbit_file else None
         )
-        validated_mp_value = (
-            self._validate_cli_token(mp_value) if mp_value is not None else None
-        )
+        validated_mp_value = self._validate_mp_count(mp_value) if mp_present else None
 
         validated_switch_blob = None
         if runtime_switches:
@@ -86,12 +121,84 @@ class SimindExecutor:
                 command.append(validated_switch_blob)
 
         self.logger.info("Running SIMIND: %s", " ".join(command))
+        with (
+            tempfile.TemporaryFile(
+                mode="w+", encoding="utf-8", errors="replace"
+            ) as stdout_file,
+            tempfile.TemporaryFile(
+                mode="w+", encoding="utf-8", errors="replace"
+            ) as stderr_file,
+        ):
+            try:
+                subprocess.run(
+                    command,
+                    check=True,
+                    shell=False,
+                    cwd=cwd,
+                    timeout=validated_timeout,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                )
+            except OSError as exc:
+                self._read_and_replay(stdout_file, stderr_file)
+                raise SimulationError(
+                    f"Unable to execute SIMIND command: {exc}"
+                ) from exc
+            except subprocess.CalledProcessError as exc:
+                self._read_and_replay(stdout_file, stderr_file)
+                raise SimulationError(f"SIMIND execution failed: {exc}") from exc
+            except subprocess.TimeoutExpired as exc:
+                self._read_and_replay(stdout_file, stderr_file)
+                raise SimulationError(
+                    f"SIMIND execution timed out after {timeout} seconds."
+                ) from exc
+            stdout_text, stderr_text = self._read_and_replay(stdout_file, stderr_file)
+
+        # Each stream is checked on its own: concatenating them could match a
+        # diagnostic split across the boundary that neither stream contains.
+        self._raise_for_reported_error(stdout_text)
+        self._raise_for_reported_error(stderr_text)
+
+    @staticmethod
+    def _read_and_replay(stdout_file, stderr_file) -> tuple[str, str]:
+        stdout_file.seek(0)
+        stdout_text = stdout_file.read()
+        stderr_file.seek(0)
+        stderr_text = stderr_file.read()
+        sys.stdout.write(stdout_text)
+        sys.stderr.write(stderr_text)
+        return stdout_text, stderr_text
+
+    @staticmethod
+    def _raise_for_reported_error(output: str) -> None:
+        number_match = _SIMIND_ERROR_NUMBER_PATTERN.search(output)
+        if number_match:
+            excerpt = output[:_ERROR_EXCERPT_LIMIT]
+            raise SimulationError(
+                f"SIMIND reported an error (error number "
+                f"{number_match.group(1)}): {excerpt}"
+            )
+        if _SIMIND_ERROR_DIVIDER_PATTERN.search(output):
+            excerpt = output[:_ERROR_EXCERPT_LIMIT]
+            raise SimulationError(f"SIMIND reported an error: {excerpt}")
+
+    @staticmethod
+    def _validate_mp_count(value: object) -> str:
+        candidate = value
+        if isinstance(value, str):
+            if not (value.isascii() and value.isdigit()):
+                raise SimulationError(f"MP must be an integer >= 1, got {value!r}")
+            try:
+                candidate = int(value)
+            except ValueError as exc:
+                raise SimulationError(
+                    f"MP must be an integer >= 1, got {value!r}"
+                ) from exc
         try:
-            subprocess.run(command, check=True, shell=False, cwd=cwd)
-        except OSError as exc:
-            raise SimulationError(f"Unable to execute SIMIND command: {exc}") from exc
-        except subprocess.CalledProcessError as exc:
-            raise SimulationError(f"SIMIND execution failed: {exc}") from exc
+            _validate_switch_value("MP", candidate)
+            return str(int(candidate))
+        except ValueError as exc:
+            raise SimulationError(str(exc)) from exc
 
     def _resolve_executable(self) -> str:
         """Make path-bearing executables absolute before ``cwd`` applies.

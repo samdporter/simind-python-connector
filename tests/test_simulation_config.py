@@ -6,6 +6,7 @@ import pytest
 
 from simind_python_connector import SimulationConfig
 from simind_python_connector.configs import get
+from simind_python_connector.core.config import RuntimeSwitches
 
 
 # Most tests here are unit tests that don't require SIRF
@@ -219,3 +220,47 @@ def test_config_validation():
     # Note: validation returns True if no warnings, False if there are warnings
     result = config.validate_parameters()
     assert isinstance(result, bool)
+
+
+@pytest.mark.parametrize("value", [1, 2, 4, 2.0])
+def test_runtime_switches_accept_valid_mp_by_code(value):
+    switches = RuntimeSwitches()
+
+    switches.set_switch("MP", value)
+
+    assert switches.switches["MP"] == value
+
+
+def test_runtime_switches_accept_valid_mp_by_name():
+    switches = RuntimeSwitches()
+
+    switches.set_switch("MPI parallel run", 4)
+
+    assert switches.switches["MP"] == 4
+
+
+def test_runtime_switches_accept_large_integer_mp():
+    switches = RuntimeSwitches()
+    large_mp = 10**400
+
+    switches.set_switch("MP", large_mp)
+
+    assert switches.switches["MP"] == large_mp
+
+
+@pytest.mark.parametrize(
+    "value",
+    [0, -1, 2.5, None, True, float("nan"), float("inf")],
+)
+def test_runtime_switches_reject_invalid_mp_by_code(value):
+    switches = RuntimeSwitches()
+
+    with pytest.raises(ValueError, match="MP must be an integer >= 1"):
+        switches.set_switch("MP", value)
+
+
+def test_runtime_switches_reject_invalid_mp_by_name():
+    switches = RuntimeSwitches()
+
+    with pytest.raises(ValueError, match="MP must be an integer >= 1"):
+        switches.set_switch("MPI parallel run", 0)

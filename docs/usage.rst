@@ -46,6 +46,34 @@ the SIMIND executable is available as ``simind`` on ``PATH``; see
     total = outputs["tot_w1"].projection
     print(total.shape)
 
+Runtime Control
+---------------
+
+``output_prefix`` must start with a lowercase letter or digit and contain only
+lowercase letters, digits and ``_``. SIMIND lowercases file names, a dot would
+be read as a file extension, and a hyphen is an argument delimiter: a prefix
+containing ``-`` splits SIMIND's filename arguments and the run silently
+produces no output.
+
+``RuntimeOperator`` carries per-run switches, an orbit file and an optional
+timeout in seconds. A run that exceeds the timeout stops and raises
+``SimulationError``; by default there is no timeout.
+
+.. code-block:: python
+
+    from simind_python_connector import RuntimeOperator, SimindPythonConnector
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"NN": 1, "RR": 12345}, timeout=600)
+    )
+
+``MP`` (the MPI process count) must be an integer >= 1; ``MP=0`` is rejected
+instead of silently running a single process.
+
+.. code-block:: python
+
+    connector.add_runtime_switch("MP", 4)
+
 Adaptor Workflows
 -----------------
 

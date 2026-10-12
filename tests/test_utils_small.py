@@ -15,10 +15,44 @@ def test_create_window_file_writes_expected_lines(tmp_path):
     win_file = win_stem.with_suffix(".win")
     assert win_file.exists()
 
+    # Real SIMIND V8 emits no scatter or air projections for a lone scatter-order-0
+    # window, so the workaround line is retained (A/B gate, T5).
     lines = win_file.read_text().splitlines()
-    assert lines[0] == "140.0,160.0,0"
-    # Additional scatter-only line should be appended to encourage SIMIND output
-    assert lines[-1].endswith(",1")
+    assert lines == ["140.0,160.0,0", "140.0,160.0,1"]
+
+
+@pytest.mark.unit
+def test_create_window_file_single_positive_order_has_no_appended_line(tmp_path):
+    win_stem = tmp_path / "energy"
+    create_window_file(140.0, 160.0, 1, output_filename=str(win_stem))
+
+    lines = win_stem.with_suffix(".win").read_text().splitlines()
+    assert lines == ["140.0,160.0,1"]
+
+
+@pytest.mark.unit
+def test_create_window_file_multiple_all_zero_windows_append_last_window(tmp_path):
+    win_stem = tmp_path / "energy"
+    create_window_file(
+        [120.0, 126.0], [140.0, 154.0], [0, 0], output_filename=str(win_stem)
+    )
+
+    lines = win_stem.with_suffix(".win").read_text().splitlines()
+    assert lines == ["120.0,140.0,0", "126.0,154.0,0", "126.0,154.0,1"]
+
+
+@pytest.mark.unit
+def test_create_window_file_multiple_windows_with_positive_order(tmp_path):
+    win_stem = tmp_path / "energy"
+    create_window_file(
+        [100.0, 126.0, 160.0],
+        [120.0, 154.0, 180.0],
+        [1, 0, 1],
+        output_filename=str(win_stem),
+    )
+
+    lines = win_stem.with_suffix(".win").read_text().splitlines()
+    assert lines == ["100.0,120.0,1", "126.0,154.0,0", "160.0,180.0,1"]
 
 
 @pytest.mark.unit

@@ -161,7 +161,7 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
         fake_run,
     )
 
-    runtime_operator = RuntimeOperator(switches={"RR": 12345})
+    runtime_operator = RuntimeOperator(switches={"RR": 12345}, timeout=42.0)
     outputs = connector.run(runtime_operator=runtime_operator)
 
     expected_source_zyx = source_xyz.flip(2).permute(2, 1, 0).numpy()
