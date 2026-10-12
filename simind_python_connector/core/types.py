@@ -168,6 +168,10 @@ SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
 # excessive number of histories; use NN for more statistics.
 MAX_SOURCE = 500
 
+# SIMIND treats '-' as an argument delimiter, so a prefix containing one would
+# split the positional filename arguments and the run would produce no output.
+OUTPUT_PREFIX_PATTERN = r"[a-z0-9][a-z0-9_]*"
+
 
 __all__ = [
     # Exceptions
@@ -181,4 +185,5 @@ __all__ = [
     # Constants
     "SIMIND_VOXEL_UNIT_CONVERSION",
     "MAX_SOURCE",
+    "OUTPUT_PREFIX_PATTERN",
 ]

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-from .types import SimulationError
+from .types import OUTPUT_PREFIX_PATTERN, SimulationError
 
 
 class SimindExecutor:
@@ -38,6 +39,14 @@ class SimindExecutor:
         mpi_processes: Optional[int] = None,
         split_projections: bool = False,
     ) -> None:
+        prefix = self._validate_cli_token(output_prefix)
+        if not re.fullmatch(OUTPUT_PREFIX_PATTERN, prefix):
+            raise SimulationError(
+                f"output_prefix must contain only lowercase letters, digits and "
+                f"'_', never '-' (SIMIND treats '-' as an argument delimiter, "
+                f"which would split the filename arguments), got {prefix!r}"
+            )
+
         if split_projections and mpi_processes is None:
             raise SimulationError("split_projections needs mpi_processes")
 
@@ -69,7 +78,6 @@ class SimindExecutor:
                 )
             ]
 
-        prefix = self._validate_cli_token(output_prefix)
         command += [prefix, prefix]
         if orbit_file is not None:
             command.append(self._validate_cli_token(orbit_file.name))

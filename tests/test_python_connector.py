@@ -42,6 +42,9 @@ def test_python_connector_requires_run_before_get_outputs(tmp_path: Path):
         "case[1]",
         "Case01",
         "-case",
+        "case-01",
+        "case-",
+        "case--01",
         "case 01",
         "café",
     ],
@@ -58,7 +61,7 @@ def test_python_connector_rejects_unsafe_output_prefixes(
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("good_prefix", ["a", "case01", "case_01", "case-01", "9case"])
+@pytest.mark.parametrize("good_prefix", ["a", "case01", "case_01", "9case"])
 def test_python_connector_accepts_safe_output_prefixes(
     tmp_path: Path, good_prefix: str
 ):

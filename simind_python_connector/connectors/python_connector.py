@@ -27,6 +27,7 @@ from simind_python_connector.core.config import RuntimeSwitches, SimulationConfi
 from simind_python_connector.core.executor import SimindExecutor
 from simind_python_connector.core.types import (
     MAX_SOURCE,
+    OUTPUT_PREFIX_PATTERN,
     SIMIND_VOXEL_UNIT_CONVERSION,
     PenetrateOutputType,
     ScoringRoutine,
@@ -173,14 +174,17 @@ class SimindPythonConnector(BaseConnector):
         """Accept only prefixes SIMIND keeps unchanged in its file names.
 
         SIMIND lowercases file names on Unix, a dot would be taken for a file
-        extension, and glob characters would break output discovery.
+        extension, and glob characters would break output discovery. SIMIND
+        treats '-' as an argument delimiter, so a hyphenated prefix would
+        split the positional filename arguments and produce no output.
         """
         if not isinstance(prefix, str) or not re.fullmatch(
-            r"[a-z0-9][a-z0-9_-]*", prefix
+            OUTPUT_PREFIX_PATTERN, prefix
         ):
             raise ValueError(
-                "output_prefix must contain only lowercase letters, digits, '_' "
-                f"and '-', got {prefix!r}"
+                "output_prefix must contain only lowercase letters, digits and "
+                f"'_', never '-' (SIMIND treats '-' as an argument delimiter), "
+                f"got {prefix!r}"
             )
 
     @staticmethod
