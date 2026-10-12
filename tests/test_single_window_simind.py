@@ -71,7 +71,11 @@ def test_single_window_scatter_output_requires_appended_line(tmp_path):
     assert "tot_w1" in outputs_a
     assert "sca_w1" in outputs_a
     assert "air_w1" in outputs_a
+    assert "sca_w2" in outputs_a
     assert outputs_a["sca_w1"].projection.sum() > 0
+    assert np.array_equal(
+        outputs_a["sca_w2"].projection, outputs_a["sca_w1"].projection
+    )
 
     # B: dropping the appended line makes SIMIND omit scatter/air entirely, so
     # the workaround is load-bearing rather than a harmless duplication.
