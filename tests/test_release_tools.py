@@ -232,22 +232,6 @@ def _snapshot(project: Path) -> dict[str, str]:
     }
 
 
-def _git_env() -> dict[str, str]:
-    return {
-        **os.environ,
-        "GIT_AUTHOR_NAME": "Test",
-        "GIT_AUTHOR_EMAIL": "test@example.org",
-        "GIT_COMMITTER_NAME": "Test",
-        "GIT_COMMITTER_EMAIL": "test@example.org",
-    }
-
-
-def _git(project: Path, *args: str, env: dict[str, str]) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=project, capture_output=True, text=True, env=env
-    ).stdout
-
-
 def _on(workflow: dict) -> dict:
     return workflow.get("on", workflow.get(True))
 
@@ -449,10 +433,14 @@ def test_release_wrapper_has_no_git_side_effects(tmp_path: Path) -> None:
     project = _build_project(
         tmp_path, markdown=_changelog_md(date=today), rst=_changelog_rst(date=today)
     )
-    env = _git_env()
-    for command in (["init", "-q"], ["add", "."], ["commit", "-qm", "init"]):
-        subprocess.run(["git", *command], cwd=project, check=True, env=env)
-    head_before = _git(project, "rev-parse", "HEAD", env=env)
+
+    marker = tmp_path / "git-was-invoked"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_git = fake_bin / "git"
+    fake_git.write_text(f'#!/usr/bin/env bash\ntouch "{marker}"\nexit 1\n')
+    fake_git.chmod(0o755)
+    env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
 
     result = subprocess.run(
         ["bash", "scripts/release.sh", VERSION],
@@ -463,11 +451,8 @@ def test_release_wrapper_has_no_git_side_effects(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert _git(project, "rev-parse", "HEAD", env=env) == head_before
-    assert _git(project, "tag", env=env).strip() == ""
-    assert _git(project, "diff", "--cached", "--name-only", env=env).strip() == ""
+    assert not marker.exists(), "release.sh invoked git"
     assert f'version = "{VERSION}"' in _read(project / "pyproject.toml")
-    assert _git(project, "status", "--porcelain", env=env).strip() != ""
 
 
 def test_publish_workflow_tests_the_release_tag_then_publishes() -> None:
