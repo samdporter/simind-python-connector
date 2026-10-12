@@ -23,6 +23,7 @@ from simind_python_connector.core.config import RuntimeSwitches, SimulationConfi
 from simind_python_connector.core.executor import SimindExecutor
 from simind_python_connector.core.types import (
     MAX_SOURCE,
+    OUTPUT_PREFIX_PATTERN,
     SIMIND_VOXEL_UNIT_CONVERSION,
     PenetrateOutputType,
     ScoringRoutine,
@@ -97,7 +98,7 @@ class SimindPythonConnector(BaseConnector):
         wrong file and silently produce nothing.
         """
         if not isinstance(prefix, str) or not re.fullmatch(
-            r"[a-z0-9][a-z0-9_]*", prefix
+            OUTPUT_PREFIX_PATTERN, prefix
         ):
             raise ValueError(
                 "output_prefix must start with a lowercase letter or digit and "

@@ -243,6 +243,46 @@ def test_executor_rejects_empty_tokens(
         SimindExecutor().run_simulation("")
 
 
+@pytest.mark.parametrize(
+    "bad_prefix",
+    [
+        "../escape",
+        "/absolute",
+        "a/b",
+        "a\\b",
+        "..",
+        "case.01",
+        "case[1]",
+        "Case01",
+        "-case",
+        "cx-run",
+        "case-",
+        "case--01",
+    ],
+)
+def test_executor_rejects_unsafe_output_prefixes(
+    monkeypatch: pytest.MonkeyPatch, bad_prefix: str
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="output_prefix"):
+        SimindExecutor().run_simulation(bad_prefix)
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("good_prefix", ["case01", "case_01", "a", "0_case"])
+def test_executor_accepts_safe_output_prefixes(
+    monkeypatch: pytest.MonkeyPatch, good_prefix: str
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation(good_prefix)
+
+    assert calls[0][0][1] == good_prefix
+
+
 def test_executor_translates_os_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -490,12 +530,12 @@ def test_executor_translates_timeout_expired(
 
 
 def test_executor_real_subprocess_timeout_raises_promptly(tmp_path: Path) -> None:
-    script = tmp_path / "slow_simind.py"
-    script.write_text("import time\ntime.sleep(30)\n")
+    # The prefix names the script the interpreter runs, so it must be valid.
+    (tmp_path / "case01").write_text("import time\ntime.sleep(30)\n")
 
     with pytest.raises(SimulationError, match="timed out after 0.2 seconds"):
         SimindExecutor(executable=sys.executable).run_simulation(
-            str(script), cwd=tmp_path, timeout=0.2
+            "case01", cwd=tmp_path, timeout=0.2
         )
 
 
