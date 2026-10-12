@@ -194,8 +194,17 @@ class _NativeSimindAdaptor(BaseConnector):
 
         template is a backend projection object or a path to its .hs header.
         Outputs are then returned in exactly that geometry. Projection
-        settings changed afterwards (add_config_value) win, and the outputs
-        then come back in SIMIND's geometry instead.
+        settings changed afterwards (add_config_value) win, except for a
+        non-circular template: its per-view radii are stored and written to an
+        acquisition orbit file that overrides Index 12, and changing Index 12
+        does not clear them. To switch to a circular orbit, replace the
+        acquisition with a circular configure_acquisition() geometry or a
+        circular set_template().
+
+        A changed tracked setting makes run() warn and return raw converted
+        SIMIND headers without copying or checking them against the template.
+        That happens even when the edit (Index 12) has no effect because the
+        stored orbit still overrides it.
         """
         # Both are parsed before either is stored, so a rejected replacement
         # leaves the previous template usable.

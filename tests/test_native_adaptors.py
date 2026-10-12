@@ -386,6 +386,32 @@ def _write_header(path, direction="CW"):
     return path
 
 
+_NON_CIRCULAR_GEOMETRY_HEADER = """!INTERFILE :=
+  !name of data file := {data}
+  !number format := float
+  !number of bytes per pixel := 4
+  imagedata byte order := LITTLEENDIAN
+  !number of projections := 3
+  !extent of rotation := 360
+  !direction of rotation := CW
+  start angle := 180
+  orbit := non-circular
+  Radii := {{250, 260, 270}}
+  !matrix size [1] := 4
+  scaling factor (mm/pixel) [1] := 4.42
+  !matrix size [2] := 2
+  scaling factor (mm/pixel) [2] := 4.42
+  !END OF INTERFILE :=
+"""
+
+
+def _write_non_circular_header(path):
+    data = path.with_suffix(".s")
+    np.zeros((3, 2, 4), dtype=np.float32).tofile(data)
+    path.write_text(_NON_CIRCULAR_GEOMETRY_HEADER.format(data=data.name))
+    return path
+
+
 def _fake_simind_run(adaptor, tmp_path, monkeypatch, direction="CW"):
     simind_header = _write_header(tmp_path / "case01_tot_w1.hs", direction)
     projection = np.arange(24, dtype=np.float32).reshape(3, 2, 4)
@@ -486,6 +512,71 @@ def test_adaptor_projection_size_set_after_the_template_wins(
     assert recorded == [(pytest.approx(0.3), 8, 6)] * 2
     assert _output_path(cls, outputs["tot_w1"]) == str(tmp_path / "case01_tot_w1.hs")
     assert "changed after set_template" in caplog.text
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_index_12_edit_keeps_a_non_circular_orbit(
+    cls, patch, image_cls, tmp_path, monkeypatch, caplog
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_non_circular_header(tmp_path / "template.hs"))
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    adaptor.add_config_value(12, 15.0)
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_voxel_phantom", lambda **kwargs: None
+    )
+
+    orbit = tmp_path / "case01_acquisition.cor"
+    captured = []
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
+    ):
+        captured.append(orbit_file)
+        raw_header = _write_header(Path(cwd) / f"{output_prefix}_tot_w1.hs")
+        np.full((3, 2, 4), 1.0, dtype=np.float32).tofile(raw_header.with_suffix(".s"))
+
+    monkeypatch.setattr(
+        adaptor.python_connector.executor, "run_simulation", fake_run_simulation
+    )
+
+    with caplog.at_level("WARNING"):
+        outputs = adaptor.run()
+
+    assert adaptor.get_config().get_value(12) == pytest.approx(15.0)
+    assert captured == [orbit]
+    lines = orbit.read_text().splitlines()
+    assert lines[0] == "      25.000     2" and lines[-1] == "      27.000     2"
+    assert len(lines) == 3
+    assert "changed after set_template" in caplog.text
+    assert _output_path(cls, outputs["tot_w1"]) == str(tmp_path / "case01_tot_w1.hs")
+    assert not (tmp_path / "case01_tot_w1_tmpl.hs").exists()
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_circular_template_after_a_non_circular_one_resumes_validation(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_template(_write_non_circular_header(tmp_path / "noncircular.hs"))
+    adaptor.add_config_value(12, 15.0)
+
+    adaptor.set_template(_write_header(tmp_path / "circular.hs"))
+
+    assert adaptor.python_connector._acquisition_radii_cm is None
+    assert adaptor.get_config().get_value(12) == pytest.approx(25.0)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    _fake_simind_run(adaptor, tmp_path, monkeypatch)
+
+    outputs = adaptor.run()
+
+    assert _output_path(cls, outputs["tot_w1"]) == str(
+        tmp_path / "case01_tot_w1_tmpl.hs"
+    )
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
