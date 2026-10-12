@@ -1,4 +1,6 @@
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +17,16 @@ from simind_python_connector.utils.interfile import (
     check_geometry_match,
     read_projection_geometry,
 )
+
+
+def _case_insensitive_filesystem() -> bool:
+    with tempfile.TemporaryDirectory() as directory:
+        probe = Path(directory) / "case_probe"
+        probe.write_bytes(b"probe")
+        return (Path(directory) / "CASE_PROBE").exists()
+
+
+CASE_INSENSITIVE_FS = _case_insensitive_filesystem()
 
 
 @pytest.mark.unit
@@ -835,6 +847,380 @@ def test_python_connector_copies_orbit_file_to_lower_case_name(tmp_path: Path):
 
     assert captured["orbit_file"] == tmp_path / "out" / "case01_orbit.cor"
     assert (tmp_path / "out" / "case01_orbit.cor").read_text() == "15.0\n"
+
+
+def _record_orbit_executor_run(connector: SimindPythonConnector) -> dict:
+    captured: dict[str, object] = {}
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+    ):
+        captured["orbit_file"] = orbit_file
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    return captured
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "orbit_name",
+    [
+        "case01_src.smi",
+        "case01_dns.dmi",
+        "case01.win",
+        "case01.smc",
+        "orbit-with-spaces-and-hyphens.cor",
+    ],
+)
+def test_python_connector_stages_orbit_away_from_protected_inputs(
+    tmp_path: Path, orbit_name: str
+):
+    output_dir = tmp_path / "out"
+    source_dir = tmp_path / "in"
+    output_dir.mkdir()
+    source_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    source = np.zeros((2, 3, 4), dtype=np.float32)
+    source_path, density_path = connector.configure_voxel_phantom(source, source.copy())
+    connector.set_energy_windows([126.0], [154.0], [0])
+
+    orbit_source = source_dir / orbit_name
+    orbit_source.write_bytes(b"orbit-original")
+    inputs_before = {
+        source_path: source_path.read_bytes(),
+        density_path: density_path.read_bytes(),
+        output_dir / "case01.win": (output_dir / "case01.win").read_bytes(),
+    }
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=orbit_source))
+
+    staged = output_dir / "case01_orbit.cor"
+    assert captured["orbit_file"] == staged
+    assert staged.read_bytes() == b"orbit-original"
+    assert orbit_source.read_bytes() == b"orbit-original"
+    for path, contents in inputs_before.items():
+        assert path.read_bytes() == contents
+
+
+@pytest.mark.unit
+def test_python_connector_stages_orbit_already_inside_output_dir(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    orbit_source = tmp_path / "custom-orbit.cor"
+    orbit_source.write_bytes(b"inside-output-dir")
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=orbit_source))
+
+    staged = tmp_path / "case01_orbit.cor"
+    assert captured["orbit_file"] == staged
+    assert staged.read_bytes() == b"inside-output-dir"
+    assert orbit_source.read_bytes() == b"inside-output-dir"
+
+
+@pytest.mark.unit
+def test_python_connector_orbit_already_canonical_is_untouched(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    canonical = tmp_path / "case01_orbit.cor"
+    canonical.write_bytes(b"canonical-orbit")
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=canonical))
+
+    assert captured["orbit_file"] == canonical
+    assert canonical.read_bytes() == b"canonical-orbit"
+    assert canonical.is_file()
+    assert not canonical.is_symlink()
+
+
+@pytest.mark.unit
+def test_python_connector_orbit_rerun_replaces_staged_copy(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    first = tmp_path / "first-orbit.cor"
+    second = tmp_path / "second-orbit.cor"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+
+    _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=first))
+    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"first"
+
+    connector.run(RuntimeOperator(orbit_file=second))
+    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"second"
+
+    assert first.read_bytes() == b"first"
+    assert second.read_bytes() == b"second"
+
+
+@pytest.mark.unit
+def test_python_connector_orbit_replaces_preexisting_symlink_alias(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    orbit_source = tmp_path / "real-orbit.cor"
+    orbit_source.write_bytes(b"orbit-data")
+    canonical = tmp_path / "case01_orbit.cor"
+    canonical.symlink_to(orbit_source)
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=orbit_source))
+
+    assert captured["orbit_file"] == canonical
+    assert not canonical.is_symlink()
+    assert canonical.read_bytes() == b"orbit-data"
+    assert orbit_source.read_bytes() == b"orbit-data"
+
+
+@pytest.mark.unit
+def test_python_connector_orbit_canonical_symlink_is_left_alone(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    referent = tmp_path / "referent-orbit.cor"
+    referent.write_bytes(b"referent-data")
+    canonical = tmp_path / "case01_orbit.cor"
+    canonical.symlink_to(referent)
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=canonical))
+
+    assert captured["orbit_file"] == canonical
+    assert canonical.is_symlink()
+    assert canonical.read_bytes() == b"referent-data"
+    assert referent.read_bytes() == b"referent-data"
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_preserves_orbit_source_in_output_dir(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    orbit_source = tmp_path / "case01_radii.win"
+    orbit_source.write_bytes(b"radii-orbit")
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=orbit_source))
+
+    assert captured["orbit_file"] == tmp_path / "case01_orbit.cor"
+    assert orbit_source.read_bytes() == b"radii-orbit"
+    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"radii-orbit"
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_preserves_canonical_symlink_referent(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    referent = tmp_path / "case01_radii.win"
+    referent.write_bytes(b"radii-referent")
+    canonical = tmp_path / "case01_orbit.cor"
+    canonical.symlink_to(referent)
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=canonical))
+
+    assert captured["orbit_file"] == canonical
+    assert canonical.is_symlink()
+    assert referent.read_bytes() == b"radii-referent"
+    assert canonical.read_bytes() == b"radii-referent"
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(
+    not CASE_INSENSITIVE_FS,
+    reason="needs a case-insensitive filesystem to alias differently-cased names",
+)
+def test_python_connector_orbit_case_insensitive_alias_is_preserved(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    canonical = connector.output_dir / "case01_orbit.cor"
+    canonical.write_bytes(b"canonical-data")
+    alias = connector.output_dir / "CASE01_ORBIT.COR"
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=alias))
+
+    assert captured["orbit_file"] == canonical
+    assert canonical.read_bytes() == b"canonical-data"
+    assert alias.read_bytes() == b"canonical-data"
+
+
+@pytest.mark.unit
+def test_python_connector_orbit_hardlink_alias_is_preserved(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = connector.output_dir / "real-orbit.cor"
+    source.write_bytes(b"hardlink-data")
+    canonical = connector.output_dir / "case01_orbit.cor"
+    os.link(source, canonical)
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=source))
+
+    assert captured["orbit_file"] == canonical
+    assert source.read_bytes() == b"hardlink-data"
+    assert canonical.read_bytes() == b"hardlink-data"
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(
+    not CASE_INSENSITIVE_FS,
+    reason="needs a case-insensitive filesystem to alias differently-cased names",
+)
+def test_python_connector_cleanup_preserves_differently_cased_orbit_source(
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    source = output_dir / "case01_radii.win"
+    source.write_bytes(b"source-data")
+    supplied = output_dir / "Case01_Radii.Win"
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=supplied))
+
+    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
+    assert source.read_bytes() == b"source-data"
+
+
+@pytest.mark.unit
+def test_python_connector_orbit_external_symlink_to_canonical_target_survives(
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    canonical = output_dir / "case01_orbit.cor"
+    canonical.write_bytes(b"canonical-data")
+    external = tmp_path / "external-orbit.cor"
+    external.symlink_to(canonical)
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=external))
+
+    assert captured["orbit_file"] == canonical
+    assert external.is_symlink()
+    assert canonical.read_bytes() == b"canonical-data"
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(
+    not CASE_INSENSITIVE_FS,
+    reason="needs a case-insensitive filesystem to alias differently-cased names",
+)
+def test_python_connector_orbit_external_symlink_differently_cased_referent_survives(
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    canonical = output_dir / "case01_orbit.cor"
+    canonical.write_bytes(b"canonical-data")
+    external = tmp_path / "external-orbit.cor"
+    external.symlink_to(output_dir / "CASE01_ORBIT.COR")
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=external))
+
+    assert captured["orbit_file"] == canonical
+    assert external.is_symlink()
+    assert canonical.read_bytes() == b"canonical-data"
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_preserves_hardlink_alias_of_orbit_source(
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    source = tmp_path / "real-orbit.cor"
+    source.write_bytes(b"alias-data")
+    alias = output_dir / "case01_radii.win"
+    os.link(source, alias)
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=source))
+
+    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
+    assert alias.read_bytes() == b"alias-data"
+    assert source.read_bytes() == b"alias-data"
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_preserves_symlink_alias_of_orbit_source(
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    source = tmp_path / "real-orbit.cor"
+    source.write_bytes(b"alias-data")
+    alias = output_dir / "case01_radii.win"
+    alias.symlink_to(source)
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=source))
+
+    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
+    assert alias.is_symlink()
+    assert source.read_bytes() == b"alias-data"
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_preserves_differently_cased_prefix_cor_orbit(
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    source = output_dir / "Case01.Cor"
+    source.write_bytes(b"source-data")
+
+    captured = _record_orbit_executor_run(connector)
+    connector.run(RuntimeOperator(orbit_file=source))
+
+    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
+    assert source.read_bytes() == b"source-data"
 
 
 @pytest.mark.unit
