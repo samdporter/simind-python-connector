@@ -278,6 +278,31 @@ def test_executor_split_requires_mpi_processes(
         SimindExecutor().run_simulation("case01", split_projections=True)
 
 
+@pytest.mark.parametrize("count", [1, 2, 4, 2.0, "4"])
+def test_executor_accepts_valid_mpi_process_counts(
+    monkeypatch: pytest.MonkeyPatch, count: object
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", mpi_processes=count)
+
+    assert calls[0][0][:3] == ["mpirun", "-np", str(int(count))]
+
+
+@pytest.mark.parametrize("count", [0, -1, 1.5, True, False, "2.5", "abc"])
+def test_executor_rejects_invalid_mpi_process_counts_before_launch(
+    monkeypatch: pytest.MonkeyPatch, count: object
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="mpi_processes"):
+        SimindExecutor().run_simulation("case01", mpi_processes=count)
+
+    assert calls == []
+
+
 def test_executor_renders_valueless_switches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
