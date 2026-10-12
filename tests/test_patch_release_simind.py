@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -95,6 +96,45 @@ def _simind_mpi_binary() -> Path | None:
         return path if path.is_file() else None
     found = shutil.which("simind_mpi")
     return Path(found) if found else None
+
+
+def _mpi_runtime_skip_reason() -> str | None:
+    """Why the SIMIND MPI smoke test cannot run, or None when it can.
+
+    ``mpirun`` and ``simind_mpi`` being present is not enough: SIMIND links
+    against historical MPICH SONAMEs (libmpi.so.12, libmpifort.so.12) that an
+    Open MPI host (the SIRF image) does not provide, so the binary is present
+    but cannot be loaded. Probe ``ldd`` for unresolved MPI libraries so those
+    hosts skip instead of failing.
+    """
+    if shutil.which("mpirun") is None:
+        return "mpirun is not on PATH"
+
+    binary = _simind_mpi_binary()
+    if binary is None:
+        return "the SIMIND MPI binary is not available"
+    if not os.access(binary, os.X_OK):
+        return f"the SIMIND MPI binary {binary} is not executable"
+
+    try:
+        probe = subprocess.run(
+            ["ldd", str(binary)], capture_output=True, text=True, check=False
+        )
+    except OSError as error:
+        return f"ldd could not inspect the SIMIND MPI binary ({error})"
+
+    unresolved = sorted(
+        {
+            line.partition("=>")[0].strip()
+            for line in probe.stdout.splitlines()
+            if "not found" in line
+            and line.partition("=>")[0].strip().startswith("libmpi")
+        }
+    )
+    if unresolved:
+        return "SIMIND MPI runtime not usable: " + ", ".join(unresolved)
+
+    return None
 
 
 def test_missing_smc_file_raises_with_simind_diagnostics(tmp_path: Path):
@@ -195,8 +235,9 @@ def test_penetrate_without_backends_has_no_fallback_warnings(
     [pytest.param(1, id="mp1"), pytest.param(2, id="mp2"), pytest.param(4, id="mp4")],
 )
 def test_mpi_views_and_projections_are_readable(tmp_path: Path, processes: int):
-    if shutil.which("mpirun") is None or _simind_mpi_binary() is None:
-        pytest.skip("mpirun or the SIMIND MPI binary is not available")
+    reason = _mpi_runtime_skip_reason()
+    if reason is not None:
+        pytest.skip(reason)
 
     connector = _connector(tmp_path, "mpi")
     outputs = connector.run(

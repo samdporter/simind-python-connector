@@ -13,6 +13,14 @@ ENV SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS=sirf,stir,stirextra,pytomography
 ENV PYTHONPATH=/workspace/docker/import_guard:${PYTHONPATH}
 ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${PATH}
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends mpich \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/python/install_mpich_compat.sh /usr/local/bin/install_mpich_compat.sh
+RUN chmod +x /usr/local/bin/install_mpich_compat.sh \
+    && install_mpich_compat.sh
+
 WORKDIR /workspace
 
 COPY . /workspace
