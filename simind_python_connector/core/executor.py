@@ -6,10 +6,21 @@ import logging
 import os
 import re
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Union
 
 from .types import OUTPUT_PREFIX_PATTERN, SimulationError
+
+
+_SIMIND_ERROR_NUMBER_PATTERN = re.compile(
+    r"\bSIMIND\s+error\s+number\s*:\s*(\d+)\b", re.IGNORECASE
+)
+_SIMIND_ERROR_DIVIDER_PATTERN = re.compile(
+    r"^[ \t]*={3,}[ \t]*Error[ \t]*$", re.MULTILINE
+)
+_ERROR_EXCERPT_LIMIT = 2000
 
 
 class SimindExecutor:
@@ -91,12 +102,60 @@ class SimindExecutor:
             command.append(self._validate_cli_token("".join(switch_parts)))
 
         self.logger.info("Running SIMIND: %s", " ".join(command))
-        try:
-            subprocess.run(command, check=True, shell=False, cwd=cwd)
-        except OSError as exc:
-            raise SimulationError(f"Unable to execute SIMIND command: {exc}") from exc
-        except subprocess.CalledProcessError as exc:
-            raise SimulationError(f"SIMIND execution failed: {exc}") from exc
+        with (
+            tempfile.TemporaryFile(
+                mode="w+", encoding="utf-8", errors="replace"
+            ) as stdout_file,
+            tempfile.TemporaryFile(
+                mode="w+", encoding="utf-8", errors="replace"
+            ) as stderr_file,
+        ):
+            try:
+                subprocess.run(
+                    command,
+                    check=True,
+                    shell=False,
+                    cwd=cwd,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                )
+            except OSError as exc:
+                self._read_and_replay(stdout_file, stderr_file)
+                raise SimulationError(
+                    f"Unable to execute SIMIND command: {exc}"
+                ) from exc
+            except subprocess.CalledProcessError as exc:
+                self._read_and_replay(stdout_file, stderr_file)
+                raise SimulationError(f"SIMIND execution failed: {exc}") from exc
+            stdout_text, stderr_text = self._read_and_replay(stdout_file, stderr_file)
+
+        # Each stream is checked on its own: concatenating them could match a
+        # diagnostic split across the boundary that neither stream contains.
+        self._raise_for_reported_error(stdout_text)
+        self._raise_for_reported_error(stderr_text)
+
+    @staticmethod
+    def _read_and_replay(stdout_file, stderr_file) -> tuple[str, str]:
+        stdout_file.seek(0)
+        stdout_text = stdout_file.read()
+        stderr_file.seek(0)
+        stderr_text = stderr_file.read()
+        sys.stdout.write(stdout_text)
+        sys.stderr.write(stderr_text)
+        return stdout_text, stderr_text
+
+    @staticmethod
+    def _raise_for_reported_error(output: str) -> None:
+        number_match = _SIMIND_ERROR_NUMBER_PATTERN.search(output)
+        if number_match:
+            excerpt = output[:_ERROR_EXCERPT_LIMIT]
+            raise SimulationError(
+                f"SIMIND reported an error (error number "
+                f"{number_match.group(1)}): {excerpt}"
+            )
+        if _SIMIND_ERROR_DIVIDER_PATTERN.search(output):
+            excerpt = output[:_ERROR_EXCERPT_LIMIT]
+            raise SimulationError(f"SIMIND reported an error: {excerpt}")
 
     @staticmethod
     def _resolve_executable(executable: str) -> str:

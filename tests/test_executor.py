@@ -1,6 +1,7 @@
 """Unit tests for the SIMIND process executor."""
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,38 @@ def _capture_run(monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
         "simind_python_connector.core.executor.subprocess.run", fake_run
     )
     return calls
+
+
+def _capture_run_with_output(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
+) -> list[tuple]:
+    calls: list[tuple] = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        if stdout:
+            kwargs["stdout"].write(stdout)
+        if stderr:
+            kwargs["stderr"].write(stderr)
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(
+        "simind_python_connector.core.executor.subprocess.run", fake_run
+    )
+    return calls
+
+
+def _write_script(tmp_path: Path, body: str) -> Path:
+    script = tmp_path / "fake_simind.py"
+    script.write_text(f"#!{sys.executable}\n{body}")
+    script.chmod(0o755)
+    return script
 
 
 def test_executor_uses_explicit_executable_cwd_and_non_shell(
@@ -392,3 +425,205 @@ def test_executor_translates_called_process_errors(
 
     with pytest.raises(SimulationError, match="failed"):
         SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_exit_zero_error_banner_on_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="simulation started\nSIMIND error number: 42\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 42"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_exit_zero_error_banner_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stderr="fatal condition\nSIMIND error number: 7\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_does_not_match_diagnostic_split_across_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Neither stream contains the full numbered pattern on its own.
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="SIMIND",
+        stderr=" error number: 1\n",
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_error_banner_case_and_whitespace_insensitively(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="SiMiNd   ErRoR   NuMbEr :   123\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 123"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_divider_only_error_banner_on_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="========================= Error\n")
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error:"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_detects_divider_only_error_banner_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(monkeypatch, stderr="=== Error\n")
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error:"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_ignores_lowercase_divider_banner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="========================= error\n")
+
+    SimindExecutor().run_simulation("case01")
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        "",
+        "relative error estimate: 0.01\n",
+        "no errors were found\n",
+        "Error: something benign happened\n",
+        "=== Error handling summary ===\n",
+    ],
+)
+def test_executor_ignores_benign_error_words(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=stdout)
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_replays_captured_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(
+        monkeypatch, stdout="simind stdout\n", stderr="simind stderr\n"
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+    captured = capsys.readouterr()
+    assert "simind stdout" in captured.out
+    assert "simind stderr" in captured.err
+
+
+def test_executor_invalid_utf8_does_not_hide_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command, **kwargs):
+        kwargs["stdout"].buffer.write(b"SIMIND error number: 9\n\xff\xfe")
+        kwargs["stdout"].flush()
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(
+        "simind_python_connector.core.executor.subprocess.run", fake_run
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 9"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_excerpt_is_bounded_but_keeps_number(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = ("x" * 3000) + "\nSIMIND error number: 123\n" + ("y" * 3000)
+    _capture_run_with_output(monkeypatch, stdout=output)
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "error number 123" in message
+    assert "y" * 10 not in message
+    excerpt = message.split("): ", 1)[1]
+    assert len(excerpt) <= 2000
+
+
+def test_executor_nonzero_exit_replays_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(monkeypatch, stderr="crash output\n", returncode=1)
+
+    with pytest.raises(SimulationError, match="SIMIND execution failed"):
+        SimindExecutor().run_simulation("case01")
+
+    assert "crash output" in capsys.readouterr().err
+
+
+def test_executor_real_subprocess_replays_both_streams_on_success(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    script = _write_script(
+        tmp_path,
+        "import sys\nprint('real stdout')\nprint('real stderr', file=sys.stderr)\n",
+    )
+
+    SimindExecutor(executable=script).run_simulation("case01", cwd=tmp_path)
+
+    captured = capsys.readouterr()
+    assert "real stdout" in captured.out
+    assert "real stderr" in captured.err
+
+
+def test_executor_real_subprocess_replays_both_streams_on_nonzero_exit(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    script = _write_script(
+        tmp_path,
+        "import sys\nprint('out before crash')\n"
+        "print('err before crash', file=sys.stderr)\nsys.exit(3)\n",
+    )
+
+    with pytest.raises(SimulationError, match="SIMIND execution failed"):
+        SimindExecutor(executable=script).run_simulation("case01", cwd=tmp_path)
+
+    captured = capsys.readouterr()
+    assert "out before crash" in captured.out
+    assert "err before crash" in captured.err
+
+
+def test_executor_real_subprocess_large_dual_stream_output_does_not_deadlock(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    # Well past the OS pipe buffer on both streams, so capturing into pipes
+    # without draining them would block the child.
+    size = 200_000
+    script = _write_script(
+        tmp_path,
+        "import sys\n"
+        f"sys.stdout.write('o' * {size} + '\\n')\n"
+        f"sys.stderr.write('e' * {size} + '\\n')\n",
+    )
+
+    SimindExecutor(executable=script).run_simulation("case01", cwd=tmp_path)
+
+    captured = capsys.readouterr()
+    assert "o" * size in captured.out
+    assert "e" * size in captured.err
