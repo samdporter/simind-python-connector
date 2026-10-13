@@ -18,6 +18,7 @@ the SIMIND executable is available as ``simind`` on ``PATH``; see
     import numpy as np
     from simind_python_connector import SimindPythonConnector
     from simind_python_connector.configs import get
+    from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 
     source = np.zeros((32, 32, 32), dtype=np.float32)  # z, y, x
     source[12:20, 12:20, 12:20] = 1.0
@@ -28,7 +29,7 @@ the SIMIND executable is available as ``simind`` on ``PATH``; see
         config_source=get("Example.yaml"),
         output_dir="output/basic",
         output_prefix="case01",
-        quantization_scale=0.05,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
 
     connector.configure_voxel_phantom(

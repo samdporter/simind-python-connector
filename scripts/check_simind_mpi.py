@@ -14,6 +14,7 @@ import numpy as np
 
 from simind_python_connector import SimindPythonConnector
 from simind_python_connector.configs import get
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 
 
 TOTAL_AGREEMENT = 0.05
@@ -21,7 +22,10 @@ TOTAL_AGREEMENT = 0.05
 
 def run(prefix, output_dir, processes=None, split=False):
     connector = SimindPythonConnector(
-        get("Example.yaml"), output_dir, prefix, quantization_scale=0.05
+        get("Example.yaml"),
+        output_dir,
+        prefix,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
     source = np.zeros((32, 32, 32), np.float32)
     source[12:20, 12:20, 12:20] = 1.0

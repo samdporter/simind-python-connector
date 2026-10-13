@@ -26,6 +26,7 @@ from simind_python_connector.converters.simind_to_stir import SimindToStirConver
 from simind_python_connector.core.config import RuntimeSwitches, SimulationConfig
 from simind_python_connector.core.executor import SimindExecutor
 from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
     MAX_SOURCE,
     OUTPUT_PREFIX_PATTERN,
     SIMIND_VOXEL_UNIT_CONVERSION,
@@ -160,7 +161,7 @@ class SimindPythonConnector(BaseConnector):
         config_source: ConfigSource,
         output_dir: PathLike,
         output_prefix: str = "output",
-        quantization_scale: float = 1.0,
+        quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
     ) -> None:
         self.logger = logging.getLogger(__name__)
         self._validate_output_prefix(output_prefix)
@@ -175,8 +176,8 @@ class SimindPythonConnector(BaseConnector):
         ):
             raise ValueError(
                 "quantization_scale must be in (0, 1]: the source maximum is "
-                f"scaled to {MAX_SOURCE} x quantization_scale integer photon "
-                "histories. Use the NN runtime switch for more statistics."
+                f"scaled to {MAX_SOURCE} x quantization_scale before voxel-wise "
+                "rounding. Use the NN runtime switch for more statistics."
             )
 
         self.config = self._initialize_config(config_source)
@@ -458,7 +459,7 @@ class SimindPythonConnector(BaseConnector):
         else:
             density = np.zeros_like(mu_map_array)
 
-        density_u16 = np.clip(np.round(density), 0, np.iinfo(np.uint16).max).astype(
+        density_u16 = np.clip(np.round(density), 0, np.iinfo(np.int16).max).astype(
             np.uint16
         )
         dns_prefix = f"{self.output_prefix}_dns"

@@ -12,7 +12,10 @@ from simind_python_connector.connectors.python_connector import (
 from simind_python_connector.connectors.pytomography_adaptor import (
     PyTomographySimindAdaptor,
 )
-from simind_python_connector.core.types import ScoringRoutine
+from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
+    ScoringRoutine,
+)
 
 
 torch = pytest.importorskip("torch")
@@ -246,7 +249,7 @@ def test_pytomography_simind_smoke_preserves_axial_source_position(
         output_prefix="axial_smoke",
         photon_multiplier=1,
         voxel_size_mm=4.0,
-        quantization_scale=0.01,
+        quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
     )
     source_xyz = torch.zeros((16, 16, 16), dtype=torch.float32)
     source_xyz[7:9, 7:9, 3:5] = 1.0

@@ -23,6 +23,7 @@ from pytomography.transforms.SPECT import (
 )
 
 from simind_python_connector import PyTomographySimindAdaptor, configs
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 
 
 def _build_small_tensors() -> tuple[torch.Tensor, torch.Tensor]:
@@ -124,7 +125,7 @@ def main() -> None:
         output_prefix="pytomo_case01",
         photon_multiplier=1,
         voxel_size_mm=4.0,
-        quantization_scale=0.05,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
     adaptor.set_source(source_tensor)
     adaptor.set_mu_map(mu_tensor)

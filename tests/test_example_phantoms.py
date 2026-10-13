@@ -12,15 +12,16 @@ import numpy as np
 import pytest
 
 from simind_python_connector import SimindPythonConnector
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 from simind_python_connector.phantoms import AnalyticPhantom
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 # Source voxels are scaled to MAX_SOURCE * quantization_scale integer histories,
-# and MAX_SOURCE is 500, so 0.001 rounds the whole map to zero. 0.01 keeps the
-# run tiny while leaving the source non-zero.
-_SMOKE_QUANTIZATION_SCALE = 0.01
+# so 0.001 rounds the whole map to zero. 0.01 * DEFAULT_QUANTIZATION_SCALE keeps
+# the run tiny while leaving the source non-zero.
+_SMOKE_QUANTIZATION_SCALE = 0.01 * DEFAULT_QUANTIZATION_SCALE
 
 
 def _load_example():
