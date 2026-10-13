@@ -23,6 +23,19 @@ def _is_traversable_only(value) -> bool:
     return hasattr(value, "is_file") and hasattr(value, "joinpath")
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys instead of last-wins."""
+
+    def construct_mapping(self, node, deep=False):
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise ValueError(f"duplicate key in YAML mapping: {key!r}")
+            mapping[key] = self.construct_object(value_node, deep=deep)
+        return mapping
+
+
 class SimulationConfig:
     """
     SimulationConfig Class with YAML import/export capabilities
@@ -733,7 +746,7 @@ class SimulationConfig:
             filepath (str): Path to the input YAML file
         """
         with open(filepath, "r") as file:
-            yaml_dict = yaml.safe_load(file)
+            yaml_dict = yaml.load(file, Loader=_UniqueKeyLoader)
 
         if yaml_dict is None:
             raise ValueError("YAML root must be a mapping, got an empty document")
@@ -1068,6 +1081,13 @@ class SimulationConfig:
             )
 
         if numeric == 0:
+            # A nonzero value can underflow to 0.0 during the float conversion;
+            # only a value that is exactly zero may be written as zero.
+            if value != 0:
+                raise ValueError(
+                    f"basic data: value at index {index} cannot be represented in "
+                    "a 12-character SMC field"
+                )
             # Canonicalise -0.0 so signed zero keeps the 12-character width.
             return f" {0.0:.5E}"
 
