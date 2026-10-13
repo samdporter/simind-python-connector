@@ -399,18 +399,21 @@ class SimindToStirConverter:
         output_dir = Path(output_dir)
         outputs: Dict[str, Path] = {}
 
-        # First convert the template .h00 to .hs format
         template_hs = h00_file.replace(".h00", "_template.hs")
-        self.convert_file(h00_file, template_hs)
 
-        template_header = InterfileHeader.from_file(template_hs)
+        try:
+            # First convert the template .h00 to .hs format
+            self.convert_file(h00_file, template_hs)
 
-        # Look for .bXX files and create headers for each
-        for component in PenetrateOutputType:
-            binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
+            template_header = InterfileHeader.from_file(template_hs)
 
-            if binary_file.exists():
-                try:
+            # Look for .bXX files and create headers for each
+            for component in PenetrateOutputType:
+                binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
+
+                if binary_file.exists():
+                    # A failure to write the header is a real I/O error and
+                    # must propagate rather than silently drop a component.
                     component_hs = output_dir / (
                         f"{output_prefix}_component_{component.value:02d}.hs"
                     )
@@ -430,15 +433,18 @@ class SimindToStirConverter:
                     self.logger.info(
                         f"Created STIR header for {component.slug}: {component_hs.name}"
                     )
-
-                except Exception as e:
-                    self.logger.warning(
-                        f"Failed to create header for {binary_file}: {e}"
-                    )
-
-        # Clean up template file
-        if os.path.exists(template_hs):
-            os.remove(template_hs)
+        finally:
+            # The converted template is connector-owned scratch. Remove it on
+            # every path, but never let a cleanup failure mask the primary
+            # processing error.
+            try:
+                if os.path.exists(template_hs):
+                    os.remove(template_hs)
+            except Exception as cleanup_error:
+                self.logger.warning(
+                    f"Failed to remove PENETRATE template {template_hs}: "
+                    f"{cleanup_error}"
+                )
 
         return outputs
 
@@ -457,8 +463,15 @@ class SimindToStirConverter:
         """
         output_dir = Path(output_dir)
 
-        # Look for .h00 file with the output prefix
-        h00_files = list(output_dir.glob(f"{output_prefix}*.h00"))
+        # Match only the exact name or an underscore-delimited suffix so that
+        # prefixes such as "s" and "s2" do not claim each other's outputs.
+        h00_files = sorted(
+            {
+                *output_dir.glob(f"{output_prefix}.h00"),
+                *output_dir.glob(f"{output_prefix}_*.h00"),
+            }
+        )
+        h00_files = [h00_file for h00_file in h00_files if h00_file.is_file()]
 
         if len(h00_files) == 1:
             return str(h00_files[0])
