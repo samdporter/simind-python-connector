@@ -8,10 +8,29 @@ Photon histories are not counts
 -------------------------------
 
 The source map holds integer weights: each voxel's value sets how many photon
-histories start there. The connector scales the source so its maximum maps to
-``500 x quantization_scale``. Scaling the source up, or raising ``NN``, runs
-more histories. That gives better statistics and a longer run, but does **not**
-give more counts in the projections.
+histories start there. SIMIND reads the source and density integer maps as
+**signed** 16-bit values, so a voxel value of 32768 or more wraps negative and
+silently corrupts the map. The connector therefore caps both maps at 32767.
+
+The connector scales the source maximum to the effective budget
+``MAX_SOURCE x quantization_scale`` (= ``32767 x quantization_scale``) with a
+single rounding step, then rounds and clips once:
+
+.. code-block:: python
+
+    source_scaled = source / source.max() * (32767 * quantization_scale)
+    source_written = np.clip(np.round(source_scaled), 0, 32767)
+
+The default ``quantization_scale`` is ``500 / 32767``, which reproduces the
+legacy 500-weight budget at the full signed-range resolution. An explicit
+``quantization_scale=1.0`` scales the maximum to the whole signed range.
+Explicit values are used exactly as given; the connector does **not**
+auto-migrate scales written for releases whose ``MAX_SOURCE`` was 500. To keep
+an old explicit scale's budget, pass ``old_scale * DEFAULT_QUANTIZATION_SCALE``.
+
+Scaling the source up, or raising ``NN``, runs more histories. That gives better
+statistics and a longer run, but does **not** give more counts in the
+projections.
 
 Route 1: the activity is known
 ------------------------------

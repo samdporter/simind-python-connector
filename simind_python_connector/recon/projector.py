@@ -11,8 +11,10 @@ class SimindProjector:
     """Simulate an image with SIMIND in a fixed template geometry.
 
     SIMIND's output does not follow the magnitude of the image, because the
-    source map is always scaled to MAX_SOURCE photon histories. Every call is
-    therefore put on the data scale in one of two ways:
+    source maximum voxel is always scaled to the effective budget
+    (``MAX_SOURCE x quantization_scale``) of photon histories, not the whole
+    map to ``MAX_SOURCE``. Every call is therefore put on the data scale in one
+    of two ways:
 
     - normalise(outputs, image) returns a factor applied to every output
       (A2 route 2, e.g. reference_normaliser);

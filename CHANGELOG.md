@@ -137,6 +137,13 @@ satisfied requirement).
 - The "non-square matrix" warning is gone from
   `SimulationConfig.validate_parameters`; SIMIND supports non-square projection
   matrices.
+- SIMIND reads the source and density integer maps as signed 16-bit, so the
+  density cap of 65535 could wrap values above 32767 negative and silently corrupt
+  the map; it is now capped at 32767. `MAX_SOURCE` becomes `np.iinfo(np.int16).max`
+  (32767) and `DEFAULT_QUANTIZATION_SCALE` (`500 / 32767`) keeps the legacy
+  500-weight source default. Explicit `quantization_scale` values are not
+  auto-migrated: rescale a scale calibrated for the former 500 maximum with
+  `old_scale * DEFAULT_QUANTIZATION_SCALE`.
 
 ### Known limitations
 - The optional SIRF/CIL scatter and residual correction workflows ship with the

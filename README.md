@@ -141,6 +141,7 @@ executable is available as `simind` on `PATH`.
 import numpy as np
 from simind_python_connector import SimindPythonConnector
 from simind_python_connector.configs import get
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 
 source = np.zeros((32, 32, 32), dtype=np.float32)  # z, y, x
 source[12:20, 12:20, 12:20] = 1.0
@@ -151,7 +152,7 @@ connector = SimindPythonConnector(
     config_source=get("Example.yaml"),
     output_dir="output/basic",
     output_prefix="case01",
-    quantization_scale=0.05,
+    quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
 )
 
 connector.configure_voxel_phantom(
@@ -206,11 +207,20 @@ For minimal toy runs with smaller projection/image settings, use
 `quantization_scale` controls source integer quantization before writing SIMIND
 `.smi` files:
 
-- `1.0`: uses full internal source integer range (best numeric precision)
-- `< 1.0`: reduces integer scale for faster toy runs but increases rounding error
+- the default (`500 / 32767`) preserves the legacy 500-weight source budget;
+- `1.0` uses the full signed 16-bit source range (`32767`), the best numeric
+  precision;
+- `< 1.0` reduces the integer scale for faster toy runs but increases rounding
+  error.
 
-SIMIND treats source maps as integer weights; absolute activity/time scaling is
-controlled separately by simulation settings.
+SIMIND reads the source and density maps as signed 16-bit integers, so values
+of `32768` and above wrap negative and silently corrupt the map; the connector
+caps both maps at `32767`. Explicit `quantization_scale` values are used as
+given, with no automatic migration of scales calibrated for the former
+500-weight maximum: rescale an old scale with
+`old_scale * DEFAULT_QUANTIZATION_SCALE`. SIMIND treats source maps as integer
+weights; absolute activity/time scaling is controlled separately by simulation
+settings.
 
 ## Docker Environments
 

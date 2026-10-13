@@ -17,6 +17,7 @@ from simind_python_connector.connectors.python_connector import (
 from simind_python_connector.converters.attenuation import get_attenuation_coefficient
 from simind_python_connector.core.config import SimulationConfig
 from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
     PenetrateOutputType,
     ScoringRoutine,
     SimulationError,
@@ -51,7 +52,7 @@ class _NativeSimindAdaptor(BaseConnector):
         output_dir: str,
         output_prefix: str = "output",
         photon_multiplier: int = 1,
-        quantization_scale: float = 1.0,
+        quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
         scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
         mu_map_type: str = "attenuation",
         mu_map_energy_kev: Optional[float] = None,

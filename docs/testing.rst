@@ -166,11 +166,12 @@ non-circular orbit and anisotropic-voxel cases. It selects its compute budget
 from an environment switch so the same checks can run cheaply or at full
 statistics:
 
-* **Smoke** (default) - 16x16x16 grid, 8 views, ``quantization_scale=0.02``,
-  correlation > 0.5, centre gap <= 1 bin. Fast enough for a local smoke check.
-* **Full** (``SIMIND_A3_FULL_VALIDATION=1``) - 64x64x64 grid, 60 views,
-  ``quantization_scale=1.0``, correlation > 0.9, centre gap <= 1 bin. This is
-  the standing A3 release gate.
+* **Smoke** (default) - 16x16x16 grid, 8 views,
+  ``quantization_scale=0.02 x (500 / 32767)``, correlation > 0.5, centre gap
+  <= 1 bin. Fast enough for a local smoke check.
+* **Full** (``SIMIND_A3_FULL_VALIDATION=1``) - 64x64x64 grid, 60 views, the
+  default ``quantization_scale`` (the legacy 500-history budget), correlation
+  > 0.9, centre gap <= 1 bin. This is the standing A3 release gate.
 
 The grid, view count, phantom offsets, template and thresholds are all derived
 from the selected profile, and each run prints the profile, its settings and the

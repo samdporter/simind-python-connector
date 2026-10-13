@@ -9,7 +9,10 @@ from simind_python_connector.builders import (
     STIRSPECTImageDataBuilder,
 )
 from simind_python_connector.configs import get
-from simind_python_connector.core.types import ScoringRoutine
+from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
+    ScoringRoutine,
+)
 from simind_python_connector.normalisation import scale_to_reference
 from simind_python_connector.utils.interfile import (
     check_geometry_match,
@@ -44,7 +47,7 @@ _SMOKE_PROFILE = _Profile(
     name="smoke",
     grid=16,
     views=8,
-    quantization_scale=0.02,
+    quantization_scale=0.02 * DEFAULT_QUANTIZATION_SCALE,
     min_correlation=0.5,
     max_centre_gap=1.0,
 )
@@ -52,7 +55,7 @@ _FULL_PROFILE = _Profile(
     name="full",
     grid=64,
     views=60,
-    quantization_scale=1.0,
+    quantization_scale=1.0 * DEFAULT_QUANTIZATION_SCALE,
     min_correlation=0.9,
     max_centre_gap=1.0,
 )

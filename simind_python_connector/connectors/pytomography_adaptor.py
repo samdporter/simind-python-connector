@@ -21,6 +21,7 @@ from simind_python_connector.connectors.python_connector import (
     SimindPythonConnector,
 )
 from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
     ScoringRoutine,
     ValidationError,
 )
@@ -56,7 +57,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         output_prefix: str = "output",
         photon_multiplier: int = 1,
         voxel_size_mm: float = 4.0,
-        quantization_scale: float = 1.0,
+        quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
         scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
         mu_map_type: str = "attenuation",
         mu_map_energy_kev: Optional[float] = None,
