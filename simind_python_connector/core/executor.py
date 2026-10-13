@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import numbers
 import os
 import re
 import subprocess
@@ -124,6 +125,9 @@ class SimindExecutor:
                     raise SimulationError(str(exc)) from exc
                 if switch == "MP":
                     switch_parts.append(f"/{key}")
+                elif switch == "NN" and not isinstance(value, numbers.Integral):
+                    # NN accepts integral floats; the engine wants an integer.
+                    switch_parts.append(f"/{key}:{int(value)}")
                 else:
                     switch_parts.append(f"/{key}:{value}")
             if switch_parts:

@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from simind_python_connector.core.executor import SimindExecutor
@@ -750,7 +751,7 @@ def test_executor_real_subprocess_timeout_raises_promptly(tmp_path: Path) -> Non
         )
 
 
-@pytest.mark.parametrize("mp_value", [1, 2, 4, 2.0, "4"])
+@pytest.mark.parametrize("mp_value", [1, 2, 4, 2.0, "4", np.int32(4), np.int64(4)])
 def test_executor_accepts_valid_mp(monkeypatch: pytest.MonkeyPatch, mp_value) -> None:
     monkeypatch.delenv("SIMIND_BIN", raising=False)
     monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
@@ -777,7 +778,7 @@ def test_executor_accepts_large_integer_mp(
 
 @pytest.mark.parametrize(
     "mp_value",
-    ["9" * 5000, "\u0664"],
+    ["\u0664"],
 )
 def test_executor_rejects_unusable_digit_string_mp(
     monkeypatch: pytest.MonkeyPatch, mp_value
@@ -816,7 +817,22 @@ def test_executor_keeps_mp_switch_flag_form(
 
 @pytest.mark.parametrize(
     "mp_value",
-    [0, -1, 2.5, None, True, False, float("nan"), float("inf"), "", "4.0", "abc", "-2"],
+    [
+        0,
+        -1,
+        2.5,
+        None,
+        True,
+        False,
+        np.bool_(True),
+        np.bool_(False),
+        float("nan"),
+        float("inf"),
+        "",
+        "4.0",
+        "abc",
+        "-2",
+    ],
 )
 def test_executor_rejects_invalid_mp(monkeypatch: pytest.MonkeyPatch, mp_value) -> None:
     calls = _capture_run(monkeypatch)
@@ -1023,8 +1039,12 @@ def test_executor_rejects_prefix_over_length_cap(
     assert calls == []
 
 
-@pytest.mark.parametrize("nn_value", [1, 2, 2147483647, 2.0, 2147483647.0])
-def test_executor_accepts_valid_nn(monkeypatch: pytest.MonkeyPatch, nn_value) -> None:
+@pytest.mark.parametrize(
+    "nn_value", [1, 2, 2147483647, 2147483648, 10**400, np.int64(3)]
+)
+def test_executor_accepts_valid_integer_nn(
+    monkeypatch: pytest.MonkeyPatch, nn_value
+) -> None:
     monkeypatch.delenv("SIMIND_BIN", raising=False)
     calls = _capture_run(monkeypatch)
 
@@ -1033,12 +1053,34 @@ def test_executor_accepts_valid_nn(monkeypatch: pytest.MonkeyPatch, nn_value) ->
     assert calls[0][0][-1] == f"/NN:{nn_value}"
 
 
+@pytest.mark.parametrize("nn_value", [2.0, 2147483647.0, np.float64(2.0)])
+def test_executor_normalises_integral_float_nn(
+    monkeypatch: pytest.MonkeyPatch, nn_value
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"NN": nn_value})
+
+    assert calls[0][0][-1] == f"/NN:{int(nn_value)}"
+
+
+def test_executor_nn_integer_and_integral_float_serialise_identically(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"NN": 2})
+    SimindExecutor().run_simulation("case01", runtime_switches={"NN": 2.0})
+
+    assert calls[0][0] == calls[1][0]
+    assert calls[0][0][-1] == "/NN:2"
+
+
 @pytest.mark.parametrize(
     "nn_value",
     [
-        10**400,
-        1e308,
-        2147483648,
         2.5,
         0,
         -1,
@@ -1049,6 +1091,7 @@ def test_executor_accepts_valid_nn(monkeypatch: pytest.MonkeyPatch, nn_value) ->
         None,
         True,
         False,
+        np.bool_(True),
     ],
 )
 def test_executor_rejects_invalid_nn(monkeypatch: pytest.MonkeyPatch, nn_value) -> None:

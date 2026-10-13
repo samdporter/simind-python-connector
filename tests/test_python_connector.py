@@ -422,6 +422,66 @@ def test_python_connector_accepts_integral_nn(tmp_path: Path):
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("value", [np.int32(4), np.int64(4)])
+def test_python_connector_accepts_numpy_integer_mp(tmp_path: Path, value):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path
+    )
+    connector.add_runtime_switch("MP", value)
+    assert connector.runtime_switches.switches["MP"] == value
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [True, False, np.bool_(True), np.bool_(False)])
+def test_python_connector_rejects_boolean_mp(tmp_path: Path, value):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path
+    )
+    with pytest.raises(ValueError, match="MP must be an integer >= 1"):
+        connector.add_runtime_switch("MP", value)
+
+
+@pytest.mark.unit
+def test_python_connector_validates_numpy_integer_mp_in_runtime_operator(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path
+    )
+    connector._validate_runtime_operator(RuntimeOperator(switches={"MP": np.int64(4)}))
+
+
+@pytest.mark.unit
+def test_python_connector_runtime_operator_numpy_integer_mp_is_one_shot(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    captured = _record_executor_run(connector)
+
+    connector.run(RuntimeOperator(switches={"MP": np.int64(4)}))
+
+    assert captured["runtime_switches"] == {"MP": np.int64(4)}
+    assert "MP" not in connector.runtime_switches.switches
+
+
+@pytest.mark.unit
+def test_python_connector_keeps_integral_float_nn_stored_value(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    captured = _record_executor_run(connector)
+
+    connector.run(RuntimeOperator(switches={"NN": 2.0}))
+
+    assert captured["runtime_switches"] == {"NN": 2.0}
+    assert "NN" not in connector.runtime_switches.switches
+
+
+@pytest.mark.unit
 def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
