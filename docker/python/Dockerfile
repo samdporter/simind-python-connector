@@ -13,6 +13,8 @@ ENV SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS=sirf,stir,stirextra,pytomography
 ENV PYTHONPATH=/workspace/docker/import_guard:${PYTHONPATH}
 ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${PATH}
 
+# MPICH runtime for SIMIND's MPI binary; the compat script exposes the library
+# names that binary was built against. See docker/python/install_mpich_compat.sh.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends mpich \
     && rm -rf /var/lib/apt/lists/*

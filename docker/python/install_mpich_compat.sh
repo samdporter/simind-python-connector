@@ -9,11 +9,11 @@ multiarch="$(python3 -c 'import sysconfig; print(sysconfig.get_config_var("MULTI
 libdir="/usr/lib/${multiarch}"
 
 link_if_missing() {
-  target="$1"
-  link_name="$2"
-  if [ ! -e "${libdir}/${link_name}" ] && [ -e "${libdir}/${target}" ]; then
-    ln -s "${target}" "${libdir}/${link_name}"
-  fi
+    target="$1"
+    link_name="$2"
+    if [ ! -e "${libdir}/${link_name}" ] && [ -e "${libdir}/${target}" ]; then
+        ln -s "${target}" "${libdir}/${link_name}"
+    fi
 }
 
 link_if_missing libmpich.so.12 libmpi.so.12

@@ -161,6 +161,12 @@ SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
 * ``tests/test_container_library_isolation.py`` for backend container import isolation.
 * ``tests/test_geometry_isolation_forward_projection.py`` and ``tests/test_osem_geometry_diagnostics.py`` for backend geometry diagnostics.
 
+The MPI cases in ``tests/test_patch_release_simind.py`` additionally require
+``mpirun``, the ``simind_mpi`` binary and its ``libmpi`` runtime libraries; the
+latter two are provided by ``docker/python/Dockerfile``, which installs MPICH
+and exposes the ``libmpi.so.12``/``libmpifort.so.12`` names SIMIND links
+against. They never run in GitHub CI because the SIMIND binary is not tracked.
+
 Integration Test
 ~~~~~~~~~~~~~~~~
 
