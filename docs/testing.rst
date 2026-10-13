@@ -30,7 +30,11 @@ Automatic Dependency Detection
 The test suite automatically detects available dependencies:
 
 * **SIRF detection**: Attempts to ``import sirf``
-* **STIR detection**: Attempts to ``import stir`` and ``import stirextra``
+* **STIR detection**: Attempts to ``import stir``, then imports the STIR
+  conversion helpers the way the package itself does (``stir.extra`` preferred,
+  the legacy ``stirextra`` module only as a fallback), so a broken
+  ``stir.extra`` dependency is reported as unavailable instead of being masked
+  by the legacy module
 * **PyTomography detection**: Attempts to ``import pytomography``
 * **SIMIND detection**: Checks if ``simind`` command is available
 * **CI detection**: Checks ``CI`` or ``GITHUB_ACTIONS`` environment variables

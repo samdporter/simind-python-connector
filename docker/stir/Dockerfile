@@ -22,9 +22,11 @@ COPY --chown=1000:100 . /workspace
 RUN python -m pip install --upgrade pip \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
     && python - <<'PY'
-import importlib
-for module in ("stir", "stirextra", "pytest"):
-    importlib.import_module(module)
+import stir  # noqa: F401
+import pytest  # noqa: F401
+from simind_python_connector.utils import _import_stir_extra
+
+_import_stir_extra()
 print("STIR Python modules available")
 PY
 

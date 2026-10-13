@@ -11,7 +11,7 @@ from simind_python_connector.builders import _native
 
 pytestmark = pytest.mark.unit
 
-_BACKEND_MODULES = ("sirf.STIR", "stir", "stirextra")
+_BACKEND_MODULES = ("sirf.STIR", "stir")
 
 
 def _fake_import_module(available):
@@ -27,28 +27,39 @@ def _fake_import_module(available):
     return fake
 
 
+def _fake_stir_extra(monkeypatch, *, available=True):
+    def fake():
+        if available:
+            return types.ModuleType("stir.extra")
+        raise ImportError("STIR conversion module is unavailable")
+
+    monkeypatch.setattr(_native, "_import_stir_extra", fake)
+
+
 def test_resolve_backend_prefers_sirf(monkeypatch):
     monkeypatch.setattr(
         importlib, "import_module", _fake_import_module(set(_BACKEND_MODULES))
     )
+    _fake_stir_extra(monkeypatch)
     assert _native.resolve_backend(None) == "sirf"
 
 
 def test_resolve_backend_falls_back_to_stir(monkeypatch):
-    monkeypatch.setattr(
-        importlib, "import_module", _fake_import_module({"stir", "stirextra"})
-    )
+    monkeypatch.setattr(importlib, "import_module", _fake_import_module({"stir"}))
+    _fake_stir_extra(monkeypatch)
     assert _native.resolve_backend(None) == "stir"
 
 
-def test_resolve_backend_requires_stirextra_for_stir(monkeypatch):
+def test_resolve_backend_requires_conversion_module_for_stir(monkeypatch):
     monkeypatch.setattr(importlib, "import_module", _fake_import_module({"stir"}))
+    _fake_stir_extra(monkeypatch, available=False)
     with pytest.raises(ImportError, match="Neither SIRF nor STIR"):
         _native.resolve_backend(None)
 
 
 def test_resolve_backend_explicit_backend_must_be_installed(monkeypatch):
     monkeypatch.setattr(importlib, "import_module", _fake_import_module(set()))
+    _fake_stir_extra(monkeypatch, available=False)
     with pytest.raises(ImportError, match="SIRF is not available"):
         _native.resolve_backend("sirf")
     with pytest.raises(ImportError, match="STIR Python is not available"):
@@ -81,14 +92,17 @@ def _install_fake_stir(monkeypatch, calls):
     fake_stir = types.ModuleType("stir")
     fake_stir.ProjData = FakeProjData
     fake_stir.ProjDataInMemory = FakeProjDataInMemory
+    extra = types.ModuleType("stir.extra")
+    fake_stir.extra = extra
     monkeypatch.setitem(sys.modules, "stir", fake_stir)
-    monkeypatch.setitem(sys.modules, "stirextra", types.ModuleType("stirextra"))
+    monkeypatch.setitem(sys.modules, "stir.extra", extra)
     real_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
         # The core container deliberately blocks real STIR imports, including
-        # cached modules. Supply only this test's fake and retain other guards.
-        if name == "stir":
+        # cached modules. Supply only this test's fake (top package and the
+        # ``stir.extra`` submodule) and retain other guards.
+        if name == "stir" or name.startswith("stir."):
             return fake_stir
         return real_import(name, *args, **kwargs)
 
