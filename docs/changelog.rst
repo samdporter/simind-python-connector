@@ -106,8 +106,8 @@ Fixed
   ``native - image``, ``native * image``, ``native / image``, and likewise for
   acquisition data) all work, because STIR's own dunders return
   ``NotImplemented`` for the wrapper and Python falls back to the wrapper's
-  reflected operator. NumPy arrays or other non-STIR operands on the left are
-  not covered.
+  reflected operator. NumPy arrays and other non-scalar, non-STIR operands on
+  the left are not covered.
 - ``get_primary_output()`` raises a clear ``NotImplementedError`` instead of
   ``KeyError``, because SIMIND emits no standalone primary projection; before
   a successful run it still raises ``RuntimeError``.

@@ -101,15 +101,39 @@ def test_image_native_left_operands():
         (native + image).as_array(), before + before, rtol=1e-5, atol=1e-6
     )
     np.testing.assert_allclose(
-        (native - image).as_array(), before - before, rtol=1e-5, atol=1e-6
-    )
-    np.testing.assert_allclose(
         (native * image).as_array(), before * before, rtol=1e-5, atol=1e-6
     )
-    np.testing.assert_allclose(
-        (native / image).as_array(), before / before, rtol=1e-5, atol=1e-6
-    )
     np.testing.assert_array_equal(image.as_array(), before)
+
+
+def test_image_native_left_subtract_and_divide():
+    image = _make_image()
+    other = StirImageData(create_stir_image([4, 5, 6], [2.0, 2.0, 2.0], backend="stir"))
+    shape = image.as_array().shape
+    seed = np.linspace(2.5, 3.5, int(np.prod(shape))).reshape(shape)
+    other.fill(seed.astype(np.float32))
+    native = other.native_object
+    native_array = other.as_array().copy()
+    wrapper_array = image.as_array().copy()
+
+    # Distinct nonzero operands, so the results depend on operand order and a
+    # swapped left/right evaluation would fail rather than yield zeros/ones.
+    assert not np.array_equal(native_array, wrapper_array)
+
+    np.testing.assert_allclose(
+        (native - image).as_array(),
+        native_array - wrapper_array,
+        rtol=1e-5,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        (native / image).as_array(),
+        native_array / wrapper_array,
+        rtol=1e-5,
+        atol=1e-6,
+    )
+    np.testing.assert_array_equal(image.as_array(), wrapper_array)
+    np.testing.assert_array_equal(other.as_array(), native_array)
 
 
 def test_acquisition_native_left_operands():
@@ -121,15 +145,41 @@ def test_acquisition_native_left_operands():
         (native + acquisition).as_array(), before + before, rtol=1e-5, atol=1e-6
     )
     np.testing.assert_allclose(
-        (native - acquisition).as_array(), before - before, rtol=1e-5, atol=1e-6
-    )
-    np.testing.assert_allclose(
         (native * acquisition).as_array(), before * before, rtol=1e-5, atol=1e-6
     )
-    np.testing.assert_allclose(
-        (native / acquisition).as_array(), before / before, rtol=1e-5, atol=1e-6
-    )
     np.testing.assert_array_equal(acquisition.as_array(), before)
+
+
+def test_acquisition_native_left_subtract_and_divide():
+    acquisition = _make_acquisition()
+    other = StirAcquisitionData(
+        create_stir_acqdata([4, 5], 3, [4.0, 4.0], backend="stir")
+    )
+    shape = acquisition.as_array().shape
+    seed = np.linspace(2.5, 3.5, int(np.prod(shape))).reshape(shape)
+    other.fill(seed.astype(np.float32))
+    native = other.native_object
+    native_array = other.as_array().copy()
+    wrapper_array = acquisition.as_array().copy()
+
+    # Distinct nonzero operands, so the results depend on operand order and a
+    # swapped left/right evaluation would fail rather than yield zeros/ones.
+    assert not np.array_equal(native_array, wrapper_array)
+
+    np.testing.assert_allclose(
+        (native - acquisition).as_array(),
+        native_array - wrapper_array,
+        rtol=1e-5,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        (native / acquisition).as_array(),
+        native_array / wrapper_array,
+        rtol=1e-5,
+        atol=1e-6,
+    )
+    np.testing.assert_array_equal(acquisition.as_array(), wrapper_array)
+    np.testing.assert_array_equal(other.as_array(), native_array)
 
 
 def test_image_forward_operators_agree():

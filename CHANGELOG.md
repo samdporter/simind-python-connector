@@ -93,8 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of `+`, `-`, `*` or `/` (`native + image`, `native - image`, `native * image`,
   `native / image`, and likewise for acquisition data) all work, because STIR's
   own dunders return `NotImplemented` for the wrapper and Python falls back to
-  the wrapper's reflected operator. NumPy arrays or other non-STIR operands on
-  the left are not covered.
+  the wrapper's reflected operator. NumPy arrays and other non-scalar,
+  non-STIR operands on the left are not covered.
 - `get_primary_output()` raises a clear `NotImplementedError` instead of
   `KeyError`, because SIMIND emits no standalone primary projection; before a
   successful run it still raises `RuntimeError`.
