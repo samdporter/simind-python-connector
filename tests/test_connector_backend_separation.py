@@ -135,6 +135,10 @@ def _run_in_subprocess(
     paths = [str(ROOT)]
     if extra_path is not None:
         paths.insert(0, str(extra_path))
+        # These cases supply their own fake ``stir`` on PYTHONPATH, so the
+        # backend container's import guard must not block it. Isolation from
+        # the real backends is asserted separately.
+        env.pop("SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS", None)
     env["PYTHONPATH"] = os.pathsep.join(paths + [env.get("PYTHONPATH", "")])
     args = [sys.executable]
     if deprecations_as_errors:

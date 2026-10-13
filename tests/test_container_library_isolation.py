@@ -71,6 +71,7 @@ def test_stir_isolation_requires_conversion_module(monkeypatch):
 @pytest.mark.unit
 def test_stir_isolation_accepts_modern_layout(monkeypatch):
     """The modern ``stir.extra`` layout satisfies the STIR isolation check."""
+    import builtins
     import sys
     import types
 
@@ -80,5 +81,15 @@ def test_stir_isolation_accepts_modern_layout(monkeypatch):
     monkeypatch.setitem(sys.modules, "stir", fake_stir)
     monkeypatch.setitem(sys.modules, "stir.extra", extra)
     monkeypatch.delitem(sys.modules, "stirextra", raising=False)
+
+    # The core container blocks the real ``stir``; serve this fake instead.
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "stir" or name.startswith("stir."):
+            return fake_stir
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
 
     assert _stir_conversion_module() is extra
