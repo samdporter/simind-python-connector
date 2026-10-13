@@ -1,8 +1,10 @@
 import math
 import os
+import sys
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from simind_python_connector import SimulationConfig
@@ -223,7 +225,9 @@ def test_config_validation():
     assert isinstance(result, bool)
 
 
-@pytest.mark.parametrize("value", [1, 2, 4, 2.0, "4"])
+@pytest.mark.parametrize(
+    "value", [1, 2, 4, 2.0, "4", np.int32(4), np.int64(4), np.float64(4.0)]
+)
 def test_runtime_switches_accept_valid_mp_by_code(value):
     switches = RuntimeSwitches()
 
@@ -258,6 +262,8 @@ def test_runtime_switches_accept_large_integer_mp():
         None,
         True,
         False,
+        np.bool_(True),
+        np.bool_(False),
         float("nan"),
         float("inf"),
         "",
@@ -265,7 +271,6 @@ def test_runtime_switches_accept_large_integer_mp():
         "abc",
         "-2",
         "\u0664",
-        "9" * 5000,
     ],
 )
 def test_runtime_switches_reject_invalid_mp_by_code(value):
@@ -282,7 +287,44 @@ def test_runtime_switches_reject_invalid_mp_by_name():
         switches.set_switch("MPI parallel run", 0)
 
 
-@pytest.mark.parametrize("value", [1, 2, 2147483647, 2.0, 2147483647.0])
+def test_runtime_switches_reject_digit_string_mp_over_digit_cap():
+    if not (
+        hasattr(sys, "set_int_max_str_digits")
+        and hasattr(sys, "get_int_max_str_digits")
+    ):
+        pytest.skip("sys.set_int_max_str_digits is unavailable")
+
+    switches = RuntimeSwitches()
+    previous_limit = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(640)
+        with pytest.raises(ValueError, match="MP must be an integer >= 1"):
+            switches.set_switch("MP", "9" * 700)
+    finally:
+        sys.set_int_max_str_digits(previous_limit)
+
+
+def test_runtime_switches_accept_long_digit_string_mp_without_digit_cap():
+    long_value = "9" * 5000
+    if hasattr(sys, "set_int_max_str_digits"):
+        previous_limit = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(0)
+    else:
+        previous_limit = None
+    try:
+        switches = RuntimeSwitches()
+        switches.set_switch("MP", long_value)
+    finally:
+        if previous_limit is not None:
+            sys.set_int_max_str_digits(previous_limit)
+
+    assert switches.switches["MP"] == long_value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [1, 2, 2147483647, 2147483648, 10**400, 2.0, 2147483647.0, 1e308],
+)
 def test_runtime_switches_accept_valid_nn(value):
     switches = RuntimeSwitches()
 
@@ -297,15 +339,13 @@ def test_runtime_switches_accept_valid_nn(value):
         0,
         -1,
         2.5,
-        2147483648,
-        10**400,
-        1e308,
         float("nan"),
         float("inf"),
         float("-inf"),
         "3",
         None,
         True,
+        np.bool_(True),
     ],
 )
 def test_runtime_switches_reject_invalid_nn(value):

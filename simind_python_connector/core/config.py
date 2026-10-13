@@ -8,6 +8,7 @@
 ### Author: Sam Porter
 
 import math
+import numbers
 import os
 import re
 from pathlib import Path
@@ -1154,8 +1155,12 @@ class SimulationConfig:
         return filepath.with_suffix(".smc")
 
 
-# Conservative policy bound for the /NN value; not an engine-documented maximum.
-_NN_MAX = 2_147_483_647
+def _is_positive_integral(value):
+    """True for a finite real number whose value is an integer at least 1."""
+    try:
+        return value >= 1 and float(value).is_integer()
+    except (TypeError, ValueError, OverflowError):
+        return False
 
 
 def _validate_switch_value(switch, value):
@@ -1174,35 +1179,33 @@ def _validate_switch_value(switch, value):
                 raise ValueError(
                     f"MP must be an integer >= 1, got {original!r}"
                 ) from exc
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+        # numbers.Integral admits Python and NumPy integers but not NumPy
+        # booleans; a Python bool is excluded explicitly.
+        if isinstance(value, bool) or not isinstance(value, numbers.Real):
             raise ValueError(f"MP must be an integer >= 1, got {original!r}")
-        if isinstance(value, float):
-            is_integer = math.isfinite(value) and value.is_integer() and value >= 1
-        else:
+        if isinstance(value, numbers.Integral):
             is_integer = value >= 1
+        else:
+            is_integer = _is_positive_integral(value)
         if not is_integer:
             raise ValueError(f"MP must be an integer >= 1, got {original!r}")
         return
     if value is None or isinstance(value, bool):
         raise ValueError(f"Switch {switch} requires a value, got {value!r}")
     if switch == "NN":
-        # Compare ints before any float conversion so a huge int cannot
-        # overflow (or be rounded into range) on the way to a float.
-        if not isinstance(value, (int, float)):
-            raise ValueError(
-                f"NN must be an integer between 1 and {_NN_MAX}, got {value!r}"
-            )
-        if isinstance(value, int):
-            in_range = 1 <= value <= _NN_MAX
+        if not isinstance(value, numbers.Real):
+            raise ValueError(f"NN must be an integer >= 1, got {value!r}")
+        # Compare ints directly rather than routing them through float, which
+        # could overflow or round a huge value into range.
+        if isinstance(value, numbers.Integral):
+            valid = value >= 1
         else:
-            in_range = (
-                math.isfinite(value) and value.is_integer() and 1 <= value <= _NN_MAX
-            )
-        if not in_range:
-            # Never format the value: an out-of-range int may be enormous.
+            valid = _is_positive_integral(value)
+        if not valid:
+            # Never format the value: a huge out-of-range int could trip the
+            # interpreter's int-to-str digit limit while building the message.
             raise ValueError(
-                f"NN must be an integer between 1 and {_NN_MAX}; the value is "
-                "outside the supported range"
+                "NN must be an integer >= 1; the value is not a positive integer"
             )
 
 
