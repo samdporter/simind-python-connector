@@ -249,6 +249,9 @@ class _NativeSimindAdaptor(BaseConnector):
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.
         self._outputs = None
+        # Reject an invalid runtime operator before configure_phantom writes
+        # any source/density map over an earlier run's inputs.
+        self.python_connector._validate_runtime_operator(runtime_operator)
         if self._phantom is not None:
             if self._source is not None or self._mu_map is not None:
                 raise ValueError(

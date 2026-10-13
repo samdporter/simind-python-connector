@@ -1051,3 +1051,91 @@ def test_scoring_report_follows_phantom_mode_switches(
         ScoringRoutine.PENETRATE,
         ScoringRoutine.SCATTWIN,
     ]
+
+
+def _seed_adaptor_inputs(tmp_path: Path, prefix: str = "case01") -> dict[Path, bytes]:
+    paths = [
+        tmp_path / f"{prefix}_src.smi",
+        tmp_path / f"{prefix}_dns.dmi",
+        tmp_path / f"{prefix}.win",
+    ]
+    for path in paths:
+        path.write_bytes(f"existing:{path.name}".encode())
+    return {path: path.read_bytes() for path in paths}
+
+
+def _invalid_runtime_operator(
+    kind: str, tmp_path: Path
+) -> tuple[RuntimeOperator, type[Exception]]:
+    if kind == "switch":
+        return RuntimeOperator(switches={"NN": 0}), ValueError
+    if kind == "orbit":
+        orbit_dir = tmp_path / "orbit-dir"
+        orbit_dir.mkdir(exist_ok=True)
+        return RuntimeOperator(orbit_file=orbit_dir), ValueError
+    raise AssertionError(f"unknown runtime-operator kind {kind!r}")
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+@pytest.mark.parametrize("kind", ["switch", "orbit"])
+def test_adaptor_rejects_invalid_runtime_operator_before_writes(
+    cls, patch, image_cls, kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    seeded = _seed_adaptor_inputs(tmp_path)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append((args, kwargs)),
+    )
+    operator, expected = _invalid_runtime_operator(kind, tmp_path)
+
+    with pytest.raises(expected):
+        adaptor.run(runtime_operator=operator)
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_voxel_phantom_rejects_invalid_runtime_operator_before_writes(
+    cls, patch, image_cls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    activity = np.ones((2, 3, 4), dtype=np.float32)
+    adaptor.set_phantom(VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)))
+    seeded = _seed_adaptor_inputs(tmp_path)
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: None,
+    )
+
+    with pytest.raises(ValueError):
+        adaptor.run(runtime_operator=RuntimeOperator(switches={"NN": 0}))
+
+    for path, original in seeded.items():
+        assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_accepts_valid_runtime_operator(
+    cls, patch, image_cls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    outputs = adaptor.run(runtime_operator=RuntimeOperator(switches={"RR": 12345}))
+
+    assert outputs == {}

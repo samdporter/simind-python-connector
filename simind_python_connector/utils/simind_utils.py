@@ -3,6 +3,13 @@ import os
 from numbers import Number
 
 
+# SIMIND writes per-window output names as "{prefix}_tot_w{N}.a00" into a fixed
+# 60-character buffer. With the 47-character output-prefix cap, a two-digit N
+# keeps the longest name (47 + 10 + 2 = 59) inside the buffer; three-digit N
+# would overflow it, so the window count is capped at 99.
+MAX_ENERGY_WINDOWS = 99
+
+
 def validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
     """Normalise and validate energy-window arguments."""
     if isinstance(lower_bounds, Number):
@@ -21,6 +28,11 @@ def validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
     if not len(lower_bounds) == len(upper_bounds) == len(scatter_orders):
         raise ValueError(
             "lower_bounds, upper_bounds and scatter_orders must have same length"
+        )
+    if len(lower_bounds) > MAX_ENERGY_WINDOWS:
+        raise ValueError(
+            f"At most {MAX_ENERGY_WINDOWS} energy windows are supported, got "
+            f"{len(lower_bounds)}"
         )
 
     validated_lower = []

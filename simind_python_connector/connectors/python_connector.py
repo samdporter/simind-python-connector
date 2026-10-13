@@ -24,7 +24,10 @@ from simind_python_connector.converters.attenuation import (
 )
 from simind_python_connector.converters.simind_to_stir import SimindToStirConverter
 from simind_python_connector.core.config import RuntimeSwitches, SimulationConfig
-from simind_python_connector.core.executor import SimindExecutor
+from simind_python_connector.core.executor import (
+    _OUTPUT_PREFIX_MAX_LENGTH,
+    SimindExecutor,
+)
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
     MAX_SOURCE,
@@ -53,6 +56,14 @@ ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
 PathLike = Union[str, os.PathLike[str]]
 
 ZERO_HISTORY_WARNING_FRACTION = 0.01
+
+# The Interfile connector can only read the projection outputs of these
+# routines; LIST_MODE and FORCED_COLLIMATION write formats it cannot consume.
+_SUPPORTED_SCORING_ROUTINES = (
+    ScoringRoutine.DUMMY,
+    ScoringRoutine.SCATTWIN,
+    ScoringRoutine.PENETRATE,
+)
 
 _MU_MAP_TYPES = ("attenuation", "density", "hu")
 
@@ -168,7 +179,14 @@ class SimindPythonConnector(BaseConnector):
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_prefix = output_prefix
-        self.quantization_scale = float(quantization_scale)
+        try:
+            self.quantization_scale = float(quantization_scale)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                "quantization_scale must be in (0, 1]: the source maximum is "
+                f"scaled to {MAX_SOURCE} x quantization_scale before voxel-wise "
+                "rounding. Use the NN runtime switch for more statistics."
+            ) from exc
         if (
             not math.isfinite(self.quantization_scale)
             or self.quantization_scale <= 0
@@ -202,7 +220,9 @@ class SimindPythonConnector(BaseConnector):
         SIMIND lowercases file names on Unix, a dot would be taken for a file
         extension, and glob characters would break output discovery. SIMIND
         treats '-' as an argument delimiter, so a hyphenated prefix would
-        split the positional filename arguments and produce no output.
+        split the positional filename arguments and produce no output. The
+        length cap keeps the engine's output names inside its fixed
+        60-character buffer.
         """
         if not isinstance(prefix, str) or not re.fullmatch(
             OUTPUT_PREFIX_PATTERN, prefix
@@ -211,6 +231,11 @@ class SimindPythonConnector(BaseConnector):
                 "output_prefix must contain only lowercase letters, digits and "
                 f"'_', never '-' (SIMIND treats '-' as an argument delimiter), "
                 f"got {prefix!r}"
+            )
+        if len(prefix) > _OUTPUT_PREFIX_MAX_LENGTH:
+            raise ValueError(
+                f"output_prefix must be at most {_OUTPUT_PREFIX_MAX_LENGTH} "
+                f"characters, got {len(prefix)}"
             )
 
     @staticmethod
@@ -339,6 +364,7 @@ class SimindPythonConnector(BaseConnector):
         Returns:
             Tuple of (source_file_path, density_file_path).
         """
+        self._validate_output_prefix(self.output_prefix)
         if mu_map_type not in _MU_MAP_TYPES:
             raise ValueError(
                 f"mu_map_type must be one of {', '.join(_MU_MAP_TYPES)}, "
@@ -372,9 +398,14 @@ class SimindPythonConnector(BaseConnector):
             mu_map_type != "hu" and (mu_map_array < 0).any()
         ):
             raise ValueError("source and mu_map must be non-negative")
+        if source_array.size == 1:
+            raise ValueError(
+                "SIMIND does not support a 1x1x1 voxel phantom; pad it to at "
+                "least two voxels in one dimension."
+            )
 
         if scoring_routine is None:
-            routine = None
+            routine = self._config_scoring_routine()
         elif isinstance(scoring_routine, ScoringRoutine):
             routine = scoring_routine
         elif isinstance(scoring_routine, int) and not isinstance(scoring_routine, bool):
@@ -390,15 +421,34 @@ class SimindPythonConnector(BaseConnector):
                 "scoring_routine must be None, a ScoringRoutine or int, got "
                 f"{type(scoring_routine).__name__}"
             )
+        self._validate_supported_scoring_routine(routine)
         dim_z, dim_y, dim_x = (int(v) for v in source_array.shape)
 
+        # Quantize before mutating the configuration or writing inputs so a
+        # scale that erases the source cannot leave a half-written run behind.
+        source_max = float(source_array.max())
+        if source_max > 0:
+            source_scaled = (
+                source_array / source_max * (MAX_SOURCE * self.quantization_scale)
+            )
+        else:
+            source_scaled = np.zeros_like(source_array)
+        source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
+        if source_max > 0 and not source_u16.any():
+            raise ValueError(
+                "quantization_scale rounds the non-zero source to all zeros; "
+                "increase quantization_scale."
+            )
+
+        # Reset after validation so an invalid input cannot clear an earlier
+        # phantom's settings or its maps.
         self._reset_phantom_settings()
         cfg = self.config
         cfg.set_flag(5, True)
         cfg.set_value(15, -1)
         cfg.set_value(14, -1)
         cfg.set_flag(14, True)
-        if routine is not None:
+        if scoring_routine is not None:
             cfg.set_value(84, routine.value)
 
         # Index 2 and 5 are half-lengths along the slice axis; SIMIND derives
@@ -425,14 +475,6 @@ class SimindPythonConnector(BaseConnector):
         )
         self._phantom_extent_mm = (max(dim_x, dim_y) * pixel_mm, dim_z * slice_mm)
 
-        source_max = float(source_array.max())
-        if source_max > 0:
-            source_scaled = (
-                source_array / source_max * (MAX_SOURCE * self.quantization_scale)
-            )
-        else:
-            source_scaled = np.zeros_like(source_array)
-        source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
         total_activity = float(source_array.sum())
         if total_activity > 0:
             zero_history_fraction = (
@@ -504,6 +546,7 @@ class SimindPythonConnector(BaseConnector):
         configuration, except that an AnalyticPhantom sets it from whether it
         has an attenuator.
         """
+        self._validate_output_prefix(self.output_prefix)
         if isinstance(phantom, VoxelPhantom):
             self.configure_voxel_phantom(
                 source=phantom.activity_mbq,
@@ -661,6 +704,7 @@ class SimindPythonConnector(BaseConnector):
         scatter_orders: Union[int, list[int]],
     ) -> None:
         """Write a SIMIND window file for this connector run."""
+        self._validate_output_prefix(self.output_prefix)
         window_path = self.output_dir / f"{self.output_prefix}.win"
         create_window_file(
             lower_bounds,
@@ -670,12 +714,44 @@ class SimindPythonConnector(BaseConnector):
         )
         self._window_file_path = window_path
 
+    def _validate_runtime_operator(
+        self, runtime_operator: Optional[RuntimeOperator]
+    ) -> None:
+        """Validate a runtime operator without staging or writing any files.
+
+        Applies the same switch and orbit checks run() performs, so a caller
+        can reject an invalid operator before phantom inputs or a generated
+        acquisition orbit are overwritten.
+        """
+        if runtime_operator is None:
+            return
+
+        validation_switches = RuntimeSwitches()
+        for key, value in runtime_operator.switches.items():
+            validation_switches.set_switch(key, value)
+
+        orbit_file = runtime_operator.orbit_file
+        if orbit_file is None:
+            return
+        orbit_path = Path(orbit_file).expanduser().resolve()
+        if not orbit_path.exists():
+            raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+        if not orbit_path.is_file():
+            raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
+
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
     ) -> dict[str, ProjectionResult]:
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
         self._orbit_source_paths = ()
+
+        # Fail before writing a generated acquisition orbit, staging a supplied
+        # orbit, saving the config or clearing stale outputs when the run cannot
+        # be supported or the prefix is no longer safe.
+        self._validate_output_prefix(self.output_prefix)
+        self._config_scoring_routine()
+        self._validate_runtime_operator(runtime_operator)
 
         if self._phantom_mode is None:
             self.logger.warning(
@@ -741,7 +817,7 @@ class SimindPythonConnector(BaseConnector):
 
         # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin
         # routine); primary is then tot - sca.
-        if self._scoring_routine_value() == ScoringRoutine.SCATTWIN.value and (
+        if self._config_scoring_routine() is ScoringRoutine.SCATTWIN and (
             "CA" not in run_switches_holder.switches
         ):
             run_switches_holder.set_switch("CA", 1)
@@ -874,6 +950,8 @@ class SimindPythonConnector(BaseConnector):
         orbit_path = supplied_path.resolve()
         if not orbit_path.exists():
             raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+        if not orbit_path.is_file():
+            raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
         self._orbit_source_paths = (supplied_path, orbit_path)
 
         # SIMIND lowercases file names, so pass it a lower-case copy staged
@@ -1034,14 +1112,51 @@ class SimindPythonConnector(BaseConnector):
             stem = stem[len(self.output_prefix) :]
         return stem.lstrip("_") or header_path.stem
 
-    def _scoring_routine_value(self) -> Optional[int]:
+    @staticmethod
+    def _coerce_scoring_routine(value: Any, source: str) -> ScoringRoutine:
+        """Return a ScoringRoutine for a config value without rounding it."""
         try:
-            return int(round(float(self.config.get_value("scoring_routine"))))
-        except Exception:
-            return None
+            numeric = float(value)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                f"scoring_routine {value!r} from {source} is not a valid "
+                "ScoringRoutine value"
+            ) from exc
+        if not math.isfinite(numeric) or numeric != int(numeric):
+            raise ValueError(
+                f"scoring_routine {value!r} from {source} is not an integral "
+                "ScoringRoutine value"
+            )
+        try:
+            return ScoringRoutine(int(numeric))
+        except ValueError as exc:
+            raise ValueError(
+                f"scoring_routine {value!r} from {source} is not a valid "
+                "ScoringRoutine value"
+            ) from exc
+
+    @staticmethod
+    def _validate_supported_scoring_routine(routine: ScoringRoutine) -> None:
+        if routine not in _SUPPORTED_SCORING_ROUTINES:
+            raise ValueError(
+                f"scoring_routine {routine.name} ({routine.value}) is not "
+                "supported by the Interfile connector; supported routines are "
+                "DUMMY (0), SCATTWIN (1) and PENETRATE (4)."
+            )
+
+    def _config_scoring_routine(self) -> ScoringRoutine:
+        try:
+            value = self.config.get_value("scoring_routine")
+        except IndexError:
+            # A short config omits Index 84 entirely. SIMIND's serializer pads
+            # it to zero, so an absent routine is effectively DUMMY.
+            return ScoringRoutine.DUMMY
+        routine = self._coerce_scoring_routine(value, source="the configuration")
+        self._validate_supported_scoring_routine(routine)
+        return routine
 
     def _is_penetrate_routine(self) -> bool:
-        return self._scoring_routine_value() == ScoringRoutine.PENETRATE.value
+        return self._config_scoring_routine() is ScoringRoutine.PENETRATE
 
 
 __all__ = [
