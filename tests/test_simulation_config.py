@@ -2,6 +2,7 @@ import math
 import os
 import sys
 import tempfile
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -226,7 +227,18 @@ def test_config_validation():
 
 
 @pytest.mark.parametrize(
-    "value", [1, 2, 4, 2.0, "4", np.int32(4), np.int64(4), np.float64(4.0)]
+    "value",
+    [
+        1,
+        2,
+        4,
+        2.0,
+        "4",
+        np.int32(4),
+        np.int64(4),
+        np.float64(4.0),
+        Fraction(4, 1),
+    ],
 )
 def test_runtime_switches_accept_valid_mp_by_code(value):
     switches = RuntimeSwitches()
@@ -271,6 +283,7 @@ def test_runtime_switches_accept_large_integer_mp():
         "abc",
         "-2",
         "\u0664",
+        Fraction(18014398509481985, 2),
     ],
 )
 def test_runtime_switches_reject_invalid_mp_by_code(value):
@@ -323,7 +336,17 @@ def test_runtime_switches_accept_long_digit_string_mp_without_digit_cap():
 
 @pytest.mark.parametrize(
     "value",
-    [1, 2, 2147483647, 2147483648, 10**400, 2.0, 2147483647.0, 1e308],
+    [
+        1,
+        2,
+        2147483647,
+        2147483648,
+        10**400,
+        2.0,
+        2147483647.0,
+        1e308,
+        Fraction(2, 1),
+    ],
 )
 def test_runtime_switches_accept_valid_nn(value):
     switches = RuntimeSwitches()
@@ -339,6 +362,7 @@ def test_runtime_switches_accept_valid_nn(value):
         0,
         -1,
         2.5,
+        Fraction(18014398509481985, 2),
         float("nan"),
         float("inf"),
         float("-inf"),

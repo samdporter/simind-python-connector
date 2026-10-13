@@ -1156,9 +1156,14 @@ class SimulationConfig:
 
 
 def _is_positive_integral(value):
-    """True for a finite real number whose value is an integer at least 1."""
+    """True for a real number whose exact value is an integer at least 1.
+
+    ``value == int(value)`` is exact for Fraction, float and NumPy floats,
+    unlike a float round-trip which can lose precision and admit a value that
+    serialisation would then truncate.
+    """
     try:
-        return value >= 1 and float(value).is_integer()
+        return value >= 1 and value == int(value)
     except (TypeError, ValueError, OverflowError):
         return False
 
