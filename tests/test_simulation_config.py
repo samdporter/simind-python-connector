@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -271,3 +272,434 @@ def test_config_validation():
     # Note: validation returns True if no warnings, False if there are warnings
     result = config.validate_parameters()
     assert isinstance(result, bool)
+
+
+SHORT_SMC = (
+    "SMCV2\n"
+    "short-config\n"
+    "      1  # Basic Change data\n"
+    "1.0E+00\n"
+    "      1  # Simulation flags\n"
+    "T\n"
+    "      0  # Text Variables\n"
+    "      0  # Data files\n"
+)
+
+
+def _write_yaml(tmp_path, text):
+    path = tmp_path / "config.yaml"
+    path.write_text(text)
+    return path
+
+
+# ---------------------------------------------------------------------------
+# A) Fixed-width save
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_value, match",
+    [
+        (float("nan"), "finite"),
+        (float("inf"), "finite"),
+        (float("-inf"), "finite"),
+        (1e100, "12-character SMC field"),
+        (1e-300, "12-character SMC field"),
+    ],
+)
+def test_smc_save_rejects_unrepresentable_value_without_truncating(
+    tmp_path, bad_value, match
+):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = bad_value
+    destination = tmp_path / "guarded.smc"
+    destination.write_text("sentinel")
+
+    with pytest.raises(ValueError, match=match):
+        config.save_file(destination)
+
+    assert destination.read_text() == "sentinel"
+
+
+@pytest.mark.parametrize("bad_value", ["not-a-number", object(), 10**400])
+def test_smc_save_rejects_non_numeric_value_without_truncating(tmp_path, bad_value):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = bad_value
+    destination = tmp_path / "numeric_guard.smc"
+    destination.write_text("sentinel")
+
+    with pytest.raises(ValueError, match="index 1"):
+        config.save_file(destination)
+
+    assert destination.read_text() == "sentinel"
+
+
+def test_smc_save_does_not_create_destination_for_invalid_value(tmp_path):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = 1e100
+    destination = tmp_path / "never_written.smc"
+
+    with pytest.raises(ValueError, match="index 1"):
+        config.save_file(destination)
+
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize("bad_comment", [None, 7])
+def test_smc_save_rejects_non_string_comment_without_touching_destination(
+    tmp_path, bad_comment
+):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.set_comment(bad_comment)
+    destination = tmp_path / "bad_comment.smc"
+    destination.write_bytes(b"sentinel")
+
+    with pytest.raises(ValueError, match="comment"):
+        config.save_file(destination)
+
+    assert destination.read_bytes() == b"sentinel"
+
+
+def test_smc_save_rejects_null_flags_without_touching_destination(tmp_path):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.flags = None
+    destination = tmp_path / "bad_flags.smc"
+    destination.write_bytes(b"sentinel")
+
+    with pytest.raises(ValueError, match="flags"):
+        config.save_file(destination)
+
+    assert destination.read_bytes() == b"sentinel"
+
+
+@pytest.mark.parametrize("bad_value", [None, 5, object()])
+def test_smc_save_rejects_non_string_text_variable_without_touching_destination(
+    tmp_path, bad_value
+):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.text_variables[1] = bad_value
+    destination = tmp_path / "bad_text_variable.smc"
+    destination.write_bytes(b"sentinel")
+
+    with pytest.raises(ValueError, match=r"text variables.*slot 1"):
+        config.save_file(destination)
+
+    assert destination.read_bytes() == b"sentinel"
+
+
+def test_smc_save_rejects_null_data_file_without_touching_destination(tmp_path):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data_files[2] = None
+    destination = tmp_path / "bad_filepath.smc"
+    destination.write_bytes(b"sentinel")
+
+    with pytest.raises(ValueError, match=r"data files.*slot 2"):
+        config.save_file(destination)
+
+    assert destination.read_bytes() == b"sentinel"
+
+
+def test_smc_save_fills_missing_slots_with_none(tmp_path):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.text_variables = {2: "only"}
+    config.data_files = {3: "crystal.dat"}
+
+    lines = config.save_file(tmp_path / "gaps.smc").read_text().splitlines()
+
+    text_header = lines.index("2  # Text Variables")
+    assert lines[text_header + 1] == "none"
+    assert lines[text_header + 2] == "only"
+
+    file_header = lines.index("3 # Data files")
+    assert lines[file_header + 1] == "none".ljust(60)
+    assert lines[file_header + 2] == "none".ljust(60)
+    assert lines[file_header + 3] == "crystal.dat".ljust(60)
+
+
+def test_smc_save_writes_expected_bytes(tmp_path):
+    source = tmp_path / "short.smc"
+    source.write_text(SHORT_SMC)
+    config = SimulationConfig(source)
+
+    smc_path = config.save_file(tmp_path / "short_out.smc")
+
+    zero = " 0.00000E+00"
+    fields = [" 0.10000E+01"] + [zero] * 119
+    basic_lines = ["".join(fields[i : i + 5]) for i in range(0, 120, 5)]
+    comment = "short-config" + " " * (70 - len("short-config"))
+    expected = "".join(
+        [
+            "SMCV2\n",
+            f"{comment}\n",
+            "   120  # Basic Change data\n",
+            *[f"{line}\n" for line in basic_lines],
+            "1  # Simulation flags\n",
+            "T\n",
+            "0  # Text Variables\n",
+            "0 # Data files\n",
+        ]
+    )
+
+    assert smc_path.read_text() == expected
+
+
+def test_smc_save_writes_twelve_character_basic_fields(tmp_path):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = -0.0
+    config.data[1] = -12.5
+
+    smc_path = config.save_file(tmp_path / "widths.smc")
+    basic_lines = smc_path.read_text().splitlines()[3:27]
+
+    assert len(basic_lines) == 24
+    for line in basic_lines:
+        assert len(line) == 60
+        for start in range(0, 60, 12):
+            assert len(line[start : start + 12]) == 12
+
+
+def test_smc_round_trip_canonicalises_negative_zero_and_negatives(tmp_path):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = -0.0
+    config.data[1] = -12.5
+    config.data[2] = -0.0
+
+    restored = SimulationConfig(config.save_file(tmp_path / "negatives.smc"))
+
+    assert restored.data[0] == 0.0
+    assert math.copysign(1.0, restored.data[0]) == 1.0
+    assert restored.data[1] == pytest.approx(-12.5)
+    assert restored.data[2] == 0.0
+    assert math.copysign(1.0, restored.data[2]) == 1.0
+
+
+@pytest.mark.parametrize("value", [9.9999e98, 1e-100, 9.999999e-101])
+def test_smc_save_accepts_values_inside_exponent_boundary(tmp_path, value):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = value
+
+    restored = SimulationConfig(config.save_file(tmp_path / "boundary_ok.smc"))
+
+    assert restored.data[0] == pytest.approx(value)
+
+
+@pytest.mark.parametrize("value", [9.999999e98, 1e99, 1e-101])
+def test_smc_save_rejects_values_past_exponent_boundary(tmp_path, value):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = value
+
+    with pytest.raises(ValueError, match="index 1"):
+        config.save_file(tmp_path / "boundary_bad.smc")
+
+
+# ---------------------------------------------------------------------------
+# B) Short-config diagnostics
+# ---------------------------------------------------------------------------
+
+
+def test_short_smc_print_config_only_prints_present_named_entries(tmp_path, capsys):
+    path = tmp_path / "short.smc"
+    path.write_text(SHORT_SMC)
+    config = SimulationConfig(path)
+
+    config.print_config()
+
+    output = capsys.readouterr().out
+    assert "photon_energy" in output
+    assert "write_results_to_screen" in output
+    # flag 4 (include_collimator) and crystal thickness (index 9) are absent.
+    assert "include_collimator" not in output
+    assert "crystal_thickness" not in output
+
+
+def test_short_smc_validate_parameters_reports_missing_without_mutating(
+    tmp_path, capsys
+):
+    path = tmp_path / "short.smc"
+    path.write_text(SHORT_SMC)
+    config = SimulationConfig(path)
+    data_before = list(config.data)
+    flags_before = config.flags
+
+    result = config.validate_parameters()
+
+    output = capsys.readouterr().out
+    assert result is False
+    assert "not present" in output
+    assert config.data == data_before
+    assert config.flags == flags_before
+    assert config.data == [1.0]
+
+
+# ---------------------------------------------------------------------------
+# C) YAML robustness
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("text", ["", "- one\n- two\n", "just a scalar\n", "42\n"])
+def test_yaml_non_mapping_root_raises(tmp_path, text):
+    with pytest.raises(ValueError, match="root"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_empty_mapping_root_is_a_valid_defaults_config(tmp_path):
+    config = SimulationConfig(_write_yaml(tmp_path, "{}\n"))
+
+    assert config.get_value("photon_energy") == 0.0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "parameters: [1, 2, 3]\n",
+        "parameters:\n  source: [1]\n",
+        "parameters:\n  source:\n    photon_energy: 5\n",
+        "data_files: [1]\n",
+        "text_variables: [1]\n",
+        "other_parameters: [1]\n",
+    ],
+)
+def test_yaml_non_mapping_sections_groups_and_entries_raise(tmp_path, text):
+    with pytest.raises(ValueError, match="must be a mapping"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_scalar_data_file_entry_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match="data_files"):
+        SimulationConfig(_write_yaml(tmp_path, "data_files:\n  '1': x\n"))
+
+
+def test_yaml_quoted_indices_are_normalised(tmp_path):
+    text = (
+        "parameters:\n"
+        "  source:\n"
+        "    photon_energy:\n"
+        "      index: '1'\n"
+        "      value: 140.0\n"
+        "simulation_flags:\n"
+        "  write_results_to_screen:\n"
+        "    index: '1'\n"
+        "    enabled: true\n"
+        "data_files:\n"
+        "  phantom_soft_tissue:\n"
+        "    index: '1'\n"
+        "    filepath: my_phantom\n"
+        "text_variables:\n"
+        "  '1': first\n"
+        "  '3': third\n"
+        "other_parameters:\n"
+        "  '61': 5.0\n"
+        "other_flags:\n"
+        "  '16': true\n"
+    )
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.get_value("photon_energy") == pytest.approx(140.0)
+    assert config.get_flag("write_results_to_screen") is True
+    assert config.get_data_file("phantom_soft_tissue") == "my_phantom"
+    assert config.text_variables == {1: "first", 3: "third"}
+    assert config.data[60] == pytest.approx(5.0)
+    assert config.flags[15] == "T"
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    ["'0'", "-1", "true", "1.5", "'abc'", "lint"],
+)
+def test_yaml_invalid_indices_are_rejected(tmp_path, bad_key):
+    text = f"other_parameters:\n  {bad_key}: 1.0\n"
+
+    with pytest.raises(ValueError, match="positive integer"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_invalid_parameter_index_field_is_rejected(tmp_path):
+    text = (
+        "parameters:\n"
+        "  source:\n"
+        "    photon_energy:\n"
+        "      index: 0\n"
+        "      value: 140.0\n"
+    )
+
+    with pytest.raises(ValueError, match="positive integer"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "section, first, second",
+    [
+        ("text_variables", "'1': a", "1: b"),
+        ("other_parameters", "'61': 1.0", "61: 2.0"),
+        ("other_flags", "'16': true", "16: false"),
+    ],
+)
+def test_yaml_colliding_normalised_indices_are_rejected(
+    tmp_path, section, first, second
+):
+    text = f"{section}:\n  {first}\n  {second}\n"
+
+    with pytest.raises(ValueError, match="duplicate"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "parameters:\n"
+            "  source:\n"
+            "    photon_energy:\n"
+            "      index: 1\n"
+            "      value: 140.0\n"
+            "  phantom:\n"
+            "    phantom_type:\n"
+            "      index: 1\n"
+            "      value: 2.0\n"
+        ),
+        (
+            "data_files:\n"
+            "  phantom_soft_tissue:\n"
+            "    index: 1\n"
+            "    filepath: a\n"
+            "  phantom_bone:\n"
+            "    index: 1\n"
+            "    filepath: b\n"
+        ),
+        (
+            "simulation_flags:\n"
+            "  write_results_to_screen:\n"
+            "    index: 1\n"
+            "    enabled: true\n"
+            "  write_images_to_files:\n"
+            "    index: 1\n"
+            "    enabled: false\n"
+        ),
+    ],
+)
+def test_yaml_colliding_canonical_index_fields_are_rejected(tmp_path, text):
+    with pytest.raises(ValueError, match="duplicate index"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_sparse_text_variable_slots_are_retained(tmp_path):
+    config = SimulationConfig(_write_yaml(tmp_path, "text_variables:\n  '2': only\n"))
+
+    assert config.text_variables == {2: "only"}
+
+
+def test_yaml_canonical_data_file_entries_are_preserved(tmp_path):
+    text = (
+        "data_files:\n"
+        "  phantom_soft_tissue:\n"
+        "    index: 1\n"
+        "    filepath: phantom.dat\n"
+        "  crystal_material:\n"
+        "    index: 4\n"
+        "    filepath: crystal.dat\n"
+    )
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.get_data_file("phantom_soft_tissue") == "phantom.dat"
+    assert config.get_data_file("crystal_material") == "crystal.dat"
+    assert config.data_files[2] == "none"

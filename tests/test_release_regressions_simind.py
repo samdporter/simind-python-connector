@@ -15,7 +15,11 @@ import pytest
 
 from simind_python_connector import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.configs import get
-from simind_python_connector.core.types import ScoringRoutine, SimulationError
+from simind_python_connector.core.types import (
+    PenetrateOutputType,
+    ScoringRoutine,
+    SimulationError,
+)
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_simind]
@@ -141,3 +145,56 @@ def test_small_valid_phantom_produces_meaningful_primary_outputs(
     primary = outputs["pri_w1"].projection
     assert primary.sum() > 0
     assert primary.sum() <= total.sum() + 1e-6
+
+
+def _prefix_bytes(output_dir: Path, prefix: str) -> dict[str, bytes]:
+    return {
+        path.name: path.read_bytes()
+        for path in sorted(output_dir.iterdir())
+        if path.is_file()
+        and (path.stem == prefix or path.stem.startswith(f"{prefix}_"))
+    }
+
+
+def test_penetrate_prefix_isolation(tmp_path: Path) -> None:
+    """Overlapping prefixes must not claim each other's PENETRATE outputs."""
+    expected = {component.slug for component in PenetrateOutputType}
+
+    s = _connector(tmp_path, "s", scoring_routine=ScoringRoutine.PENETRATE)
+    s_outputs = s.run(RuntimeOperator(switches={"RR": 12345}))
+    assert set(s_outputs) == expected
+
+    s2 = _connector(tmp_path, "s2", scoring_routine=ScoringRoutine.PENETRATE)
+    s2_outputs = s2.run(RuntimeOperator(switches={"RR": 12345}))
+    assert set(s2_outputs) == expected
+    s2_bytes = _prefix_bytes(tmp_path, "s2")
+
+    sx = _connector(tmp_path, "sx", scoring_routine=ScoringRoutine.PENETRATE)
+    sx_outputs = sx.run(RuntimeOperator(switches={"RR": 12345}))
+    assert set(sx_outputs) == expected
+    sx_bytes = _prefix_bytes(tmp_path, "sx")
+
+    s_again = _connector(tmp_path, "s", scoring_routine=ScoringRoutine.PENETRATE)
+    s_again_outputs = s_again.run(RuntimeOperator(switches={"RR": 12345}))
+
+    assert set(s_again_outputs) == expected
+    assert _prefix_bytes(tmp_path, "s2") == s2_bytes
+    assert _prefix_bytes(tmp_path, "sx") == sx_bytes
+    found = s_again.converter.find_penetrate_h00_file("s", str(tmp_path))
+    assert Path(found).name == "s.h00"
+
+
+def test_saved_config_with_negative_zero_runs(tmp_path: Path) -> None:
+    connector = _connector(tmp_path, "negzero")
+    # Index 16 (source shift) is not overridden by configure_voxel_phantom.
+    connector.get_config().set_value(16, -0.0)
+
+    outputs = connector.run(RuntimeOperator(switches={"RR": 12345}))
+
+    _assert_readable(outputs)
+    basic_lines = (tmp_path / "negzero.smc").read_text().splitlines()[3:27]
+    assert len(basic_lines) == 24
+    for line in basic_lines:
+        assert len(line) == 60
+        for start in range(0, 60, 12):
+            assert len(line[start : start + 12]) == 12
