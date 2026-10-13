@@ -336,6 +336,31 @@ def test_valid_run_with_missing_spectra_text_in_comment_succeeds(tmp_path: Path)
 
 
 @pytest.mark.parametrize(
+    "comment",
+    [
+        "SIMIND error number: 0",
+        "SIMIND error number: 7",
+        "========================= Error",
+        "OTHER INFORMATION",
+    ],
+    ids=["error0", "error7", "divider", "banner"],
+)
+def test_valid_run_with_fatal_looking_comment_succeeds(tmp_path: Path, comment: str):
+    """An echoed comment that spells a diagnostic cannot fail a valid run.
+
+    SIMIND echoes the configured comment verbatim under OTHER INFORMATION, so
+    the executor must exclude only that echoed line from its error scans while
+    still detecting the same text elsewhere.
+    """
+    connector = _connector(tmp_path, "fatalc")
+    connector.get_config().set_comment(comment)
+
+    outputs = connector.run(RuntimeOperator(timeout=RUN_TIMEOUT))
+
+    _assert_readable(outputs)
+
+
+@pytest.mark.parametrize(
     "routine",
     [ScoringRoutine.DUMMY, ScoringRoutine.SCATTWIN, ScoringRoutine.PENETRATE],
     ids=lambda routine: routine.name,

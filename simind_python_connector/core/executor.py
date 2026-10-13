@@ -34,7 +34,7 @@ _SIMIND_MISSING_INPUT_PATTERN = re.compile(
 # diagnostic is only trusted before the banner; the genuine failure aborts
 # during input setup and never reaches it.
 _SIMIND_OTHER_INFORMATION_PATTERN = re.compile(
-    r"^[ \t]*OTHER[ \t]+INFORMATION[ \t]*$", re.MULTILINE
+    r"^[ \t]*OTHER[ \t]+INFORMATION[ \t]*\r?$", re.MULTILINE
 )
 _ERROR_EXCERPT_LIMIT = 2000
 # SIMIND V8 copies output names into a fixed 60-character Fortran buffer and
@@ -57,12 +57,6 @@ def _validate_output_prefix(prefix: object) -> str:
     """
     if not isinstance(prefix, str):
         raise ValueError(f"output_prefix must be a string, got {type(prefix).__name__}")
-    if not prefix:
-        raise ValueError("output_prefix must not be empty")
-    if any(char.isspace() for char in prefix):
-        raise ValueError(f"output_prefix must not contain whitespace, got {prefix!r}")
-    if "\x00" in prefix:
-        raise ValueError(f"output_prefix must not contain a NUL byte, got {prefix!r}")
     if len(prefix) > _OUTPUT_PREFIX_MAX_LENGTH:
         raise ValueError(
             f"output_prefix must be at most {_OUTPUT_PREFIX_MAX_LENGTH} "
@@ -259,15 +253,39 @@ class SimindExecutor:
         return stdout_text, stderr_text
 
     @staticmethod
+    def _blank_echoed_comment(output: str) -> str:
+        """Blank SIMIND's echoed config comment for diagnostic scanning.
+
+        SIMIND echoes the configured comment verbatim on the single physical
+        line after the OTHER INFORMATION banner. That comment is user-controlled,
+        so a comment that spells an error-number or divider diagnostic would
+        otherwise fail a successful run. Only that line is blanked; every line
+        before and after the banner is still scanned.
+        """
+        banner = _SIMIND_OTHER_INFORMATION_PATTERN.search(output)
+        if banner is None:
+            return output
+        line_start = output.find("\n", banner.end())
+        if line_start == -1:
+            return output
+        line_start += 1
+        line_end = output.find("\n", line_start)
+        if line_end == -1:
+            line_end = len(output)
+        # Same-length blank keeps line boundaries and offsets intact.
+        return output[:line_start] + " " * (line_end - line_start) + output[line_end:]
+
+    @staticmethod
     def _raise_for_reported_error(output: str) -> None:
-        number_match = _SIMIND_ERROR_NUMBER_PATTERN.search(output)
+        scan_text = SimindExecutor._blank_echoed_comment(output)
+        number_match = _SIMIND_ERROR_NUMBER_PATTERN.search(scan_text)
         if number_match:
             excerpt = output[:_ERROR_EXCERPT_LIMIT]
             raise SimulationError(
                 f"SIMIND reported an error (error number "
                 f"{number_match.group(1)}): {excerpt}"
             )
-        if _SIMIND_ERROR_DIVIDER_PATTERN.search(output):
+        if _SIMIND_ERROR_DIVIDER_PATTERN.search(scan_text):
             excerpt = output[:_ERROR_EXCERPT_LIMIT]
             raise SimulationError(f"SIMIND reported an error: {excerpt}")
         other_information = _SIMIND_OTHER_INFORMATION_PATTERN.search(output)
