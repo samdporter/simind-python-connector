@@ -1,6 +1,7 @@
 import math
 import os
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -334,6 +335,18 @@ def test_smc_save_rejects_non_numeric_value_without_truncating(tmp_path, bad_val
     assert destination.read_text() == "sentinel"
 
 
+def test_smc_save_rejects_underflowing_nonzero_value_without_truncating(tmp_path):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = Decimal("1e-400")
+    destination = tmp_path / "underflow_guard.smc"
+    destination.write_text("sentinel")
+
+    with pytest.raises(ValueError, match="12-character SMC field"):
+        config.save_file(destination)
+
+    assert destination.read_text() == "sentinel"
+
+
 def test_smc_save_does_not_create_destination_for_invalid_value(tmp_path):
     config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
     config.data[0] = 1e100
@@ -640,6 +653,20 @@ def test_yaml_colliding_normalised_indices_are_rejected(
     text = f"{section}:\n  {first}\n  {second}\n"
 
     with pytest.raises(ValueError, match="duplicate"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_identical_duplicate_keys_are_rejected(tmp_path):
+    text = "other_parameters:\n  61: 1.0\n  61: 2.0\n"
+
+    with pytest.raises(yaml.YAMLError, match="duplicate key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_normalised_index_collision_is_rejected(tmp_path):
+    text = "other_parameters:\n  '61': 1.0\n  61: 2.0\n"
+
+    with pytest.raises(ValueError, match="duplicate index"):
         SimulationConfig(_write_yaml(tmp_path, text))
 
 
