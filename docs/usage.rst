@@ -55,12 +55,17 @@ be read as a file extension, and a hyphen is an argument delimiter: a prefix
 containing ``-`` splits SIMIND's filename arguments and the run silently
 produces no output. The prefix is also capped at 47 characters: SIMIND V8
 copies output names into a fixed 60-character buffer and silently truncates
-longer ones, dropping the ``.h00``/``.a00`` suffix so no readable SPECT header
-remains. The longest engine-written name adds a ``_tot_w{N}.a00`` suffix (10
-characters plus the digits of the window number), so the cap keeps a
-47-character prefix plus a two-digit window number at 59 of the 60 available
-characters. To stay inside that budget, at most 99 energy windows are accepted;
-a larger set raises ``ValueError``.
+longer ones, dropping the final ``.h00``/``.a00`` character so no readable
+SPECT header remains. Measured on a real SIMIND V8.0 run, 49 characters is the
+exact maximum prefix for ``{prefix}_tot_w1.a00``; a 50-character prefix
+truncates it. The 47-character cap is a conservative policy with a small margin
+below that measured boundary, not an engine-measured limit. The longest
+engine-written name adds a ``_tot_w{N}.a00`` suffix (10 characters plus the
+digits of the window number), and when every scatter order is below 1 the
+window file gains the required extra line, which adds one more output set, so
+the suffix can reach 13 characters and a 47-character prefix plus that suffix
+uses the 60-character buffer exactly. To stay inside that budget, at most 99
+energy windows are accepted; a larger set raises ``ValueError``.
 
 ``RuntimeOperator`` carries per-run switches, an orbit file and an optional
 timeout in seconds. A run that exceeds the timeout stops and raises
@@ -76,7 +81,11 @@ at an existing regular file; a directory is rejected with ``ValueError``.
     )
 
 ``MP`` (the MPI process count) must be an integer >= 1; ``MP=0`` is rejected
-instead of silently running a single process.
+instead of silently running a single process. ``MP`` accepts positive integers
+(including NumPy integers), integral floats and ASCII digit strings. ``NN``
+accepts positive integers and integral floats; an integral-float ``NN`` value
+is written to the command line as an integer (for example ``/NN:2``) while the
+switch value you stored is unchanged.
 
 .. code-block:: python
 
@@ -85,9 +94,21 @@ instead of silently running a single process.
 Input Validation
 ----------------
 
-Validation runs before any input file is written or SIMIND is started, so an
-unsupported setup fails with a clear message instead of an obscure one after
-the run.
+Validation runs where it can still do good. ``output_prefix`` is checked when
+the connector is constructed, and ``run()`` re-checks the output directory, the
+prefix and the scoring routine before it saves the configuration or clears
+stale outputs. An invalid ``RuntimeOperator`` (timeout, switch values,
+``orbit_file``) is rejected before the orbit file is staged and before prior
+outputs are removed. ``configure_voxel_phantom`` checks the arrays, the scoring
+routine and ``quantization_scale`` before the configuration is updated or the
+source and density inputs are written, and energy-window bounds and scatter
+orders are validated before the window file is written. The executor then
+re-validates the output prefix and every runtime switch value — not only ``MP``
+and ``NN`` — immediately before it builds the SIMIND command, raising
+``SimulationError`` for an invalid value. An unsupported setup therefore fails
+with a clear message instead of an obscure one after the run; failures that
+only SIMIND can detect (a missing isotope or spectra input, for example) still
+surface during the run as ``SimulationError``.
 
 Only the scoring routines DUMMY (0), SCATTWIN (1) and PENETRATE (4) are
 supported by the Interfile connector. LIST_MODE (2) and FORCED_COLLIMATION (3)
@@ -101,7 +122,12 @@ increase ``quantization_scale`` so the source survives quantization.
 
 Filesystem failures in connector-managed steps (writing the source, density
 and window inputs, staging an orbit file, clearing stale outputs, converting
-headers) raise ``OutputError`` rather than a bare ``OSError``.
+headers) raise ``OutputError`` rather than a bare ``OSError``. ``OutputError``
+is itself an ``OSError``, so existing ``except OSError`` handlers keep
+catching these failures. Missing SPECT or PENETRATE output headers raise a
+``FileNotFoundError`` (an ``OutputError`` too), as they did before, and
+missing inputs such as the configuration file or the orbit file still raise
+``FileNotFoundError``.
 
 Adaptor Workflows
 -----------------

@@ -7,7 +7,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-1.1.2 - 2026-10-12
+1.1.2 - Unreleased
 ------------------
 
 Added
@@ -22,10 +22,14 @@ Changed
 - Python >=3.10 is now required (``requires-python`` and the
   metadata/classifiers are updated accordingly); previously the metadata
   claimed 3.9+.
-- NumPy is capped at ``>=1.20.0,<2.0`` package-wide: the STIR and SIRF
-  bindings are compiled against NumPy 1.x and crash with NumPy 2.
-- PENETRATE per-component fallback diagnostics are logged at DEBUG instead of
-  WARNING: quiet by default, the detail is retained at DEBUG.
+- NumPy is capped at ``>=1.20.0,<2.0`` package-wide: this cap is a
+  binary-ABI / backend-compatibility guard for the legacy 1.1.x line, because
+  the STIR and SIRF bindings are compiled against NumPy 1.x and crash with
+  NumPy 2. It is not a Python-version constraint.
+- PENETRATE per-component fallback diagnostics distinguish a missing backend
+  from a real failure: falling back because the backend is not installed is
+  logged at DEBUG (quiet by default), while a load failure in an installed
+  backend is logged at WARNING.
 - The duplicate single-window scatter file was investigated on a real SIMIND
   V8.0 run: the extra ``.win`` line is REQUIRED (without it SIMIND emits no
   scatter/air outputs), so the behaviour is intentionally retained and is now
@@ -37,15 +41,27 @@ Changed
   FORCED_COLLIMATION (3) are rejected at preflight. A literal 1x1x1 phantom is
   rejected (pad to at least two voxels in one dimension), as is a non-zero
   source that ``quantization_scale`` rounds to all zeros. ``output_prefix`` is
-  capped at 47 characters and at most 99 energy windows are accepted (SIMIND
+  capped at 47 characters and at most 99 energy windows are accepted: SIMIND
   V8 copies output names into a fixed 60-character buffer and silently
-  truncates longer ones, dropping the ``.h00``/``.a00`` suffix; the longest
-  per-window name adds ``_tot_w{N}.a00``, so the cap keeps a 47-character
-  prefix plus a two-digit window number at 59 of 60 characters), ``NN`` must be
-  within 1..2,147,483,647, ``MP`` takes integer or ASCII-digit-string forms
-  only, and ``orbit_file`` must be a regular file.
+  truncates longer ones, dropping the final ``.h00``/``.a00`` character so no
+  readable SPECT header remains. Measured on a real SIMIND V8.0 run, 49
+  characters is the exact maximum prefix for ``{prefix}_tot_w1.a00`` (50
+  truncates it); the 47-character cap is a conservative policy with a small
+  margin below that boundary, not an engine-measured limit. The longest
+  per-window name adds ``_tot_w{N}.a00``, and when every scatter order is
+  below 1 the connector writes the required extra window line, which adds one
+  more output set, so with the 99-window maximum the suffix is 13 characters
+  and 47 + 13 = 60 fills the buffer exactly. ``MP`` takes positive integers
+  (including NumPy integers), integral floats and ASCII digit strings; ``NN``
+  takes positive integers and integral floats, and an integral-float ``NN`` is
+  written to the command line as an integer (for example ``/NN:2``) while the
+  stored switch value is unchanged. ``orbit_file`` must be a regular file.
   Index 26 (voxel history) and the ``/NN`` *simulation semantics* are
   unchanged — only validation was added.
+- The direct executor validates every runtime switch value, not only ``MP``
+  and ``NN``, before it builds the SIMIND command, so a caller driving
+  ``SimindExecutor`` directly gets the same checks the connector applies;
+  invalid values raise ``SimulationError``.
 - ``output_prefix`` is validated at construction and again before every
   connector-managed write or cleanup (source/density files, the window file,
   the saved ``.smc``, stale-output removal and orbit staging), so an over-long
@@ -53,8 +69,11 @@ Changed
   ``{prefix}_tot_w1.hs`` before it is rejected.
 - Filesystem failures in connector-managed steps (writing the source, density
   and window inputs, staging an orbit file, clearing stale outputs,
-  converting headers) raise ``OutputError`` instead of a bare
-  ``OSError``/``FileNotFoundError``.
+  converting headers) raise ``OutputError``. ``OutputError`` is also an
+  ``OSError``, so callers written against the pre-1.1.2 bare ``OSError``
+  raises keep catching these failures. Missing SPECT/PENETRATE headers still
+  raise ``FileNotFoundError`` (the error is both), and missing inputs such as
+  the configuration file or the orbit file still raise ``FileNotFoundError``.
 
 Fixed
 ~~~~~
@@ -75,9 +94,18 @@ Fixed
 - ``find_penetrate_h00_file`` matches only the exact prefix name or an
   underscore-boundary suffix, so overlapping prefixes such as ``s`` and ``s2``
   no longer claim each other's ``.h00`` output.
-- Reflected and unary arithmetic on the STIR wrappers (``2.0 + img``,
-  ``2.0 - img``, ``2.0 * img``, ``2.0 / img``, ``-img``, and image left-hand
-  operands) no longer raises ``TypeError``.
+- A failure while writing a PENETRATE component header now propagates as an
+  ``OutputError`` instead of being swallowed, which used to drop that
+  component with only a log line; the temporary ``.hs`` template is removed
+  on every path, and a cleanup failure there logs a WARNING instead of
+  masking the original error.
+- Reflected and unary arithmetic on the STIR wrappers no longer raises
+  ``TypeError``: scalar-on-the-left operators (``2.0 + img``, ``2.0 - img``,
+  ``2.0 * img``, ``2.0 / img``), unary ``-img``, and a native STIR object on
+  the left of ``+`` or ``*`` (``native + image``, ``native * image``, and
+  likewise for acquisition data) all work, because STIR's own dunders return
+  ``NotImplemented`` for the wrapper and Python falls back to the wrapper's
+  reflected operator. Other left-hand forms are not claimed.
 - ``get_primary_output()`` raises a clear ``NotImplementedError`` instead of
   ``KeyError``, because SIMIND emits no standalone primary projection; before
   a successful run it still raises ``RuntimeError``.
@@ -86,8 +114,15 @@ Fixed
   truncating the destination, rejects values that cannot fit a 12-character
   SMC field (NaN/Inf, oversized exponents) and canonicalises ``-0.0``,
   ``print_config`` and ``validate_parameters`` handle configs shorter than the
-  index tables, and YAML import validates that sections are mappings and
-  accepts quoted integer indices.
+  index tables, and YAML import validates that sections are mappings, accepts
+  quoted integer indices and rejects duplicate indices after normalisation
+  within each section it reads (``parameters``, ``simulation_flags``,
+  ``data_files``, ``text_variables``, ``other_parameters``, ``other_flags``).
+- The scoring routine is read without rounding: a fractional or non-finite
+  Index 84 raises ``ValueError`` instead of being rounded, a configuration
+  too short to contain Index 84 reads as DUMMY, and a scoring value or
+  ``quantization_scale`` that overflows float coercion raises ``ValueError``
+  instead of ``OverflowError``.
 - ``stir.extra`` is preferred over the deprecated ``stirextra``; the legacy
   name is kept as a fallback for older STIR installs.
 - ``MP`` (MPI process count) must be an integer >= 1; ``MP=0`` previously ran

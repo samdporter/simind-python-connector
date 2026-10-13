@@ -16,7 +16,8 @@ Dependency Matrix
    * - ``SimindPythonConnector``
      - SIMIND executable on ``PATH`` (no SIRF/STIR/PyTomography requirement)
    * - ``StirSimindAdaptor``
-     - STIR Python (``stir`` and ``stirextra``)
+     - STIR Python (``stir`` plus ``stir.extra``, with the legacy ``stirextra``
+       module as a fallback)
    * - ``SirfSimindAdaptor``
      - SIRF (``sirf.STIR``)
    * - ``PyTomographySimindAdaptor``
