@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import sys
 import tempfile
 from decimal import Decimal
 from fractions import Fraction
@@ -753,6 +754,35 @@ def test_python_connector_split_mpi_rejects_unrepresentable_projection_count(
     with pytest.raises(ValueError, match="number of projections"):
         connector.run()
 
+    assert launched == []
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_split_mpi_reports_huge_count_without_digit_limit(
+    tmp_path: Path,
+):
+    if not hasattr(sys, "set_int_max_str_digits"):
+        pytest.skip("interpreter has no int-string digit limit")
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    original_limit = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(640)
+        # 701 decimal digits: repr()/str() of this value would themselves raise
+        # the digit-limit ValueError if the error message interpolated it.
+        connector.add_config_value(29, 10**700)
+        connector.set_mpi(4, split_projections=True)
+        launched: list[object] = []
+        connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+        with pytest.raises(ValueError, match="number of projections") as excinfo:
+            connector.run()
+    finally:
+        sys.set_int_max_str_digits(original_limit)
+
+    assert "digit limit" not in str(excinfo.value).lower()
     assert launched == []
     assert not (tmp_path / "case01.smc").exists()
 
