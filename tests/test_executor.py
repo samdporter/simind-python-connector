@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -355,6 +356,33 @@ def test_executor_wraps_digit_string_count_conversion_failure(
         sys.set_int_max_str_digits(640)
         with pytest.raises(SimulationError, match="mpi_processes"):
             SimindExecutor().run_simulation("case01", mpi_processes="9" * 700)
+    finally:
+        sys.set_int_max_str_digits(previous_limit)
+
+    assert calls == []
+
+
+def test_executor_huge_integral_fraction_count_does_not_leak_overflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An integral Fraction beyond the float range must not leak the
+    # OverflowError that float coercion would raise; conversion failures become
+    # SimulationError. The low digit limit makes the serialisation failure
+    # deterministic instead of depending on the interpreter default.
+    if not (
+        hasattr(sys, "set_int_max_str_digits")
+        and hasattr(sys, "get_int_max_str_digits")
+    ):
+        pytest.skip("sys.set_int_max_str_digits is unavailable")
+
+    calls = _capture_run(monkeypatch)
+    previous_limit = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(640)
+        with pytest.raises(SimulationError, match="mpi_processes"):
+            SimindExecutor().run_simulation(
+                "case01", mpi_processes=Fraction(10**700, 1)
+            )
     finally:
         sys.set_int_max_str_digits(previous_limit)
 
