@@ -172,29 +172,21 @@ class StirImageData(ImageDataInterface):
             return StirImageData(self._obj / float(other))
 
     def __radd__(self, other):
-        if isinstance(other, StirImageData):
-            return other + self
         if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
             return StirImageData(other) + self
         return self + float(other)
 
     def __rsub__(self, other):
-        if isinstance(other, StirImageData):
-            return other - self
         if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
             return StirImageData(other) - self
         return (self * -1.0) + float(other)
 
     def __rmul__(self, other):
-        if isinstance(other, StirImageData):
-            return other * self
         if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
             return StirImageData(other) * self
         return self * float(other)
 
     def __rtruediv__(self, other):
-        if isinstance(other, StirImageData):
-            return other / self
         if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
             return StirImageData(other) / self
         return self.get_uniform_copy(float(other)) / self
@@ -382,29 +374,21 @@ class StirAcquisitionData(AcquisitionDataInterface):
             return StirAcquisitionData(self._obj / float(other))
 
     def __radd__(self, other):
-        if isinstance(other, StirAcquisitionData):
-            return other + self
         if isinstance(other, stir.ProjData):
             return StirAcquisitionData(other) + self
         return self + float(other)
 
     def __rsub__(self, other):
-        if isinstance(other, StirAcquisitionData):
-            return other - self
         if isinstance(other, stir.ProjData):
             return StirAcquisitionData(other) - self
         return (self * -1.0) + float(other)
 
     def __rmul__(self, other):
-        if isinstance(other, StirAcquisitionData):
-            return other * self
         if isinstance(other, stir.ProjData):
             return StirAcquisitionData(other) * self
         return self * float(other)
 
     def __rtruediv__(self, other):
-        if isinstance(other, StirAcquisitionData):
-            return other / self
         if isinstance(other, stir.ProjData):
             return StirAcquisitionData(other) / self
         return self.get_uniform_copy(float(other)) / self

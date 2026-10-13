@@ -144,3 +144,20 @@ def test_acquisition_forward_operators_agree():
     np.testing.assert_allclose(
         (acquisition + other).as_array(), before + before, rtol=1e-5
     )
+
+
+def test_get_array_matches_stir_extra_conversion():
+    from simind_python_connector.utils import get_array
+    from simind_python_connector.utils.import_helpers import _import_stir_extra
+
+    extra = _import_stir_extra()
+
+    image = _make_image()
+    np.testing.assert_array_equal(
+        get_array(image.native_object), extra.to_numpy(image.native_object)
+    )
+
+    acquisition = _make_acquisition()
+    np.testing.assert_array_equal(
+        get_array(acquisition.native_object), extra.to_numpy(acquisition.native_object)
+    )
