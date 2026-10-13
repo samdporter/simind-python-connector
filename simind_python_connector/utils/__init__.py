@@ -25,7 +25,7 @@ def get_array(obj):
 
     This function works with both SIRF and STIR Python backends:
     - SIRF: Uses .asarray() or .as_array()
-    - STIR: Uses stirextra.to_numpy()
+    - STIR: Uses stir.extra.to_numpy() (legacy stirextra fallback)
     - Backend wrappers: Uses .as_array() method
 
     Args:
@@ -52,9 +52,9 @@ def get_array(obj):
 
     # Try STIR native conversion
     with contextlib.suppress(ImportError, TypeError, AttributeError):
-        import stirextra
+        from .import_helpers import _import_stir_extra
 
-        return stirextra.to_numpy(obj)
+        return _import_stir_extra().to_numpy(obj)
     raise AttributeError(
         f"Cannot convert {type(obj)} to numpy array. "
         f"Object must have asarray(), as_array() method, or be a STIR object."

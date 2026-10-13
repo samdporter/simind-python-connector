@@ -127,12 +127,6 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
             data_path=tmp_path / "case01_sca_w1.a00",
             metadata={"component": "sca_w1"},
         ),
-        "pri_w1": ProjectionResult(
-            projection=projection + 2.0,
-            header_path=tmp_path / "case01_pri_w1.hs",
-            data_path=tmp_path / "case01_pri_w1.a00",
-            metadata={"component": "pri_w1"},
-        ),
         "air_w1": ProjectionResult(
             projection=projection + 3.0,
             header_path=tmp_path / "case01_air_w1.hs",
@@ -175,8 +169,55 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
 
     assert torch.equal(connector.get_total_output(window=1), outputs["tot_w1"])
     assert torch.equal(connector.get_scatter_output(window=1), outputs["sca_w1"])
-    assert torch.equal(connector.get_primary_output(window=1), outputs["pri_w1"])
+    assert "pri_w1" not in outputs
+    with pytest.raises(NotImplementedError, match="standalone primary projection"):
+        connector.get_primary_output(window=1)
+    assert connector.get_outputs() is outputs
+    assert set(connector.get_outputs()) == {"tot_w1", "sca_w1", "air_w1"}
     assert torch.equal(connector.get_air_output(window=1), outputs["air_w1"])
+
+
+@pytest.mark.unit
+def test_pytomography_primary_output_requires_a_successful_run(tmp_path: Path):
+    connector = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = torch.zeros((4, 3, 2), dtype=torch.float32)
+    connector.set_source(source)
+    connector.set_mu_map(torch.zeros_like(source))
+    connector.set_energy_windows([126], [154], [0])
+
+    with pytest.raises(RuntimeError, match="Run the connector first"):
+        connector.get_primary_output(window=1)
+
+    def failing_run(runtime_operator=None):
+        raise RuntimeError("simulated failure")
+
+    connector.python_connector.run = failing_run  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError, match="simulated failure"):
+        connector.run()
+
+    with pytest.raises(RuntimeError, match="Run the connector first"):
+        connector.get_primary_output(window=1)
+
+
+@pytest.mark.unit
+def test_pytomography_primary_output_unsupported_after_populated_run(tmp_path: Path):
+    connector = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    populated = {"tot_w1": "projection", "sca_w1": "scatter", "air_w1": "air"}
+    connector._outputs = dict(populated)  # type: ignore[assignment]
+
+    with pytest.raises(NotImplementedError, match="standalone primary projection"):
+        connector.get_primary_output(window=1)
+
+    assert connector._outputs == populated
+    assert "pri_w1" not in connector._outputs
 
 
 @pytest.mark.unit

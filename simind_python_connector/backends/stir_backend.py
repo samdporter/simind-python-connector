@@ -12,7 +12,10 @@ import numpy as np
 
 try:
     import stir
-    import stirextra
+
+    from ..utils.import_helpers import _import_stir_extra
+
+    _import_stir_extra()
 
     STIR_AVAILABLE = True
 except ImportError:
@@ -92,7 +95,7 @@ class StirImageData(ImageDataInterface):
     def dimensions(self) -> Tuple[int, int, int]:
         """Get dimensions as (z, y, x)."""
         # Extract from numpy array shape
-        arr = stirextra.to_numpy(self._obj)
+        arr = _import_stir_extra().to_numpy(self._obj)
         # STIR arrays are typically (z, y, x)
         return arr.shape
 
@@ -104,8 +107,8 @@ class StirImageData(ImageDataInterface):
         return (grid_spacing[1], grid_spacing[2], grid_spacing[3])
 
     def as_array(self) -> np.ndarray:
-        """Convert to numpy array using stirextra."""
-        return stirextra.to_numpy(self._obj)
+        """Convert to numpy array using stir.extra."""
+        return _import_stir_extra().to_numpy(self._obj)
 
     def sum(self) -> float:
         """Sum all values."""
@@ -169,19 +172,35 @@ class StirImageData(ImageDataInterface):
             return StirImageData(self._obj / float(other))
 
     def __radd__(self, other):
-        return StirImageData(float(other) + self._obj)
+        if isinstance(other, StirImageData):
+            return other + self
+        if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
+            return StirImageData(other) + self
+        return self + float(other)
 
     def __rsub__(self, other):
-        return StirImageData(float(other) - self._obj)
+        if isinstance(other, StirImageData):
+            return other - self
+        if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
+            return StirImageData(other) - self
+        return (self * -1.0) + float(other)
 
     def __rmul__(self, other):
-        return StirImageData(float(other) * self._obj)
+        if isinstance(other, StirImageData):
+            return other * self
+        if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
+            return StirImageData(other) * self
+        return self * float(other)
 
     def __rtruediv__(self, other):
-        return StirImageData(float(other) / self._obj)
+        if isinstance(other, StirImageData):
+            return other / self
+        if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
+            return StirImageData(other) / self
+        return self.get_uniform_copy(float(other)) / self
 
     def __neg__(self):
-        return StirImageData(-self._obj)
+        return self * -1.0
 
     def sapyb(self, a: float, y: "StirImageData", b: float) -> "StirImageData":
         """Compute self * a + y * b (element-wise), modifying self in place.
@@ -281,12 +300,12 @@ class StirAcquisitionData(AcquisitionDataInterface):
     def dimensions(self) -> Tuple:
         """Get dimensions."""
         # Extract from numpy array
-        arr = stirextra.to_numpy(self._obj)
+        arr = _import_stir_extra().to_numpy(self._obj)
         return arr.shape
 
     def as_array(self) -> np.ndarray:
-        """Convert to numpy array using stirextra."""
-        return stirextra.to_numpy(self._obj)
+        """Convert to numpy array using stir.extra."""
+        return _import_stir_extra().to_numpy(self._obj)
 
     def sum(self) -> float:
         """Sum all values."""
@@ -363,19 +382,35 @@ class StirAcquisitionData(AcquisitionDataInterface):
             return StirAcquisitionData(self._obj / float(other))
 
     def __radd__(self, other):
-        return StirAcquisitionData(float(other) + self._obj)
+        if isinstance(other, StirAcquisitionData):
+            return other + self
+        if isinstance(other, stir.ProjData):
+            return StirAcquisitionData(other) + self
+        return self + float(other)
 
     def __rsub__(self, other):
-        return StirAcquisitionData(float(other) - self._obj)
+        if isinstance(other, StirAcquisitionData):
+            return other - self
+        if isinstance(other, stir.ProjData):
+            return StirAcquisitionData(other) - self
+        return (self * -1.0) + float(other)
 
     def __rmul__(self, other):
-        return StirAcquisitionData(float(other) * self._obj)
+        if isinstance(other, StirAcquisitionData):
+            return other * self
+        if isinstance(other, stir.ProjData):
+            return StirAcquisitionData(other) * self
+        return self * float(other)
 
     def __rtruediv__(self, other):
-        return StirAcquisitionData(float(other) / self._obj)
+        if isinstance(other, StirAcquisitionData):
+            return other / self
+        if isinstance(other, stir.ProjData):
+            return StirAcquisitionData(other) / self
+        return self.get_uniform_copy(float(other)) / self
 
     def __neg__(self):
-        return StirAcquisitionData(-self._obj)
+        return self * -1.0
 
     def sapyb(
         self, a: float, y: "StirAcquisitionData", b: float

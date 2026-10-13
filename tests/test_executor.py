@@ -633,3 +633,251 @@ def test_executor_rejects_invalid_mp(monkeypatch: pytest.MonkeyPatch, mp_value) 
         SimindExecutor().run_simulation("case01", runtime_switches={"MP": mp_value})
 
     assert calls == []
+
+
+def test_executor_mp_digit_string_matches_integer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": 4})
+    SimindExecutor().run_simulation("case01", runtime_switches={"MP": "4"})
+
+    assert calls[0][0] == calls[1][0]
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+def test_executor_detects_missing_spectra_input(
+    monkeypatch: pytest.MonkeyPatch, stream: str
+) -> None:
+    _capture_run_with_output(
+        monkeypatch, **{stream: "No input file found for the spectra:case01.isd\n"}
+    )
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error") as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    assert "case01.isd" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "No   input file   found   for   the   spectra :   case01.isd",
+        "nO InPuT FILE fOuNd FOR THE SPECTRA:CASE01.ISD",
+        "No input file found for the spectra:\tcase01.isd\r",
+    ],
+)
+def test_executor_matches_missing_spectra_case_and_whitespace(
+    monkeypatch: pytest.MonkeyPatch, line: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=line + "\n")
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_missing_spectra_filename_survives_long_preamble(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = "x" * 3000 + "\nNo input file found for the spectra:spectra_123.isd\n"
+    _capture_run_with_output(monkeypatch, stdout=output)
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    assert "spectra_123.isd" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        "",
+        "No input file found for the spectra:case01.dat\n",
+        "No input file found for the image:case01.isd\n",
+        "No input file found for the spectra:.isd\n",
+        "No input file found for the spectra:case01.isd extra\n",
+        "no input files were found\n",
+    ],
+)
+def test_executor_ignores_near_miss_missing_spectra(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=stdout)
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_does_not_match_missing_spectra_split_across_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="No input file found for the spectra",
+        stderr=":case01.isd\n",
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_ignores_missing_spectra_echoed_in_config_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A valid run echoes the configured comment verbatim under OTHER
+    # INFORMATION; a comment that spells the missing-spectra line must not be
+    # mistaken for the fatal diagnostic.
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            " No input file found for the spectra:test.isd\n"
+            " Compiled 2025:10:06 with intel Linux \n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_missing_spectra_before_the_comment_echo_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=" No  input file found for the spectra:case01.isd\n" + " " * 20 + "\n",
+    )
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error") as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    assert "case01.isd" in str(excinfo.value)
+
+
+def test_executor_nonzero_exit_includes_labelled_stream_excerpts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="stdout diagnostic\n",
+        stderr="stderr diagnostic\n",
+        returncode=1,
+    )
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "SIMIND execution failed" in message
+    assert "returned non-zero exit status 1" in message
+    assert "stdout:" in message
+    assert "stdout diagnostic" in message
+    assert "stderr:" in message
+    assert "stderr diagnostic" in message
+    assert isinstance(excinfo.value.__cause__, subprocess.CalledProcessError)
+
+
+def test_executor_nonzero_exit_excerpts_are_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch, stdout="o" * 3000, stderr="e" * 3000, returncode=1
+    )
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "o" * 2500 not in message
+    assert "e" * 2500 not in message
+
+
+@pytest.mark.parametrize(
+    "bad_prefix",
+    [123, None, Path("case01"), b"case01", ["case01"]],
+)
+def test_executor_rejects_non_string_output_prefix(
+    monkeypatch: pytest.MonkeyPatch, bad_prefix
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="output_prefix must be a string"):
+        SimindExecutor().run_simulation(bad_prefix)
+
+    assert calls == []
+
+
+def test_executor_accepts_prefix_at_length_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+    prefix = "a" * 47
+
+    SimindExecutor().run_simulation(prefix)
+
+    assert calls[0][0][1] == prefix
+
+
+def test_executor_rejects_prefix_over_length_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match=r"at most 47 characters, got 48"):
+        SimindExecutor().run_simulation("a" * 48)
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("nn_value", [1, 2, 2147483647, 2.0, 2147483647.0])
+def test_executor_accepts_valid_nn(monkeypatch: pytest.MonkeyPatch, nn_value) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"NN": nn_value})
+
+    assert calls[0][0][-1] == f"/NN:{nn_value}"
+
+
+@pytest.mark.parametrize(
+    "nn_value",
+    [
+        10**400,
+        1e308,
+        2147483648,
+        2.5,
+        0,
+        -1,
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+        "3",
+        None,
+        True,
+        False,
+    ],
+)
+def test_executor_rejects_invalid_nn(monkeypatch: pytest.MonkeyPatch, nn_value) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="NN"):
+        SimindExecutor().run_simulation("case01", runtime_switches={"NN": nn_value})
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "runtime_switches",
+    [{"RR": None}, {"RR": True}, {"PX": False}],
+)
+def test_executor_rejects_none_or_bool_switch_value(
+    monkeypatch: pytest.MonkeyPatch, runtime_switches
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="requires a value"):
+        SimindExecutor().run_simulation("case01", runtime_switches=runtime_switches)
+
+    assert calls == []

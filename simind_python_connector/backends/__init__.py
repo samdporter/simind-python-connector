@@ -22,6 +22,7 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
+from ..utils.import_helpers import _import_stir_extra
 from .base import AcquisitionDataInterface, ImageDataInterface
 
 
@@ -150,7 +151,7 @@ def get_backend() -> str:
     except ImportError:
         try:
             importlib.import_module("stir")
-            importlib.import_module("stirextra")
+            _import_stir_extra()
 
             _backend = "stir"
             logger.info("Auto-detected STIR Python backend")
@@ -159,7 +160,7 @@ def get_backend() -> str:
                 "Neither SIRF nor STIR Python found. "
                 "Please install one of: "
                 "\n  - SIRF (sirf.STIR)"
-                "\n  - STIR Python (stir + stirextra)"
+                "\n  - STIR Python (stir + stir.extra)"
             )
 
     _backend_initialized = True
@@ -190,7 +191,7 @@ def set_backend(backend: Literal["sirf", "stir"]) -> None:
     elif backend == "stir":
         try:
             importlib.import_module("stir")
-            importlib.import_module("stirextra")
+            _import_stir_extra()
         except ImportError:
             raise ImportError("STIR Python is not available")
 

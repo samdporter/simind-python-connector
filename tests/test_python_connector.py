@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.core.types import (
     MAX_SOURCE,
+    OutputError,
     ScoringRoutine,
     SimulationError,
 )
@@ -1260,3 +1262,574 @@ def test_python_connector_run_leaves_index_26_and_nn_untouched(tmp_path: Path):
     assert connector.quantization_scale == pytest.approx(0.5)
     source_u16 = np.fromfile(source_path, dtype=np.uint16)
     assert int(source_u16.max()) == round(MAX_SOURCE * 0.5)
+
+
+def _unsupported_routine_message(routine: ScoringRoutine) -> str:
+    return (
+        f"scoring_routine {routine.name} ({routine.value}) is not supported by "
+        "the Interfile connector; supported routines are DUMMY (0), SCATTWIN (1) "
+        "and PENETRATE (4)."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "routine",
+    [ScoringRoutine.LIST_MODE, ScoringRoutine.FORCED_COLLIMATION],
+)
+def test_python_connector_configure_rejects_unsupported_scoring_routine(
+    tmp_path: Path, routine: ScoringRoutine
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, ScoringRoutine.SCATTWIN.value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+    config_before = [connector.get_config().get_value(i) for i in (5, 84)]
+
+    match = re.escape(_unsupported_routine_message(routine))
+    with pytest.raises(ValueError, match=match):
+        connector.configure_voxel_phantom(
+            source, source.copy(), scoring_routine=routine
+        )
+    with pytest.raises(ValueError, match=match):
+        connector.configure_voxel_phantom(
+            source, source.copy(), scoring_routine=int(routine.value)
+        )
+
+    assert [connector.get_config().get_value(i) for i in (5, 84)] == config_before
+    assert not (tmp_path / "case01_src.smi").exists()
+    assert not (tmp_path / "case01_dns.dmi").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_configure_rejects_unsupported_config_routine(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, ScoringRoutine.FORCED_COLLIMATION.value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            _unsupported_routine_message(ScoringRoutine.FORCED_COLLIMATION)
+        ),
+    ):
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert connector.get_config().get_value(84) == (
+        ScoringRoutine.FORCED_COLLIMATION.value
+    )
+    assert not (tmp_path / "case01_src.smi").exists()
+    assert not (tmp_path / "case01_dns.dmi").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_config_only_run_rejects_unsupported_routine(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, ScoringRoutine.LIST_MODE.value)
+    stale = tmp_path / "case01_tot_w1.hs"
+    stale.write_text("stale")
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(_unsupported_routine_message(ScoringRoutine.LIST_MODE)),
+    ):
+        connector.run()
+
+    assert launched == []
+    assert stale.read_text() == "stale"
+    assert not (tmp_path / "case01.smc").exists()
+    assert not (tmp_path / "case01_orbit.cor").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_run_rejects_routine_changed_after_configure(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.ones((2, 3, 4), dtype=np.float32)
+    source_path, density_path = connector.configure_voxel_phantom(
+        source, source.copy(), scoring_routine=ScoringRoutine.SCATTWIN
+    )
+    connector.add_config_value(84, ScoringRoutine.LIST_MODE.value)
+    stale = tmp_path / "case01_tot_w1.hs"
+    stale.write_text("stale")
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(_unsupported_routine_message(ScoringRoutine.LIST_MODE)),
+    ):
+        connector.run()
+
+    assert launched == []
+    assert stale.read_text() == "stale"
+    assert source_path.exists()
+    assert density_path.exists()
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("routine", [0, 1, 4])
+def test_python_connector_accepts_supported_scoring_routines(
+    tmp_path: Path, routine: int
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    connector.configure_voxel_phantom(source, source.copy(), scoring_routine=routine)
+
+    assert int(connector.get_config().get_value(84)) == routine
+
+
+@pytest.mark.unit
+def test_python_connector_does_not_round_fractional_config_routine(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    # 0.6 rounds to a supported routine (1) but is not an integral enum value.
+    connector.add_config_value(84, 0.6)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="not an integral"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(ValueError, match="not an integral"):
+        connector.run()
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_single_voxel_phantom(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.ones((1, 1, 1), dtype=np.float32)
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "SIMIND does not support a 1x1x1 voxel phantom; pad it to at least "
+            "two voxels in one dimension."
+        ),
+    ):
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert not (tmp_path / "case01_src.smi").exists()
+    assert not (tmp_path / "case01_dns.dmi").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("shape", [(2, 1, 1), (1, 2, 1), (1, 1, 2)])
+def test_python_connector_accepts_single_slice_phantoms(
+    tmp_path: Path, shape: tuple[int, int, int]
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.ones(shape, dtype=np.float32)
+
+    source_path, density_path = connector.configure_voxel_phantom(source, source.copy())
+
+    assert source_path.exists()
+    assert density_path.exists()
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_source_quantized_to_all_zeros_at_tiny_scale(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        quantization_scale=1e-6,
+    )
+    source = np.ones((2, 3, 4), dtype=np.float32)
+    index_5_before = connector.get_config().get_value(5)
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "quantization_scale rounds the non-zero source to all zeros; "
+            "increase quantization_scale."
+        ),
+    ):
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert connector.get_config().get_value(5) == index_5_before
+    assert not (tmp_path / "case01_src.smi").exists()
+    assert not (tmp_path / "case01_dns.dmi").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_source_at_the_rounding_threshold(tmp_path: Path):
+    # 500 * 0.001 == 0.5, which NumPy rounds to even (0): every voxel vanishes.
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        quantization_scale=0.001,
+    )
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="rounds the non-zero source to all zeros"):
+        connector.configure_voxel_phantom(source, source.copy())
+
+
+@pytest.mark.unit
+def test_python_connector_accepts_source_above_the_rounding_threshold(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        quantization_scale=0.002,
+    )
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    source_path, _ = connector.configure_voxel_phantom(source, source.copy())
+
+    assert int(np.fromfile(source_path, dtype=np.uint16).max()) == 1
+
+
+@pytest.mark.unit
+def test_python_connector_all_zero_source_is_still_accepted(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        quantization_scale=1e-6,
+    )
+    source = np.zeros((2, 3, 4), dtype=np.float32)
+
+    source_path, _ = connector.configure_voxel_phantom(source, source.copy())
+
+    assert source_path.exists()
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+    assert launched == [True]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad_scale", ["not-a-number", object()])
+def test_python_connector_quantization_scale_conversion_failure_is_normalized(
+    tmp_path: Path, bad_scale: object
+):
+    with pytest.raises(ValueError, match="quantization_scale"):
+        SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            output_prefix="case01",
+            quantization_scale=bad_scale,
+        )
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_orbit_directory_before_staging(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    orbit_dir = tmp_path / "orbit-dir"
+    orbit_dir.mkdir()
+    canonical = tmp_path / "case01_orbit.cor"
+    canonical.write_bytes(b"existing")
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="orbit_file must be a regular file"):
+        connector.run(RuntimeOperator(orbit_file=orbit_dir))
+
+    assert launched == []
+    assert canonical.read_bytes() == b"existing"
+    assert orbit_dir.is_dir()
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_source_write_failure_is_output_error(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    (tmp_path / "case01_src.smi").mkdir()
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(OutputError, match="source map") as excinfo:
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+@pytest.mark.unit
+def test_python_connector_density_write_failure_is_output_error(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    (tmp_path / "case01_dns.dmi").mkdir()
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(OutputError, match="density map") as excinfo:
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+@pytest.mark.unit
+def test_python_connector_window_write_failure_is_output_error(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    (tmp_path / "case01.win").mkdir()
+
+    with pytest.raises(OutputError, match="energy-window") as excinfo:
+        connector.set_energy_windows([126.0], [154.0], [0])
+
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+@pytest.mark.unit
+def test_python_connector_config_save_failure_is_output_error(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    (tmp_path / "case01.smc").mkdir()
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+
+    with pytest.raises(OutputError, match="configuration") as excinfo:
+        connector.run()
+
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+@pytest.mark.unit
+def test_python_connector_orbit_staging_failure_is_output_error(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    orbit_source = tmp_path / "orbit.cor"
+    orbit_source.write_bytes(b"orbit")
+    (tmp_path / "case01_orbit.cor").mkdir()
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+
+    with pytest.raises(OutputError, match="orbit") as excinfo:
+        connector.run(RuntimeOperator(orbit_file=orbit_source))
+
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+@pytest.mark.unit
+def test_python_connector_cleanup_failure_is_output_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    stale = tmp_path / "case01_tot_w1.hs"
+    stale.write_text("stale")
+
+    def fail_unlink(self: Path, *args, **kwargs):
+        raise PermissionError("injected unlink failure")
+
+    monkeypatch.setattr(Path, "unlink", fail_unlink)
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+
+    with pytest.raises(OutputError, match="stale output") as excinfo:
+        connector.run()
+
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+@pytest.mark.unit
+def test_python_connector_deleted_output_dir_is_output_error(tmp_path: Path):
+    output_dir = tmp_path / "gone"
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    output_dir.rmdir()
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(OutputError, match="does not exist or is not a directory"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(OutputError, match="does not exist or is not a directory"):
+        connector.run()
+
+    assert not output_dir.exists()
+
+
+@pytest.mark.unit
+def test_python_connector_missing_spect_headers_raise_output_error(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+
+    with pytest.raises(OutputError, match="No SPECT projection headers") as excinfo:
+        connector.run()
+
+    assert "case01" in str(excinfo.value)
+    assert str(tmp_path) in str(excinfo.value)
+
+
+@pytest.mark.unit
+def test_python_connector_missing_penetrate_headers_raise_output_error(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, ScoringRoutine.PENETRATE.value)
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+
+    with pytest.raises(OutputError, match="No PENETRATE") as excinfo:
+        connector.run()
+
+    assert "case01" in str(excinfo.value)
+    assert str(tmp_path) in str(excinfo.value)
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_over_long_prefix_at_construction(tmp_path: Path):
+    with pytest.raises(ValueError, match="at most 47 characters"):
+        SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            output_prefix="a" * 48,
+        )
+
+
+@pytest.mark.unit
+def test_python_connector_over_long_prefix_preserves_outputs_before_launch(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    over_long = "a" * 48
+    config_path = tmp_path / f"{over_long}.smc"
+    header_path = tmp_path / f"{over_long}_tot_w1.hs"
+    config_path.write_bytes(b"pre-existing config")
+    header_path.write_bytes(b"pre-existing header")
+    connector.output_prefix = over_long
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="at most 47 characters"):
+        connector.run()
+
+    assert launched == []
+    assert config_path.read_bytes() == b"pre-existing config"
+    assert header_path.read_bytes() == b"pre-existing header"
+
+
+@pytest.mark.unit
+def test_python_connector_over_long_prefix_rejected_before_writing_inputs(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    over_long = "a" * 48
+    connector.output_prefix = over_long
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="at most 47 characters"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(ValueError, match="at most 47 characters"):
+        connector.set_energy_windows([126.0], [154.0], [0])
+
+    assert not (tmp_path / f"{over_long}_src.smi").exists()
+    assert not (tmp_path / f"{over_long}_dns.dmi").exists()
+    assert not (tmp_path / f"{over_long}.win").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_set_energy_windows_accepts_ten_windows(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    count = 10
+
+    connector.set_energy_windows(
+        [126.0 + i for i in range(count)],
+        [127.0 + i for i in range(count)],
+        [0] * count,
+    )
+
+    window_file = tmp_path / "case01.win"
+    assert window_file.exists()
+    lines = [line for line in window_file.read_text().splitlines() if line]
+    assert len(lines) == count + 1  # all-zero orders append a scatter line
+
+
+@pytest.mark.unit
+def test_python_connector_set_energy_windows_rejects_too_many_windows(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    count = 100
+
+    with pytest.raises(ValueError, match="At most 99 energy windows"):
+        connector.set_energy_windows(
+            [126.0] * count,
+            [154.0] * count,
+            [0] * count,
+        )
+
+    assert not (tmp_path / "case01.win").exists()

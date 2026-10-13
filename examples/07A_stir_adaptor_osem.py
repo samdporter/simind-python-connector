@@ -21,10 +21,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import stir
-import stirextra
 
 from simind_python_connector import StirSimindAdaptor, configs
 from simind_python_connector.builders import STIRSPECTImageDataBuilder
+from simind_python_connector.utils import get_array
 
 
 def _build_small_phantom(
@@ -137,9 +137,9 @@ def _save_summary_plot(
     reconstruction: stir.FloatVoxelsOnCartesianGrid,
     output_path: Path,
 ) -> None:
-    source_arr = stirextra.to_numpy(source_image)
-    proj_arr = stirextra.to_numpy(projection)
-    recon_arr = stirextra.to_numpy(reconstruction)
+    source_arr = get_array(source_image)
+    proj_arr = get_array(projection)
+    recon_arr = get_array(reconstruction)
 
     source_slice = source_arr[source_arr.shape[0] // 2, :, :]
     recon_slice = recon_arr[recon_arr.shape[0] // 2, :, :]

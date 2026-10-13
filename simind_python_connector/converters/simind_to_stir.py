@@ -443,36 +443,32 @@ class SimindToStirConverter:
             binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
 
             if binary_file.exists():
-                try:
-                    # Create .hs file for this component
-                    component_hs = output_dir / (
-                        f"{output_prefix}_component_{component.value:02d}.hs"
-                    )
+                # Create .hs file for this component. A failure to write the
+                # header is a real I/O error and must propagate; only the
+                # backend load below is allowed to fall back quietly.
+                component_hs = output_dir / (
+                    f"{output_prefix}_component_{component.value:02d}.hs"
+                )
 
-                    component_header = template_header.copy()
-                    study_base = Path(binary_file.name).stem
-                    component_header.set("!name of data file", binary_file.name)
-                    component_header.set(
-                        "patient name", f"{component.slug}_{binary_file.name}"
-                    )
-                    component_header.set("!study ID", study_base)
-                    component_header.set("data description", component.description)
-                    component_header.write(component_hs)
+                component_header = template_header.copy()
+                study_base = Path(binary_file.name).stem
+                component_header.set("!name of data file", binary_file.name)
+                component_header.set(
+                    "patient name", f"{component.slug}_{binary_file.name}"
+                )
+                component_header.set("!study ID", study_base)
+                component_header.set("data description", component.description)
+                component_header.write(component_hs)
 
-                    # Create AcquisitionData object (backend-agnostic)
-                    acquisition_data = self._load_penetrate_output(component_hs)
+                # Create AcquisitionData object (backend-agnostic)
+                acquisition_data = self._load_penetrate_output(component_hs)
 
-                    # Generate component name
-                    outputs[component.slug] = acquisition_data
+                # Generate component name
+                outputs[component.slug] = acquisition_data
 
-                    self.logger.info(
-                        f"Created STIR header for {component.slug}: {component_hs.name}"
-                    )
-
-                except Exception as e:
-                    self.logger.warning(
-                        f"Failed to create header for {binary_file}: {e}"
-                    )
+                self.logger.info(
+                    f"Created STIR header for {component.slug}: {component_hs.name}"
+                )
 
         # Clean up template file
         if os.path.exists(template_hs):
@@ -515,8 +511,15 @@ class SimindToStirConverter:
         """
         output_dir = Path(output_dir)
 
-        # Look for .h00 file with the output prefix
-        h00_files = list(output_dir.glob(f"{output_prefix}*.h00"))
+        # Match only the exact name or an underscore-delimited suffix so that
+        # prefixes such as "s" and "s2" do not claim each other's outputs.
+        h00_files = sorted(
+            {
+                *output_dir.glob(f"{output_prefix}.h00"),
+                *output_dir.glob(f"{output_prefix}_*.h00"),
+            }
+        )
+        h00_files = [h00_file for h00_file in h00_files if h00_file.is_file()]
 
         if len(h00_files) == 1:
             return str(h00_files[0])

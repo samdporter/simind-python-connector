@@ -22,7 +22,60 @@ _SIMIND_ERROR_NUMBER_PATTERN = re.compile(
 _SIMIND_ERROR_DIVIDER_PATTERN = re.compile(
     r"^[ \t]*={3,}[ \t]*Error[ \t]*$", re.MULTILINE
 )
+# Confirmed fatal exit-0 diagnostic: SIMIND prints this on a complete line,
+# with variable spacing and casing, when a spectra .isd input cannot be read.
+_SIMIND_MISSING_INPUT_PATTERN = re.compile(
+    r"^[ \t]*No[ \t]+input[ \t]+file[ \t]+found[ \t]+for[ \t]+the[ \t]+spectra"
+    r"[ \t]*:[ \t]*(\S+\.isd)[ \t]*\r?$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# SIMIND echoes the configured comment, verbatim, under this banner on every
+# successful run. That echo can contain the missing-spectra line above, so the
+# diagnostic is only trusted before the banner; the genuine failure aborts
+# during input setup and never reaches it.
+_SIMIND_OTHER_INFORMATION_PATTERN = re.compile(
+    r"^[ \t]*OTHER[ \t]+INFORMATION[ \t]*$", re.MULTILINE
+)
 _ERROR_EXCERPT_LIMIT = 2000
+# SIMIND V8 copies output names into a fixed 60-character Fortran buffer and
+# silently truncates anything longer, dropping the final ".h00"/".a00"
+# character so no readable SPECT header remains. The longest engine-written
+# name adds a "_tot_w{N}.a00" suffix, which is 10 characters plus the digits of
+# N; with the 99-window maximum enforced by the window validator that is 12
+# characters, so 47 keeps even the longest name at 59 <= 60. A 49-character
+# prefix still works for SCATTWIN's single window (measured on SIMIND V8.0;
+# DUMMY and PENETRATE tolerate 52), and 47 keeps a two-character safety margin.
+_OUTPUT_PREFIX_MAX_LENGTH = 47
+
+
+def _validate_output_prefix(prefix: object) -> str:
+    """Validate a SIMIND output prefix, returning it unchanged.
+
+    Raises ``ValueError`` so the connector boundary can report a configuration
+    error; :meth:`SimindExecutor.validate_output_prefix` converts it to
+    ``SimulationError`` for the execution boundary.
+    """
+    if not isinstance(prefix, str):
+        raise ValueError(f"output_prefix must be a string, got {type(prefix).__name__}")
+    if not prefix:
+        raise ValueError("output_prefix must not be empty")
+    if any(char.isspace() for char in prefix):
+        raise ValueError(f"output_prefix must not contain whitespace, got {prefix!r}")
+    if "\x00" in prefix:
+        raise ValueError(f"output_prefix must not contain a NUL byte, got {prefix!r}")
+    if len(prefix) > _OUTPUT_PREFIX_MAX_LENGTH:
+        raise ValueError(
+            f"output_prefix must be at most {_OUTPUT_PREFIX_MAX_LENGTH} "
+            f"characters, got {len(prefix)}"
+        )
+    if not re.fullmatch(OUTPUT_PREFIX_PATTERN, prefix):
+        raise ValueError(
+            "output_prefix must start with a lowercase letter or digit and "
+            "contain only lowercase letters, digits and '_'; a hyphen is an "
+            "argument delimiter in SIMIND V8 and would split the positional "
+            f"filename arguments, got {prefix!r}"
+        )
+    return prefix
 
 
 class SimindExecutor:
@@ -60,14 +113,7 @@ class SimindExecutor:
         validated_simind = self._validate_cli_token(
             self._resolve_executable(), allow_whitespace=True
         )
-        validated_output_prefix = self._validate_cli_token(output_prefix)
-        if not re.fullmatch(OUTPUT_PREFIX_PATTERN, validated_output_prefix):
-            raise SimulationError(
-                "output_prefix must start with a lowercase letter or digit and "
-                "contain only lowercase letters, digits and '_'; a hyphen is an "
-                "argument delimiter in SIMIND V8 and would split the positional "
-                f"filename arguments, got {output_prefix!r}"
-            )
+        validated_output_prefix = self.validate_output_prefix(output_prefix)
         validated_orbit_name = (
             self._validate_cli_token(orbit_file.name) if orbit_file else None
         )
@@ -77,7 +123,12 @@ class SimindExecutor:
         if runtime_switches:
             switch_parts = []
             for key, value in runtime_switches.items():
-                if str(key).upper() == "MP":
+                switch = str(key).upper()
+                try:
+                    _validate_switch_value(switch, value)
+                except ValueError as exc:
+                    raise SimulationError(str(exc)) from exc
+                if switch == "MP":
                     switch_parts.append(f"/{key}")
                 else:
                     switch_parts.append(f"/{key}:{value}")
@@ -135,8 +186,14 @@ class SimindExecutor:
                     f"Unable to execute SIMIND command: {exc}"
                 ) from exc
             except subprocess.CalledProcessError as exc:
-                self._read_and_replay(stdout_file, stderr_file)
-                raise SimulationError(f"SIMIND execution failed: {exc}") from exc
+                stdout_text, stderr_text = self._read_and_replay(
+                    stdout_file, stderr_file
+                )
+                raise SimulationError(
+                    f"SIMIND execution failed: {exc}\n"
+                    f"stdout:\n{stdout_text[:_ERROR_EXCERPT_LIMIT]}\n"
+                    f"stderr:\n{stderr_text[:_ERROR_EXCERPT_LIMIT]}"
+                ) from exc
             except subprocess.TimeoutExpired as exc:
                 self._read_and_replay(stdout_file, stderr_file)
                 raise SimulationError(
@@ -179,6 +236,19 @@ class SimindExecutor:
         return validated_timeout
 
     @staticmethod
+    def validate_output_prefix(prefix: object) -> str:
+        """Return ``prefix`` after validating it as a SIMIND output prefix.
+
+        Rejects non-strings outright rather than coercing them, and caps the
+        length so SIMIND's own output names stay inside the engine's fixed
+        60-character buffer instead of being silently truncated.
+        """
+        try:
+            return _validate_output_prefix(prefix)
+        except ValueError as exc:
+            raise SimulationError(str(exc)) from exc
+
+    @staticmethod
     def _read_and_replay(stdout_file, stderr_file) -> tuple[str, str]:
         stdout_file.seek(0)
         stdout_text = stdout_file.read()
@@ -200,24 +270,23 @@ class SimindExecutor:
         if _SIMIND_ERROR_DIVIDER_PATTERN.search(output):
             excerpt = output[:_ERROR_EXCERPT_LIMIT]
             raise SimulationError(f"SIMIND reported an error: {excerpt}")
+        other_information = _SIMIND_OTHER_INFORMATION_PATTERN.search(output)
+        scan_end = other_information.start() if other_information else len(output)
+        missing_input_match = _SIMIND_MISSING_INPUT_PATTERN.search(output, 0, scan_end)
+        if missing_input_match:
+            # The matched line is carried in the message itself so it survives
+            # even when it falls outside the bounded excerpt window.
+            diagnostic = missing_input_match.group(0).strip()
+            excerpt = output[:_ERROR_EXCERPT_LIMIT]
+            raise SimulationError(f"SIMIND reported an error ({diagnostic}): {excerpt}")
 
     @staticmethod
     def _validate_mp_count(value: object) -> str:
-        candidate = value
-        if isinstance(value, str):
-            if not (value.isascii() and value.isdigit()):
-                raise SimulationError(f"MP must be an integer >= 1, got {value!r}")
-            try:
-                candidate = int(value)
-            except ValueError as exc:
-                raise SimulationError(
-                    f"MP must be an integer >= 1, got {value!r}"
-                ) from exc
         try:
-            _validate_switch_value("MP", candidate)
-            return str(int(candidate))
+            _validate_switch_value("MP", value)
         except ValueError as exc:
             raise SimulationError(str(exc)) from exc
+        return str(int(value))
 
     def _resolve_executable(self) -> str:
         """Make path-bearing executables absolute before ``cwd`` applies.

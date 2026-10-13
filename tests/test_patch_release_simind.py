@@ -20,8 +20,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import simind_python_connector.core.executor as executor_module
 from simind_python_connector import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.configs import get
+from simind_python_connector.configs import list as list_configs
+from simind_python_connector.core.config import SimulationConfig
 from simind_python_connector.core.executor import SimindExecutor
 from simind_python_connector.core.types import (
     PenetrateOutputType,
@@ -250,3 +253,322 @@ def test_mpi_views_and_projections_are_readable(tmp_path: Path, processes: int):
         assert projection.shape[0] == VIEWS, key
         assert np.isfinite(projection).all(), key
     assert outputs["tot_w1"].projection.sum() > 0
+
+
+MISSING_NUCLIDE = "not_a_real_nuclide"
+# The executor cap derived from SIMIND's fixed 60-character output-name buffer:
+# the longest engine-written suffix is 11 characters ("_tot_w1.a00"), so 49 is
+# the measured SCATTWIN boundary and the executor keeps a two-character margin.
+OUTPUT_PREFIX_CAP = 47
+# Raw SIMIND V8.0 boundary measured against the real binary: a 49-character
+# SCATTWIN prefix still writes the full ".h00"/".a00" names, 50 truncates them.
+ENGINE_RAW_PREFIX_LIMIT = 49
+
+
+def _point_connector(output_dir: Path, prefix: str, shape: tuple[int, ...]):
+    """A centred point source in an all-air phantom of the requested shape."""
+    connector = SimindPythonConnector(get("Example.yaml"), output_dir, prefix)
+    connector.add_config_value(26, HISTORIES)
+    connector.add_config_value(29, VIEWS)
+    source = np.zeros(shape, np.float32)
+    source[tuple(dim // 2 for dim in shape)] = 1.0
+    connector.configure_voxel_phantom(source, np.zeros(shape, np.float32))
+    connector.set_energy_windows([126], [154], [0])
+    return connector
+
+
+def _assert_no_spect_outputs(output_dir: Path, prefix: str) -> None:
+    assert not list(output_dir.glob(f"{prefix}*.h00"))
+    assert not list(output_dir.glob(f"{prefix}*.hs"))
+
+
+def _prefix_bytes(output_dir: Path, prefix: str) -> dict[str, bytes]:
+    return {
+        path.name: path.read_bytes()
+        for path in sorted(output_dir.iterdir())
+        if path.is_file()
+        and (path.stem == prefix or path.stem.startswith(f"{prefix}_"))
+    }
+
+
+def test_missing_isotope_reports_the_missing_isd_file(tmp_path: Path):
+    """A bad /FI isotope names the missing .isd, not a missing-header error."""
+    connector = _connector(tmp_path, "iso")
+
+    with pytest.raises(SimulationError) as excinfo:
+        connector.run(
+            RuntimeOperator(switches={"FI": MISSING_NUCLIDE}, timeout=RUN_TIMEOUT)
+        )
+
+    message = str(excinfo.value)
+    assert f"{MISSING_NUCLIDE}.isd" in message
+    assert "No SPECT projection headers" not in message
+
+
+def test_negative_index_1_with_missing_isotope_reports_the_missing_isd_file(
+    tmp_path: Path,
+):
+    connector = _connector(tmp_path, "negiso")
+    connector.add_config_value(1, -140.0)
+
+    with pytest.raises(SimulationError) as excinfo:
+        connector.run(
+            RuntimeOperator(switches={"FI": MISSING_NUCLIDE}, timeout=RUN_TIMEOUT)
+        )
+
+    message = str(excinfo.value)
+    assert f"{MISSING_NUCLIDE}.isd" in message
+    assert "No SPECT projection headers" not in message
+
+
+def test_valid_run_with_missing_spectra_text_in_comment_succeeds(tmp_path: Path):
+    """An echoed comment cannot be mistaken for the fatal missing-spectra line.
+
+    SIMIND echoes the configured comment verbatim under OTHER INFORMATION, so a
+    valid run whose comment spells the diagnostic must still succeed.
+    """
+    connector = _connector(tmp_path, "echo")
+    connector.get_config().set_comment("No input file found for the spectra:test.isd")
+
+    outputs = connector.run(RuntimeOperator(timeout=RUN_TIMEOUT))
+
+    _assert_readable(outputs)
+
+
+@pytest.mark.parametrize(
+    "routine",
+    [ScoringRoutine.DUMMY, ScoringRoutine.SCATTWIN, ScoringRoutine.PENETRATE],
+    ids=lambda routine: routine.name,
+)
+def test_supported_scoring_routines_produce_readable_outputs(
+    tmp_path: Path, routine: ScoringRoutine
+):
+    connector = _connector(tmp_path, f"r{routine.value}", scoring_routine=routine)
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
+    )
+
+    assert outputs
+    assert not [key for key in outputs if key.startswith("pri")]
+    for key, result in outputs.items():
+        projection = result.projection
+        assert projection.ndim == 3, key
+        assert projection.shape[0] == VIEWS, key
+        assert np.isfinite(projection).all(), key
+    assert sum(float(result.projection.sum()) for result in outputs.values()) > 0
+
+
+@pytest.mark.parametrize(
+    "routine",
+    [ScoringRoutine.LIST_MODE, ScoringRoutine.FORCED_COLLIMATION],
+    ids=lambda routine: routine.name,
+)
+def test_unsupported_scoring_routines_are_rejected_before_launch(
+    tmp_path: Path, routine: ScoringRoutine
+):
+    connector = _connector(tmp_path, "unsup")
+    connector.add_config_value(84, routine.value)
+    stale = tmp_path / "unsup_tot_w1.hs"
+    stale.write_text("stale")
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)
+
+    with pytest.raises(
+        ValueError, match=rf"{routine.name} \({routine.value}\) is not supported"
+    ):
+        connector.run(RuntimeOperator(timeout=RUN_TIMEOUT))
+
+    assert launched == []
+    assert stale.read_text() == "stale"
+    assert not list(tmp_path.glob("unsup*.h00"))
+
+
+def test_penetrate_prefix_isolation(tmp_path: Path):
+    """Overlapping prefixes must not claim each other's PENETRATE outputs."""
+    expected = {component.slug for component in PenetrateOutputType}
+
+    s = _connector(tmp_path, "s", scoring_routine=ScoringRoutine.PENETRATE)
+    s_outputs = s.run(RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT))
+    assert set(s_outputs) == expected
+
+    s2 = _connector(tmp_path, "s2", scoring_routine=ScoringRoutine.PENETRATE)
+    s2_outputs = s2.run(RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT))
+    assert set(s2_outputs) == expected
+    s2_bytes = _prefix_bytes(tmp_path, "s2")
+
+    sx = _connector(tmp_path, "sx", scoring_routine=ScoringRoutine.PENETRATE)
+    sx_outputs = sx.run(RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT))
+    assert set(sx_outputs) == expected
+    sx_bytes = _prefix_bytes(tmp_path, "sx")
+
+    s_again = _connector(tmp_path, "s", scoring_routine=ScoringRoutine.PENETRATE)
+    s_again_outputs = s_again.run(
+        RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
+    )
+
+    assert set(s_again_outputs) == expected
+    assert _prefix_bytes(tmp_path, "s2") == s2_bytes
+    assert _prefix_bytes(tmp_path, "sx") == sx_bytes
+    found = s_again.converter.find_penetrate_h00_file("s", str(tmp_path))
+    assert Path(found).name == "s.h00"
+
+
+def test_output_prefix_length_boundary_is_enforced_before_launch(tmp_path: Path):
+    assert (
+        SimindExecutor.validate_output_prefix("a" * OUTPUT_PREFIX_CAP)
+        == "a" * OUTPUT_PREFIX_CAP
+    )
+    with pytest.raises(SimulationError, match=rf"at most {OUTPUT_PREFIX_CAP}"):
+        SimindExecutor.validate_output_prefix("a" * (OUTPUT_PREFIX_CAP + 1))
+
+    over_long = "a" * (OUTPUT_PREFIX_CAP + 1)
+    with pytest.raises(ValueError, match=rf"at most {OUTPUT_PREFIX_CAP}"):
+        _connector(tmp_path, over_long)
+
+    assert not list(tmp_path.glob(f"{over_long}*"))
+
+
+def test_over_long_prefix_preserves_existing_outputs_before_launch(tmp_path: Path):
+    connector = _connector(tmp_path, "case")
+    over_long = "a" * (OUTPUT_PREFIX_CAP + 1)
+    config_path = tmp_path / f"{over_long}.smc"
+    header_path = tmp_path / f"{over_long}_tot_w1.hs"
+    config_path.write_bytes(b"pre-existing config")
+    header_path.write_bytes(b"pre-existing header")
+    connector.output_prefix = over_long
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)
+
+    with pytest.raises(ValueError, match=rf"at most {OUTPUT_PREFIX_CAP}"):
+        connector.run(RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT))
+
+    assert launched == []
+    assert config_path.read_bytes() == b"pre-existing config"
+    assert header_path.read_bytes() == b"pre-existing header"
+
+
+def test_engine_raw_prefix_limit_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Pin the real SIMIND V8.0 limit the executor's cap is derived from.
+
+    SCATTWIN writes ``{prefix}_tot_w1.a00`` (11-character suffix) into the
+    engine's fixed 60-character buffer, so 49 is the largest prefix that keeps
+    the full name and 50 truncates it. The public cap is two characters below
+    for safety, so lift it here to exercise the raw engine boundary.
+    """
+    monkeypatch.setattr(
+        executor_module, "_OUTPUT_PREFIX_MAX_LENGTH", ENGINE_RAW_PREFIX_LIMIT
+    )
+    connector = _connector(tmp_path, "a" * ENGINE_RAW_PREFIX_LIMIT)
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
+    )
+
+    _assert_readable(outputs)
+
+
+def test_prefix_at_cap_runs_through_conversion(tmp_path: Path):
+    connector = _connector(tmp_path, "a" * OUTPUT_PREFIX_CAP)
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
+    )
+
+    _assert_readable(outputs)
+
+
+def test_single_voxel_phantom_is_rejected_before_launch(tmp_path: Path):
+    connector = SimindPythonConnector(get("Example.yaml"), tmp_path, "tiny")
+    connector.add_config_value(29, VIEWS)
+    source = np.ones((1, 1, 1), np.float32)
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)
+
+    with pytest.raises(ValueError, match="1x1x1 voxel phantom"):
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert launched == []
+    assert not (tmp_path / "tiny_src.smi").exists()
+    assert not (tmp_path / "tiny_dns.dmi").exists()
+
+
+def test_single_slice_phantom_produces_nonzero_totals(tmp_path: Path):
+    connector = _point_connector(tmp_path, "slice", (2, 1, 1))
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"NN": 20, "RR": 12345}, timeout=RUN_TIMEOUT)
+    )
+
+    _assert_readable(outputs)
+
+
+def test_valid_quantization_control_runs(tmp_path: Path):
+    connector = SimindPythonConnector(
+        get("Example.yaml"), tmp_path, "quant", quantization_scale=0.5
+    )
+    connector.add_config_value(26, HISTORIES)
+    connector.add_config_value(29, VIEWS)
+    source = np.zeros((GRID, GRID, GRID), np.float32)
+    source[GRID // 2, GRID // 2, GRID // 2] = 1.0
+    connector.configure_voxel_phantom(
+        source, np.full((GRID, GRID, GRID), 0.15, np.float32)
+    )
+    connector.set_energy_windows([126], [154], [0])
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
+    )
+
+    _assert_readable(outputs)
+
+
+def test_tiny_quantization_scale_is_rejected_before_launch(tmp_path: Path):
+    connector = SimindPythonConnector(
+        get("Example.yaml"), tmp_path, "tinyq", quantization_scale=1e-6
+    )
+    source = np.ones((2, 3, 4), np.float32)
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)
+
+    with pytest.raises(ValueError, match="rounds the non-zero source to all zeros"):
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert launched == []
+    assert not (tmp_path / "tinyq_src.smi").exists()
+
+
+def test_saved_config_with_negative_zero_runs(tmp_path: Path):
+    connector = _connector(tmp_path, "negzero")
+    # Index 16 (source shift) is not overridden by configure_voxel_phantom.
+    connector.get_config().set_value(16, -0.0)
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
+    )
+
+    _assert_readable(outputs)
+    basic_lines = (tmp_path / "negzero.smc").read_text().splitlines()[3:27]
+    assert len(basic_lines) == 24
+    for line in basic_lines:
+        assert len(line) == 60
+        for start in range(0, 60, 12):
+            assert len(line[start : start + 12]) == 12
+
+
+def test_bundled_configs_load_validate_and_save(tmp_path: Path):
+    """The bundled and documented configs still round-trip at fixed width."""
+    names = list_configs()
+    for documented in ("Example.yaml", "AnyScan.yaml", "input.smc"):
+        assert documented in names
+
+    for name in names:
+        config = SimulationConfig(get(name))
+        assert isinstance(config.validate_parameters(), bool)
+        saved = config.save_file(tmp_path / name)
+        basic_lines = saved.read_text().splitlines()[3:27]
+        assert len(basic_lines) == 24, name
+        for line in basic_lines:
+            assert len(line) == 60, (name, line)
+            for start in range(0, 60, 12):
+                assert len(line[start : start + 12]) == 12, (name, line)
