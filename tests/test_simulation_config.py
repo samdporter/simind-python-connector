@@ -2,6 +2,7 @@ import math
 import os
 import sys
 import tempfile
+from decimal import Decimal
 from fractions import Fraction
 from pathlib import Path
 
@@ -411,6 +412,8 @@ def _write_yaml(tmp_path, text):
         (float("-inf"), "finite"),
         (1e100, "12-character SMC field"),
         (1e-300, "12-character SMC field"),
+        # A finite nonzero value that underflows float must not become zero.
+        (Decimal("1e-400"), "12-character SMC field"),
     ],
 )
 def test_smc_save_rejects_unrepresentable_value_without_truncating(
@@ -579,6 +582,16 @@ def test_smc_round_trip_canonicalises_negative_zero_and_negatives(tmp_path):
     assert math.copysign(1.0, restored.data[2]) == 1.0
 
 
+@pytest.mark.parametrize("value", [0, -0.0, Decimal("0"), Decimal("-0.0")])
+def test_smc_save_writes_exact_zero_canonically(tmp_path, value):
+    config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
+    config.data[0] = value
+
+    basic_line = config.save_file(tmp_path / "zero.smc").read_text().splitlines()[3]
+
+    assert basic_line[:12] == " 0.00000E+00"
+
+
 @pytest.mark.parametrize("value", [9.9999e98, 1e-100, 9.999999e-101])
 def test_smc_save_accepts_values_inside_exponent_boundary(tmp_path, value):
     config = SimulationConfig(FIXTURES / "minimal_variable_sections.smc")
@@ -744,6 +757,21 @@ def test_yaml_colliding_normalised_indices_are_rejected(
     tmp_path, section, first, second
 ):
     text = f"{section}:\n  {first}\n  {second}\n"
+
+    with pytest.raises(ValueError, match="duplicate"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "section, entry",
+    [
+        ("text_variables", "'1': first"),
+        ("other_parameters", "61: 1.0"),
+        ("other_flags", "16: true"),
+    ],
+)
+def test_yaml_identical_duplicate_keys_are_rejected(tmp_path, section, entry):
+    text = f"{section}:\n  {entry}\n  {entry}\n"
 
     with pytest.raises(ValueError, match="duplicate"):
         SimulationConfig(_write_yaml(tmp_path, text))
