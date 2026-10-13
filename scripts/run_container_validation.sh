@@ -298,6 +298,7 @@ if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
         run_service python "python examples/02_runtime_switch_comparison.py"
         run_service python "python examples/03_multi_window.py"
         run_service python "python examples/05_scattwin_vs_penetrate_comparison.py"
+        run_service python "python -m pytest tests/test_patch_release_simind.py -q"
     fi
     if [[ "$RUN_STIR" -eq 1 ]]; then
         run_service stir "python examples/07A_stir_adaptor_osem.py"
