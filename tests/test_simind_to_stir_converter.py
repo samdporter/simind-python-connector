@@ -654,6 +654,89 @@ class TestPenetrateFallbackLogging:
                 str(h00_file), "output", str(tmp_path)
             )
 
+    def test_success_path_removes_template(self, tmp_path):
+        h00_file = make_penetrate_outputs(tmp_path)
+        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+
+        SimindToStirConverter().create_penetrate_headers_from_template(
+            str(h00_file), "output", str(tmp_path)
+        )
+
+        assert not template_hs.exists()
+
+    def test_component_write_failure_removes_template_and_preserves_inputs(
+        self, tmp_path, monkeypatch
+    ):
+        h00_file = make_penetrate_outputs(tmp_path)
+        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+        h00_before = h00_file.read_bytes()
+        binaries_before = {
+            path.name: path.read_bytes() for path in tmp_path.glob("output.b*")
+        }
+
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        self.patch_failing_write(
+            monkeypatch,
+            component_header(tmp_path, component).name,
+            OSError("disk full while writing header"),
+        )
+
+        with pytest.raises(OSError, match="disk full while writing header"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
+        assert not template_hs.exists()
+        assert h00_file.read_bytes() == h00_before
+        after = {path.name: path.read_bytes() for path in tmp_path.glob("output.b*")}
+        assert after == binaries_before
+
+    def test_template_parse_failure_propagates_and_removes_template(
+        self, tmp_path, monkeypatch
+    ):
+        h00_file = make_penetrate_outputs(tmp_path)
+        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+
+        def failing_from_file(filename):
+            assert Path(filename) == template_hs
+            raise ValueError("corrupt template header")
+
+        monkeypatch.setattr(
+            InterfileHeader, "from_file", staticmethod(failing_from_file)
+        )
+
+        with pytest.raises(ValueError, match="corrupt template header"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
+        assert not template_hs.exists()
+
+    def test_cleanup_failure_preserves_primary_exception(self, tmp_path, monkeypatch):
+        h00_file = make_penetrate_outputs(tmp_path)
+        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        self.patch_failing_write(
+            monkeypatch,
+            component_header(tmp_path, component).name,
+            PermissionError("permission denied writing header"),
+        )
+
+        original_remove = simind_to_stir.os.remove
+
+        def failing_remove(path, *args, **kwargs):
+            if Path(path) == template_hs:
+                raise OSError("cleanup denied")
+            return original_remove(path, *args, **kwargs)
+
+        monkeypatch.setattr(simind_to_stir.os, "remove", failing_remove)
+
+        with pytest.raises(PermissionError, match="permission denied"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
     def test_header_write_failure_surfaces(self, tmp_path, monkeypatch):
         h00_file = make_penetrate_outputs(tmp_path)
         component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
