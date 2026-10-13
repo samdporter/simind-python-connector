@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from simind_python_connector.core.executor import SimindExecutor
@@ -311,7 +312,9 @@ def test_executor_split_requires_mpi_processes(
         SimindExecutor().run_simulation("case01", split_projections=True)
 
 
-@pytest.mark.parametrize("count", [1, 2, 4, 2.0, "4"])
+@pytest.mark.parametrize(
+    "count", [1, 2, 4, 2.0, "4", np.int32(4), np.int64(4), np.float64(4.0)]
+)
 def test_executor_accepts_valid_mpi_process_counts(
     monkeypatch: pytest.MonkeyPatch, count: object
 ) -> None:
@@ -324,7 +327,57 @@ def test_executor_accepts_valid_mpi_process_counts(
     assert calls[0][0][:3] == ["mpirun", "-np", str(int(count))]
 
 
-@pytest.mark.parametrize("count", [0, -1, 1.5, True, False, "2.5", "abc"])
+def test_executor_accepts_large_integer_mpi_process_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+    count = 10**400
+
+    SimindExecutor().run_simulation("case01", mpi_processes=count)
+
+    assert calls[0][0][:3] == ["mpirun", "-np", str(count)]
+
+
+def test_executor_wraps_digit_string_count_conversion_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if not (
+        hasattr(sys, "set_int_max_str_digits")
+        and hasattr(sys, "get_int_max_str_digits")
+    ):
+        pytest.skip("sys.set_int_max_str_digits is unavailable")
+
+    calls = _capture_run(monkeypatch)
+    previous_limit = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(640)
+        with pytest.raises(SimulationError, match="mpi_processes"):
+            SimindExecutor().run_simulation("case01", mpi_processes="9" * 700)
+    finally:
+        sys.set_int_max_str_digits(previous_limit)
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "count",
+    [
+        0,
+        -1,
+        1.5,
+        True,
+        False,
+        np.bool_(True),
+        np.bool_(False),
+        float("nan"),
+        float("inf"),
+        "2.5",
+        "abc",
+        "",
+    ],
+)
 def test_executor_rejects_invalid_mpi_process_counts_before_launch(
     monkeypatch: pytest.MonkeyPatch, count: object
 ) -> None:
@@ -352,26 +405,32 @@ def test_executor_renders_valueless_switches(
 def test_executor_rejects_whitespace_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _capture_run(monkeypatch)
+    calls = _capture_run(monkeypatch)
 
     with pytest.raises(SimulationError, match="whitespace"):
         SimindExecutor().run_simulation("bad prefix")
 
+    assert calls == []
+
 
 def test_executor_rejects_nul_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
-    _capture_run(monkeypatch)
+    calls = _capture_run(monkeypatch)
 
     with pytest.raises(SimulationError, match="NUL"):
         SimindExecutor().run_simulation("case\x00")
+
+    assert calls == []
 
 
 def test_executor_rejects_empty_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _capture_run(monkeypatch)
+    calls = _capture_run(monkeypatch)
 
     with pytest.raises(SimulationError, match="empty"):
         SimindExecutor().run_simulation("")
+
+    assert calls == []
 
 
 @pytest.mark.parametrize("bad_prefix", ["hyphen-prefix", "case-", "case--01"])
@@ -627,3 +686,403 @@ def test_executor_real_subprocess_large_dual_stream_output_does_not_deadlock(
     captured = capsys.readouterr()
     assert "o" * size in captured.out
     assert "e" * size in captured.err
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "SIMIND error number: 0",
+        "SIMIND error number: 7",
+        "========================= Error",
+        "OTHER INFORMATION",
+        "No input file found for the spectra:test.isd",
+    ],
+)
+def test_executor_ignores_fatal_looking_comment_echoed_under_banner(
+    monkeypatch: pytest.MonkeyPatch, comment: str
+) -> None:
+    # SIMIND echoes the configured comment verbatim on the single line after
+    # OTHER INFORMATION; a comment that spells a diagnostic must not fail a
+    # successful run.
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            f" {comment}\n"
+            " Compiled 2025:10:06 with intel Linux \n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_blank_comment_echo_under_banner_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            " \n"
+            " Compiled 2025:10:06 with intel Linux \n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_ignores_fatal_looking_comment_with_crlf_line_endings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\r\n"
+            " OTHER INFORMATION\r\n"
+            " SIMIND error number: 7\r\n"
+            " Compiled 2025:10:06 with intel Linux\r\n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        # Before the banner.
+        "SIMIND error number: 7\n OTHER INFORMATION\n Compiled\n",
+        "========================= Error\n OTHER INFORMATION\n Compiled\n",
+        # After the echoed comment (itself a fatal-looking comment).
+        " OTHER INFORMATION\n SIMIND error number: 0\n"
+        " Compiled\nSIMIND error number: 7\n",
+        " OTHER INFORMATION\n safe comment\n Compiled\n========== Error\n",
+    ],
+)
+def test_executor_detects_diagnostics_outside_the_echoed_comment(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=stdout)
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_banner_lookalike_comment_does_not_hide_later_fatal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            " OTHER INFORMATION\n"
+            " Compiled 2025:10:06 with intel Linux \n"
+            "SIMIND error number: 7\n"
+        ),
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_number_without_banner_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="fatal\nSIMIND error number: 7\n")
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_number_zero_outside_echo_region_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Error number 0 is not ignored globally; only the echoed comment is exempt.
+    _capture_run_with_output(monkeypatch, stdout="fatal\nSIMIND error number: 0\n")
+
+    with pytest.raises(SimulationError, match=r"error number 0"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_replays_raw_echoed_comment_without_redaction(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " OTHER INFORMATION\n"
+            " SIMIND error number: 0\n"
+            " Compiled\n"
+            "SIMIND error number: 7\n"
+        ),
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+    assert " SIMIND error number: 0" in capsys.readouterr().out
+
+
+def test_executor_echo_region_on_stdout_does_not_mask_stderr_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=" OTHER INFORMATION\n SIMIND error number: 0\n Compiled\n",
+        stderr="SIMIND error number: 9\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 9"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_does_not_match_echoed_diagnostic_split_across_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=" OTHER INFORMATION\n SIMIND\n",
+        stderr=" error number: 1\n",
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_after_echo_region_keeps_bounded_excerpt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = (
+        " OTHER INFORMATION\n"
+        " safe comment\n" + ("x" * 3000) + "\nSIMIND error number: 42\n" + ("y" * 3000)
+    )
+    _capture_run_with_output(monkeypatch, stdout=output)
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "error number 42" in message
+    assert "y" * 10 not in message
+    excerpt = message.split("): ", 1)[1]
+    assert len(excerpt) <= 2000
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+def test_executor_detects_missing_spectra_input(
+    monkeypatch: pytest.MonkeyPatch, stream: str
+) -> None:
+    _capture_run_with_output(
+        monkeypatch, **{stream: "No input file found for the spectra:case01.isd\n"}
+    )
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error") as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    assert "case01.isd" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "No   input file   found   for   the   spectra :   case01.isd",
+        "nO InPuT FILE fOuNd FOR THE SPECTRA:CASE01.ISD",
+        "No input file found for the spectra:\tcase01.isd\r",
+    ],
+)
+def test_executor_matches_missing_spectra_case_and_whitespace(
+    monkeypatch: pytest.MonkeyPatch, line: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=line + "\n")
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_missing_spectra_filename_survives_long_preamble(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = "x" * 3000 + "\nNo input file found for the spectra:spectra_123.isd\n"
+    _capture_run_with_output(monkeypatch, stdout=output)
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    assert "spectra_123.isd" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        "",
+        "No input file found for the spectra:case01.dat\n",
+        "No input file found for the image:case01.isd\n",
+        "No input file found for the spectra:.isd\n",
+        "No input file found for the spectra:case01.isd extra\n",
+        "no input files were found\n",
+    ],
+)
+def test_executor_ignores_near_miss_missing_spectra(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=stdout)
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_does_not_match_missing_spectra_split_across_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="No input file found for the spectra",
+        stderr=":case01.isd\n",
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_ignores_missing_spectra_echoed_in_config_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            " No input file found for the spectra:test.isd\n"
+            " Compiled 2025:10:06 with intel Linux \n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_missing_spectra_before_the_comment_echo_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=" No  input file found for the spectra:case01.isd\n" + " " * 20 + "\n",
+    )
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error") as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    assert "case01.isd" in str(excinfo.value)
+
+
+def test_executor_nonzero_exit_includes_labelled_stream_excerpts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout="stdout diagnostic\n",
+        stderr="stderr diagnostic\n",
+        returncode=1,
+    )
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "SIMIND execution failed" in message
+    assert "returned non-zero exit status 1" in message
+    assert "stdout:" in message
+    assert "stdout diagnostic" in message
+    assert "stderr:" in message
+    assert "stderr diagnostic" in message
+    assert isinstance(excinfo.value.__cause__, subprocess.CalledProcessError)
+
+
+def test_executor_nonzero_exit_excerpts_are_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch, stdout="o" * 3000, stderr="e" * 3000, returncode=1
+    )
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "o" * 2500 not in message
+    assert "e" * 2500 not in message
+
+
+@pytest.mark.parametrize(
+    "bad_prefix",
+    [123, None, Path("case01"), b"case01", ["case01"]],
+)
+def test_executor_rejects_non_string_output_prefix(
+    monkeypatch: pytest.MonkeyPatch, bad_prefix: object
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match="output_prefix must be a string"):
+        SimindExecutor().run_simulation(bad_prefix)
+
+    assert calls == []
+
+
+def test_executor_accepts_prefix_at_length_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+    prefix = "a" * 47
+
+    SimindExecutor().run_simulation(prefix)
+
+    assert calls[0][0][1] == prefix
+
+
+def test_executor_rejects_prefix_over_length_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match=r"at most 47 characters, got 48"):
+        SimindExecutor().run_simulation("a" * 48)
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("switch", ["NN", "RR", "CA"])
+def test_executor_validates_direct_runtime_switches(
+    monkeypatch: pytest.MonkeyPatch, switch: str
+) -> None:
+    # A direct executor call cannot bypass the public switch contract.
+    invalid = {"NN": 2.0, "RR": "abc", "CA": 3}[switch]
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError, match=switch):
+        SimindExecutor().run_simulation("case01", runtime_switches={switch: invalid})
+
+    assert calls == []
+
+
+def test_executor_direct_switches_preserve_bare_and_none_removal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation(
+        "case01", runtime_switches={"HO": True, "RR": None, "CA": 1}
+    )
+
+    assert calls[0][0][-1] == "/HO/CA:1"
+
+
+def test_executor_direct_ca_switch_retains_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"CA": 1})
+
+    assert calls[0][0][-1] == "/CA:1"

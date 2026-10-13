@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import numbers
 import os
 import re
 import subprocess
@@ -11,6 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from .config import _validate_switch_value
 from .types import OUTPUT_PREFIX_PATTERN, SimulationError
 
 
@@ -20,7 +23,27 @@ _SIMIND_ERROR_NUMBER_PATTERN = re.compile(
 _SIMIND_ERROR_DIVIDER_PATTERN = re.compile(
     r"^[ \t]*={3,}[ \t]*Error[ \t]*$", re.MULTILINE
 )
+# Confirmed fatal exit-0 diagnostic: SIMIND prints this on a complete line,
+# with variable spacing and casing, when a spectra .isd input cannot be read.
+_SIMIND_MISSING_INPUT_PATTERN = re.compile(
+    r"^[ \t]*No[ \t]+input[ \t]+file[ \t]+found[ \t]+for[ \t]+the[ \t]+spectra"
+    r"[ \t]*:[ \t]*(\S+\.isd)[ \t]*\r?$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# SIMIND echoes the configured comment, verbatim, under this banner on every
+# successful run. That echo can spell an error-number, divider or
+# missing-spectra diagnostic, so those scans exclude only the echoed line; the
+# genuine fatal aborts during input setup and never reaches the banner.
+_SIMIND_OTHER_INFORMATION_PATTERN = re.compile(
+    r"^[ \t]*OTHER[ \t]+INFORMATION[ \t]*\r?$", re.MULTILINE
+)
 _ERROR_EXCERPT_LIMIT = 2000
+# SIMIND V8 copies output names into a fixed 60-character Fortran buffer and
+# silently truncates anything longer, dropping the final extension character so
+# no readable SPECT header remains. The longest engine-written name adds a
+# "_tot_w{N}.a00" suffix (10 characters plus the digits of the window number),
+# so 47 keeps the name within 59 characters even with a two-digit window.
+_OUTPUT_PREFIX_MAX_LENGTH = 47
 
 
 class SimindExecutor:
@@ -50,13 +73,7 @@ class SimindExecutor:
         mpi_processes: Optional[Union[int, float, str]] = None,
         split_projections: bool = False,
     ) -> None:
-        prefix = self._validate_cli_token(output_prefix)
-        if not re.fullmatch(OUTPUT_PREFIX_PATTERN, prefix):
-            raise SimulationError(
-                f"output_prefix must contain only lowercase letters, digits and "
-                f"'_', never '-' (SIMIND treats '-' as an argument delimiter, "
-                f"which would split the filename arguments), got {prefix!r}"
-            )
+        prefix = self._validate_output_prefix(output_prefix)
 
         mpi_count = (
             self._validate_mp_count(mpi_processes)
@@ -69,6 +86,14 @@ class SimindExecutor:
 
         switch_parts = []
         for key, value in (runtime_switches or {}).items():
+            # None removes a switch, matching RuntimeSwitches.set_switch.
+            if value is None:
+                continue
+            switch = str(key).upper()
+            try:
+                _validate_switch_value(switch, value)
+            except ValueError as exc:
+                raise SimulationError(str(exc)) from exc
             # True stands for a switch without a value, e.g. /HO.
             switch_parts.append(f"/{key}" if value is True else f"/{key}:{value}")
         if split_projections:
@@ -125,8 +150,14 @@ class SimindExecutor:
                     f"Unable to execute SIMIND command: {exc}"
                 ) from exc
             except subprocess.CalledProcessError as exc:
-                self._read_and_replay(stdout_file, stderr_file)
-                raise SimulationError(f"SIMIND execution failed: {exc}") from exc
+                stdout_text, stderr_text = self._read_and_replay(
+                    stdout_file, stderr_file
+                )
+                raise SimulationError(
+                    f"SIMIND execution failed: {exc}\n"
+                    f"stdout:\n{stdout_text[:_ERROR_EXCERPT_LIMIT]}\n"
+                    f"stderr:\n{stderr_text[:_ERROR_EXCERPT_LIMIT]}"
+                ) from exc
             stdout_text, stderr_text = self._read_and_replay(stdout_file, stderr_file)
 
         # Each stream is checked on its own: concatenating them could match a
@@ -145,17 +176,50 @@ class SimindExecutor:
         return stdout_text, stderr_text
 
     @staticmethod
+    def _blank_echoed_comment(output: str) -> str:
+        """Blank SIMIND's echoed config comment for diagnostic scanning.
+
+        SIMIND echoes the configured comment verbatim on the single physical
+        line after the OTHER INFORMATION banner. That comment is user-controlled,
+        so a comment that spells an error-number or divider diagnostic would
+        otherwise fail a successful run. Only that line is blanked; every line
+        before and after the banner is still scanned.
+        """
+        banner = _SIMIND_OTHER_INFORMATION_PATTERN.search(output)
+        if banner is None:
+            return output
+        line_start = output.find("\n", banner.end())
+        if line_start == -1:
+            return output
+        line_start += 1
+        line_end = output.find("\n", line_start)
+        if line_end == -1:
+            line_end = len(output)
+        # Same-length blank keeps line boundaries and offsets intact.
+        return output[:line_start] + " " * (line_end - line_start) + output[line_end:]
+
+    @staticmethod
     def _raise_for_reported_error(output: str) -> None:
-        number_match = _SIMIND_ERROR_NUMBER_PATTERN.search(output)
+        scan_text = SimindExecutor._blank_echoed_comment(output)
+        number_match = _SIMIND_ERROR_NUMBER_PATTERN.search(scan_text)
         if number_match:
             excerpt = output[:_ERROR_EXCERPT_LIMIT]
             raise SimulationError(
                 f"SIMIND reported an error (error number "
                 f"{number_match.group(1)}): {excerpt}"
             )
-        if _SIMIND_ERROR_DIVIDER_PATTERN.search(output):
+        if _SIMIND_ERROR_DIVIDER_PATTERN.search(scan_text):
             excerpt = output[:_ERROR_EXCERPT_LIMIT]
             raise SimulationError(f"SIMIND reported an error: {excerpt}")
+        banner = _SIMIND_OTHER_INFORMATION_PATTERN.search(output)
+        scan_end = banner.start() if banner else len(output)
+        missing_input_match = _SIMIND_MISSING_INPUT_PATTERN.search(output, 0, scan_end)
+        if missing_input_match:
+            # The matched line is carried in the message itself so it survives
+            # even when it falls outside the bounded excerpt window.
+            diagnostic = missing_input_match.group(0).strip()
+            excerpt = output[:_ERROR_EXCERPT_LIMIT]
+            raise SimulationError(f"SIMIND reported an error ({diagnostic}): {excerpt}")
 
     @staticmethod
     def _resolve_executable(executable: str) -> str:
@@ -182,25 +246,63 @@ class SimindExecutor:
     def _validate_mp_count(value: object) -> str:
         """Normalise an MPI process count to a plain integer string.
 
-        Accepts Python ints, integral floats and digit-only strings so callers
-        can pass a count from configuration without surprises. ``bool`` is
-        rejected explicitly, and round-tripping through ``float`` is avoided so
-        very large ints keep their exact value.
+        Accepts Python and NumPy integers, integral reals (including NumPy
+        floats) and ASCII digit-only strings so callers can pass a count from
+        configuration without surprises. ``bool`` is rejected explicitly, and
+        round-tripping through ``float`` is avoided so very large ints keep
+        their exact value. Conversion failures (for example a digit string that
+        trips the interpreter's int-string limit) become ``SimulationError``.
         """
-        message = f"mpi_processes must be an integer >= 1, got {value!r}"
+        message = "mpi_processes must be an integer >= 1"
         if isinstance(value, bool):
             raise SimulationError(message)
-        if isinstance(value, int):
-            count = value
-        elif isinstance(value, float) and value.is_integer():
+        if isinstance(value, str):
+            if not (value.isascii() and value.isdigit()):
+                raise SimulationError(message)
+            try:
+                count = int(value)
+            except (ValueError, OverflowError) as exc:
+                raise SimulationError(message) from exc
+        elif isinstance(value, numbers.Integral):
             count = int(value)
-        elif isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+        elif isinstance(value, numbers.Real):
+            if not (math.isfinite(value) and value == int(value)):
+                raise SimulationError(message)
             count = int(value)
         else:
             raise SimulationError(message)
         if count < 1:
             raise SimulationError(message)
-        return str(count)
+        try:
+            return str(count)
+        except (ValueError, OverflowError) as exc:
+            raise SimulationError(message) from exc
+
+    @staticmethod
+    def _validate_output_prefix(prefix: object) -> str:
+        """Return ``prefix`` after validating it as a SIMIND output prefix.
+
+        Non-strings are rejected rather than coerced, and the length is capped
+        so SIMIND's own output names stay inside the engine's fixed 60-character
+        buffer instead of being silently truncated.
+        """
+        if not isinstance(prefix, str):
+            raise SimulationError(
+                f"output_prefix must be a string, got {type(prefix).__name__}"
+            )
+        token = SimindExecutor._validate_cli_token(prefix)
+        if len(token) > _OUTPUT_PREFIX_MAX_LENGTH:
+            raise SimulationError(
+                f"output_prefix must be at most {_OUTPUT_PREFIX_MAX_LENGTH} "
+                f"characters, got {len(token)}"
+            )
+        if not re.fullmatch(OUTPUT_PREFIX_PATTERN, token):
+            raise SimulationError(
+                f"output_prefix must contain only lowercase letters, digits and "
+                f"'_', never '-' (SIMIND treats '-' as an argument delimiter, "
+                f"which would split the filename arguments), got {token!r}"
+            )
+        return token
 
     @staticmethod
     def _validate_cli_token(value: object, *, allow_whitespace: bool = False) -> str:
