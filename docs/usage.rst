@@ -53,11 +53,19 @@ Runtime Control
 lowercase letters, digits and ``_``. SIMIND lowercases file names, a dot would
 be read as a file extension, and a hyphen is an argument delimiter: a prefix
 containing ``-`` splits SIMIND's filename arguments and the run silently
-produces no output.
+produces no output. The prefix is also capped at 47 characters: SIMIND V8
+copies output names into a fixed 60-character buffer and silently truncates
+longer ones, dropping the ``.h00``/``.a00`` suffix so no readable SPECT header
+remains. The longest engine-written name adds a ``_tot_w{N}.a00`` suffix (10
+characters plus the digits of the window number), so the cap keeps a
+47-character prefix plus a two-digit window number at 59 of the 60 available
+characters. To stay inside that budget, at most 99 energy windows are accepted;
+a larger set raises ``ValueError``.
 
 ``RuntimeOperator`` carries per-run switches, an orbit file and an optional
 timeout in seconds. A run that exceeds the timeout stops and raises
-``SimulationError``; by default there is no timeout.
+``SimulationError``; by default there is no timeout. ``orbit_file`` must point
+at an existing regular file; a directory is rejected with ``ValueError``.
 
 .. code-block:: python
 
@@ -74,11 +82,39 @@ instead of silently running a single process.
 
     connector.add_runtime_switch("MP", 4)
 
+Input Validation
+----------------
+
+Validation runs before any input file is written or SIMIND is started, so an
+unsupported setup fails with a clear message instead of an obscure one after
+the run.
+
+Only the scoring routines DUMMY (0), SCATTWIN (1) and PENETRATE (4) are
+supported by the Interfile connector. LIST_MODE (2) and FORCED_COLLIMATION (3)
+write outputs the connector cannot read, so they are rejected at preflight;
+they remain available through lower-level use of the package.
+
+A literal 1x1x1 voxel phantom is rejected (SIMIND does not support it), so pad
+the source and mu map to at least two voxels in one dimension. A non-zero
+source that ``quantization_scale`` rounds to all zeros is also rejected;
+increase ``quantization_scale`` so the source survives quantization.
+
+Filesystem failures in connector-managed steps (writing the source, density
+and window inputs, staging an orbit file, clearing stale outputs, converting
+headers) raise ``OutputError`` rather than a bare ``OSError``.
+
 Adaptor Workflows
 -----------------
 
 Use adaptors when you want connector-managed SIMIND execution plus native
 objects for a target reconstruction package.
+
+Primary projections are unsupported by these adaptors. ``get_primary_output()``
+raises ``NotImplementedError`` once outputs exist and ``RuntimeError`` before a
+successful run. The adaptors consume SIMIND's standard SPECT output, which has
+no standalone primary file; primary projections can still be produced through
+lower-level SIMIND use with ``/CA:2``. Use ``get_total_output()`` and
+``get_scatter_output()`` instead.
 
 STIR adaptor
 ~~~~~~~~~~~~

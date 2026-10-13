@@ -8,7 +8,6 @@ import contextlib
 import logging
 import math
 import os
-import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,11 +19,14 @@ from simind_python_connector.connectors.base import BaseConnector
 from simind_python_connector.converters.attenuation import attenuation_to_density
 from simind_python_connector.converters.simind_to_stir import SimindToStirConverter
 from simind_python_connector.core.config import RuntimeSwitches, SimulationConfig
-from simind_python_connector.core.executor import SimindExecutor
+from simind_python_connector.core.executor import (
+    SimindExecutor,
+    _validate_output_prefix,
+)
 from simind_python_connector.core.types import (
     MAX_SOURCE,
-    OUTPUT_PREFIX_PATTERN,
     SIMIND_VOXEL_UNIT_CONVERSION,
+    OutputError,
     PenetrateOutputType,
     ScoringRoutine,
 )
@@ -34,6 +36,14 @@ from simind_python_connector.utils.simind_utils import create_window_file
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
 PathLike = Union[str, os.PathLike[str]]
+
+# The Interfile connector can only read the projection outputs of these
+# routines; LIST_MODE and FORCED_COLLIMATION write formats it cannot consume.
+_SUPPORTED_SCORING_ROUTINES = (
+    ScoringRoutine.DUMMY,
+    ScoringRoutine.SCATTWIN,
+    ScoringRoutine.PENETRATE,
+)
 
 
 @dataclass(frozen=True)
@@ -66,11 +76,21 @@ class SimindPythonConnector(BaseConnector):
         quantization_scale: float = 1.0,
     ) -> None:
         self.logger = logging.getLogger(__name__)
-        self._validate_output_prefix(output_prefix)
-        self.output_dir = Path(output_dir).expanduser().resolve()
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._require_valid_prefix(output_prefix)
+        try:
+            self.output_dir = Path(output_dir).expanduser().resolve()
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise OutputError(
+                f"Could not create output directory {output_dir!r}: {exc}"
+            ) from exc
         self.output_prefix = output_prefix
-        self.quantization_scale = float(quantization_scale)
+        try:
+            self.quantization_scale = float(quantization_scale)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"quantization_scale must be in (0, 1], got {quantization_scale!r}"
+            ) from exc
         # Above 1 the source would be clipped at MAX_SOURCE, changing its shape.
         if not 0 < self.quantization_scale <= 1:
             raise ValueError(
@@ -88,22 +108,17 @@ class SimindPythonConnector(BaseConnector):
         self._orbit_source_paths: tuple[Path, ...] = ()
 
     @staticmethod
-    def _validate_output_prefix(prefix: str) -> None:
+    def _require_valid_prefix(prefix: str) -> None:
         """Accept only prefixes SIMIND keeps unchanged in its file names.
 
         SIMIND lowercases file names on Unix, a dot would be taken for a file
         extension, and glob characters would break output discovery. A hyphen
         is rejected too: SIMIND V8 treats it as an argument delimiter and
         splits its positional filename arguments, so the run would open the
-        wrong file and silently produce nothing.
+        wrong file and silently produce nothing. The length cap keeps the
+        engine's output names inside its fixed 60-character buffer.
         """
-        if not isinstance(prefix, str) or not re.fullmatch(
-            OUTPUT_PREFIX_PATTERN, prefix
-        ):
-            raise ValueError(
-                "output_prefix must start with a lowercase letter or digit and "
-                f"contain only lowercase letters, digits and '_', got {prefix!r}"
-            )
+        _validate_output_prefix(prefix)
 
     @staticmethod
     def _initialize_config(config_source: ConfigSource) -> SimulationConfig:
@@ -155,6 +170,8 @@ class SimindPythonConnector(BaseConnector):
         Returns:
             Tuple of (source_file_path, density_file_path).
         """
+        self._require_output_dir()
+        self._require_valid_prefix(self.output_prefix)
         source_array = np.asarray(source, dtype=np.float32)
         mu_map_array = np.asarray(mu_map, dtype=np.float32)
 
@@ -172,9 +189,16 @@ class SimindPythonConnector(BaseConnector):
             raise ValueError("source and mu_map must contain only finite values")
         if (source_array < 0).any() or (mu_map_array < 0).any():
             raise ValueError("source and mu_map must be non-negative")
+        if source_array.size == 1:
+            raise ValueError(
+                "SIMIND does not support a 1x1x1 voxel phantom; pad it to at "
+                "least two voxels in one dimension."
+            )
 
         if scoring_routine is None:
-            routine = None
+            routine = self._coerce_scoring_routine(
+                self.config.get_value("scoring_routine"), source="the configuration"
+            )
         elif isinstance(scoring_routine, ScoringRoutine):
             routine = scoring_routine
         elif isinstance(scoring_routine, int) and not isinstance(scoring_routine, bool):
@@ -190,14 +214,32 @@ class SimindPythonConnector(BaseConnector):
                 "scoring_routine must be None, a ScoringRoutine or int, got "
                 f"{type(scoring_routine).__name__}"
             )
+        self._validate_supported_scoring_routine(routine)
+
         dim_z, dim_y, dim_x = (int(v) for v in source_array.shape)
+
+        # Quantize before mutating the configuration or writing inputs so a
+        # scale that erases the source cannot leave a half-written run behind.
+        source_max = float(source_array.max())
+        if source_max > 0:
+            source_scaled = (
+                source_array / source_max * (MAX_SOURCE * self.quantization_scale)
+            )
+        else:
+            source_scaled = np.zeros_like(source_array)
+        source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
+        if source_max > 0 and not source_u16.any():
+            raise ValueError(
+                "quantization_scale rounds the non-zero source to all zeros; "
+                "increase quantization_scale."
+            )
 
         cfg = self.config
         cfg.set_flag(5, True)
         cfg.set_value(15, -1)
         cfg.set_value(14, -1)
         cfg.set_flag(14, True)
-        if routine is not None:
+        if scoring_routine is not None:
             cfg.set_value(84, routine.value)
 
         # Source geometry
@@ -221,18 +263,9 @@ class SimindPythonConnector(BaseConnector):
         voxel_mm = float(voxel_size_mm)
         self._phantom_extent_mm = (max(dim_x, dim_y) * voxel_mm, dim_z * voxel_mm)
 
-        source_max = float(source_array.max())
-        if source_max > 0:
-            source_scaled = (
-                source_array / source_max * (MAX_SOURCE * self.quantization_scale)
-            )
-        else:
-            source_scaled = np.zeros_like(source_array)
-        source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
-
         src_prefix = f"{self.output_prefix}_src"
         source_path = self.output_dir / f"{src_prefix}.smi"
-        source_u16.tofile(source_path)
+        self._write_array_file(source_u16, source_path, "source map")
         cfg.set_data_file(6, src_prefix)
 
         if cfg.get_flag(11):
@@ -248,7 +281,7 @@ class SimindPythonConnector(BaseConnector):
         )
         dns_prefix = f"{self.output_prefix}_dns"
         density_path = self.output_dir / f"{dns_prefix}.dmi"
-        density_u16.tofile(density_path)
+        self._write_array_file(density_u16, density_path, "density map")
         cfg.set_data_file(5, dns_prefix)
 
         return source_path, density_path
@@ -260,14 +293,48 @@ class SimindPythonConnector(BaseConnector):
         scatter_orders: Union[int, list[int]],
     ) -> None:
         """Write a SIMIND window file for this connector run."""
+        self._require_output_dir()
+        self._require_valid_prefix(self.output_prefix)
         window_path = self.output_dir / f"{self.output_prefix}.win"
-        create_window_file(
-            lower_bounds,
-            upper_bounds,
-            scatter_orders,
-            output_filename=str(window_path),
-        )
+        try:
+            create_window_file(
+                lower_bounds,
+                upper_bounds,
+                scatter_orders,
+                output_filename=str(window_path),
+            )
+        except OSError as exc:
+            raise OutputError(
+                f"Failed to write energy-window file {window_path}: {exc}"
+            ) from exc
         self._window_file_path = window_path
+
+    def _validate_runtime_operator(
+        self, runtime_operator: Optional[RuntimeOperator]
+    ) -> None:
+        """Validate a runtime operator without staging or writing any files.
+
+        Applies the same switch, timeout and orbit checks run() performs, so a
+        caller can reject an invalid operator before phantom inputs are
+        overwritten.
+        """
+        if runtime_operator is None:
+            return
+
+        SimindExecutor.validate_timeout(runtime_operator.timeout)
+
+        validation_switches = RuntimeSwitches()
+        for key, value in runtime_operator.switches.items():
+            validation_switches.set_switch(key, value)
+
+        orbit_file = runtime_operator.orbit_file
+        if orbit_file is None:
+            return
+        orbit_path = Path(orbit_file).expanduser().resolve()
+        if not orbit_path.exists():
+            raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+        if not orbit_path.is_file():
+            raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
 
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
@@ -275,6 +342,13 @@ class SimindPythonConnector(BaseConnector):
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
         self._orbit_source_paths = ()
+
+        # Fail before staging, config save or cleanup when the run cannot be
+        # supported, the output directory is no longer there or the prefix has
+        # grown past the engine's buffer-safe length.
+        self._require_output_dir()
+        self._require_valid_prefix(self.output_prefix)
+        self._config_scoring_routine()
 
         # Runtime-operator switches apply to this run only; merge them into
         # a throwaway switch set instead of persistent connector state.
@@ -316,7 +390,13 @@ class SimindPythonConnector(BaseConnector):
         self.config.set_flag(5, True)
         self.config.set_flag(14, True)
         config_path = self.output_dir / self.output_prefix
-        self.config.save_file(config_path)
+        try:
+            self.config.save_file(config_path)
+        except OSError as exc:
+            raise OutputError(
+                f"Failed to write SIMIND configuration "
+                f"{config_path.with_suffix('.smc')}: {exc}"
+            ) from exc
 
         self._clear_previous_outputs()
         self.executor.run_simulation(
@@ -382,7 +462,15 @@ class SimindPythonConnector(BaseConnector):
             with contextlib.suppress(OSError):
                 orbit_referents.append(os.stat(orbit_source.resolve()))
 
-        for path in sorted(self.output_dir.iterdir()):
+        try:
+            output_entries = sorted(self.output_dir.iterdir())
+        except OSError as exc:
+            raise OutputError(
+                f"Failed to list output directory {self.output_dir} for stale "
+                f"output cleanup: {exc}"
+            ) from exc
+
+        for path in output_entries:
             if not path.is_file() or path.name in protected:
                 continue
             if any(os.path.samestat(os.lstat(path), entry) for entry in orbit_entries):
@@ -402,7 +490,12 @@ class SimindPythonConnector(BaseConnector):
                 and path.suffix[2:].isdigit()
                 and path.stem == self.output_prefix
             ):
-                path.unlink()
+                try:
+                    path.unlink()
+                except OSError as exc:
+                    raise OutputError(
+                        f"Failed to remove stale output {path}: {exc}"
+                    ) from exc
 
     def _prepare_orbit_file(self, orbit_file: Optional[PathLike]) -> Optional[Path]:
         if orbit_file is None:
@@ -412,6 +505,8 @@ class SimindPythonConnector(BaseConnector):
         orbit_path = supplied_path.resolve()
         if not orbit_path.exists():
             raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+        if not orbit_path.is_file():
+            raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
         self._orbit_source_paths = (supplied_path, orbit_path)
 
         # Stage under a connector-owned name so a user-supplied orbit never
@@ -446,23 +541,46 @@ class SimindPythonConnector(BaseConnector):
                     continue
             if same_entry:
                 return target
-            target.unlink()
-        shutil.copy2(orbit_path, target)
+            try:
+                target.unlink()
+            except OSError as exc:
+                raise OutputError(
+                    f"Failed to remove stale orbit staging file {target}: {exc}"
+                ) from exc
+        try:
+            shutil.copy2(orbit_path, target)
+        except OSError as exc:
+            raise OutputError(
+                f"Failed to stage orbit file {orbit_path} to {target}: {exc}"
+            ) from exc
         return target
 
     def _ensure_interfile_headers(self) -> list[Path]:
         if self._is_penetrate_routine():
-            h00_file = self.converter.find_penetrate_h00_file(
-                self.output_prefix, str(self.output_dir)
-            )
-            if h00_file is None:
-                raise FileNotFoundError(
-                    f"No PENETRATE .h00 file found for prefix {self.output_prefix!r} "
-                    f"in {self.output_dir}"
+            try:
+                h00_file = self.converter.find_penetrate_h00_file(
+                    self.output_prefix, str(self.output_dir)
                 )
-            self.converter.create_penetrate_headers_from_template(
-                h00_file, self.output_prefix, str(self.output_dir)
-            )
+            except OSError as exc:
+                raise OutputError(
+                    f"Failed to search for PENETRATE output for prefix "
+                    f"{self.output_prefix!r} in {self.output_dir}: {exc}"
+                ) from exc
+            if h00_file is None:
+                raise OutputError(
+                    f"No PENETRATE .h00 output found for prefix "
+                    f"{self.output_prefix!r} in {self.output_dir}; a PENETRATE "
+                    "run should produce a .h00 template and .bNN binaries"
+                )
+            try:
+                self.converter.create_penetrate_headers_from_template(
+                    h00_file, self.output_prefix, str(self.output_dir)
+                )
+            except OSError as exc:
+                raise OutputError(
+                    f"Failed to convert PENETRATE output {h00_file} in "
+                    f"{self.output_dir}: {exc}"
+                ) from exc
             hs_files = sorted(
                 self.output_dir.glob(f"{self.output_prefix}_component_*.hs")
             )
@@ -473,16 +591,23 @@ class SimindPythonConnector(BaseConnector):
             )
             for h00_file in h00_files:
                 hs_file = h00_file.with_suffix(".hs")
-                self.converter.convert_file(str(h00_file), str(hs_file))
+                try:
+                    self.converter.convert_file(str(h00_file), str(hs_file))
+                except OSError as exc:
+                    raise OutputError(
+                        f"Failed to convert SIMIND header {h00_file} to "
+                        f"{hs_file}: {exc}"
+                    ) from exc
 
             hs_files = sorted(
                 set(self.output_dir.glob(f"{self.output_prefix}_*.hs"))
                 | {h00_file.with_suffix(".hs") for h00_file in h00_files}
             )
         if not hs_files:
-            raise FileNotFoundError(
-                f"No projection headers (.hs) found for prefix {self.output_prefix!r} "
-                f"in {self.output_dir}"
+            raise OutputError(
+                f"No SPECT projection headers (.hs) found for prefix "
+                f"{self.output_prefix!r} in {self.output_dir}; expected the "
+                "SIMIND run to write readable SPECT Interfile output"
             )
 
         return hs_files
@@ -525,6 +650,61 @@ class SimindPythonConnector(BaseConnector):
         if stem.startswith(self.output_prefix):
             stem = stem[len(self.output_prefix) :]
         return stem.lstrip("_") or header_path.stem
+
+    def _require_output_dir(self) -> None:
+        if not self.output_dir.is_dir():
+            raise OutputError(
+                f"Output directory {self.output_dir} does not exist or is not a "
+                "directory; it must be present before writing inputs or running"
+            )
+
+    @staticmethod
+    def _write_array_file(array: np.ndarray, path: Path, description: str) -> None:
+        try:
+            array.tofile(path)
+        except OSError as exc:
+            raise OutputError(
+                f"Failed to write {description} to {path}: {exc}"
+            ) from exc
+
+    @staticmethod
+    def _coerce_scoring_routine(value: Any, source: str) -> ScoringRoutine:
+        """Return a ScoringRoutine for a config value without rounding it."""
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"scoring_routine {value!r} from {source} is not a valid "
+                "ScoringRoutine value"
+            ) from exc
+        if not math.isfinite(numeric) or numeric != int(numeric):
+            raise ValueError(
+                f"scoring_routine {value!r} from {source} is not an integral "
+                "ScoringRoutine value"
+            )
+        try:
+            return ScoringRoutine(int(numeric))
+        except ValueError as exc:
+            raise ValueError(
+                f"scoring_routine {value!r} from {source} is not a valid "
+                "ScoringRoutine value"
+            ) from exc
+
+    @staticmethod
+    def _validate_supported_scoring_routine(routine: ScoringRoutine) -> None:
+        if routine not in _SUPPORTED_SCORING_ROUTINES:
+            raise ValueError(
+                f"scoring_routine {routine.name} ({routine.value}) is not "
+                "supported by the Interfile connector; supported routines are "
+                "DUMMY (0), SCATTWIN (1) and PENETRATE (4)."
+            )
+
+    def _config_scoring_routine(self) -> ScoringRoutine:
+        routine = self._coerce_scoring_routine(
+            self.config.get_value("scoring_routine"), source="the configuration"
+        )
+        self._validate_supported_scoring_routine(routine)
+        return routine
 
     def _is_penetrate_routine(self) -> bool:
         try:

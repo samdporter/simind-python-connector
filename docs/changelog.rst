@@ -19,6 +19,9 @@ Added
 Changed
 ~~~~~~~
 
+- Python >=3.10 is now required (``requires-python`` and the
+  metadata/classifiers are updated accordingly); previously the metadata
+  claimed 3.9+.
 - NumPy is capped at ``>=1.20.0,<2.0`` package-wide: the STIR and SIRF
   bindings are compiled against NumPy 1.x and crash with NumPy 2.
 - PENETRATE per-component fallback diagnostics are logged at DEBUG instead of
@@ -27,6 +30,31 @@ Changed
   V8.0 run: the extra ``.win`` line is REQUIRED (without it SIMIND emits no
   scatter/air outputs), so the behaviour is intentionally retained and is now
   documented and covered by a real-binary regression test.
+- Input narrowing is deliberate, even in a patch release: the Interfile
+  connector now rejects up front what it could never consume, instead of
+  failing obscurely after SIMIND ran. Only the scoring routines DUMMY (0),
+  SCATTWIN (1) and PENETRATE (4) are supported; LIST_MODE (2) and
+  FORCED_COLLIMATION (3) are rejected at preflight. A literal 1x1x1 phantom is
+  rejected (pad to at least two voxels in one dimension), as is a non-zero
+  source that ``quantization_scale`` rounds to all zeros. ``output_prefix`` is
+  capped at 47 characters and at most 99 energy windows are accepted (SIMIND
+  V8 copies output names into a fixed 60-character buffer and silently
+  truncates longer ones, dropping the ``.h00``/``.a00`` suffix; the longest
+  per-window name adds ``_tot_w{N}.a00``, so the cap keeps a 47-character
+  prefix plus a two-digit window number at 59 of 60 characters), ``NN`` must be
+  within 1..2,147,483,647, ``MP`` takes integer or ASCII-digit-string forms
+  only, and ``orbit_file`` must be a regular file.
+  Index 26 (voxel history) and the ``/NN`` *simulation semantics* are
+  unchanged — only validation was added.
+- ``output_prefix`` is validated at construction and again before every
+  connector-managed write or cleanup (source/density files, the window file,
+  the saved ``.smc``, stale-output removal and orbit staging), so an over-long
+  prefix can no longer overwrite or delete existing ``{prefix}.smc`` /
+  ``{prefix}_tot_w1.hs`` before it is rejected.
+- Filesystem failures in connector-managed steps (writing the source, density
+  and window inputs, staging an orbit file, clearing stale outputs,
+  converting headers) raise ``OutputError`` instead of a bare
+  ``OSError``/``FileNotFoundError``.
 
 Fixed
 ~~~~~
@@ -38,9 +66,44 @@ Fixed
   collide.
 - SIMIND error diagnostics are detected even when SIMIND exits 0 and raise
   ``SimulationError``; previously the run failed later with a misleading
-  missing-output error.
+  missing-output error. The exit-0 scan also recognises
+  ``No input file found for the spectra:<x>.isd``, which used to surface as a
+  misleading missing-header error, only before SIMIND's ``OTHER INFORMATION``
+  banner so an echoed configuration comment cannot be mistaken for the failure;
+  a non-zero exit now quotes captured stdout/stderr excerpts in the
+  ``SimulationError`` message.
+- ``find_penetrate_h00_file`` matches only the exact prefix name or an
+  underscore-boundary suffix, so overlapping prefixes such as ``s`` and ``s2``
+  no longer claim each other's ``.h00`` output.
+- Reflected and unary arithmetic on the STIR wrappers (``2.0 + img``,
+  ``2.0 - img``, ``2.0 * img``, ``2.0 / img``, ``-img``, and image left-hand
+  operands) no longer raises ``TypeError``.
+- ``get_primary_output()`` raises a clear ``NotImplementedError`` instead of
+  ``KeyError``, because SIMIND emits no standalone primary projection; before
+  a successful run it still raises ``RuntimeError``.
+- ``SimulationConfig`` is robust to bad or short configurations:
+  ``save_file`` formats and format-checks the whole fixed-width block before
+  truncating the destination, rejects values that cannot fit a 12-character
+  SMC field (NaN/Inf, oversized exponents) and canonicalises ``-0.0``,
+  ``print_config`` and ``validate_parameters`` handle configs shorter than the
+  index tables, and YAML import validates that sections are mappings and
+  accepts quoted integer indices.
+- ``stir.extra`` is preferred over the deprecated ``stirextra``; the legacy
+  name is kept as a fallback for older STIR installs.
 - ``MP`` (MPI process count) must be an integer >= 1; ``MP=0`` previously ran
   a single process silently.
+
+Known Limitations
+~~~~~~~~~~~~~~~~~
+
+- A run that exceeds its ``timeout`` kills the launcher process but may not
+  reap every ``simind_mpi`` rank; there is no process-tree teardown yet.
+- Primary projections are unsupported by the adaptors, so
+  ``get_primary_output()`` always raises ``NotImplementedError``: SIMIND's
+  standard SPECT output has no primary file, though lower-level ``/CA:2`` use
+  can produce them.
+- Scoring routines LIST_MODE (2) and FORCED_COLLIMATION (3) remain available
+  only via lower-level use of the package.
 
 1.1.1 - 2026-10-11
 ------------------

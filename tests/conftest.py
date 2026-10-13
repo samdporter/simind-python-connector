@@ -47,7 +47,11 @@ def pytest_collection_modifyitems(config, items):
     # Check if STIR Python is available
     try:
         import stir  # noqa: F401
-        import stirextra  # noqa: F401
+
+        try:
+            import stir.extra  # noqa: F401
+        except ImportError:
+            import stirextra  # noqa: F401
 
         stir_available = True
     except ImportError:

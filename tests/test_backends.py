@@ -14,6 +14,15 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
+def _require_stir_python():
+    """Skip unless STIR Python is present with either extra-module layout."""
+    pytest.importorskip("stir")
+    try:
+        import stir.extra  # noqa: F401
+    except ImportError:
+        pytest.importorskip("stirextra")
+
+
 def test_backend_detection():
     """Test that backend auto-detection works."""
     from simind_python_connector.backends import get_backend, reset_backend
@@ -45,8 +54,7 @@ def test_backend_manual_selection_sirf():
 @pytest.mark.requires_stir
 def test_backend_manual_selection_stir():
     """Test manual backend selection for STIR Python."""
-    pytest.importorskip("stir")
-    pytest.importorskip("stirextra")
+    _require_stir_python()
 
     from simind_python_connector.backends import get_backend, reset_backend, set_backend
 
@@ -129,8 +137,7 @@ def test_sirf_backend_wrappers():
 @pytest.mark.requires_stir
 def test_stir_backend_wrappers():
     """Test STIR Python backend wrapper classes."""
-    pytest.importorskip("stir")
-    pytest.importorskip("stirextra")
+    _require_stir_python()
 
     from simind_python_connector.backends import reset_backend, set_backend
     from simind_python_connector.backends.stir_backend import (
@@ -281,8 +288,7 @@ def test_arithmetic_operations():
         assert hasattr(SirfImageData, "__truediv__")
 
     elif backend == "stir":
-        pytest.importorskip("stir")
-        pytest.importorskip("stirextra")
+        _require_stir_python()
         from simind_python_connector.backends.stir_backend import StirImageData
 
         # Same for STIR
@@ -292,10 +298,16 @@ def test_arithmetic_operations():
         assert hasattr(StirImageData, "__truediv__")
 
 
-def _install_fake_stir(monkeypatch):
-    """Install a complete fake 'stir' backend for every lookup path."""
+def _install_fake_stir(monkeypatch, modern=True):
+    """Install a complete fake 'stir' backend for every lookup path.
+
+    ``modern=True`` fakes the ``stir.extra`` layout; ``modern=False`` fakes the
+    legacy standalone ``stirextra`` module.
+    """
+    import sys
     import types
 
+    import simind_python_connector.backends as backends
     import simind_python_connector.backends.stir_backend as stir_backend
 
     class _FakeVoxels:
@@ -316,17 +328,24 @@ def _install_fake_stir(monkeypatch):
     fake_stir.FloatVoxelsOnCartesianGrid = _FakeVoxels
     fake_stir.ProjData = _FakeProjData
     fake_stir.ProjDataInMemory = _FakeProjDataInMemory
-    fake_stirextra = types.ModuleType("stirextra")
+    fake_extra = types.ModuleType("stir.extra" if modern else "stirextra")
+
+    monkeypatch.setitem(sys.modules, "stir", fake_stir)
+    if modern:
+        monkeypatch.setitem(sys.modules, "stir.extra", fake_extra)
+        monkeypatch.delitem(sys.modules, "stirextra", raising=False)
+    else:
+        monkeypatch.setitem(sys.modules, "stirextra", fake_extra)
+        monkeypatch.delitem(sys.modules, "stir.extra", raising=False)
 
     # The backend factory resolves modules through sys.modules, while the
     # cached wrapper holds direct references; patch both.
-    import sys
-
-    monkeypatch.setitem(sys.modules, "stir", fake_stir)
-    monkeypatch.setitem(sys.modules, "stirextra", fake_stirextra)
     monkeypatch.setattr(stir_backend, "stir", fake_stir, raising=False)
-    monkeypatch.setattr(stir_backend, "stirextra", fake_stirextra, raising=False)
     monkeypatch.setattr(stir_backend, "STIR_AVAILABLE", True, raising=False)
+    monkeypatch.setattr(
+        stir_backend, "_import_stir_extra", lambda: fake_extra, raising=False
+    )
+    monkeypatch.setattr(backends, "_import_stir_extra", lambda: fake_extra)
 
 
 @pytest.mark.unit
@@ -364,6 +383,26 @@ def test_create_acquisition_data_accepts_path_objects(monkeypatch):
         set_backend("stir")
         wrapped = create_acquisition_data(Path("/tmp/proj.hs"))
         assert wrapped.native_object.obj == ("acquisition", "/tmp/proj.hs")
+    finally:
+        reset_backend()
+
+
+@pytest.mark.unit
+def test_fake_stir_legacy_layout_activates(monkeypatch):
+    """The legacy-only fake still activates the STIR backend."""
+    from simind_python_connector.backends import (
+        create_image_data,
+        reset_backend,
+        set_backend,
+    )
+
+    _install_fake_stir(monkeypatch, modern=False)
+
+    reset_backend()
+    try:
+        set_backend("stir")
+        wrapped = create_image_data(Path("/tmp/legacy.hv"))
+        assert wrapped.native_object == ("image", "/tmp/legacy.hv")
     finally:
         reset_backend()
 

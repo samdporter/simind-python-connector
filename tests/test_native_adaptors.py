@@ -6,13 +6,17 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+import simind_python_connector.connectors.pytomography_adaptor as pytomography_mod
 import simind_python_connector.connectors.sirf_adaptor as sirf_mod
 import simind_python_connector.connectors.stir_adaptor as stir_mod
 from simind_python_connector.configs import get
 from simind_python_connector.connectors.python_connector import RuntimeOperator
+from simind_python_connector.connectors.pytomography_adaptor import (
+    PyTomographySimindAdaptor,
+)
 from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
 from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
-from simind_python_connector.core.types import ScoringRoutine
+from simind_python_connector.core.types import ScoringRoutine, SimulationError
 
 
 pytestmark = pytest.mark.unit
@@ -494,6 +498,55 @@ def _assert_failed_rerun_clears_cache(adaptor) -> None:
         (SirfSimindAdaptor, _patch_sirf_backend),
     ],
 )
+def test_adaptor_primary_output_requires_a_successful_run(
+    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+
+    with pytest.raises(RuntimeError, match="Run the adaptor first"):
+        adaptor.get_primary_output(window=1)
+
+    def failing_run(runtime_operator=None):
+        raise RuntimeError("simulated failure")
+
+    adaptor.python_connector.run = failing_run  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError, match="simulated failure"):
+        adaptor.run()
+
+    with pytest.raises(RuntimeError, match="Run the adaptor first"):
+        adaptor.get_primary_output(window=1)
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+def test_adaptor_primary_output_unsupported_after_populated_run(
+    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    populated = {"tot_w1": "projection", "sca_w1": "scatter", "air_w1": "air"}
+    adaptor._outputs = dict(populated)  # type: ignore[assignment]
+
+    with pytest.raises(NotImplementedError, match="standalone primary projection"):
+        adaptor.get_primary_output(window=1)
+
+    assert adaptor._outputs == populated
+    assert "pri_w1" not in adaptor._outputs
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
 def test_adaptor_keeps_the_config_scoring_routine_by_default(
     cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -515,3 +568,146 @@ def test_adaptor_keeps_the_config_scoring_routine_by_default(
 
     assert adaptor.get_scoring_routine() == ScoringRoutine.PENETRATE
     assert int(adaptor.get_config().get_value(84)) == ScoringRoutine.PENETRATE.value
+
+
+def _seed_existing_inputs(tmp_path: Path, prefix: str = "case01") -> dict[Path, bytes]:
+    paths = [
+        tmp_path / f"{prefix}_src.smi",
+        tmp_path / f"{prefix}_dns.dmi",
+        tmp_path / f"{prefix}.win",
+    ]
+    for path in paths:
+        path.write_bytes(f"existing:{path.name}".encode())
+    return {path: path.read_bytes() for path in paths}
+
+
+def _invalid_runtime_operator(
+    kind: str, tmp_path: Path
+) -> tuple[RuntimeOperator, type[Exception]]:
+    if kind == "switch":
+        return RuntimeOperator(switches={"NN": 0}), ValueError
+    if kind == "orbit":
+        orbit_dir = tmp_path / "orbit-dir"
+        orbit_dir.mkdir(exist_ok=True)
+        return RuntimeOperator(orbit_file=orbit_dir), ValueError
+    if kind == "timeout":
+        return RuntimeOperator(timeout=0), SimulationError
+    raise AssertionError(f"unknown runtime-operator kind {kind!r}")
+
+
+def _patch_pytomography_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pytomography_mod, "torch", SimpleNamespace(Tensor=object))
+
+
+def _make_pytomography_adaptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> PyTomographySimindAdaptor:
+    _patch_pytomography_backend(monkeypatch)
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=str(tmp_path),
+        output_prefix="case01",
+    )
+    # Bypass the real torch tensors: these private values only need to satisfy
+    # the input checks and the axes conversion before configure_voxel_phantom.
+    adaptor._source = SimpleNamespace(shape=(2, 3, 4))  # type: ignore[assignment]
+    adaptor._mu_map = SimpleNamespace(shape=(2, 3, 4))  # type: ignore[assignment]
+    adaptor._energy_windows = ([126.0], [154.0], [0])
+    monkeypatch.setattr(
+        adaptor,
+        "to_simind_image_axes",
+        lambda value: SimpleNamespace(
+            numpy=lambda: np.zeros((2, 3, 4), dtype=np.float32)
+        ),
+    )
+    return adaptor
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+@pytest.mark.parametrize("kind", ["switch", "orbit", "timeout"])
+def test_adaptor_rejects_invalid_runtime_operator_before_writes(
+    cls, patch, kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    seeded = _seed_existing_inputs(tmp_path)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append((args, kwargs)),
+    )
+    operator, expected = _invalid_runtime_operator(kind, tmp_path)
+
+    with pytest.raises(expected):
+        adaptor.run(runtime_operator=operator)
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+def test_adaptor_accepts_valid_runtime_operator(
+    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    outputs = adaptor.run(
+        runtime_operator=RuntimeOperator(switches={"RR": 12345}, timeout=42.0)
+    )
+
+    assert outputs == {}
+
+
+@pytest.mark.parametrize("kind", ["switch", "orbit", "timeout"])
+def test_pytomography_adaptor_rejects_invalid_runtime_operator_before_writes(
+    kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adaptor = _make_pytomography_adaptor(tmp_path, monkeypatch)
+    seeded = _seed_existing_inputs(tmp_path)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append((args, kwargs)),
+    )
+    operator, expected = _invalid_runtime_operator(kind, tmp_path)
+
+    with pytest.raises(expected):
+        adaptor.run(runtime_operator=operator)
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original
+
+
+def test_pytomography_adaptor_accepts_valid_runtime_operator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adaptor = _make_pytomography_adaptor(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    outputs = adaptor.run(
+        runtime_operator=RuntimeOperator(switches={"RR": 12345}, timeout=42.0)
+    )
+
+    assert outputs == {}

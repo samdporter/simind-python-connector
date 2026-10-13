@@ -6,7 +6,33 @@ proper fallback handling. This eliminates the need for duplicate try/except
 import blocks scattered throughout the codebase.
 """
 
+import warnings
 from typing import Tuple, Type
+
+
+def _import_stir_extra():
+    """Return the STIR array-conversion module.
+
+    Modern STIR Python exposes the conversion helpers as ``stir.extra``. Older
+    installs ship them as the standalone ``stirextra`` module, which is used
+    only when ``stir.extra`` is genuinely absent. A missing dependency inside
+    ``stir.extra`` is allowed to propagate rather than being masked by the
+    legacy fallback.
+    """
+    try:
+        import stir.extra
+    except ModuleNotFoundError as exc:
+        if exc.name not in (None, "stir", "stir.extra"):
+            raise
+    else:
+        return stir.extra
+
+    with warnings.catch_warnings():
+        # The legacy replacement shim warns on import; suppress only that.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import stirextra
+
+    return stirextra
 
 
 def get_sirf_types() -> Tuple[Type, Type, bool]:
@@ -27,8 +53,9 @@ def get_sirf_types() -> Tuple[Type, Type, bool]:
 def get_stir_types() -> Tuple[Type, Type, bool]:
     """Import STIR Python types with fallback.
 
-    Both ``stir`` and ``stirextra`` are required by the backend wrappers, so
-    availability is only reported when both import successfully.
+    The array-conversion helpers live either in the modern ``stir.extra``
+    submodule or the legacy standalone ``stirextra`` module. Availability is
+    reported when ``stir`` imports and one of those is present.
 
     Returns:
         Tuple of (FloatVoxelsOnCartesianGrid, ProjData, STIR_AVAILABLE)
@@ -36,11 +63,12 @@ def get_stir_types() -> Tuple[Type, Type, bool]:
     """
     try:
         import stir
-        import stirextra  # noqa: F401
 
-        return stir.FloatVoxelsOnCartesianGrid, stir.ProjData, True
+        _import_stir_extra()
     except ImportError:
         return type(None), type(None), False
+
+    return stir.FloatVoxelsOnCartesianGrid, stir.ProjData, True
 
 
 def get_backend_types() -> Tuple[Type, Type, Type, Type, str]:
@@ -67,7 +95,7 @@ def get_backend_types() -> Tuple[Type, Type, Type, Type, str]:
         "Neither SIRF nor STIR Python is available. "
         "Please install one of:\n"
         "  - SIRF (sirf.STIR)\n"
-        "  - STIR Python (stir + stirextra)"
+        "  - STIR Python (stir + stir.extra)"
     )
 
 

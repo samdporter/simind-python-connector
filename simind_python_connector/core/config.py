@@ -670,6 +670,60 @@ class SimulationConfig:
 
         print(f"Configuration exported to {filepath}")
 
+    @staticmethod
+    def _require_mapping(value, label):
+        if not isinstance(value, dict):
+            raise ValueError(f"{label} must be a mapping, got {type(value).__name__}")
+        return value
+
+    @staticmethod
+    def _normalise_index(value, label):
+        if isinstance(value, bool):
+            raise ValueError(
+                f"{label}: index must be a positive integer, got {value!r}"
+            )
+        if isinstance(value, int):
+            index = value
+        elif isinstance(value, float):
+            if not math.isfinite(value) or not value.is_integer():
+                raise ValueError(
+                    f"{label}: index must be a positive integer, got {value!r}"
+                )
+            index = int(value)
+        elif isinstance(value, str):
+            text = value.strip()
+            if not (text.isascii() and text.isdigit()):
+                raise ValueError(
+                    f"{label}: index must be a positive integer, got {value!r}"
+                )
+            index = int(text)
+        else:
+            raise ValueError(
+                f"{label}: index must be a positive integer, got {value!r}"
+            )
+        if index <= 0:
+            raise ValueError(
+                f"{label}: index must be a positive integer, got {value!r}"
+            )
+        return index
+
+    def _normalise_index_mapping(self, mapping, label):
+        normalised = {}
+        for key, value in mapping.items():
+            index = self._normalise_index(key, label)
+            if index in normalised:
+                raise ValueError(
+                    f"{label}: duplicate index {index} after normalisation"
+                )
+            normalised[index] = value
+        return normalised
+
+    @staticmethod
+    def _register_index(seen, index, label):
+        if index in seen:
+            raise ValueError(f"{label}: duplicate index {index} after normalisation")
+        seen.add(index)
+
     def import_yaml(self, filepath):
         """
         Import configuration from a YAML file.
@@ -680,57 +734,109 @@ class SimulationConfig:
         with open(filepath, "r") as file:
             yaml_dict = yaml.safe_load(file)
 
+        if yaml_dict is None:
+            raise ValueError("YAML root must be a mapping, got an empty document")
+        self._require_mapping(yaml_dict, "YAML root")
+
         # Update comment
-        if "metadata" in yaml_dict and "comment" in yaml_dict["metadata"]:
-            self.comment = yaml_dict["metadata"]["comment"]
+        if "metadata" in yaml_dict:
+            metadata = self._require_mapping(yaml_dict["metadata"], "metadata")
+            if "comment" in metadata:
+                self.comment = metadata["comment"]
 
         # Update parameters
         if "parameters" in yaml_dict:
-            for group_name, group_params in yaml_dict["parameters"].items():
+            parameters = self._require_mapping(yaml_dict["parameters"], "parameters")
+            seen_indices = set()
+            for group_name, group_params in parameters.items():
+                group_label = f"parameters.{group_name}"
+                self._require_mapping(group_params, group_label)
                 for param_name, param_data in group_params.items():
-                    if "index" in param_data and "value" in param_data:
-                        idx = param_data["index"]
-                        value = param_data["value"]
-                        if idx in self.index_dict and idx <= len(self.data):
-                            self.data[idx - 1] = float(value)
+                    entry_label = f"{group_label}.{param_name}"
+                    self._require_mapping(param_data, entry_label)
+                    if "index" not in param_data or "value" not in param_data:
+                        continue
+                    idx = self._normalise_index(param_data["index"], entry_label)
+                    self._register_index(seen_indices, idx, "parameters")
+                    if idx in self.index_dict and idx <= len(self.data):
+                        self.data[idx - 1] = float(param_data["value"])
 
         # Update flags
         if "simulation_flags" in yaml_dict:
+            simulation_flags = self._require_mapping(
+                yaml_dict["simulation_flags"], "simulation_flags"
+            )
             flags = list(self.flags)
-            for flag_name, flag_data in yaml_dict["simulation_flags"].items():
-                if "index" in flag_data and "enabled" in flag_data:
-                    idx = flag_data["index"]
-                    enabled = flag_data["enabled"]
-                    if idx in self.flag_dict and idx <= len(flags):
-                        flags[idx - 1] = "T" if enabled else "F"
+            seen_indices = set()
+            for flag_name, flag_data in simulation_flags.items():
+                entry_label = f"simulation_flags.{flag_name}"
+                self._require_mapping(flag_data, entry_label)
+                if "index" not in flag_data or "enabled" not in flag_data:
+                    continue
+                idx = self._normalise_index(flag_data["index"], entry_label)
+                self._register_index(seen_indices, idx, "simulation_flags")
+                if idx in self.flag_dict and idx <= len(flags):
+                    flags[idx - 1] = "T" if flag_data["enabled"] else "F"
             self.flags = "".join(flags)
 
         # Update data files
         if "data_files" in yaml_dict:
-            for file_desc, file_data in yaml_dict["data_files"].items():
-                if "index" in file_data and "filepath" in file_data:
-                    idx = file_data["index"]
-                    f = file_data["filepath"]
-                    if idx in self.data_file_dict:
-                        self.data_files[idx] = f
+            data_files = self._require_mapping(yaml_dict["data_files"], "data_files")
+            seen_indices = set()
+            for file_desc, file_data in data_files.items():
+                entry_label = f"data_files.{file_desc}"
+                self._require_mapping(file_data, entry_label)
+                if "index" not in file_data or "filepath" not in file_data:
+                    continue
+                idx = self._normalise_index(file_data["index"], entry_label)
+                self._register_index(seen_indices, idx, "data_files")
+                if idx in self.data_file_dict:
+                    self.data_files[idx] = file_data["filepath"]
 
         # Update text variables
         if "text_variables" in yaml_dict:
-            self.text_variables = yaml_dict["text_variables"]
+            text_variables = self._require_mapping(
+                yaml_dict["text_variables"], "text_variables"
+            )
+            self.text_variables = self._normalise_index_mapping(
+                text_variables, "text_variables"
+            )
 
-        for idx, value in yaml_dict.get("other_parameters", {}).items():
-            idx = int(idx)
-            if idx > len(self.data):
-                self.data.extend([0.0] * (idx - len(self.data)))
-            self.data[idx - 1] = float(value)
+        if "other_parameters" in yaml_dict:
+            other_parameters = self._require_mapping(
+                yaml_dict["other_parameters"], "other_parameters"
+            )
+            for idx, value in self._normalise_index_mapping(
+                other_parameters, "other_parameters"
+            ).items():
+                if idx > len(self.data):
+                    self.data.extend([0.0] * (idx - len(self.data)))
+                self.data[idx - 1] = float(value)
 
-        flags = list(self.flags)
-        for idx, enabled in yaml_dict.get("other_flags", {}).items():
-            idx = int(idx)
-            if idx > len(flags):
-                flags.extend("F" * (idx - len(flags)))
-            flags[idx - 1] = "T" if enabled else "F"
-        self.flags = "".join(flags)
+        if "other_flags" in yaml_dict:
+            other_flags = self._require_mapping(yaml_dict["other_flags"], "other_flags")
+            flags = list(self.flags)
+            for idx, enabled in self._normalise_index_mapping(
+                other_flags, "other_flags"
+            ).items():
+                if idx > len(flags):
+                    flags.extend("F" * (idx - len(flags)))
+                flags[idx - 1] = "T" if enabled else "F"
+            self.flags = "".join(flags)
+
+    def _optional_value(self, name):
+        """Return a named parameter, or None when a short config lacks it."""
+        try:
+            return self.get_value(name)
+        except (IndexError, ValueError):
+            return None
+
+    def _optional_flag(self, name):
+        """Return a named flag, or None when a short config lacks it."""
+        try:
+            return self.get_flag(name)
+        except (IndexError, ValueError):
+            return None
 
     def validate_parameters(self):
         """
@@ -742,25 +848,36 @@ class SimulationConfig:
         warnings = []
 
         # Energy validation
-        if (
-            self.get_value("photon_energy") < 10
-            or self.get_value("photon_energy") > 500
-        ):
+        photon_energy = self._optional_value("photon_energy")
+        if photon_energy is None:
+            warnings.append("Cannot validate photon energy: not present")
+        elif photon_energy < 10 or photon_energy > 500:
             warnings.append("Photon energy outside typical range (10-500 keV)")
 
         # Energy window validation
-        upper_window = self.get_value("upper_window_threshold")
-        lower_window = self.get_value("lower_window_threshold")
-        if upper_window > 0 and lower_window > 0 and lower_window >= upper_window:
+        upper_window = self._optional_value("upper_window_threshold")
+        lower_window = self._optional_value("lower_window_threshold")
+        if upper_window is None or lower_window is None:
+            warnings.append("Cannot validate energy window: not present")
+        elif upper_window > 0 and lower_window > 0 and lower_window >= upper_window:
             warnings.append("Lower energy window >= upper energy window")
 
         # Collimator validation
-        if self.get_flag("include_collimator"):
-            if self.get_value("collimator_thickness") <= 0:
+        include_collimator = self._optional_flag("include_collimator")
+        if include_collimator is None:
+            warnings.append("Cannot validate collimator flag: not present")
+        elif include_collimator:
+            collimator_thickness = self._optional_value("collimator_thickness")
+            if collimator_thickness is None:
+                warnings.append("Cannot validate collimator thickness: not present")
+            elif collimator_thickness <= 0:
                 warnings.append("Collimator enabled but thickness <= 0")
 
         # Crystal validation
-        if self.get_value("crystal_thickness") <= 0:
+        crystal_thickness = self._optional_value("crystal_thickness")
+        if crystal_thickness is None:
+            warnings.append("Cannot validate crystal thickness: not present")
+        elif crystal_thickness <= 0:
             warnings.append("Crystal thickness <= 0")
 
         if warnings:
@@ -791,10 +908,12 @@ class SimulationConfig:
         print(f"Comment: {self.comment}")
         print("Basic Change data:")
         for key, val in self.index_dict.items():
-            print(f"index {key}: {val}: {self.data[key - 1]}")
+            if key <= len(self.data):
+                print(f"index {key}: {val}: {self.data[key - 1]}")
         print("Simulation flags:")
         for key, val in self.flag_dict.items():
-            print(f"flag {key}: {val}: {self.flags[key - 1]}")
+            if key <= len(self.flags):
+                print(f"flag {key}: {val}: {self.flags[key - 1]}")
         print("Text Variables:")
         for key, val in self.text_variables.items():
             print(f"{key}: {val}")
@@ -927,6 +1046,49 @@ class SimulationConfig:
     def set_comment(self, comment):
         self.comment = comment
 
+    @staticmethod
+    def _format_smc_basic_value(value, index):
+        """Format one basic-data value as a fixed 12-character SMC field.
+
+        Raises ValueError naming the parameter index when the value is not a
+        finite number or overflows the fixed-width field.
+        """
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                f"basic data: value at index {index} is not numeric: {value!r}"
+            ) from exc
+
+        if not math.isfinite(numeric):
+            raise ValueError(
+                f"basic data: value at index {index} must be a finite number, "
+                f"got {value!r}"
+            )
+
+        if numeric == 0:
+            # Canonicalise -0.0 so signed zero keeps the 12-character width.
+            return f" {0.0:.5E}"
+
+        # Format in scientific notation with 5 decimal places, then shift the
+        # decimal point one position right (incrementing the exponent).
+        formatted_val = f"{numeric:.5E}"
+        sign = "-" if numeric < 0 else " "
+        mantissa, exponent_text = formatted_val.split("E")
+        digits = mantissa.replace("-", "")
+        # remove final 0 and the decimal point
+        digits = digits[:-1].replace(".", "")
+        new_exponent = int(exponent_text) + 1
+
+        formatted_val = f"{sign}0.{digits}E{new_exponent:+03d}"
+        if len(formatted_val) != 12:
+            # A 3-digit adjusted exponent overflows the fixed-width field.
+            raise ValueError(
+                f"basic data: value at index {index} cannot be represented in "
+                "a 12-character SMC field"
+            )
+        return formatted_val
+
     def save_file(self, filepath):
         # Ensure filepath is a Path object
         filepath = Path(filepath)
@@ -935,89 +1097,112 @@ class SimulationConfig:
         if filepath.suffix != ".smc":
             filepath = filepath.with_suffix(".smc")
 
+        # Build the entire file contents before opening the destination, so a
+        # bad value in any section cannot truncate an existing file.
+        lines = ["SMCV2"]
+
+        if not isinstance(self.comment, str):
+            raise ValueError(
+                f"comment must be a string, got {type(self.comment).__name__}"
+            )
+        lines.append(self.comment + " " * (70 - len(self.comment)))
+
+        lines.append("   120  # Basic Change data")
+        for i in range(0, 120, 5):  # Force exactly 120 values
+            line = ""
+            for j in range(5):
+                index = i + j + 1
+                if i + j < len(self.data):
+                    val = self.data[i + j]
+                else:
+                    val = 0.0  # Pad with zeros if needed
+                line += self._format_smc_basic_value(val, index)
+            lines.append(line)
+
+        if not isinstance(self.flags, str):
+            raise ValueError(
+                f"simulation flags must be a string, got {type(self.flags).__name__}"
+            )
+        lines.append(f"{len(self.flags)}  # Simulation flags")
+        lines.append(self.flags)
+
+        max_text_variable = max(self.text_variables) if self.text_variables else 0
+        lines.append(f"{max_text_variable}  # Text Variables")
+        for i in range(1, max_text_variable + 1):
+            text_variable = self.text_variables.get(i, "none")
+            if not isinstance(text_variable, str):
+                raise ValueError(
+                    f"text variables: value at slot {i} must be a string, "
+                    f"got {text_variable!r}"
+                )
+            lines.append(text_variable)
+
+        max_data_file = max(self.data_files) if self.data_files else 0
+        lines.append(f"{max_data_file} # Data files")
+        for i in range(1, max_data_file + 1):
+            filename = self.data_files.get(i, "none")
+            if not isinstance(filename, str):
+                raise ValueError(
+                    f"data files: value at slot {i} must be a string, got {filename!r}"
+                )
+            lines.append(f"{filename:<60}")
+
+        text = "\n".join(lines) + "\n"
         with open(filepath, "w") as file:
-            comment = self.comment + " " * (70 - len(self.comment))
-            file.write(f"SMCV2\n{comment}\n")
-            file.write("   120  # Basic Change data\n")
-
-            for i in range(0, 120, 5):  # Force exactly 120 values
-                line = ""
-                for j in range(5):
-                    if i + j < len(self.data):
-                        val = self.data[i + j]
-                    else:
-                        val = 0.0  # Pad with zeros if needed
-
-                    # Format the value in scientific notation with 5 decimal places
-                    formatted_val = f"{val:.5E}"
-                    if val != 0:
-                        # Split the formatted value into its components: sign,
-                        # digit, and exponent
-                        sign = "-" if val < 0 else " "
-                        parts = formatted_val.split("E")
-                        digits = parts[0].replace("-", "")
-                        # remove final 0
-                        digits = digits[:-1]
-                        exponent = int(parts[1])
-
-                        # Ensure it starts with '0' after the sign
-                        if "." in digits:
-                            digits = digits.replace(".", "")
-
-                        # Since we've moved the decimal place one position to the
-                        # right, increment the exponent
-                        new_exponent = exponent + 1
-
-                        # Reconstruct the formatted value
-                        formatted_val = f"{sign}0.{digits}E{new_exponent:+03d}"
-                    else:
-                        # If the value is 0, we don't need to format it
-                        formatted_val = f" {val:.5E}"
-
-                    # Add the formatted value to the line
-                    line += f"{formatted_val}"
-
-                # Write the formatted line to the file
-                file.write(f"{line}\n")
-
-            file.write(f"{len(self.flags)}  # Simulation flags\n{self.flags}\n")
-
-            max_text_variable = max(self.text_variables) if self.text_variables else 0
-            file.write(f"{max_text_variable}  # Text Variables\n")
-            for i in range(1, max_text_variable + 1):
-                file.write(f"{self.text_variables.get(i, 'none')}\n")
-
-            max_data_file = max(self.data_files) if self.data_files else 0
-            file.write(f"{max_data_file} # Data files\n")
-            for i in range(1, max_data_file + 1):
-                filename = self.data_files.get(i, "none")
-                file.write(f"{filename:<60}\n")
+            file.write(text)
 
         return filepath.with_suffix(".smc")
+
+
+# Conservative policy bound for the /NN value; not an engine-documented maximum.
+_NN_MAX = 2_147_483_647
 
 
 def _validate_switch_value(switch, value):
     # The executor writes every switch as /XX:value.
     if switch == "MP":
-        is_integer = not isinstance(value, bool) and isinstance(value, (int, float))
-        if is_integer and isinstance(value, int):
-            # ints are always finite; avoid float() on very large values.
+        original = value
+        if isinstance(value, str):
+            # ASCII digit strings are accepted for parity with int input;
+            # isdigit() alone would accept non-ASCII and other Unicode digits.
+            if not (value.isascii() and value.isdigit()):
+                raise ValueError(f"MP must be an integer >= 1, got {original!r}")
+            try:
+                # int() also rejects digit strings too long to parse safely.
+                value = int(value)
+            except ValueError as exc:
+                raise ValueError(
+                    f"MP must be an integer >= 1, got {original!r}"
+                ) from exc
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"MP must be an integer >= 1, got {original!r}")
+        if isinstance(value, float):
+            is_integer = math.isfinite(value) and value.is_integer() and value >= 1
+        else:
             is_integer = value >= 1
-        elif is_integer:
-            is_integer = (
-                math.isfinite(value) and float(value).is_integer() and value >= 1
-            )
         if not is_integer:
-            raise ValueError(f"MP must be an integer >= 1, got {value!r}")
+            raise ValueError(f"MP must be an integer >= 1, got {original!r}")
         return
     if value is None or isinstance(value, bool):
         raise ValueError(f"Switch {switch} requires a value, got {value!r}")
     if switch == "NN":
-        is_integer = isinstance(value, (int, float)) and float(value).is_integer()
-        if not is_integer or value < 1:
+        # Compare ints before any float conversion so a huge int cannot
+        # overflow (or be rounded into range) on the way to a float.
+        if not isinstance(value, (int, float)):
             raise ValueError(
-                "NN must be an integer >= 1 (SIMIND cuts off the simulation "
-                f"otherwise), got {value!r}"
+                f"NN must be an integer between 1 and {_NN_MAX}, got {value!r}"
+            )
+        if isinstance(value, int):
+            in_range = 1 <= value <= _NN_MAX
+        else:
+            in_range = (
+                math.isfinite(value) and value.is_integer() and 1 <= value <= _NN_MAX
+            )
+        if not in_range:
+            # Never format the value: an out-of-range int may be enormous.
+            raise ValueError(
+                f"NN must be an integer between 1 and {_NN_MAX}; the value is "
+                "outside the supported range"
             )
 
 

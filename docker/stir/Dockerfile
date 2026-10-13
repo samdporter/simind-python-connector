@@ -23,8 +23,12 @@ RUN python -m pip install --upgrade pip \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
     && python - <<'PY'
 import importlib
-for module in ("stir", "stirextra", "pytest"):
+for module in ("stir", "pytest"):
     importlib.import_module(module)
+try:
+    importlib.import_module("stir.extra")
+except ImportError:
+    importlib.import_module("stirextra")
 print("STIR Python modules available")
 PY
 

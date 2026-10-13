@@ -82,6 +82,7 @@ class SirfSimindAdaptor(BaseConnector):
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.
         self._outputs = None
+        self.python_connector._validate_runtime_operator(runtime_operator)
         self._validate_inputs()
         assert self._source is not None
         assert self._mu_map is not None
@@ -115,7 +116,20 @@ class SirfSimindAdaptor(BaseConnector):
         return self._get_component("sca", window)
 
     def get_primary_output(self, window: int = 1) -> Any:
-        return self._get_component("pri", window)
+        """Primary output is unsupported by these adaptors.
+
+        SIMIND can emit primary data only through lower-level use such as the
+        ``/CA:2`` switch, so no standalone primary projection is produced here.
+        Before a successful run (and after a failed rerun) the empty output
+        cache still raises RuntimeError; once outputs exist this raises
+        NotImplementedError instead of the KeyError the old ``pri_*`` lookup
+        produced.
+        """
+        self.get_outputs()
+        raise NotImplementedError(
+            "SIMIND does not emit a standalone primary projection output. "
+            "get_primary_output() is not supported."
+        )
 
     def get_air_output(self, window: int = 1) -> Any:
         return self._get_component("air", window)

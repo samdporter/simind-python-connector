@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from simind_python_connector.configs import get
+from simind_python_connector.connectors import SimindPythonConnector
 from simind_python_connector.converters import simind_to_stir
 from simind_python_connector.converters.simind_to_stir import (
     ConversionConfig,
@@ -18,7 +20,11 @@ from simind_python_connector.converters.simind_to_stir import (
     SimindToStirConverter,
     StartAngleConversionRule,
 )
-from simind_python_connector.core.types import PenetrateOutputType
+from simind_python_connector.core.types import (
+    OutputError,
+    PenetrateOutputType,
+    ScoringRoutine,
+)
 from simind_python_connector.utils.interfile_parser import (
     InterfileHeader,
     parse_interfile_line,
@@ -623,34 +629,66 @@ class TestPenetrateFallbackLogging:
             "corrupt interfile data" in record.getMessage() for record in fallbacks
         )
 
-    def test_header_write_failure_still_warns(self, tmp_path, monkeypatch, caplog):
-        h00_file = make_penetrate_outputs(tmp_path)
-        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        binary_name = f"output.b{component.value:02d}"
-        failing_name = component_header(tmp_path, component).name
+    @staticmethod
+    def patch_failing_write(monkeypatch, failing_name, error):
         original_write = InterfileHeader.write
 
         def failing_write(self, path, *args, **kwargs):
             if Path(path).name == failing_name:
-                raise OSError("disk full while writing header")
+                raise error
             return original_write(self, path, *args, **kwargs)
 
         monkeypatch.setattr(InterfileHeader, "write", failing_write)
 
-        with caplog.at_level(logging.WARNING):
-            outputs = SimindToStirConverter().create_penetrate_headers_from_template(
+    def test_component_header_permission_error_propagates(self, tmp_path, monkeypatch):
+        h00_file = make_penetrate_outputs(tmp_path)
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        self.patch_failing_write(
+            monkeypatch,
+            component_header(tmp_path, component).name,
+            PermissionError("permission denied writing header"),
+        )
+
+        with pytest.raises(PermissionError, match="permission denied"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
                 str(h00_file), "output", str(tmp_path)
             )
 
-        assert component.slug not in outputs
-        assert len(outputs) == len(PenetrateOutputType) - 1
-        assert any(
-            record.levelno == logging.WARNING
-            and "Failed to create header" in record.getMessage()
-            and binary_name in record.getMessage()
-            and "disk full while writing header" in record.getMessage()
-            for record in caplog.records
+    def test_header_write_failure_surfaces(self, tmp_path, monkeypatch):
+        h00_file = make_penetrate_outputs(tmp_path)
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        self.patch_failing_write(
+            monkeypatch,
+            component_header(tmp_path, component).name,
+            OSError("disk full while writing header"),
         )
+
+        with pytest.raises(OSError, match="disk full while writing header"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
+    def test_component_header_write_failure_becomes_output_error(
+        self, tmp_path, monkeypatch
+    ):
+        make_penetrate_outputs(tmp_path)
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        self.patch_failing_write(
+            monkeypatch,
+            component_header(tmp_path, component).name,
+            PermissionError("permission denied writing header"),
+        )
+        connector = SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            output_prefix="output",
+        )
+        connector.add_config_value(84, ScoringRoutine.PENETRATE.value)
+
+        with pytest.raises(OutputError) as excinfo:
+            connector._ensure_interfile_headers()
+
+        assert isinstance(excinfo.value.__cause__, PermissionError)
 
     def test_successful_factory_result_is_returned(self, tmp_path, monkeypatch):
         h00_file = make_penetrate_outputs(tmp_path)
@@ -674,3 +712,55 @@ class TestPenetrateFallbackLogging:
             str(component_header(tmp_path, component))
             for component in PenetrateOutputType
         ]
+
+
+@pytest.mark.unit
+class TestFindPenetrateH00File:
+    """The output prefix must only claim its own PENETRATE outputs."""
+
+    def test_overlapping_prefixes_do_not_collide(self, tmp_path):
+        (tmp_path / "s.h00").write_text("x")
+        (tmp_path / "s2.h00").write_text("x")
+        (tmp_path / "sx.h00").write_text("x")
+
+        found = SimindToStirConverter().find_penetrate_h00_file("s", str(tmp_path))
+
+        assert found == str(tmp_path / "s.h00")
+        assert SimindToStirConverter().find_penetrate_h00_file(
+            "s2", str(tmp_path)
+        ) == str(tmp_path / "s2.h00")
+
+    def test_underscore_suffixed_output_matches_prefix(self, tmp_path):
+        (tmp_path / "s_extra.h00").write_text("x")
+
+        found = SimindToStirConverter().find_penetrate_h00_file("s", str(tmp_path))
+
+        assert found == str(tmp_path / "s_extra.h00")
+
+    def test_genuine_ambiguity_still_raises(self, tmp_path):
+        (tmp_path / "s.h00").write_text("x")
+        (tmp_path / "s_extra.h00").write_text("x")
+
+        with pytest.raises(ValueError, match="Multiple .h00 files match prefix 's'"):
+            SimindToStirConverter().find_penetrate_h00_file("s", str(tmp_path))
+
+    def test_no_match_returns_none_with_warning(self, tmp_path, caplog):
+        (tmp_path / "s2.h00").write_text("x")
+
+        with caplog.at_level(logging.WARNING):
+            found = SimindToStirConverter().find_penetrate_h00_file("s", str(tmp_path))
+
+        assert found is None
+        assert any(
+            record.levelno == logging.WARNING
+            and "No .h00 file found with prefix s" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_directory_named_like_output_is_ignored(self, tmp_path, caplog):
+        (tmp_path / "s.h00").mkdir()
+
+        with caplog.at_level(logging.WARNING):
+            found = SimindToStirConverter().find_penetrate_h00_file("s", str(tmp_path))
+
+        assert found is None
