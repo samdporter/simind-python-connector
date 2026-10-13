@@ -101,7 +101,13 @@ def test_image_native_left_operands():
         (native + image).as_array(), before + before, rtol=1e-5, atol=1e-6
     )
     np.testing.assert_allclose(
+        (native - image).as_array(), before - before, rtol=1e-5, atol=1e-6
+    )
+    np.testing.assert_allclose(
         (native * image).as_array(), before * before, rtol=1e-5, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        (native / image).as_array(), before / before, rtol=1e-5, atol=1e-6
     )
     np.testing.assert_array_equal(image.as_array(), before)
 
@@ -115,7 +121,13 @@ def test_acquisition_native_left_operands():
         (native + acquisition).as_array(), before + before, rtol=1e-5, atol=1e-6
     )
     np.testing.assert_allclose(
+        (native - acquisition).as_array(), before - before, rtol=1e-5, atol=1e-6
+    )
+    np.testing.assert_allclose(
         (native * acquisition).as_array(), before * before, rtol=1e-5, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        (native / acquisition).as_array(), before / before, rtol=1e-5, atol=1e-6
     )
     np.testing.assert_array_equal(acquisition.as_array(), before)
 
