@@ -448,6 +448,9 @@ def test_engine_raw_prefix_limit_runs(tmp_path: Path, monkeypatch: pytest.Monkey
     # The command mirrors what run_simulation issues, switches included.
     binary = shutil.which(os.environ.get("SIMIND_BIN") or "simind")
     assert binary is not None, "SIMIND binary not found for the raw-boundary run"
+    # which() may return a relative path; anchor it before cwd changes below,
+    # the same way SimindExecutor._resolve_executable does.
+    binary = str(Path(binary).expanduser().absolute())
     switch_blob = "".join(
         f"/{key}:{value}" for key, value in over.runtime_switches.switches.items()
     )
