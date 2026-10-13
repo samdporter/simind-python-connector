@@ -7,6 +7,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import math
+import numbers
 import os
 import shutil
 from dataclasses import dataclass, field
@@ -683,20 +684,29 @@ class SimindPythonConnector(BaseConnector):
     @staticmethod
     def _coerce_scoring_routine(value: Any, source: str) -> ScoringRoutine:
         """Return a ScoringRoutine for a config value without rounding it."""
-        try:
-            numeric = float(value)
-        except (TypeError, ValueError, OverflowError) as exc:
+        # bool is an Integral subclass but is not a meaningful routine code.
+        if isinstance(value, (bool, np.bool_)):
             raise ValueError(
                 f"scoring_routine {value!r} from {source} is not a valid "
                 "ScoringRoutine value"
-            ) from exc
-        if not math.isfinite(numeric) or numeric != int(numeric):
-            raise ValueError(
-                f"scoring_routine {value!r} from {source} is not an integral "
-                "ScoringRoutine value"
             )
+        if isinstance(value, numbers.Integral):
+            routine_value = int(value)
+        else:
+            # Test integrality on the original value: a lossy float() round
+            # would collapse e.g. Decimal("1.00000000000000001") to 1.0.
+            try:
+                is_integral = value == int(value)
+            except (TypeError, ValueError, OverflowError):
+                is_integral = False
+            if not is_integral:
+                raise ValueError(
+                    f"scoring_routine {value!r} from {source} is not an integral "
+                    "ScoringRoutine value"
+                )
+            routine_value = int(value)
         try:
-            return ScoringRoutine(int(numeric))
+            return ScoringRoutine(routine_value)
         except ValueError as exc:
             raise ValueError(
                 f"scoring_routine {value!r} from {source} is not a valid "

@@ -1,6 +1,8 @@
 import os
 import re
 import tempfile
+from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -1675,6 +1677,95 @@ def test_python_connector_invalid_present_scoring_has_no_side_effects(
     assert prior_config.read_bytes() == b"prior config"
     assert orbit.read_bytes() == b"prior orbit"
     assert not (tmp_path / "case01_orbit.cor").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "lossy_value",
+    [
+        pytest.param(Decimal("1.00000000000000001"), id="decimal"),
+        pytest.param(Fraction(10**18 + 1, 10**18), id="fraction"),
+    ],
+)
+def test_python_connector_rejects_lossy_integral_scoring_value(
+    tmp_path: Path, lossy_value: object
+):
+    # float() would collapse these to 1.0 and wrongly accept them.
+    assert float(lossy_value) == 1.0
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, lossy_value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+    prior_config = tmp_path / "case01.smc"
+    prior_config.write_bytes(b"prior config")
+
+    with pytest.raises(ValueError, match="not an integral"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(ValueError, match="not an integral"):
+        connector.run()
+
+    assert prior_config.read_bytes() == b"prior config"
+    assert not (tmp_path / "case01_src.smi").exists()
+    assert not (tmp_path / "case01_dns.dmi").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bool_value",
+    [
+        pytest.param(True, id="python-true"),
+        pytest.param(False, id="python-false"),
+        pytest.param(np.bool_(True), id="numpy-true"),
+    ],
+)
+def test_python_connector_rejects_boolean_scoring_value(
+    tmp_path: Path, bool_value: object
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, bool_value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.run()
+
+    assert not (tmp_path / "case01_src.smi").exists()
+    assert not (tmp_path / "case01_dns.dmi").exists()
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "integral_value",
+    [
+        pytest.param(1.0, id="float"),
+        pytest.param(Decimal("1"), id="decimal"),
+        pytest.param(Fraction(1, 1), id="fraction"),
+        pytest.param(np.int64(1), id="numpy-int"),
+    ],
+)
+def test_python_connector_accepts_exact_integral_scoring_values(
+    tmp_path: Path, integral_value: object
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, integral_value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    connector.configure_voxel_phantom(source, source.copy())
+
+    assert int(connector.get_config().get_value(84)) == ScoringRoutine.SCATTWIN.value
 
 
 @pytest.mark.unit
