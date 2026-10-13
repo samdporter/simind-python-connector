@@ -87,7 +87,7 @@ class SimindPythonConnector(BaseConnector):
         self.output_prefix = output_prefix
         try:
             self.quantization_scale = float(quantization_scale)
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(
                 f"quantization_scale must be in (0, 1], got {quantization_scale!r}"
             ) from exc
@@ -196,9 +196,7 @@ class SimindPythonConnector(BaseConnector):
             )
 
         if scoring_routine is None:
-            routine = self._coerce_scoring_routine(
-                self.config.get_value("scoring_routine"), source="the configuration"
-            )
+            routine = self._config_scoring_routine()
         elif isinstance(scoring_routine, ScoringRoutine):
             routine = scoring_routine
         elif isinstance(scoring_routine, int) and not isinstance(scoring_routine, bool):
@@ -672,7 +670,7 @@ class SimindPythonConnector(BaseConnector):
         """Return a ScoringRoutine for a config value without rounding it."""
         try:
             numeric = float(value)
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(
                 f"scoring_routine {value!r} from {source} is not a valid "
                 "ScoringRoutine value"
@@ -700,20 +698,18 @@ class SimindPythonConnector(BaseConnector):
             )
 
     def _config_scoring_routine(self) -> ScoringRoutine:
-        routine = self._coerce_scoring_routine(
-            self.config.get_value("scoring_routine"), source="the configuration"
-        )
+        try:
+            value = self.config.get_value("scoring_routine")
+        except IndexError:
+            # A short config omits Index 84 entirely. SIMIND's serializer pads
+            # it to zero, so an absent routine is effectively DUMMY.
+            return ScoringRoutine.DUMMY
+        routine = self._coerce_scoring_routine(value, source="the configuration")
         self._validate_supported_scoring_routine(routine)
         return routine
 
     def _is_penetrate_routine(self) -> bool:
-        try:
-            scoring_routine = int(
-                round(float(self.config.get_value("scoring_routine")))
-            )
-        except Exception:
-            return False
-        return scoring_routine == ScoringRoutine.PENETRATE.value
+        return self._config_scoring_routine() is ScoringRoutine.PENETRATE
 
 
 NumpyConnector = SimindPythonConnector

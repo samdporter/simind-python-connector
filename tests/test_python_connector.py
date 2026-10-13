@@ -8,6 +8,7 @@ import pytest
 
 from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
+from simind_python_connector.core import SimulationConfig
 from simind_python_connector.core.types import (
     MAX_SOURCE,
     OutputError,
@@ -187,6 +188,31 @@ def _record_executor_run(connector: SimindPythonConnector) -> dict[str, object]:
     connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
     return captured
+
+
+def _write_smc_with_basic_value_count(
+    source: Path, destination: Path, value_count: int
+) -> Path:
+    """Write a genuine SMC whose basic-data section holds ``value_count`` values.
+
+    SIMIND writes basic data as fixed 12-character fields, so slicing the raw
+    section at that width reproduces a short config the parser reads as-is.
+    """
+    lines = source.read_text().splitlines()
+    basic_header = next(
+        index for index, line in enumerate(lines) if "# Basic Change data" in line
+    )
+    flags_header = next(
+        index for index, line in enumerate(lines) if "# Simulation flags" in line
+    )
+    basic_text = "".join(lines[basic_header + 1 : flags_header])
+    kept = basic_text[: value_count * 12]
+    output = lines[:basic_header]
+    output.append(f"   {value_count}  # Basic Change data")
+    output.extend(kept[start : start + 60] for start in range(0, len(kept), 60))
+    output.extend(lines[flags_header:])
+    destination.write_text("\n".join(output) + "\n")
+    return destination
 
 
 @pytest.mark.unit
@@ -1408,6 +1434,27 @@ def test_python_connector_accepts_supported_scoring_routines(
 
 
 @pytest.mark.unit
+def test_python_connector_explicit_scoring_override_ignores_config_value(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    # An explicit override is authoritative even when the config value is one
+    # the connector does not support.
+    connector.add_config_value(84, ScoringRoutine.LIST_MODE.value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    connector.configure_voxel_phantom(
+        source, source.copy(), scoring_routine=ScoringRoutine.SCATTWIN
+    )
+
+    assert int(connector.get_config().get_value(84)) == ScoringRoutine.SCATTWIN.value
+
+
+@pytest.mark.unit
 def test_python_connector_does_not_round_fractional_config_routine(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
@@ -1422,6 +1469,86 @@ def test_python_connector_does_not_round_fractional_config_routine(tmp_path: Pat
         connector.configure_voxel_phantom(source, source.copy())
     with pytest.raises(ValueError, match="not an integral"):
         connector.run()
+
+
+@pytest.mark.unit
+def test_python_connector_short_config_defaults_scoring_to_dummy(tmp_path: Path):
+    short_smc = _write_smc_with_basic_value_count(
+        get("input.smc"), tmp_path / "short.smc", 83
+    )
+    connector = SimindPythonConnector(
+        config_source=short_smc, output_dir=tmp_path, output_prefix="case01"
+    )
+    with pytest.raises(IndexError):
+        connector.get_config().get_value("scoring_routine")  # genuinely absent
+
+    source = np.ones((2, 3, 4), dtype=np.float32)
+    source_path, density_path = connector.configure_voxel_phantom(source, source.copy())
+    assert source_path.exists()
+    assert density_path.exists()
+
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    # A DUMMY routine takes the non-PENETRATE path, so the run fails on the
+    # missing SPECT headers rather than on missing PENETRATE headers.
+    with pytest.raises(OutputError, match="No SPECT projection headers"):
+        connector.run()
+
+    assert launched == [True]
+    assert connector._is_penetrate_routine() is False
+    assert SimulationConfig(tmp_path / "case01.smc").get_value(84) == 0
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        pytest.param(0.6, id="fractional"),
+        pytest.param(float("nan"), id="nan"),
+        pytest.param(float("inf"), id="positive-inf"),
+        pytest.param(-float("inf"), id="negative-inf"),
+        pytest.param(10**1000, id="huge-integer"),
+        pytest.param(ScoringRoutine.LIST_MODE.value, id="unsupported"),
+    ],
+)
+def test_python_connector_invalid_present_scoring_has_no_side_effects(
+    tmp_path: Path, bad_value: object
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, bad_value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    stale = tmp_path / "case01_tot_w1.hs"
+    stale.write_bytes(b"prior header")
+    source_map = tmp_path / "case01_src.smi"
+    source_map.write_bytes(b"prior source")
+    density_map = tmp_path / "case01_dns.dmi"
+    density_map.write_bytes(b"prior density")
+    prior_config = tmp_path / "case01.smc"
+    prior_config.write_bytes(b"prior config")
+    orbit = tmp_path / "orbit.cor"
+    orbit.write_bytes(b"prior orbit")
+
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.run(RuntimeOperator(orbit_file=orbit))
+
+    assert launched == []
+    assert stale.read_bytes() == b"prior header"
+    assert source_map.read_bytes() == b"prior source"
+    assert density_map.read_bytes() == b"prior density"
+    assert prior_config.read_bytes() == b"prior config"
+    assert orbit.read_bytes() == b"prior orbit"
+    assert not (tmp_path / "case01_orbit.cor").exists()
 
 
 @pytest.mark.unit
@@ -1553,6 +1680,17 @@ def test_python_connector_quantization_scale_conversion_failure_is_normalized(
             output_dir=tmp_path,
             output_prefix="case01",
             quantization_scale=bad_scale,
+        )
+
+
+@pytest.mark.unit
+def test_python_connector_huge_quantization_scale_is_normalized(tmp_path: Path):
+    with pytest.raises(ValueError, match="quantization_scale"):
+        SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            output_prefix="case01",
+            quantization_scale=10**1000,
         )
 
 
