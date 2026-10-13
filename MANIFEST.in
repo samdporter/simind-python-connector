@@ -6,10 +6,16 @@ recursive-include simind_python_connector/configs *.smc *.yaml
 recursive-include docs *.rst *.py
 include docs/spectub_cache_interference.md
 include docs/_static/.gitkeep
-prune docs/superpowers
-prune docs/_build
 recursive-include tests *.py
 recursive-include examples *.py
+exclude AGENTS.md
+exclude opencode.jsonc
+exclude CLAUDE.md
+exclude simind_manual.pdf
+prune simind
+prune docs/superpowers
+prune docs/_build
+prune docs/_generated
 global-exclude __pycache__
 global-exclude *.py[co]
 global-exclude .DS_Store
