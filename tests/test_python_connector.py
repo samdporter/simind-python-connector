@@ -13,6 +13,7 @@ from simind_python_connector.core.types import (
     MAX_SOURCE,
     OutputError,
     ScoringRoutine,
+    SimindError,
     SimulationError,
 )
 
@@ -1930,6 +1931,78 @@ def test_python_connector_missing_penetrate_headers_raise_output_error(tmp_path:
     with pytest.raises(OutputError, match="No PENETRATE") as excinfo:
         connector.run()
 
+    assert "case01" in str(excinfo.value)
+    assert str(tmp_path) in str(excinfo.value)
+
+
+@pytest.mark.unit
+def test_output_error_is_also_an_os_error():
+    assert issubclass(OutputError, SimindError)
+    assert issubclass(OutputError, OSError)
+
+    error = OutputError("failed to write source map")
+    assert str(error) == "failed to write source map"
+
+    with pytest.raises(OSError, match="failed to write source map"):
+        raise error
+
+
+@pytest.mark.unit
+def test_python_connector_wrapped_write_failure_catchable_as_os_error(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    (tmp_path / "case01_src.smi").mkdir()
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(OSError, match="source map") as excinfo:
+        connector.configure_voxel_phantom(source, source.copy())
+
+    assert isinstance(excinfo.value, OutputError)
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+@pytest.mark.unit
+def test_python_connector_missing_spect_headers_catchable_as_file_not_found(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+
+    with pytest.raises(
+        FileNotFoundError, match="No SPECT projection headers"
+    ) as excinfo:
+        connector.run()
+
+    assert isinstance(excinfo.value, OutputError)
+    assert "case01" in str(excinfo.value)
+    assert str(tmp_path) in str(excinfo.value)
+
+
+@pytest.mark.unit
+def test_python_connector_missing_penetrate_headers_catchable_as_file_not_found(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, ScoringRoutine.PENETRATE.value)
+    connector.executor.run_simulation = lambda *a, **k: None  # type: ignore[assignment]
+
+    with pytest.raises(FileNotFoundError, match="No PENETRATE") as excinfo:
+        connector.run()
+
+    assert isinstance(excinfo.value, OutputError)
     assert "case01" in str(excinfo.value)
     assert str(tmp_path) in str(excinfo.value)
 

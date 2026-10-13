@@ -46,6 +46,14 @@ _SUPPORTED_SCORING_ROUTINES = (
 )
 
 
+class _MissingHeaderError(OutputError, FileNotFoundError):
+    """A required SIMIND output header was not produced by the run.
+
+    Subclasses both so a missing-header failure is catchable as an
+    OutputError and, as in v1.1.1, as a FileNotFoundError.
+    """
+
+
 @dataclass(frozen=True)
 class ProjectionResult:
     """Projection array together with the header and binary file references."""
@@ -565,7 +573,7 @@ class SimindPythonConnector(BaseConnector):
                     f"{self.output_prefix!r} in {self.output_dir}: {exc}"
                 ) from exc
             if h00_file is None:
-                raise OutputError(
+                raise _MissingHeaderError(
                     f"No PENETRATE .h00 output found for prefix "
                     f"{self.output_prefix!r} in {self.output_dir}; a PENETRATE "
                     "run should produce a .h00 template and .bNN binaries"
@@ -602,7 +610,7 @@ class SimindPythonConnector(BaseConnector):
                 | {h00_file.with_suffix(".hs") for h00_file in h00_files}
             )
         if not hs_files:
-            raise OutputError(
+            raise _MissingHeaderError(
                 f"No SPECT projection headers (.hs) found for prefix "
                 f"{self.output_prefix!r} in {self.output_dir}; expected the "
                 "SIMIND run to write readable SPECT Interfile output"
