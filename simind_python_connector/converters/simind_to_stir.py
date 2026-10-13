@@ -436,43 +436,52 @@ class SimindToStirConverter:
         template_hs = h00_file.replace(".h00", "_template.hs")
         self.convert_file(h00_file, template_hs)
 
-        template_header = InterfileHeader.from_file(template_hs)
+        try:
+            template_header = InterfileHeader.from_file(template_hs)
 
-        # Look for .bXX files and create headers for each
-        for component in PenetrateOutputType:
-            binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
+            # Look for .bXX files and create headers for each
+            for component in PenetrateOutputType:
+                binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
 
-            if binary_file.exists():
-                # Create .hs file for this component. A failure to write the
-                # header is a real I/O error and must propagate; only the
-                # backend load below is allowed to fall back quietly.
-                component_hs = output_dir / (
-                    f"{output_prefix}_component_{component.value:02d}.hs"
+                if binary_file.exists():
+                    # Create .hs file for this component. A failure to write the
+                    # header is a real I/O error and must propagate; only the
+                    # backend load below is allowed to fall back quietly.
+                    component_hs = output_dir / (
+                        f"{output_prefix}_component_{component.value:02d}.hs"
+                    )
+
+                    component_header = template_header.copy()
+                    study_base = Path(binary_file.name).stem
+                    component_header.set("!name of data file", binary_file.name)
+                    component_header.set(
+                        "patient name", f"{component.slug}_{binary_file.name}"
+                    )
+                    component_header.set("!study ID", study_base)
+                    component_header.set("data description", component.description)
+                    component_header.write(component_hs)
+
+                    # Create AcquisitionData object (backend-agnostic)
+                    acquisition_data = self._load_penetrate_output(component_hs)
+
+                    # Generate component name
+                    outputs[component.slug] = acquisition_data
+
+                    self.logger.info(
+                        f"Created STIR header for {component.slug}: {component_hs.name}"
+                    )
+        finally:
+            # The converted template is connector-owned scratch. Remove it on
+            # every path, but never let a cleanup failure mask the primary
+            # processing error.
+            try:
+                if os.path.exists(template_hs):
+                    os.remove(template_hs)
+            except OSError as cleanup_error:
+                self.logger.warning(
+                    f"Failed to remove PENETRATE template {template_hs}: "
+                    f"{cleanup_error}"
                 )
-
-                component_header = template_header.copy()
-                study_base = Path(binary_file.name).stem
-                component_header.set("!name of data file", binary_file.name)
-                component_header.set(
-                    "patient name", f"{component.slug}_{binary_file.name}"
-                )
-                component_header.set("!study ID", study_base)
-                component_header.set("data description", component.description)
-                component_header.write(component_hs)
-
-                # Create AcquisitionData object (backend-agnostic)
-                acquisition_data = self._load_penetrate_output(component_hs)
-
-                # Generate component name
-                outputs[component.slug] = acquisition_data
-
-                self.logger.info(
-                    f"Created STIR header for {component.slug}: {component_hs.name}"
-                )
-
-        # Clean up template file
-        if os.path.exists(template_hs):
-            os.remove(template_hs)
 
         return outputs
 
