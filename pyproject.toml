@@ -84,3 +84,24 @@ known-first-party = ["simind_python_connector"]
 
 [tool.ruff.lint.per-file-ignores]
 "simind_python_connector/configs/get_sirf_sinos.ipynb" = ["E501", "E722"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short --strict-markers --durations=10"
+markers = [
+    "unit: marks tests as pure unit tests (CI-friendly)",
+    "integration: marks tests as integration tests (may be slow)",
+    "slow: marks tests that take significant time to run (>10 seconds)",
+    "ci_skip: marks tests to skip in CI environments",
+    "requires_sirf: marks tests that require SIRF to be installed",
+    "requires_stir: marks tests that require STIR Python to be installed",
+    "requires_simind: marks tests that require SIMIND to be installed",
+    "requires_pytomography: marks tests that require PyTomography to be installed",
+    "requires_cil: marks tests that require CIL to be installed",
+    "requires_setr: marks tests that require SETR to be installed",
+]
+console_output_style = "progress"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

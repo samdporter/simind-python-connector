@@ -1,38 +1,6 @@
 import pytest
 
 
-def pytest_configure(config):
-    """Configure pytest markers."""
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests (may be slow)"
-    )
-    config.addinivalue_line(
-        "markers", "requires_sirf: marks tests that require SIRF to be installed"
-    )
-    config.addinivalue_line(
-        "markers", "requires_stir: marks tests that require STIR Python to be installed"
-    )
-    config.addinivalue_line(
-        "markers", "requires_simind: marks tests that require SIMIND to be installed"
-    )
-    config.addinivalue_line(
-        "markers",
-        "requires_pytomography: marks tests that require PyTomography to be installed",
-    )
-    config.addinivalue_line(
-        "markers", "requires_cil: marks tests that require CIL to be installed"
-    )
-    config.addinivalue_line(
-        "markers", "requires_setr: marks tests that require SETR to be installed"
-    )
-    config.addinivalue_line(
-        "markers", "ci_skip: marks tests to skip in CI environments"
-    )
-    config.addinivalue_line(
-        "markers", "unit: marks tests as pure unit tests (CI-friendly)"
-    )
-
-
 def pytest_collection_modifyitems(config, items):
     """Modify test collection based on available dependencies."""
 
