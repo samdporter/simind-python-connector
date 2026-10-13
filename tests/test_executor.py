@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -1076,6 +1077,31 @@ def test_executor_nn_integer_and_integral_float_serialise_identically(
 
     assert calls[0][0] == calls[1][0]
     assert calls[0][0][-1] == "/NN:2"
+
+
+def test_executor_normalises_integral_rational_nn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    calls = _capture_run(monkeypatch)
+
+    SimindExecutor().run_simulation("case01", runtime_switches={"NN": Fraction(2, 1)})
+
+    assert calls[0][0][-1] == "/NN:2"
+
+
+@pytest.mark.parametrize("switch", ["MP", "NN"])
+def test_executor_rejects_non_integral_rational_before_execution(
+    monkeypatch: pytest.MonkeyPatch, switch
+) -> None:
+    calls = _capture_run(monkeypatch)
+    # Exactly 9007199254740992.5, which a float round-trip would lose.
+    value = Fraction(18014398509481985, 2)
+
+    with pytest.raises(SimulationError, match=switch):
+        SimindExecutor().run_simulation("case01", runtime_switches={switch: value})
+
+    assert calls == []
 
 
 @pytest.mark.parametrize(
