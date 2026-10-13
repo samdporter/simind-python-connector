@@ -410,3 +410,74 @@ def test_pytomography_adaptor_set_activity_delegates(tmp_path: Path):
     )
     adaptor.set_activity(100.0, 15.0)
     assert adaptor.get_config().get_value(25) == pytest.approx(100.0 * 15.0)
+
+
+def _seed_adaptor_inputs(tmp_path: Path, prefix: str = "case01") -> dict[Path, bytes]:
+    paths = [
+        tmp_path / f"{prefix}_src.smi",
+        tmp_path / f"{prefix}_dns.dmi",
+        tmp_path / f"{prefix}.win",
+    ]
+    for path in paths:
+        path.write_bytes(f"existing:{path.name}".encode())
+    return {path: path.read_bytes() for path in paths}
+
+
+def _invalid_runtime_operator(
+    kind: str, tmp_path: Path
+) -> tuple[RuntimeOperator, type[Exception]]:
+    if kind == "switch":
+        return RuntimeOperator(switches={"NN": 0}), ValueError
+    if kind == "orbit":
+        orbit_dir = tmp_path / "orbit-dir"
+        orbit_dir.mkdir(exist_ok=True)
+        return RuntimeOperator(orbit_file=orbit_dir), ValueError
+    raise AssertionError(f"unknown runtime-operator kind {kind!r}")
+
+
+def _make_preflight_adaptor(tmp_path: Path) -> PyTomographySimindAdaptor:
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        voxel_size_mm=4.0,
+    )
+    adaptor.set_source(torch.ones((2, 3, 4), dtype=torch.float32))
+    adaptor.set_mu_map(torch.zeros((2, 3, 4), dtype=torch.float32))
+    adaptor.set_energy_windows([126.0], [154.0], [0])
+    return adaptor
+
+
+@pytest.mark.parametrize("kind", ["switch", "orbit"])
+def test_pytomography_adaptor_rejects_invalid_runtime_operator_before_writes(
+    kind: str, tmp_path: Path, monkeypatch
+) -> None:
+    adaptor = _make_preflight_adaptor(tmp_path)
+    seeded = _seed_adaptor_inputs(tmp_path)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append((args, kwargs)),
+    )
+    operator, expected = _invalid_runtime_operator(kind, tmp_path)
+
+    with pytest.raises(expected):
+        adaptor.run(runtime_operator=operator)
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original
+
+
+def test_pytomography_adaptor_accepts_valid_runtime_operator(
+    tmp_path: Path, monkeypatch
+) -> None:
+    adaptor = _make_preflight_adaptor(tmp_path)
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    outputs = adaptor.run(runtime_operator=RuntimeOperator(switches={"RR": 12345}))
+
+    assert outputs == {}

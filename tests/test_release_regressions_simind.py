@@ -15,7 +15,7 @@ import pytest
 
 from simind_python_connector import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.configs import get
-from simind_python_connector.core.types import SimulationError
+from simind_python_connector.core.types import ScoringRoutine, SimulationError
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_simind]
@@ -27,7 +27,9 @@ HISTORIES = 0.02
 MISSING_NUCLIDE = "not_a_real_nuclide"
 
 
-def _connector(output_dir: Path, prefix: str) -> SimindPythonConnector:
+def _connector(
+    output_dir: Path, prefix: str, scoring_routine: ScoringRoutine | None = None
+) -> SimindPythonConnector:
     """A centred point source with a uniform attenuating body (smoke)."""
     connector = SimindPythonConnector(get("Example.yaml"), output_dir, prefix)
     connector.get_config().set_flag(11, True)
@@ -40,7 +42,9 @@ def _connector(output_dir: Path, prefix: str) -> SimindPythonConnector:
     source = np.zeros((GRID, GRID, GRID), np.float32)
     source[GRID // 2, GRID // 2, GRID // 2] = 1.0
     mu_map = np.full((GRID, GRID, GRID), 0.15, np.float32)
-    connector.configure_voxel_phantom(source, mu_map, VOXEL_MM)
+    connector.configure_voxel_phantom(
+        source, mu_map, VOXEL_MM, scoring_routine=scoring_routine
+    )
     connector.set_energy_windows([126], [154], [0])
     for switch, value in (("FI", "tc99m"), ("CC", "ma-lehr"), ("RR", 7)):
         connector.add_runtime_switch(switch, value)
@@ -91,3 +95,49 @@ def test_missing_nuclide_reports_the_missing_isd_file(tmp_path: Path) -> None:
     message = str(excinfo.value)
     assert f"{MISSING_NUCLIDE}.isd" in message
     assert "No projection headers" not in message
+
+
+def _assert_outputs_usable(outputs: dict, routine: ScoringRoutine) -> None:
+    assert outputs, f"{routine.name} produced no outputs"
+    for key, result in outputs.items():
+        projection = result.projection
+        assert projection.ndim == 3, key
+        assert projection.shape[0] == VIEWS, key
+        assert np.isfinite(projection).all(), key
+    assert sum(float(result.projection.sum()) for result in outputs.values()) > 0
+
+
+@pytest.mark.parametrize(
+    "routine",
+    [ScoringRoutine.DUMMY, ScoringRoutine.SCATTWIN, ScoringRoutine.PENETRATE],
+    ids=lambda routine: routine.name,
+)
+def test_supported_scoring_routines_produce_readable_outputs(
+    tmp_path: Path, routine: ScoringRoutine
+) -> None:
+    connector = _connector(tmp_path, f"r{routine.value}", scoring_routine=routine)
+
+    outputs = connector.run(RuntimeOperator(switches={"RR": 12345}))
+
+    _assert_outputs_usable(outputs, routine)
+    if routine is ScoringRoutine.SCATTWIN:
+        # /CA:1 makes the engine write air/tot/sca and the connector derives
+        # primary as tot - sca for the order-0 window.
+        assert {"tot_w1", "sca_w1", "pri_w1"} <= set(outputs)
+        assert np.isfinite(outputs["pri_w1"].projection).all()
+    else:
+        assert not [key for key in outputs if key.startswith("pri")]
+
+
+def test_small_valid_phantom_produces_meaningful_primary_outputs(
+    tmp_path: Path,
+) -> None:
+    connector = _connector(tmp_path, "small")
+
+    outputs = connector.run(RuntimeOperator(switches={"RR": 12345}))
+
+    assert "tot_w1" in outputs and "sca_w1" in outputs and "pri_w1" in outputs
+    total = outputs["tot_w1"].projection
+    primary = outputs["pri_w1"].projection
+    assert primary.sum() > 0
+    assert primary.sum() <= total.sum() + 1e-6
