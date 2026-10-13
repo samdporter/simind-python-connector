@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import numbers
 import os
 import re
@@ -266,9 +265,15 @@ class SimindExecutor:
         elif isinstance(value, numbers.Integral):
             count = int(value)
         elif isinstance(value, numbers.Real):
-            if not (math.isfinite(value) and value == int(value)):
+            # Compare against int(value) instead of coercing through float: a
+            # huge integral Fraction overflows the float coercion, and exact
+            # integrality must be preserved.
+            try:
+                count = int(value)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise SimulationError(message) from exc
+            if value != count:
                 raise SimulationError(message)
-            count = int(value)
         else:
             raise SimulationError(message)
         if count < 1:
