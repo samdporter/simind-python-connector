@@ -2159,7 +2159,7 @@ def test_python_connector_does_not_round_fractional_config_routine(tmp_path: Pat
     "bad_value",
     [
         pytest.param(Decimal("1.00000000000000001"), id="fractional-decimal"),
-        pytest.param(Fraction(3, 2), id="fractional-fraction"),
+        pytest.param(Fraction(10**17 + 1, 10**17), id="fractional-fraction"),
         pytest.param(np.float64(1.5), id="fractional-float"),
     ],
 )
@@ -2171,7 +2171,7 @@ def test_python_connector_rejects_fractional_scoring_without_float_round(
         output_dir=tmp_path,
         output_prefix="case01",
     )
-    # A float round would collapse the Decimal to 1.0 and accept it.
+    # A float round would collapse the exact fractions to 1.0 and accept them.
     connector.add_config_value(84, bad_value)
     source = np.ones((2, 3, 4), dtype=np.float32)
 
