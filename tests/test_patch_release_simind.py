@@ -446,11 +446,10 @@ def test_engine_raw_prefix_limit_runs(tmp_path: Path, monkeypatch: pytest.Monkey
     # Direct engine invocation: the public APIs reject a 50-character prefix,
     # so bypass every validator and pin the measured truncation behaviour.
     # The command mirrors what run_simulation issues, switches included.
-    binary = shutil.which(os.environ.get("SIMIND_BIN") or "simind")
-    assert binary is not None, "SIMIND binary not found for the raw-boundary run"
-    # which() may return a relative path; anchor it before cwd changes below,
-    # the same way SimindExecutor._resolve_executable does.
-    binary = str(Path(binary).expanduser().absolute())
+    # Reuse the executor's own resolution so relative, tilde and bare-name
+    # SIMIND_BIN values behave exactly as they do under run_simulation; a bare
+    # name stays bare and the subprocess resolves it against its own cwd.
+    binary = SimindExecutor()._resolve_executable()
     switch_blob = "".join(
         f"/{key}:{value}" for key, value in over.runtime_switches.switches.items()
     )
