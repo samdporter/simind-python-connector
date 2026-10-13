@@ -15,12 +15,19 @@ pytestmark = pytest.mark.unit
 
 
 def _require_stir_python():
-    """Skip unless STIR Python is present with either extra-module layout."""
-    pytest.importorskip("stir")
+    """Skip unless STIR Python is present with a working conversion module.
+
+    Reuses the production detection so a modern install is preferred and a
+    broken ``stir.extra`` is not mistaken for a legacy-only install.
+    """
     try:
-        import stir.extra  # noqa: F401
+        import stir  # noqa: F401
+
+        from simind_python_connector.utils.import_helpers import _import_stir_extra
+
+        _import_stir_extra()
     except ImportError:
-        pytest.importorskip("stirextra")
+        pytest.skip("STIR Python not available")
 
 
 def test_backend_detection():

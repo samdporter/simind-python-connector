@@ -214,14 +214,19 @@ def test_import_stir_extra_propagates_unrelated_import_error(tmp_path):
     pkg = _write_fake_stir(tmp_path, extra="broken")
 
     code = (
-        "from simind_python_connector.utils.import_helpers import _import_stir_extra\n"
+        "from simind_python_connector.utils.import_helpers import (\n"
+        "    _import_stir_extra,\n"
+        "    get_stir_types,\n"
+        ")\n"
         "try:\n"
         "    _import_stir_extra()\n"
         "except ModuleNotFoundError as exc:\n"
         "    assert exc.name == 'missing_dep_xyz', exc.name\n"
-        "    print('OK')\n"
         "else:\n"
         "    raise SystemExit('expected ModuleNotFoundError')\n"
+        "img, proj, available = get_stir_types()\n"
+        "assert available is False, 'broken modern must not report STIR available'\n"
+        "print('OK')\n"
     )
     result = _run_in_subprocess(code, extra_path=pkg)
     assert result.returncode == 0, result.stderr

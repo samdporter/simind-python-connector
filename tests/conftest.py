@@ -44,15 +44,15 @@ def pytest_collection_modifyitems(config, items):
     except ImportError:
         sirf_available = False
 
-    # Check if STIR Python is available
+    # Check if STIR Python is available, reusing the production modern/legacy
+    # detection so a broken stir.extra dependency is not masked by the legacy
+    # fallback (which would wrongly skip requires_stir tests as if unavailable).
     try:
         import stir  # noqa: F401
 
-        try:
-            import stir.extra  # noqa: F401
-        except ImportError:
-            import stirextra  # noqa: F401
+        from simind_python_connector.utils.import_helpers import _import_stir_extra
 
+        _import_stir_extra()
         stir_available = True
     except ImportError:
         stir_available = False
