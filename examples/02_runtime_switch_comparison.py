@@ -20,6 +20,7 @@ from _python_connector_helpers import (
 )
 
 from simind_python_connector import SimindPythonConnector, configs
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 
 
 def _run_case(
@@ -33,7 +34,7 @@ def _run_case(
         config_source=configs.get("Example.yaml"),
         output_dir=output_dir,
         output_prefix=prefix,
-        quantization_scale=0.05,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
     connector.configure_voxel_phantom(
         source=source,

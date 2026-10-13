@@ -7,6 +7,8 @@ imported without triggering SIRF dependencies.
 
 from enum import Enum
 
+import numpy as np
+
 
 # =============================================================================
 # EXCEPTIONS
@@ -178,12 +180,14 @@ class PenetrateOutputType(Enum):
 # =============================================================================
 
 SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
-# Maximum normalised value of source image
-# You would have expected this to be 65535, but it is not
-# I have no understanding why, but it is the case
-# 500 seems a reasonable value that improves precision
-# whilst not exceeding the maximum value (weird things happen)
-MAX_SOURCE = 500
+# Source- and density-map voxel values are integer photon-history weights, and
+# SIMIND reads them as SIGNED 16-bit integers: 32768 and above wrap negative and
+# silently corrupt the map, so the maximum voxel weight is 32767. Scaling the
+# source maximum to that full range gives the finest integer resolution.
+# DEFAULT_QUANTIZATION_SCALE keeps the legacy 500-weight default budget at that
+# resolution; use NN for more statistics.
+MAX_SOURCE = np.iinfo(np.int16).max
+DEFAULT_QUANTIZATION_SCALE = 500 / MAX_SOURCE
 ORBIT_FILE_EXTENSION = ".cor"
 OUTPUT_EXTENSIONS = [".h00", ".a00", ".hs"]
 # SIMIND V8 treats '-' as an argument delimiter and splits its positional
@@ -205,6 +209,7 @@ __all__ = [
     # Constants
     "SIMIND_VOXEL_UNIT_CONVERSION",
     "MAX_SOURCE",
+    "DEFAULT_QUANTIZATION_SCALE",
     "ORBIT_FILE_EXTENSION",
     "OUTPUT_EXTENSIONS",
     "OUTPUT_PREFIX_PATTERN",

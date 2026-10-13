@@ -20,6 +20,7 @@ from _python_connector_helpers import (
 )
 
 from simind_python_connector import SimindPythonConnector, configs
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 
 
 def main() -> None:
@@ -32,7 +33,7 @@ def main() -> None:
         config_source=configs.get("Example.yaml"),
         output_dir=output_dir,
         output_prefix="basic_case01",
-        quantization_scale=0.05,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
 
     source, mu_map = build_small_phantom_zyx()
