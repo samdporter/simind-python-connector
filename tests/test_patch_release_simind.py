@@ -25,6 +25,7 @@ from simind_python_connector import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.configs import get
 from simind_python_connector.core.executor import SimindExecutor
 from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
     PenetrateOutputType,
     ScoringRoutine,
     SimulationError,
@@ -493,7 +494,10 @@ def test_single_slice_phantom_produces_nonzero_totals(tmp_path: Path):
 
 def test_valid_quantization_control_runs(tmp_path: Path):
     connector = SimindPythonConnector(
-        get("Example.yaml"), tmp_path, "quant", quantization_scale=0.5
+        get("Example.yaml"),
+        tmp_path,
+        "quant",
+        quantization_scale=0.5 * DEFAULT_QUANTIZATION_SCALE,
     )
     connector.add_config_value(26, HISTORIES)
     connector.add_config_value(29, VIEWS)
