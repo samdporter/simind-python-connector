@@ -11,6 +11,18 @@ from typing import Optional
 
 import numpy as np
 
+from simind_python_connector.utils import _import_stir_extra
+
+
+def _stir_available() -> bool:
+    """True when STIR Python and its array-conversion module are importable."""
+    try:
+        importlib.import_module("stir")
+        _import_stir_extra()
+    except ImportError:
+        return False
+    return True
+
 
 def resolve_backend(backend: Optional[str]) -> str:
     """Return "sirf" or "stir". None picks SIRF if importable, else STIR."""
@@ -20,15 +32,12 @@ def resolve_backend(backend: Optional[str]) -> str:
             return "sirf"
         except ImportError:
             pass
-        try:
-            importlib.import_module("stir")
-            importlib.import_module("stirextra")
+        if _stir_available():
             return "stir"
-        except ImportError:
-            raise ImportError(
-                "Neither SIRF nor STIR Python found. Install one of: "
-                "SIRF (sirf.STIR) or STIR Python (stir + stirextra)."
-            ) from None
+        raise ImportError(
+            "Neither SIRF nor STIR Python found. Install one of: "
+            "SIRF (sirf.STIR) or STIR Python (stir + stir.extra)."
+        )
     if backend == "sirf":
         try:
             importlib.import_module("sirf.STIR")
@@ -36,11 +45,8 @@ def resolve_backend(backend: Optional[str]) -> str:
             raise ImportError("SIRF is not available") from exc
         return "sirf"
     if backend == "stir":
-        try:
-            importlib.import_module("stir")
-            importlib.import_module("stirextra")
-        except ImportError as exc:
-            raise ImportError("STIR Python is not available") from exc
+        if not _stir_available():
+            raise ImportError("STIR Python is not available")
         return "stir"
     raise ValueError("backend must be one of: 'sirf', 'stir', or None")
 

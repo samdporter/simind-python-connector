@@ -22,9 +22,9 @@ _ACQ_HEADER = {
 def _to_numpy(obj):
     if hasattr(obj, "as_array"):
         return obj.as_array()
-    import stirextra
+    from simind_python_connector.utils import _import_stir_extra
 
-    return stirextra.to_numpy(obj)
+    return _import_stir_extra().to_numpy(obj)
 
 
 @pytest.mark.parametrize(
@@ -57,3 +57,18 @@ def test_acquisition_built_into_a_temporary_directory_stays_readable(backend):
     builder.pixel_array = data
     acquisition = builder.build()
     assert np.array_equal(np.asarray(_to_numpy(acquisition)).reshape(data.shape), data)
+
+
+@pytest.mark.requires_stir
+def test_stir_conversion_matches_stir_extra_to_numpy():
+    from simind_python_connector.utils import _import_stir_extra, get_array
+
+    builder = STIRSPECTImageDataBuilder(header_overrides=_IMAGE_HEADER, backend="stir")
+    data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    builder.set_pixel_array(data)
+    image = builder.build()
+
+    np.testing.assert_array_equal(
+        np.asarray(get_array(image)),
+        np.asarray(_import_stir_extra().to_numpy(image)),
+    )
