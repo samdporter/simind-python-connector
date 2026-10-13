@@ -25,8 +25,12 @@ class SimulationError(SimindError):
     """Raised when simulation execution fails."""
 
 
-class OutputError(SimindError):
-    """Raised when output processing fails."""
+class OutputError(SimindError, OSError):
+    """Raised when output processing fails.
+
+    Also an OSError so callers written against the pre-1.1.2 bare
+    OSError/FileNotFoundError raises keep catching these failures.
+    """
 
 
 # =============================================================================
