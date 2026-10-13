@@ -712,6 +712,25 @@ class TestPenetrateFallbackLogging:
 
         assert not template_hs.exists()
 
+    def test_conversion_failure_removes_template(self, tmp_path, monkeypatch):
+        h00_file = make_penetrate_outputs(tmp_path)
+        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+
+        def failing_convert_file(
+            self, input_filename, output_filename=None, *args, **kwargs
+        ):
+            Path(output_filename).write_text("partial template")
+            raise OSError("conversion failed")
+
+        monkeypatch.setattr(SimindToStirConverter, "convert_file", failing_convert_file)
+
+        with pytest.raises(OSError, match="conversion failed"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(h00_file), "output", str(tmp_path)
+            )
+
+        assert not template_hs.exists()
+
     def test_cleanup_failure_preserves_primary_exception(self, tmp_path, monkeypatch):
         h00_file = make_penetrate_outputs(tmp_path)
         template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
@@ -723,11 +742,13 @@ class TestPenetrateFallbackLogging:
             PermissionError("permission denied writing header"),
         )
 
+        cleanup_attempts = []
         original_remove = simind_to_stir.os.remove
 
         def failing_remove(path, *args, **kwargs):
             if Path(path) == template_hs:
-                raise OSError("cleanup denied")
+                cleanup_attempts.append(Path(path))
+                raise RuntimeError("cleanup denied")
             return original_remove(path, *args, **kwargs)
 
         monkeypatch.setattr(simind_to_stir.os, "remove", failing_remove)
@@ -736,6 +757,8 @@ class TestPenetrateFallbackLogging:
             SimindToStirConverter().create_penetrate_headers_from_template(
                 str(h00_file), "output", str(tmp_path)
             )
+
+        assert cleanup_attempts == [template_hs]
 
     def test_header_write_failure_surfaces(self, tmp_path, monkeypatch):
         h00_file = make_penetrate_outputs(tmp_path)
