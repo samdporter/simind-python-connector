@@ -392,6 +392,18 @@ def test_dockerignore_excludes_local_heavy_paths():
     assert all(not line.endswith("input.smc") for line in ignore)
 
 
+def test_python_image_installs_mpich_and_compat_links():
+    dockerfile = (ROOT / "docker" / "python" / "Dockerfile").read_text()
+    assert "apt-get install -y --no-install-recommends mpich" in dockerfile
+    assert "install_mpich_compat.sh" in dockerfile
+
+
+def test_mpich_compat_script_creates_soname_links():
+    script = (ROOT / "docker" / "python" / "install_mpich_compat.sh").read_text()
+    assert "libmpi.so.12" in script
+    assert "libmpifort.so.12" in script
+
+
 @pytest.mark.unit
 def test_validation_script_require_simind_fails_without_binary(
     tmp_path: Path, fake_bin
