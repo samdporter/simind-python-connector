@@ -764,7 +764,14 @@ class SimindPythonConnector(BaseConnector):
         if self._mpi is not None:
             processes, split = self._mpi
             if split:
-                num_projections = int(round(float(self.config.get_value(29))))
+                raw_projections = self.config.get_value(29)
+                try:
+                    num_projections = int(round(float(raw_projections)))
+                except (TypeError, ValueError, OverflowError) as exc:
+                    raise ValueError(
+                        "split_projections needs the number of projections "
+                        f"(Index 29) to be an integer, got {raw_projections!r}"
+                    ) from exc
                 if num_projections % processes != 0:
                     raise ValueError(
                         f"split_projections needs the number of projections "

@@ -737,6 +737,27 @@ def test_python_connector_split_mpi_needs_divisible_projections(tmp_path: Path):
 
 
 @pytest.mark.unit
+def test_python_connector_split_mpi_rejects_unrepresentable_projection_count(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    # A huge integral count cannot be converted to float; it must fail with the
+    # clean split-projections configuration error, not a raw OverflowError.
+    connector.add_config_value(29, Fraction(10**400, 1))
+    connector.set_mpi(4, split_projections=True)
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="number of projections"):
+        connector.run()
+
+    assert launched == []
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
 def test_python_connector_passes_mpi_settings_to_executor(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
