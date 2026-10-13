@@ -663,6 +663,29 @@ def test_yaml_identical_duplicate_keys_are_rejected(tmp_path):
         SimulationConfig(_write_yaml(tmp_path, text))
 
 
+def test_yaml_merge_key_override_is_accepted(tmp_path):
+    text = (
+        "defaults: &defaults\n"
+        "  '61': 1.0\n"
+        "  '62': 2.0\n"
+        "other_parameters:\n"
+        "  <<: *defaults\n"
+        "  '62': 5.0\n"
+    )
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    # The explicit entry overrides the merged one instead of colliding.
+    assert config.data[60] == pytest.approx(1.0)
+    assert config.data[61] == pytest.approx(5.0)
+
+
+def test_yaml_unhashable_mapping_key_raises_constructor_error(tmp_path):
+    text = "other_parameters:\n  [1, 2]: 5.0\n"
+
+    with pytest.raises(yaml.constructor.ConstructorError, match="unhashable key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
 def test_yaml_normalised_index_collision_is_rejected(tmp_path):
     text = "other_parameters:\n  '61': 1.0\n  61: 2.0\n"
 

@@ -7,7 +7,6 @@
 
 ### Author: Sam Porter
 
-import collections.abc
 import math
 import os
 import re
@@ -18,30 +17,38 @@ import yaml
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):
-    """SafeLoader that rejects duplicate mapping keys instead of last-wins."""
+    """SafeLoader that rejects duplicate explicitly written mapping keys.
+
+    Merge keys (``<<``) keep their normal precedence: inherited entries may be
+    overridden explicitly and are not counted as duplicates. Duplicate keys are
+    detected on the original nodes, before ``flatten_mapping`` expands merges.
+    """
 
     def construct_mapping(self, node, deep=False):
         if isinstance(node, yaml.MappingNode):
-            self.flatten_mapping(node)
-        mapping = {}
-        for key_node, value_node in node.value:
-            key = self.construct_object(key_node, deep=deep)
-            if not isinstance(key, collections.abc.Hashable):
-                raise yaml.constructor.ConstructorError(
-                    "while constructing a mapping",
-                    node.start_mark,
-                    "found unhashable key",
-                    key_node.start_mark,
-                )
-            if key in mapping:
-                raise yaml.constructor.ConstructorError(
-                    "while constructing a mapping",
-                    node.start_mark,
-                    f"found duplicate key {key!r}",
-                    key_node.start_mark,
-                )
-            mapping[key] = self.construct_object(value_node, deep=deep)
-        return mapping
+            seen = set()
+            for key_node, _ in node.value:
+                if key_node.tag == "tag:yaml.org,2002:merge":
+                    continue
+                key = self.construct_object(key_node, deep=deep)
+                try:
+                    hash(key)
+                except TypeError as exc:
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping",
+                        node.start_mark,
+                        "found unhashable key",
+                        key_node.start_mark,
+                    ) from exc
+                if key in seen:
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping",
+                        node.start_mark,
+                        f"found duplicate key {key!r}",
+                        key_node.start_mark,
+                    )
+                seen.add(key)
+        return super().construct_mapping(node, deep=deep)
 
 
 def _is_traversable_only(value) -> bool:
