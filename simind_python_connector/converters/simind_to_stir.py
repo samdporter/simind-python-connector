@@ -432,11 +432,12 @@ class SimindToStirConverter:
         output_dir = Path(output_dir)
         outputs = {}
 
-        # First convert the template .h00 to .hs format
         template_hs = h00_file.replace(".h00", "_template.hs")
-        self.convert_file(h00_file, template_hs)
 
         try:
+            # First convert the template .h00 to .hs format
+            self.convert_file(h00_file, template_hs)
+
             template_header = InterfileHeader.from_file(template_hs)
 
             # Look for .bXX files and create headers for each
@@ -477,7 +478,7 @@ class SimindToStirConverter:
             try:
                 if os.path.exists(template_hs):
                     os.remove(template_hs)
-            except OSError as cleanup_error:
+            except Exception as cleanup_error:
                 self.logger.warning(
                     f"Failed to remove PENETRATE template {template_hs}: "
                     f"{cleanup_error}"
