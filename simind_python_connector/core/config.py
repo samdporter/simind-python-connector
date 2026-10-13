@@ -24,16 +24,33 @@ def _is_traversable_only(value) -> bool:
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):
-    """SafeLoader that rejects duplicate mapping keys instead of last-wins."""
+    """SafeLoader that rejects duplicate explicit mapping keys.
+
+    Only keys written in the original node are checked. SafeLoader's
+    ``flatten_mapping`` rewrites ``node.value`` to pull in merge-key (``<<``)
+    values, and those merged keys may legitimately be overridden by an
+    explicit key, so they must not count as duplicates.
+    """
 
     def construct_mapping(self, node, deep=False):
-        mapping = {}
-        for key_node, value_node in node.value:
+        seen = set()
+        for key_node, _value_node in node.value:
+            if key_node.tag == "tag:yaml.org,2002:merge":
+                continue
             key = self.construct_object(key_node, deep=deep)
-            if key in mapping:
+            try:
+                hash(key)
+            except TypeError as exc:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping",
+                    node.start_mark,
+                    "found unhashable key",
+                    key_node.start_mark,
+                ) from exc
+            if key in seen:
                 raise ValueError(f"duplicate key in YAML mapping: {key!r}")
-            mapping[key] = self.construct_object(value_node, deep=deep)
-        return mapping
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
 
 
 class SimulationConfig:
