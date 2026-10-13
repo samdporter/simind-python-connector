@@ -768,9 +768,12 @@ class SimindPythonConnector(BaseConnector):
                 try:
                     num_projections = int(round(float(raw_projections)))
                 except (TypeError, ValueError, OverflowError) as exc:
+                    # Report only the type: interpolating a repr() of a huge
+                    # int/Fraction can itself raise the int-string digit limit.
                     raise ValueError(
                         "split_projections needs the number of projections "
-                        f"(Index 29) to be an integer, got {raw_projections!r}"
+                        f"(Index 29) to be an integer, got "
+                        f"{type(raw_projections).__name__}"
                     ) from exc
                 if num_projections % processes != 0:
                     raise ValueError(
