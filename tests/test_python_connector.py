@@ -1419,23 +1419,26 @@ def test_python_connector_configure_rejects_unsupported_config_routine(
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "routine",
+    [ScoringRoutine.LIST_MODE, ScoringRoutine.FORCED_COLLIMATION],
+)
 def test_python_connector_config_only_run_rejects_unsupported_routine(
-    tmp_path: Path,
+    tmp_path: Path, routine: ScoringRoutine
 ):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
     )
-    connector.add_config_value(84, ScoringRoutine.LIST_MODE.value)
+    connector.add_config_value(84, routine.value)
     stale = tmp_path / "case01_tot_w1.hs"
     stale.write_text("stale")
     launched: list[object] = []
     connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
 
     with pytest.raises(
-        ValueError,
-        match=re.escape(_unsupported_routine_message(ScoringRoutine.LIST_MODE)),
+        ValueError, match=rf"{routine.name} \({routine.value}\) is not supported"
     ):
         connector.run()
 

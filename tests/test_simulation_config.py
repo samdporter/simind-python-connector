@@ -10,6 +10,7 @@ import pytest
 
 from simind_python_connector import SimulationConfig
 from simind_python_connector.configs import get
+from simind_python_connector.configs import list as list_configs
 from simind_python_connector.core.config import RuntimeSwitches
 
 
@@ -808,3 +809,21 @@ def test_yaml_canonical_data_file_entries_are_preserved(tmp_path):
     assert config.get_data_file("phantom_soft_tissue") == "phantom.dat"
     assert config.get_data_file("crystal_material") == "crystal.dat"
     assert config.data_files[2] == "none"
+
+
+def test_bundled_configs_load_validate_and_save(tmp_path):
+    """The bundled and documented configs still round-trip at fixed width."""
+    names = list_configs()
+    for documented in ("Example.yaml", "AnyScan.yaml", "input.smc"):
+        assert documented in names
+
+    for name in names:
+        config = SimulationConfig(get(name))
+        assert isinstance(config.validate_parameters(), bool)
+        saved = config.save_file(tmp_path / name)
+        basic_lines = saved.read_text().splitlines()[3:27]
+        assert len(basic_lines) == 24, name
+        for line in basic_lines:
+            assert len(line) == 60, (name, line)
+            for start in range(0, 60, 12):
+                assert len(line[start : start + 12]) == 12, (name, line)
