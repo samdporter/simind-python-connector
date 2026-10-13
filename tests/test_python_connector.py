@@ -2,6 +2,8 @@ import logging
 import os
 import re
 import tempfile
+from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -2150,6 +2152,83 @@ def test_python_connector_does_not_round_fractional_config_routine(tmp_path: Pat
         connector.configure_voxel_phantom(source, source.copy())
     with pytest.raises(ValueError, match="not an integral"):
         connector.run()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        pytest.param(Decimal("1.00000000000000001"), id="fractional-decimal"),
+        pytest.param(Fraction(3, 2), id="fractional-fraction"),
+        pytest.param(np.float64(1.5), id="fractional-float"),
+    ],
+)
+def test_python_connector_rejects_fractional_scoring_without_float_round(
+    tmp_path: Path, bad_value: object
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    # A float round would collapse the Decimal to 1.0 and accept it.
+    connector.add_config_value(84, bad_value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="not an integral"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(ValueError, match="not an integral"):
+        connector.run()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bad_value",
+    [True, False, np.bool_(True), np.bool_(False)],
+    ids=["bool-true", "bool-false", "np-bool-true", "np-bool-false"],
+)
+def test_python_connector_rejects_boolean_scoring_value(
+    tmp_path: Path, bad_value: object
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, bad_value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.configure_voxel_phantom(source, source.copy())
+    with pytest.raises(ValueError, match="scoring_routine"):
+        connector.run()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        pytest.param(1, 1, id="int"),
+        pytest.param(np.int64(1), 1, id="np-int"),
+        pytest.param(Decimal(1), 1, id="integral-decimal"),
+        pytest.param(Fraction(1, 1), 1, id="integral-fraction"),
+        pytest.param(1.0, 1, id="integral-float"),
+    ],
+)
+def test_python_connector_accepts_integral_scoring_values(
+    tmp_path: Path, value: object, expected: int
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_config_value(84, value)
+    source = np.ones((2, 3, 4), dtype=np.float32)
+
+    connector.configure_voxel_phantom(source, source.copy())
+
+    assert connector._config_scoring_routine().value == expected
 
 
 @pytest.mark.unit
