@@ -221,26 +221,32 @@ def test_executor_mpi_prefers_simind_mpi_bin(
 def test_executor_rejects_whitespace_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _capture_run(monkeypatch)
+    calls = _capture_run(monkeypatch)
 
-    with pytest.raises(SimulationError, match="whitespace"):
+    with pytest.raises(SimulationError, match="start with a lowercase letter"):
         SimindExecutor().run_simulation("bad prefix")
+
+    assert calls == []
 
 
 def test_executor_rejects_nul_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
-    _capture_run(monkeypatch)
+    calls = _capture_run(monkeypatch)
 
-    with pytest.raises(SimulationError, match="NUL"):
+    with pytest.raises(SimulationError, match="start with a lowercase letter"):
         SimindExecutor().run_simulation("case\x00")
+
+    assert calls == []
 
 
 def test_executor_rejects_empty_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _capture_run(monkeypatch)
+    calls = _capture_run(monkeypatch)
 
-    with pytest.raises(SimulationError, match="empty"):
+    with pytest.raises(SimulationError, match="start with a lowercase letter"):
         SimindExecutor().run_simulation("")
+
+    assert calls == []
 
 
 @pytest.mark.parametrize(
@@ -394,6 +400,192 @@ def test_executor_ignores_benign_error_words(
     _capture_run_with_output(monkeypatch, stdout=stdout)
 
     SimindExecutor().run_simulation("case01")
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "SIMIND error number: 0",
+        "SIMIND error number: 7",
+        "========================= Error",
+        "OTHER INFORMATION",
+        "No input file found for the spectra:test.isd",
+    ],
+)
+def test_executor_ignores_fatal_looking_comment_echoed_under_banner(
+    monkeypatch: pytest.MonkeyPatch, comment: str
+) -> None:
+    # SIMIND echoes the configured comment verbatim on the single line after
+    # OTHER INFORMATION; a comment that spells a diagnostic must not fail a
+    # successful run.
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            f" {comment}\n"
+            " Compiled 2025:10:06 with intel Linux \n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_blank_comment_echo_under_banner_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A blank comment is echoed as a single space; it must not be read as a
+    # divider or error line.
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            " \n"
+            " Compiled 2025:10:06 with intel Linux \n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_ignores_fatal_looking_comment_with_crlf_line_endings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\r\n"
+            " OTHER INFORMATION\r\n"
+            " SIMIND error number: 7\r\n"
+            " Compiled 2025:10:06 with intel Linux\r\n"
+        ),
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        # Before the banner.
+        "SIMIND error number: 7\n OTHER INFORMATION\n Compiled\n",
+        "========================= Error\n OTHER INFORMATION\n Compiled\n",
+        # After the echoed comment (which is itself a fatal-looking comment).
+        " OTHER INFORMATION\n SIMIND error number: 0\n"
+        " Compiled\nSIMIND error number: 7\n",
+        " OTHER INFORMATION\n safe comment\n Compiled\n========== Error\n",
+    ],
+)
+def test_executor_detects_diagnostics_outside_the_echoed_comment(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout=stdout)
+
+    with pytest.raises(SimulationError, match="SIMIND reported an error"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_banner_lookalike_comment_does_not_hide_later_fatal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " Simulation completed\n"
+            " OTHER INFORMATION\n"
+            " OTHER INFORMATION\n"
+            " Compiled 2025:10:06 with intel Linux \n"
+            "SIMIND error number: 7\n"
+        ),
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_number_without_banner_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="fatal\nSIMIND error number: 7\n")
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_number_zero_outside_echo_region_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Error number 0 is not ignored globally; only the echoed comment is exempt.
+    _capture_run_with_output(monkeypatch, stdout="fatal\nSIMIND error number: 0\n")
+
+    with pytest.raises(SimulationError, match=r"error number 0"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_replays_raw_echoed_comment_without_redaction(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=(
+            " OTHER INFORMATION\n"
+            " SIMIND error number: 0\n"
+            " Compiled\n"
+            "SIMIND error number: 7\n"
+        ),
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 7"):
+        SimindExecutor().run_simulation("case01")
+
+    assert " SIMIND error number: 0" in capsys.readouterr().out
+
+
+def test_executor_echo_region_on_stdout_does_not_mask_stderr_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Only stdout carries the banner and echo; stderr's genuinely numbered
+    # diagnostic must still be reported.
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=" OTHER INFORMATION\n SIMIND error number: 0\n Compiled\n",
+        stderr="SIMIND error number: 9\n",
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 9"):
+        SimindExecutor().run_simulation("case01")
+
+
+def test_executor_does_not_match_echoed_diagnostic_split_across_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run_with_output(
+        monkeypatch,
+        stdout=" OTHER INFORMATION\n SIMIND\n",
+        stderr=" error number: 1\n",
+    )
+
+    SimindExecutor().run_simulation("case01")
+
+
+def test_executor_error_after_echo_region_keeps_bounded_excerpt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = (
+        " OTHER INFORMATION\n"
+        " safe comment\n" + ("x" * 3000) + "\nSIMIND error number: 42\n" + ("y" * 3000)
+    )
+    _capture_run_with_output(monkeypatch, stdout=output)
+
+    with pytest.raises(SimulationError) as excinfo:
+        SimindExecutor().run_simulation("case01")
+
+    message = str(excinfo.value)
+    assert "error number 42" in message
+    assert "y" * 10 not in message
+    excerpt = message.split("): ", 1)[1]
+    assert len(excerpt) <= 2000
 
 
 def test_executor_replays_captured_diagnostics(
