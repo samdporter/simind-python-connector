@@ -7,7 +7,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-2.0.1 - 2026-10-11
+2.0.1 - Unreleased
 ------------------
 
 The supported successor to 1.1.1 and the replacement for the withdrawn 2.0.0
@@ -99,6 +99,13 @@ Changed
   origins and voxel sizes match.
 - The non-circular orbit file is written at run time so its centre bin follows
   the current Index 76; non-circular orbit radii keep 0.1 mm precision.
+- Documentation builds from the package's ``dev`` extra: Read the Docs points
+  at it and ``docs/requirements.txt`` is gone. The sdist excludes local-only
+  material (``AGENTS.md``, ``CLAUDE.md``, ``opencode.jsonc``,
+  ``simind_manual.pdf``, ``simind/`` and generated docs).
+- The python container image's MPICH provisioning (``mpirun`` plus the SONAME
+  compat links) is asserted by the container-script tests, so rebuilding the
+  image cannot silently drop the MPI runtime the MPI tests need.
 
 Removed
 ~~~~~~~
@@ -155,6 +162,76 @@ Fixed
   ``quantization_scale`` values are not auto-migrated: rescale a scale
   calibrated for the former 500 maximum with
   ``old_scale * DEFAULT_QUANTIZATION_SCALE``.
+- ``-`` is rejected in ``output_prefix``, at the connector and in the executor:
+  SIMIND V8 treats ``-`` as an argument delimiter, so a hyphenated prefix split
+  the positional filename arguments and the run silently produced no output.
+  One pattern, ``[a-z0-9][a-z0-9_]*``, lives in ``core.types`` and is enforced
+  by the connector (``ValueError``) and by ``SimindExecutor.run_simulation``
+  before any subprocess launch (``SimulationError``), together with a type
+  check and a 47-character cap that keeps SIMIND's output names inside its
+  fixed 60-character buffer.
+- SIMIND's own diagnostics are reported even when the process exits 0. The
+  executor captures stdout and stderr, replays them, and raises
+  ``SimulationError`` for an error number, an error divider, or
+  ``No input file found for the spectra:<x>.isd``. Only the echoed
+  configuration comment on the single line after SIMIND's ``OTHER
+  INFORMATION`` banner is blanked before scanning, and the missing-spectra
+  diagnostic is only searched before that banner, so a user comment cannot
+  fail a successful run; a non-zero exit quotes labelled stdout/stderr
+  excerpts instead of a bare exit status.
+- The MPI process count is validated at the executor boundary: ``mpirun -np``
+  takes a positive integer (Python or NumPy integers, integral reals and
+  ASCII digit strings; ``bool`` is rejected) and a conversion failure raises
+  ``SimulationError`` instead of launching a bad command.
+- ``run()`` validates the output prefix, the effective scoring routine and the
+  runtime operator — switch values and a regular-file ``orbit_file`` — before
+  any managed write, generated acquisition orbit write, orbit staging, config
+  save or stale-output cleanup, and the native and PyTomography adaptors
+  validate before inputs are written. An invalid setup fails before prior
+  outputs are removed.
+- The scoring routine is read without rounding: an absent Index 84 reads as
+  DUMMY, and fractional, boolean, non-finite and unsupported values raise
+  ``ValueError`` instead of being rounded or crashing with ``OverflowError``
+  (a ``quantization_scale`` that overflows float coercion raises
+  ``ValueError`` too). Only DUMMY (0), SCATTWIN (1) and PENETRATE (4) are
+  supported by the Interfile connector; LIST_MODE (2) and FORCED_COLLIMATION
+  (3) are rejected at preflight.
+- A literal 1x1x1 voxel phantom is rejected, as is a non-zero source that
+  ``quantization_scale`` rounds entirely to zero — both before phantom
+  settings are reset or the source and density maps are written, so an
+  invalid input cannot leave a half-written run behind. All-zero sources
+  remain allowed.
+- At most 99 energy windows are accepted, so the longest per-window output
+  name still fits SIMIND's 60-character output buffer.
+- ``SimulationConfig.save_file`` builds and format-checks the whole
+  fixed-width block before opening the destination, so an invalid value in a
+  late section can no longer truncate an existing ``.smc`` file. A basic-data
+  value that cannot fit a 12-character SMC field (NaN/Inf, or a finite
+  non-zero value below the float range such as ``1e-400``) raises
+  ``ValueError`` instead of being written as zero, and ``-0.0`` is written as
+  canonical zero. ``print_config`` and ``validate_parameters`` handle
+  configurations shorter than the index tables.
+- YAML import validates that each section is a mapping, normalises quoted and
+  float indices, and rejects duplicate keys — both identical keys and keys
+  that collide after index normalisation — instead of silently keeping the
+  last one, while merge keys (``<<``) keep ``SafeLoader`` precedence: an
+  explicit entry still overrides an inherited merged key.
+- A failure while writing a PENETRATE component header propagates instead of
+  dropping that component with only a log line; the connector-owned
+  ``{prefix}_template.hs`` scratch file is removed on every path, and a
+  cleanup failure there logs a warning instead of masking the original error.
+  ``find_penetrate_h00_file`` matches only the exact prefix name or an
+  underscore-boundary suffix, so overlapping prefixes such as ``s`` and ``s2``
+  no longer claim each other's ``.h00`` output.
+- The orbit source supplied through ``RuntimeOperator`` is protected by
+  device/inode identity during staging and cleanup: the supplied path and its
+  resolved referent are never unlinked, including symlink and hardlink aliases
+  and differently-cased spellings on a case-insensitive filesystem. The
+  connector-generated ``{prefix}_acquisition.cor`` is still removed.
+- STIR detection and conversion prefer the modern ``stir.extra`` module and
+  fall back to the legacy standalone ``stirextra`` only when ``stir.extra`` is
+  genuinely absent; a broken dependency inside ``stir.extra`` propagates
+  instead of being masked by the legacy module.
 
 Known limitations
 ~~~~~~~~~~~~~~~~~
