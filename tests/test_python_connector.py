@@ -1351,14 +1351,6 @@ def test_python_connector_run_leaves_index_26_and_nn_untouched(tmp_path: Path):
     assert int(source_u16.max()) == round(MAX_SOURCE * 0.5)
 
 
-def _unsupported_routine_message(routine: ScoringRoutine) -> str:
-    return (
-        f"scoring_routine {routine.name} ({routine.value}) is not supported by "
-        "the Interfile connector; supported routines are DUMMY (0), SCATTWIN (1) "
-        "and PENETRATE (4)."
-    )
-
-
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "routine",
@@ -1376,7 +1368,7 @@ def test_python_connector_configure_rejects_unsupported_scoring_routine(
     source = np.ones((2, 3, 4), dtype=np.float32)
     config_before = [connector.get_config().get_value(i) for i in (5, 84)]
 
-    match = re.escape(_unsupported_routine_message(routine))
+    match = rf"{routine.name} \({routine.value}\) is not supported"
     with pytest.raises(ValueError, match=match):
         connector.configure_voxel_phantom(
             source, source.copy(), scoring_routine=routine
@@ -1403,12 +1395,7 @@ def test_python_connector_configure_rejects_unsupported_config_routine(
     connector.add_config_value(84, ScoringRoutine.FORCED_COLLIMATION.value)
     source = np.ones((2, 3, 4), dtype=np.float32)
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            _unsupported_routine_message(ScoringRoutine.FORCED_COLLIMATION)
-        ),
-    ):
+    with pytest.raises(ValueError, match=r"FORCED_COLLIMATION \(3\) is not supported"):
         connector.configure_voxel_phantom(source, source.copy())
 
     assert connector.get_config().get_value(84) == (
@@ -1467,10 +1454,7 @@ def test_python_connector_run_rejects_routine_changed_after_configure(
     launched: list[object] = []
     connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape(_unsupported_routine_message(ScoringRoutine.LIST_MODE)),
-    ):
+    with pytest.raises(ValueError, match=r"LIST_MODE \(2\) is not supported"):
         connector.run()
 
     assert launched == []
