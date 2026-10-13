@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import yaml
 
 from simind_python_connector import SimulationConfig
 from simind_python_connector.configs import get
@@ -774,6 +775,27 @@ def test_yaml_identical_duplicate_keys_are_rejected(tmp_path, section, entry):
     text = f"{section}:\n  {entry}\n  {entry}\n"
 
     with pytest.raises(ValueError, match="duplicate"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_explicit_key_overrides_merged_key(tmp_path):
+    text = (
+        "defaults: &defaults\n"
+        "  '1': merged\n"
+        "text_variables:\n"
+        "  <<: *defaults\n"
+        "  '1': explicit\n"
+    )
+
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.text_variables == {1: "explicit"}
+
+
+def test_yaml_unhashable_mapping_key_raises_constructor_error(tmp_path):
+    text = "? [a, b]\n: value\n"
+
+    with pytest.raises(yaml.constructor.ConstructorError, match="unhashable key"):
         SimulationConfig(_write_yaml(tmp_path, text))
 
 
