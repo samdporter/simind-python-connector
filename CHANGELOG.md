@@ -116,6 +116,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   kept as a fallback for older STIR installs.
 - `MP` (MPI process count) must be an integer >= 1; `MP=0` previously ran a
   single process silently.
+- SIMIND reads the source and density integer maps as signed 16-bit, so the
+  density cap of 65535 could wrap values above 32767 negative and silently
+  corrupt the map; it is now capped at 32767. `MAX_SOURCE` becomes
+  `np.iinfo(np.int16).max` (32767) and `DEFAULT_QUANTIZATION_SCALE`
+  (`500 / 32767`) keeps the legacy 500-weight source default. Explicit
+  `quantization_scale` values are not auto-migrated: rescale a scale calibrated
+  for the former 500 maximum with `old_scale * DEFAULT_QUANTIZATION_SCALE`.
 
 ### Known Limitations
 - A run that exceeds its `timeout` kills the launcher process but may not reap

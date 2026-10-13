@@ -14,7 +14,11 @@ from simind_python_connector.connectors.python_connector import (
     SimindPythonConnector,
 )
 from simind_python_connector.core.config import SimulationConfig
-from simind_python_connector.core.types import PenetrateOutputType, ScoringRoutine
+from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
+    PenetrateOutputType,
+    ScoringRoutine,
+)
 from simind_python_connector.utils import get_array
 
 
@@ -33,7 +37,7 @@ class StirSimindAdaptor(BaseConnector):
         output_dir: str,
         output_prefix: str = "output",
         photon_multiplier: int = 1,
-        quantization_scale: float = 1.0,
+        quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
         scoring_routine: ScoringRoutine | int | None = None,
     ) -> None:
         if stir is None:

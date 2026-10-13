@@ -24,6 +24,7 @@ from simind_python_connector.core.executor import (
     _validate_output_prefix,
 )
 from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
     MAX_SOURCE,
     SIMIND_VOXEL_UNIT_CONVERSION,
     OutputError,
@@ -81,7 +82,7 @@ class SimindPythonConnector(BaseConnector):
         config_source: ConfigSource,
         output_dir: PathLike,
         output_prefix: str = "output",
-        quantization_scale: float = 1.0,
+        quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
     ) -> None:
         self.logger = logging.getLogger(__name__)
         self._require_valid_prefix(output_prefix)
@@ -97,12 +98,18 @@ class SimindPythonConnector(BaseConnector):
             self.quantization_scale = float(quantization_scale)
         except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(
-                f"quantization_scale must be in (0, 1], got {quantization_scale!r}"
+                f"quantization_scale must be in (0, 1], got {quantization_scale!r}: "
+                f"the source maximum is scaled to {MAX_SOURCE} x quantization_scale "
+                "before voxel-wise rounding. Use the NN runtime switch for more "
+                "statistics."
             ) from exc
         # Above 1 the source would be clipped at MAX_SOURCE, changing its shape.
         if not 0 < self.quantization_scale <= 1:
             raise ValueError(
-                f"quantization_scale must be in (0, 1], got {quantization_scale!r}"
+                f"quantization_scale must be in (0, 1], got {quantization_scale!r}: "
+                f"the source maximum is scaled to {MAX_SOURCE} x quantization_scale "
+                "before voxel-wise rounding. Use the NN runtime switch for more "
+                "statistics."
             )
 
         self.config = self._initialize_config(config_source)
@@ -282,7 +289,7 @@ class SimindPythonConnector(BaseConnector):
         else:
             density = np.zeros_like(mu_map_array)
 
-        density_u16 = np.clip(np.round(density), 0, np.iinfo(np.uint16).max).astype(
+        density_u16 = np.clip(np.round(density), 0, np.iinfo(np.int16).max).astype(
             np.uint16
         )
         dns_prefix = f"{self.output_prefix}_dns"

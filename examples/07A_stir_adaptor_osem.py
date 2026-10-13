@@ -24,6 +24,7 @@ import stir
 
 from simind_python_connector import StirSimindAdaptor, configs
 from simind_python_connector.builders import STIRSPECTImageDataBuilder
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 from simind_python_connector.utils import get_array
 
 
@@ -176,7 +177,7 @@ def main() -> None:
         output_dir=str(output_dir),
         output_prefix="stir_case01",
         photon_multiplier=1,
-        quantization_scale=0.05,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
     adaptor.set_source(source_image)
     adaptor.set_mu_map(mu_image)

@@ -10,6 +10,7 @@ from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.core import SimulationConfig
 from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
     MAX_SOURCE,
     OutputError,
     ScoringRoutine,
@@ -382,9 +383,86 @@ def test_python_connector_accepts_quantization_scale_parameter(tmp_path: Path):
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
-        quantization_scale=0.05,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
-    assert connector.quantization_scale == pytest.approx(0.05)
+    assert connector.quantization_scale == pytest.approx(
+        0.05 * DEFAULT_QUANTIZATION_SCALE
+    )
+
+
+@pytest.mark.unit
+def test_source_ceiling_is_signed_int16():
+    assert MAX_SOURCE == np.iinfo(np.int16).max
+    assert MAX_SOURCE == 32767
+
+
+def _written_source(tmp_path: Path, scale: float, values: list[float]) -> np.ndarray:
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        quantization_scale=scale,
+    )
+    source = np.zeros((1, 1, len(values)), dtype=np.float32)
+    source[0, 0, :] = values
+    source_path, _ = connector.configure_voxel_phantom(
+        source, np.zeros_like(source), voxel_size_mm=4.0
+    )
+    return np.fromfile(source_path, dtype=np.uint16).reshape(source.shape)
+
+
+@pytest.mark.unit
+def test_python_connector_explicit_full_scale_uses_signed_range(tmp_path: Path):
+    written = _written_source(tmp_path, 1.0, [1.0, 0.6, 0.3])
+    assert tuple(written[0, 0]) == (32767, 19660, 9830)
+
+
+@pytest.mark.unit
+def test_python_connector_explicit_scale_is_not_auto_migrated(tmp_path: Path):
+    written = _written_source(tmp_path, 0.05, [1.0, 0.6, 0.3])
+    assert tuple(written[0, 0]) == (1638, 983, 492)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("old_scale", [1.0, 0.05, 0.02, 0.01])
+def test_migrated_scale_matches_legacy_source_bytes(tmp_path: Path, old_scale: float):
+    written = _written_source(
+        tmp_path, old_scale * DEFAULT_QUANTIZATION_SCALE, [1.0, 0.6, 0.3]
+    )
+    source = np.array([[[1.0, 0.6, 0.3]]], dtype=np.float32)
+    expected = np.clip(
+        np.round(source / source.max() * (500 * old_scale)), 0, 500
+    ).astype(np.uint16)
+    assert np.array_equal(written, expected)
+
+
+@pytest.mark.unit
+def test_migrated_non_integral_budget_rounds_once(tmp_path: Path):
+    written = _written_source(tmp_path, 0.0032 * DEFAULT_QUANTIZATION_SCALE, [1.0, 0.3])
+    assert tuple(written[0, 0]) == (2, 0)
+
+
+@pytest.mark.unit
+def test_python_connector_density_capped_at_signed_int16(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.get_config().set_flag(11, True)
+    monkeypatch.setattr(
+        "simind_python_connector.connectors.python_connector.attenuation_to_density",
+        lambda mu_map, energy: np.array([[[0.15, 10.0, 40.0]]], dtype=np.float32),
+    )
+    source = np.ones((1, 1, 3), dtype=np.float32)
+    mu_map = np.zeros_like(source)
+
+    _, density_path = connector.configure_voxel_phantom(
+        source, mu_map, voxel_size_mm=4.0
+    )
+
+    written = np.fromfile(density_path, dtype=np.uint16)
+    assert tuple(written) == (150, 10000, 32767)
 
 
 @pytest.mark.unit
@@ -1668,12 +1746,13 @@ def test_python_connector_rejects_source_quantized_to_all_zeros_at_tiny_scale(
 
 @pytest.mark.unit
 def test_python_connector_rejects_source_at_the_rounding_threshold(tmp_path: Path):
-    # 500 * 0.001 == 0.5, which NumPy rounds to even (0): every voxel vanishes.
+    # The migrated scale reproduces the legacy 500 * 0.001 == 0.5 budget, which
+    # NumPy rounds to even (0): every voxel vanishes.
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
-        quantization_scale=0.001,
+        quantization_scale=0.001 * DEFAULT_QUANTIZATION_SCALE,
     )
     source = np.ones((2, 3, 4), dtype=np.float32)
 
@@ -1687,7 +1766,7 @@ def test_python_connector_accepts_source_above_the_rounding_threshold(tmp_path: 
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
-        quantization_scale=0.002,
+        quantization_scale=0.002 * DEFAULT_QUANTIZATION_SCALE,
     )
     source = np.ones((2, 3, 4), dtype=np.float32)
 
