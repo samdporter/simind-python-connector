@@ -65,7 +65,7 @@ The GitHub Actions workflow runs only CI-friendly tests:
 .. code-block:: bash
 
     # CI command (no SIRF/SIMIND dependencies)
-    pytest -m "not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not ci_skip"
+    pytest -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not requires_setr and not ci_skip"
 
 Docker Backend Isolation
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -120,12 +120,13 @@ When SIMIND mode is enabled, it also runs geometry-isolation diagnostics:
 Alternative CI Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can also use the dedicated CI pytest configuration:
+The dependency-exclusion selection lives in ``.github/workflows/tests.yml`` so it
+applies to CI only; the default ``pytest`` run keeps every available test.
 
 .. code-block:: bash
 
-    # Using CI-specific config
-    pytest -c pytest-ci.ini
+    # Run only the CI-friendly selection locally
+    pytest -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not requires_setr and not ci_skip"
 
 Test Categories
 ---------------
@@ -177,22 +178,17 @@ skipped in lightweight CI environments.
 Configuration Files
 -------------------
 
-pytest.ini (Local Development)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pyproject.toml
+~~~~~~~~~~~~~~
 
-* Runs all available tests based on detected dependencies
-* Includes verbose output and duration reporting
-
-pytest-ci.ini (CI Environment)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-* Specifically filters out dependency-requiring tests
-* Optimized for GitHub Actions environment
+* ``[tool.pytest.ini_options]`` registers every marker and sets the default
+  options for local development
+* The CI dependency selection is passed with ``-m`` in the GitHub Actions
+  workflow, not from the default options
 
 tests/conftest.py
 ~~~~~~~~~~~~~~~~~
 
-* Configures pytest markers
 * Implements automatic dependency detection and test skipping
 * Handles CI environment detection
 

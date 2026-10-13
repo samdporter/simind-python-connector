@@ -96,22 +96,27 @@ def test_all_tests_have_dependency_or_category_marker() -> None:
     )
 
 
-def test_pytest_ci_configuration_registers_markers_and_uses_pytest_section():
-    import configparser
+def test_pytest_configuration_registers_markers(pytestconfig):
+    markers = pytestconfig.getini("markers")
+    registered = {marker.split(":", 1)[0].strip() for marker in markers}
 
-    parser = configparser.ConfigParser()
-    parser.read(ROOT.parent / "pytest-ci.ini")
-
-    assert parser.has_section("pytest"), "pytest-ci.ini must use a [pytest] section"
-    markers = parser["pytest"]["markers"]
     for required in (
+        "unit",
+        "integration",
         "slow",
+        "ci_skip",
+        "requires_sirf",
         "requires_stir",
+        "requires_simind",
         "requires_pytomography",
         "requires_cil",
         "requires_setr",
     ):
-        assert required in markers, f"missing marker registration: {required}"
-    addopts = parser["pytest"]["addopts"]
-    assert "-m" in addopts
-    assert "not requires_simind" in addopts
+        assert required in registered, f"missing marker registration: {required}"
+
+    addopts = pytestconfig.getini("addopts")
+    if isinstance(addopts, str):
+        addopts = addopts.split()
+    assert "-m" not in addopts, (
+        "CI dependency deselection must stay in the workflow, not default addopts"
+    )
