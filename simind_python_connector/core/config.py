@@ -774,6 +774,16 @@ class SimulationConfig:
             raise ValueError(f"{label}: duplicate index {index} after normalisation")
         seen.add(index)
 
+    @staticmethod
+    def _reject_boolean_scoring_value(index, value, label):
+        # bool coerces to 0.0/1.0 via float(), which would silently turn a
+        # boolean into a DUMMY/SCATTWIN routine code instead of failing.
+        if index == 84 and isinstance(value, bool):
+            raise ValueError(
+                f"{label}: boolean {value!r} is not a valid scoring routine "
+                "value for Index 84"
+            )
+
     def import_yaml(self, filepath):
         """
         Import configuration from a YAML file.
@@ -808,6 +818,9 @@ class SimulationConfig:
                         continue
                     idx = self._normalise_index(param_data["index"], entry_label)
                     self._register_index(seen_indices, idx, "parameters")
+                    self._reject_boolean_scoring_value(
+                        idx, param_data["value"], entry_label
+                    )
                     if idx in self.index_dict and idx <= len(self.data):
                         self.data[idx - 1] = float(param_data["value"])
 
@@ -859,6 +872,7 @@ class SimulationConfig:
             for idx, value in self._normalise_index_mapping(
                 other_parameters, "other_parameters"
             ).items():
+                self._reject_boolean_scoring_value(idx, value, "other_parameters")
                 if idx > len(self.data):
                     self.data.extend([0.0] * (idx - len(self.data)))
                 self.data[idx - 1] = float(value)

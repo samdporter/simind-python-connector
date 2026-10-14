@@ -7,12 +7,16 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+import simind_python_connector.connectors.pytomography_adaptor as pytomography_mod
 import simind_python_connector.connectors.sirf_adaptor as sirf_mod
 import simind_python_connector.connectors.stir_adaptor as stir_mod
 from simind_python_connector.configs import get
 from simind_python_connector.connectors.python_connector import (
     ProjectionResult,
     RuntimeOperator,
+)
+from simind_python_connector.connectors.pytomography_adaptor import (
+    PyTomographySimindAdaptor,
 )
 from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
 from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
@@ -120,6 +124,10 @@ def _patch_sirf_backend(monkeypatch: pytest.MonkeyPatch) -> None:
         AcquisitionData = _DummyAcquisitionData
 
     monkeypatch.setattr(sirf_mod, "sirf", _DummySirf)
+
+
+def _patch_pytomography_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pytomography_mod, "torch", SimpleNamespace(Tensor=object))
 
 
 _CASES = [
@@ -952,6 +960,55 @@ def test_adaptor_keeps_the_config_scoring_routine_by_default(
 
     assert observed["index_84"] == ScoringRoutine.PENETRATE.value
     assert adaptor.get_scoring_routine() == ScoringRoutine.PENETRATE
+
+
+_ADAPTOR_BACKENDS = [
+    (StirSimindAdaptor, _patch_stir_backend),
+    (SirfSimindAdaptor, _patch_sirf_backend),
+    (PyTomographySimindAdaptor, _patch_pytomography_backend),
+]
+
+
+@pytest.mark.parametrize("cls, patch", _ADAPTOR_BACKENDS)
+@pytest.mark.parametrize("bool_value", [True, False])
+def test_adaptor_constructor_rejects_boolean_scoring_routine(
+    cls, patch, bool_value, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+
+    with pytest.raises(ValueError, match="scoring_routine"):
+        cls(
+            config_source=get("AnyScan.yaml"),
+            output_dir=str(tmp_path),
+            output_prefix="case01",
+            scoring_routine=bool_value,
+        )
+
+
+@pytest.mark.parametrize("cls, patch", _ADAPTOR_BACKENDS)
+@pytest.mark.parametrize(
+    "scoring, expected",
+    [
+        pytest.param(None, None, id="none"),
+        pytest.param(0, ScoringRoutine.DUMMY, id="dummy-code"),
+        pytest.param(1, ScoringRoutine.SCATTWIN, id="scattwin-code"),
+        pytest.param(4, ScoringRoutine.PENETRATE, id="penetrate-code"),
+        pytest.param(ScoringRoutine.PENETRATE, ScoringRoutine.PENETRATE, id="enum"),
+    ],
+)
+def test_adaptor_constructor_accepts_valid_scoring_routine(
+    cls, patch, scoring, expected, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+
+    adaptor = cls(
+        config_source=get("AnyScan.yaml"),
+        output_dir=str(tmp_path),
+        output_prefix="case01",
+        scoring_routine=scoring,
+    )
+
+    assert adaptor._scoring_routine == expected
 
 
 def _stub_zub_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
