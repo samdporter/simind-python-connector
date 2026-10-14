@@ -46,6 +46,7 @@ def _connector(
     prefix: str,
     *,
     scoring_routine: ScoringRoutine | None = None,
+    energy_windows: bool = True,
 ) -> SimindPythonConnector:
     """A centred point source with a uniform attenuating body."""
     connector = SimindPythonConnector(get("Example.yaml"), output_dir, prefix)
@@ -58,7 +59,8 @@ def _connector(
         np.full((GRID, GRID, GRID), 0.15, np.float32),
         scoring_routine=scoring_routine,
     )
-    connector.set_energy_windows([126], [154], [0])
+    if energy_windows:
+        connector.set_energy_windows([126], [154], [0])
     return connector
 
 
@@ -427,14 +429,14 @@ def test_engine_raw_prefix_limit_runs(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setattr(
         executor_module, "_OUTPUT_PREFIX_MAX_LENGTH", ENGINE_RAW_PREFIX_LIMIT + 1
     )
-    over = _connector(over_limit, prefix50)
+    over = _connector(over_limit, prefix50, energy_windows=False)
     # run() saves the .smc just before launching; stage it here for the direct
     # engine invocation below.
     over.get_config().save_file(over_limit / prefix50)
     monkeypatch.setattr(
         executor_module, "_OUTPUT_PREFIX_MAX_LENGTH", ENGINE_RAW_PREFIX_LIMIT
     )
-    connector = _connector(at_limit, prefix49)
+    connector = _connector(at_limit, prefix49, energy_windows=False)
 
     outputs = connector.run(
         RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
@@ -473,7 +475,7 @@ def test_engine_raw_prefix_limit_runs(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def test_prefix_at_cap_runs_through_conversion(tmp_path: Path):
-    connector = _connector(tmp_path, "a" * OUTPUT_PREFIX_CAP)
+    connector = _connector(tmp_path, "a" * OUTPUT_PREFIX_CAP, energy_windows=False)
 
     outputs = connector.run(
         RuntimeOperator(switches={"RR": 12345}, timeout=RUN_TIMEOUT)
