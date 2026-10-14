@@ -396,10 +396,17 @@ class SimindToStirConverter:
         Returns:
             Dictionary mapping component slugs to the written header paths.
         """
+        # Reject the input before any scratch path exists: if the name does
+        # not end in ".h00" the template below would alias the caller's own
+        # file and the cleanup would delete it.
+        if not h00_file.endswith(".h00"):
+            raise ValueError("Input file must have .h00 extension")
+
         output_dir = Path(output_dir)
         outputs: Dict[str, Path] = {}
 
-        template_hs = h00_file.replace(".h00", "_template.hs")
+        h00_path = Path(h00_file)
+        template_hs = str(h00_path.with_name(h00_path.stem + "_template.hs"))
 
         try:
             # First convert the template .h00 to .hs format

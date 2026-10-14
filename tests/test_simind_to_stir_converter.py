@@ -716,6 +716,59 @@ class TestPenetrateTemplateCleanup:
 
 
 @pytest.mark.unit
+class TestPenetrateRejectedInput:
+    """A rejected input is refused before any scratch path can alias it."""
+
+    @pytest.mark.parametrize("filename", ["case.H00", "case.txt", "case"])
+    def test_rejected_input_keeps_its_bytes(self, tmp_path, filename):
+        target = tmp_path / filename
+        target.write_bytes(b"caller-owned bytes")
+
+        with pytest.raises(ValueError, match="Input file must have .h00 extension"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(target), "case", str(tmp_path)
+            )
+
+        assert target.read_bytes() == b"caller-owned bytes"
+        assert [p.name for p in tmp_path.iterdir()] == [filename]
+
+    def test_rejected_input_in_h00_directory_touches_no_other_paths(self, tmp_path):
+        rejected_dir = tmp_path / "run.h00"
+        rejected_dir.mkdir()
+        target = rejected_dir / "case.txt"
+        target.write_bytes(b"caller-owned bytes")
+
+        # A whole-path ".h00" substitution would land on this decoy instead.
+        decoy = tmp_path / "run_template.hs" / "case.txt"
+        decoy.parent.mkdir()
+        decoy.write_bytes(b"unrelated bytes")
+
+        with pytest.raises(ValueError, match="Input file must have .h00 extension"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(target), "case", str(rejected_dir)
+            )
+
+        assert target.read_bytes() == b"caller-owned bytes"
+        assert decoy.read_bytes() == b"unrelated bytes"
+
+    def test_valid_h00_in_h00_directory_uses_sibling_scratch(self, tmp_path):
+        directory = tmp_path / "run.h00"
+        directory.mkdir()
+        h00_file = make_penetrate_outputs(directory)
+        h00_before = h00_file.read_bytes()
+
+        outputs = SimindToStirConverter().create_penetrate_headers_from_template(
+            str(h00_file), "output", str(directory)
+        )
+
+        assert outputs
+        assert all(Path(header).parent == directory for header in outputs.values())
+        assert not (directory / "output_template.hs").exists()
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["run.h00"]
+        assert h00_file.read_bytes() == h00_before
+
+
+@pytest.mark.unit
 class TestFindPenetrateH00File:
     """The output prefix must only claim its own PENETRATE outputs."""
 
