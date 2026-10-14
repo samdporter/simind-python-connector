@@ -147,6 +147,20 @@ def _file_identity(path: Path) -> set[tuple[int, int]]:
     return identities
 
 
+def _same_real_file(a: Path, b: Path) -> bool:
+    """True when a and b dereference to the same device and inode.
+
+    A symlink, hardlink or differently-cased spelling of either path is
+    caught, because the comparison follows links to the referent.
+    """
+    try:
+        a_stat = os.stat(a)
+        b_stat = os.stat(b)
+    except OSError:
+        return False
+    return (a_stat.st_dev, a_stat.st_ino) == (b_stat.st_dev, b_stat.st_ino)
+
+
 @dataclass(frozen=True)
 class ProjectionResult:
     """Projection array together with the header and binary file references."""
@@ -716,7 +730,10 @@ class SimindPythonConnector(BaseConnector):
         self._window_file_path = window_path
 
     def _validate_runtime_operator(
-        self, runtime_operator: Optional[RuntimeOperator]
+        self,
+        runtime_operator: Optional[RuntimeOperator],
+        *,
+        write_paths: tuple[Path, ...] = (),
     ) -> RuntimeSwitches:
         """Validate the effective switch set and orbit without writing files.
 
@@ -726,6 +743,10 @@ class SimindPythonConnector(BaseConnector):
         executor, so an illegal switch is rejected before phantom inputs, an
         acquisition orbit or a config are written. Returns the validated
         holder for run().
+
+        write_paths are the files an adaptor is about to write for this run;
+        a supplied orbit that is one of them, or the config destination, is
+        rejected dereferenced so a real input is never overwritten by staging.
         """
         run_switches_holder = RuntimeSwitches()
         for key, value in self.runtime_switches.switches.items():
@@ -749,8 +770,26 @@ class SimindPythonConnector(BaseConnector):
                 raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
             if not orbit_path.is_file():
                 raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
+            self._reject_orbit_write_conflict(orbit_path, write_paths)
 
         return run_switches_holder
+
+    def _reject_orbit_write_conflict(
+        self, orbit_path: Path, write_paths: tuple[Path, ...]
+    ) -> None:
+        """Reject an orbit this run would overwrite as its config or an input.
+
+        The comparison is dereferenced so a symlink, hardlink or differently
+        cased spelling of a destination is caught, while the caller's file is
+        left in place rather than detached or renamed.
+        """
+        destinations = (self.output_dir / f"{self.output_prefix}.smc", *write_paths)
+        for destination in destinations:
+            if _same_real_file(orbit_path, destination):
+                raise ValueError(
+                    f"orbit_file {orbit_path} is the same file as this run's "
+                    f"destination {destination}; refusing to overwrite it"
+                )
 
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
@@ -795,10 +834,15 @@ class SimindPythonConnector(BaseConnector):
                     )
             mpi_kwargs = {"mpi_processes": processes, "split_projections": split}
 
-        # The effective switches are validated and serialised above, before
-        # the acquisition orbit below is generated or a supplied one staged.
+        # The effective switches are validated and serialised above, before an
+        # explicit orbit is staged or the acquisition orbit below is written.
+        # An explicit runtime orbit wins: the acquisition orbit is only
+        # generated when none was supplied, so a supplied orbit at (or aliased
+        # to) the acquisition pathname is never overwritten before staging.
         orbit_file = None
-        if self._acquisition_radii_cm is not None:
+        if runtime_operator is not None and runtime_operator.orbit_file is not None:
+            orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
+        elif self._acquisition_radii_cm is not None:
             orbit_file = self.output_dir / f"{self.output_prefix}_acquisition.cor"
             # SIMIND's own .cor layout (Index 42 < 0 writes one radius per line
             # in cm at %12.3f followed by the centre bin, Index 76 / 2, at %6d).
@@ -809,8 +853,6 @@ class SimindPythonConnector(BaseConnector):
                     f"{r:12.3f}{centre_bin:6d}\n" for r in self._acquisition_radii_cm
                 )
             )
-        if runtime_operator is not None and runtime_operator.orbit_file is not None:
-            orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
 
         if self._phantom_extent_mm is not None:
             bin_mm = float(self.config.get_value(28)) * SIMIND_VOXEL_UNIT_CONVERSION

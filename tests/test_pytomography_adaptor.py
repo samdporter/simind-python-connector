@@ -1,3 +1,4 @@
+import os
 import types
 from pathlib import Path
 
@@ -548,3 +549,93 @@ def test_pytomography_adaptor_accepts_valid_runtime_operator(
     outputs = adaptor.run(runtime_operator=RuntimeOperator(switches={"RR": 12345}))
 
     assert outputs == {}
+
+
+def _alias_destination(destination: Path, external: Path, alias: str) -> Path:
+    """Put an orbit at destination, directly or through a link; return its path."""
+    if alias == "direct":
+        destination.write_bytes(b"orbit-bytes")
+        return destination
+    if alias == "symlink":
+        destination.symlink_to(external)
+        return external
+    os.link(external, destination)
+    return external
+
+
+@pytest.mark.parametrize("destination", ["src", "density"])
+@pytest.mark.parametrize("alias", ["direct", "symlink", "hardlink"])
+def test_pytomography_adaptor_rejects_orbit_conflicting_with_its_inputs(
+    destination: str, alias: str, tmp_path: Path, monkeypatch
+) -> None:
+    adaptor = _make_preflight_adaptor(tmp_path)
+    suffix = "_src.smi" if destination == "src" else "_dns.dmi"
+    destination_path = tmp_path / f"case01{suffix}"
+    external = tmp_path / "external-orbit.cor"
+    external.write_bytes(b"orbit-bytes")
+    orbit = _alias_destination(destination_path, external, alias)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append(True),
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(runtime_operator=RuntimeOperator(orbit_file=orbit))
+
+    assert launched == []
+    assert external.read_bytes() == b"orbit-bytes"
+    if alias == "direct":
+        assert destination_path.read_bytes() == b"orbit-bytes"
+    elif alias == "symlink":
+        assert destination_path.is_symlink()
+    else:
+        assert os.stat(destination_path).st_ino == os.stat(external).st_ino
+
+
+@pytest.mark.parametrize("alias", ["direct", "symlink", "hardlink"])
+def test_pytomography_adaptor_rejects_orbit_at_the_window_destination(
+    alias: str, tmp_path: Path, monkeypatch
+) -> None:
+    adaptor = _make_preflight_adaptor(tmp_path)
+    window_path = tmp_path / "case01.win"
+    external = tmp_path / "external-orbit.cor"
+    external.write_bytes(b"orbit-bytes")
+    orbit = _alias_destination(window_path, external, alias)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append(True),
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(runtime_operator=RuntimeOperator(orbit_file=orbit))
+
+    assert launched == []
+    assert external.read_bytes() == b"orbit-bytes"
+    if alias == "direct":
+        assert window_path.read_bytes() == b"orbit-bytes"
+    elif alias == "symlink":
+        assert window_path.is_symlink()
+    else:
+        assert os.stat(window_path).st_ino == os.stat(external).st_ino
+
+
+def test_pytomography_adaptor_accepts_external_orbit_with_an_input_like_basename(
+    tmp_path: Path, monkeypatch
+) -> None:
+    adaptor = _make_preflight_adaptor(tmp_path)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    external = outside / "case01_src.smi"
+    external.write_bytes(b"external-orbit")
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    outputs = adaptor.run(runtime_operator=RuntimeOperator(orbit_file=external))
+
+    assert outputs == {}
+    assert external.read_bytes() == b"external-orbit"

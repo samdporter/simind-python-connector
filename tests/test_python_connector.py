@@ -1378,6 +1378,99 @@ def test_python_connector_cleanup_preserves_differently_cased_prefix_cor_orbit(
 
 
 @pytest.mark.unit
+def test_python_connector_rejects_orbit_at_the_config_destination(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    config_path = tmp_path / "case01.smc"
+    config_path.write_bytes(b"caller-orbit")
+    header_path = tmp_path / "case01_tot_w1.hs"
+    header_path.write_bytes(b"prior-header")
+    captured = _record_orbit_executor_run(connector)
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        connector.run(RuntimeOperator(orbit_file=config_path))
+
+    assert "orbit_file" not in captured
+    assert config_path.read_bytes() == b"caller-orbit"
+    assert header_path.read_bytes() == b"prior-header"
+    assert not (tmp_path / "case01_orbit.cor").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("link", ["symlink", "hardlink"])
+def test_python_connector_rejects_config_link_alias_of_supplied_orbit(
+    tmp_path: Path, link: str
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    external = tmp_path / "radii.cor"
+    external.write_bytes(b"external-radii")
+    config_path = tmp_path / "case01.smc"
+    if link == "symlink":
+        config_path.symlink_to(external)
+    else:
+        os.link(external, config_path)
+    captured = _record_orbit_executor_run(connector)
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        connector.run(RuntimeOperator(orbit_file=external))
+
+    assert "orbit_file" not in captured
+    assert external.read_bytes() == b"external-radii"
+    assert not (tmp_path / "case01_orbit.cor").exists()
+    if link == "symlink":
+        assert config_path.is_symlink()
+    else:
+        assert os.stat(config_path).st_ino == os.stat(external).st_ino
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(
+    not CASE_INSENSITIVE_FS,
+    reason="needs a case-insensitive filesystem to alias differently-cased names",
+)
+def test_python_connector_rejects_differently_cased_config_alias(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    alias = tmp_path / "CASE01.SMC"
+    alias.write_bytes(b"caller-orbit")
+    captured = _record_orbit_executor_run(connector)
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        connector.run(RuntimeOperator(orbit_file=alias))
+
+    assert "orbit_file" not in captured
+    assert alias.read_bytes() == b"caller-orbit"
+
+
+@pytest.mark.unit
+def test_python_connector_external_orbit_with_input_like_basename_is_accepted(
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "out"
+    source_dir = tmp_path / "in"
+    output_dir.mkdir()
+    source_dir.mkdir()
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    external = source_dir / "case01_src.smi"
+    external.write_bytes(b"external-orbit")
+    captured = _record_orbit_executor_run(connector)
+
+    connector.run(RuntimeOperator(orbit_file=external))
+
+    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
+    assert external.read_bytes() == b"external-orbit"
+    assert (output_dir / "case01_orbit.cor").read_bytes() == b"external-orbit"
+
+
+@pytest.mark.unit
 def test_python_connector_removes_stale_result_files(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
@@ -1739,6 +1832,58 @@ def test_index_12_edit_does_not_clear_a_stored_non_circular_orbit(tmp_path: Path
     lines = orbit.read_text().splitlines()
     assert lines[0] == "      24.000    32" and lines[-1] == "      29.900    32"
     assert len(lines) == 60
+
+
+@pytest.mark.unit
+def test_python_connector_explicit_orbit_at_acquisition_path_is_preserved(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    _non_circular_acquisition(connector)
+    acquisition = tmp_path / "case01_acquisition.cor"
+    explicit = b"      24.000    99\n" * 60
+    acquisition.write_bytes(explicit)
+    captured = _record_orbit_executor_run(connector)
+
+    connector.run(RuntimeOperator(orbit_file=acquisition))
+
+    assert captured["orbit_file"] == tmp_path / "case01_orbit.cor"
+    assert acquisition.read_bytes() == explicit
+    assert (tmp_path / "case01_orbit.cor").read_bytes() == explicit
+
+    # Without an explicit orbit the stored radii regenerate the acquisition
+    # orbit, using the current Index 76 centre bin.
+    connector.add_config_value(76, 128)
+    connector.run()
+
+    assert captured["orbit_file"] == acquisition
+    lines = acquisition.read_text().splitlines()
+    assert lines[0] == "      24.000    64"
+    assert len(lines) == 60
+
+
+@pytest.mark.unit
+def test_python_connector_explicit_orbit_aliased_to_acquisition_path_is_preserved(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    _non_circular_acquisition(connector)
+    external = tmp_path / "elsewhere.cor"
+    external.write_bytes(b"aliased-explicit")
+    acquisition = tmp_path / "case01_acquisition.cor"
+    acquisition.symlink_to(external)
+    captured = _record_orbit_executor_run(connector)
+
+    connector.run(RuntimeOperator(orbit_file=external))
+
+    assert captured["orbit_file"] == tmp_path / "case01_orbit.cor"
+    assert external.read_bytes() == b"aliased-explicit"
+    assert acquisition.is_symlink()
+    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"aliased-explicit"
 
 
 @pytest.mark.unit

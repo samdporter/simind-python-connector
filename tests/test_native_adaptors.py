@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,7 +22,10 @@ from simind_python_connector.core.types import ScoringRoutine, SimulationError
 from simind_python_connector.phantoms import (
     AnalyticPhantom,
     Box,
+    HorizontalCylinder,
+    Insert,
     LibraryPhantom,
+    MultipleInserts,
     PointSource,
     VoxelPhantom,
 )
@@ -1213,3 +1217,151 @@ def test_adaptor_accepts_valid_runtime_operator(
     outputs = adaptor.run(runtime_operator=RuntimeOperator(switches={"RR": 12345}))
 
     assert outputs == {}
+
+
+def _alias_destination(destination: Path, external: Path, alias: str) -> Path:
+    """Put an orbit at destination, directly or through a link; return its path."""
+    if alias == "direct":
+        destination.write_bytes(b"orbit-bytes")
+        return destination
+    if alias == "symlink":
+        destination.symlink_to(external)
+        return external
+    os.link(external, destination)
+    return external
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+@pytest.mark.parametrize("destination", ["src", "density"])
+@pytest.mark.parametrize("alias", ["direct", "symlink", "hardlink"])
+def test_adaptor_rejects_orbit_conflicting_with_voxel_inputs(
+    cls, patch, image_cls, destination, alias, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    suffix = "_src.smi" if destination == "src" else "_dns.dmi"
+    destination_path = tmp_path / f"case01{suffix}"
+    external = tmp_path / "external-orbit.cor"
+    external.write_bytes(b"orbit-bytes")
+    orbit = _alias_destination(destination_path, external, alias)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append(True),
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(RuntimeOperator(orbit_file=orbit))
+
+    assert launched == []
+    assert external.read_bytes() == b"orbit-bytes"
+    if alias == "direct":
+        assert destination_path.read_bytes() == b"orbit-bytes"
+    elif alias == "symlink":
+        assert destination_path.is_symlink()
+    else:
+        assert os.stat(destination_path).st_ino == os.stat(external).st_ino
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+@pytest.mark.parametrize("destination", ["src", "density"])
+def test_adaptor_rejects_voxel_phantom_orbit_conflict(
+    cls, patch, image_cls, destination, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    activity = np.ones((2, 3, 4), dtype=np.float32)
+    adaptor.set_phantom(VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)))
+    suffix = "_src.smi" if destination == "src" else "_dns.dmi"
+    destination_path = tmp_path / f"case01{suffix}"
+    destination_path.write_bytes(b"orbit-bytes")
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append(True),
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(RuntimeOperator(orbit_file=destination_path))
+
+    assert launched == []
+    assert destination_path.read_bytes() == b"orbit-bytes"
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_rejects_orbit_at_the_analytic_insert_file(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_phantom(
+        AnalyticPhantom(
+            MultipleInserts(
+                HorizontalCylinder(10.0, (10.0, 10.0)),
+                (Insert((2.0, 2.0, 2.0), (3.0, 0.0, 0.0), 4.0),),
+            )
+        )
+    )
+    insert_file = tmp_path / "case01.inp"
+    insert_file.write_bytes(b"orbit-bytes")
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append(True),
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(RuntimeOperator(orbit_file=insert_file))
+
+    assert launched == []
+    assert insert_file.read_bytes() == b"orbit-bytes"
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_rejects_orbit_at_the_library_phantom_table(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_phantom(LibraryPhantom.ZUBAL_TORSO)
+    zub_table = tmp_path / "phantom.zub"
+    zub_table.write_bytes(b"orbit-bytes")
+    launched: list[object] = []
+    monkeypatch.setattr(
+        adaptor.python_connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append(True),
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(RuntimeOperator(orbit_file=zub_table))
+
+    assert launched == []
+    assert zub_table.read_bytes() == b"orbit-bytes"
+
+
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_accepts_external_orbit_with_an_input_like_basename(
+    cls, patch, image_cls, tmp_path, monkeypatch
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    external = outside / "case01_src.smi"
+    external.write_bytes(b"external-orbit")
+    adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    outputs = adaptor.run(runtime_operator=RuntimeOperator(orbit_file=external))
+
+    assert outputs == {}
+    assert external.read_bytes() == b"external-orbit"
