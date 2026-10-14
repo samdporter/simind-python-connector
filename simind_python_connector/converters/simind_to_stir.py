@@ -432,7 +432,14 @@ class SimindToStirConverter:
         output_dir = Path(output_dir)
         outputs = {}
 
-        template_hs = h00_file.replace(".h00", "_template.hs")
+        # Reject the input before the scratch path exists: the cleanup below
+        # must never be able to delete the caller's own file.
+        if not h00_file.endswith(".h00"):
+            raise ValueError("Input file must have .h00 extension")
+
+        # Rewrite only the terminal .h00 of the filename, so a parent directory
+        # containing ".h00" is left alone.
+        template_hs = h00_file[: -len(".h00")] + "_template.hs"
 
         try:
             # First convert the template .h00 to .hs format

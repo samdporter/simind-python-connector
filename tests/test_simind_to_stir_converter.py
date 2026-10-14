@@ -548,6 +548,12 @@ def component_header(tmp_path, component) -> Path:
     return tmp_path / f"output_component_{component.value:02d}.hs"
 
 
+def penetrate_template_path(h00_file) -> Path:
+    """Scratch .hs path: rewrite the terminal .h00 of the filename only."""
+    h00_file = Path(h00_file)
+    return h00_file.with_name(h00_file.name[: -len(".h00")] + "_template.hs")
+
+
 @pytest.mark.unit
 class TestPenetrateFallbackLogging:
     """Missing backends are an expected fallback, so they must not warn."""
@@ -656,7 +662,7 @@ class TestPenetrateFallbackLogging:
 
     def test_success_path_removes_template(self, tmp_path):
         h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+        template_hs = penetrate_template_path(h00_file)
 
         SimindToStirConverter().create_penetrate_headers_from_template(
             str(h00_file), "output", str(tmp_path)
@@ -668,7 +674,7 @@ class TestPenetrateFallbackLogging:
         self, tmp_path, monkeypatch
     ):
         h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+        template_hs = penetrate_template_path(h00_file)
         h00_before = h00_file.read_bytes()
         binaries_before = {
             path.name: path.read_bytes() for path in tmp_path.glob("output.b*")
@@ -695,7 +701,7 @@ class TestPenetrateFallbackLogging:
         self, tmp_path, monkeypatch
     ):
         h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+        template_hs = penetrate_template_path(h00_file)
 
         def failing_from_file(filename):
             assert Path(filename) == template_hs
@@ -714,7 +720,7 @@ class TestPenetrateFallbackLogging:
 
     def test_conversion_failure_removes_template(self, tmp_path, monkeypatch):
         h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+        template_hs = penetrate_template_path(h00_file)
 
         def failing_convert_file(
             self, input_filename, output_filename=None, *args, **kwargs
@@ -733,7 +739,7 @@ class TestPenetrateFallbackLogging:
 
     def test_cleanup_failure_preserves_primary_exception(self, tmp_path, monkeypatch):
         h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
+        template_hs = penetrate_template_path(h00_file)
 
         component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
         self.patch_failing_write(
@@ -818,6 +824,82 @@ class TestPenetrateFallbackLogging:
             str(component_header(tmp_path, component))
             for component in PenetrateOutputType
         ]
+
+
+@pytest.mark.unit
+class TestPenetrateTemplateScratch:
+    """Rejected inputs must fail before any scratch path is computed."""
+
+    @staticmethod
+    def snapshot(directory) -> dict:
+        return {path.name: path.read_bytes() for path in Path(directory).iterdir()}
+
+    @pytest.mark.parametrize("name", ["case.H00", "case.txt", "case"])
+    def test_rejected_input_is_kept_byte_for_byte(self, tmp_path, name):
+        make_penetrate_outputs(tmp_path)
+        rejected = tmp_path / name
+        rejected.write_bytes(b"caller-owned bytes")
+        before = self.snapshot(tmp_path)
+
+        with pytest.raises(ValueError, match="must have .h00 extension"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(rejected), "output", str(tmp_path)
+            )
+
+        assert self.snapshot(tmp_path) == before
+        assert rejected.read_bytes() == b"caller-owned bytes"
+
+    def test_rejected_input_in_h00_named_directory_touches_nothing(self, tmp_path):
+        nested = tmp_path / "run.h00.dir"
+        nested.mkdir()
+        make_penetrate_outputs(nested)
+        rejected = nested / "case.txt"
+        rejected.write_bytes(b"caller-owned bytes")
+        # Rewriting ".h00" across the whole path would resolve the scratch file
+        # here; rejecting the input must never reach it.
+        decoy_dir = tmp_path / "run_template.hs.dir"
+        decoy_dir.mkdir()
+        (decoy_dir / "case.txt").write_bytes(b"unrelated bytes")
+        nested_before = self.snapshot(nested)
+        decoy_before = self.snapshot(decoy_dir)
+
+        with pytest.raises(ValueError, match="must have .h00 extension"):
+            SimindToStirConverter().create_penetrate_headers_from_template(
+                str(rejected), "output", str(nested)
+            )
+
+        assert self.snapshot(nested) == nested_before
+        assert self.snapshot(decoy_dir) == decoy_before
+
+    def test_valid_input_in_h00_named_directory_uses_sibling_scratch(
+        self, tmp_path, monkeypatch
+    ):
+        nested = tmp_path / "run.h00.dir"
+        nested.mkdir()
+        h00_file = make_penetrate_outputs(nested)
+        scratch = penetrate_template_path(h00_file)
+
+        seen = []
+        original_from_file = InterfileHeader.from_file
+
+        def recording_from_file(filename):
+            seen.append(Path(filename))
+            return original_from_file(filename)
+
+        monkeypatch.setattr(
+            InterfileHeader, "from_file", staticmethod(recording_from_file)
+        )
+
+        outputs = SimindToStirConverter().create_penetrate_headers_from_template(
+            str(h00_file), "output", str(nested)
+        )
+
+        assert set(outputs) == {component.slug for component in PenetrateOutputType}
+        assert scratch == nested / "output_template.hs"
+        assert seen == [scratch]
+        assert not scratch.exists()
+        for component in PenetrateOutputType:
+            assert component_header(nested, component).exists()
 
 
 @pytest.mark.unit
