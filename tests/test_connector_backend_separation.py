@@ -147,6 +147,42 @@ def _run_in_subprocess(
     return subprocess.run(args, capture_output=True, text=True, env=env)
 
 
+def test_pure_connector_import_attempts_no_optional_backends(tmp_path):
+    """Importing the pure connector must not even attempt an optional backend.
+
+    A recording finder logs every attempted import in a fresh interpreter, and a
+    fake ``sirf`` raising a non-``ImportError`` models a broken installed SIRF.
+    The pure connector must import without touching either.
+    """
+    fake_backend = tmp_path / "broken_backend"
+    sirf_dir = fake_backend / "sirf"
+    sirf_dir.mkdir(parents=True)
+    (sirf_dir / "__init__.py").write_text(
+        "raise RuntimeError('broken SIRF installation')\n"
+    )
+
+    code = (
+        "import json, sys\n"
+        "from importlib.abc import MetaPathFinder\n"
+        "OPTIONAL = ('sirf', 'stir', 'stirextra', 'pytomography', 'cil', 'torch')\n"
+        "attempted = []\n"
+        "class Recorder(MetaPathFinder):\n"
+        "    def find_spec(self, fullname, path=None, target=None):\n"
+        "        if fullname.split('.', 1)[0] in OPTIONAL:\n"
+        "            attempted.append(fullname)\n"
+        "        return None\n"
+        "sys.meta_path.insert(0, Recorder())\n"
+        "import simind_python_connector.connectors.python_connector as "
+        "python_connector\n"
+        "from simind_python_connector import SimindPythonConnector as public\n"
+        "assert python_connector.SimindPythonConnector is public\n"
+        "print('ATTEMPTED:' + json.dumps(attempted))\n"
+    )
+    result = _run_in_subprocess(code, extra_path=fake_backend)
+    assert result.returncode == 0, result.stderr
+    assert "ATTEMPTED:[]" in result.stdout
+
+
 def test_get_stir_types_accepts_modern_stir_extra(tmp_path):
     """A modern ``stir.extra`` install reports STIR as available."""
     pkg = _write_fake_stir(tmp_path, extra="modern")

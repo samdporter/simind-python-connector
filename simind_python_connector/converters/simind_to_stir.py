@@ -3,7 +3,7 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from simind_python_connector.core.types import PenetrateOutputType
 from simind_python_connector.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
@@ -13,8 +13,11 @@ from simind_python_connector.utils.interfile_parser import (
 )
 
 
-# Conditional import for SIRF to avoid CI dependencies
-_, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
+if TYPE_CHECKING:
+    try:
+        from sirf.STIR import AcquisitionData
+    except ImportError:  # pragma: no cover - for type checkers without SIRF
+        AcquisitionData = Any  # type: ignore[assignment]
 
 # Unpack interfaces needed by converter
 create_acquisition_data = BACKENDS.factories.create_acquisition_data
@@ -345,7 +348,7 @@ class SimindToStirConverter:
         output_filename: Optional[str] = None,
         data_file: Optional[str] = None,
         return_object: bool = False,
-    ) -> Optional[Union[AcquisitionData, AcquisitionDataInterface]]:
+    ) -> Optional[Union["AcquisitionData", AcquisitionDataInterface]]:
         """Convert a SIMIND header file to STIR format.
 
         Returns:
@@ -399,6 +402,7 @@ class SimindToStirConverter:
                     # Return wrapped backend-agnostic object
                     return create_acquisition_data(output_filename)
                 else:
+                    _, AcquisitionData, _ = get_sirf_types()
                     return AcquisitionData(output_filename)
 
         except Exception as e:
@@ -412,7 +416,7 @@ class SimindToStirConverter:
 
     def create_penetrate_headers_from_template(
         self, h00_file: str, output_prefix: str, output_dir: str
-    ) -> Dict[str, AcquisitionData]:
+    ) -> Dict[str, "AcquisitionData"]:
         """
         Create multiple STIR headers for penetrate routine from single .h00 template.
 
@@ -498,7 +502,8 @@ class SimindToStirConverter:
         try:
             if BACKEND_AVAILABLE and create_acquisition_data is not None:
                 return create_acquisition_data(str(header_path))
-            if SIRF_AVAILABLE and AcquisitionData is not type(None):
+            _, AcquisitionData, sirf_available = get_sirf_types()
+            if sirf_available:
                 return AcquisitionData(str(header_path))
         except Exception as exc:
             # A missing backend surfaces as ImportError and is expected; a
@@ -573,7 +578,7 @@ class SimindToStirConverter:
         parameter: str,
         value: Union[str, float],
         return_object: bool = False,
-    ) -> Optional[AcquisitionData]:
+    ) -> Optional["AcquisitionData"]:
         """Edit a parameter in a header file."""
         if not filename.endswith((".hs", ".h00")):
             self.logger.error("File must have .hs or .h00 extension")
@@ -592,6 +597,7 @@ class SimindToStirConverter:
                 if BACKEND_AVAILABLE:
                     return create_acquisition_data(filename)
                 else:
+                    _, AcquisitionData, _ = get_sirf_types()
                     return AcquisitionData(filename)
             return None
 
@@ -606,7 +612,7 @@ class SimindToStirConverter:
         value: Union[str, float],
         line_number: int = 0,
         return_object: bool = False,
-    ) -> Optional[AcquisitionData]:
+    ) -> Optional["AcquisitionData"]:
         """Add a parameter at a specific line number in an Interfile header file."""
         if not filename.endswith((".hs", ".h00")):
             self.logger.error("File must have .hs or .h00 extension")
@@ -630,6 +636,7 @@ class SimindToStirConverter:
                 if BACKEND_AVAILABLE:
                     return create_acquisition_data(filename)
                 else:
+                    _, AcquisitionData, _ = get_sirf_types()
                     return AcquisitionData(filename)
             return None
 
