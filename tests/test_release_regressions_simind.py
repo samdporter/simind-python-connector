@@ -20,6 +20,7 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     SimulationError,
 )
+from simind_python_connector.utils.interfile import ProjectionGeometry
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_simind]
@@ -198,3 +199,47 @@ def test_saved_config_with_negative_zero_runs(tmp_path: Path) -> None:
         assert len(line) == 60
         for start in range(0, 60, 12):
             assert len(line[start : start + 12]) == 12
+
+
+def _acquisition_geometry(radii_mm: tuple[float, ...]) -> ProjectionGeometry:
+    return ProjectionGeometry(
+        num_projections=VIEWS,
+        extent_deg=360.0,
+        direction="CW",
+        start_angle_deg=180.0,
+        radius_mm=None,
+        radii_mm=radii_mm,
+        num_bins=GRID,
+        num_axial=GRID,
+        bin_size_mm=VOXEL_MM,
+        axial_size_mm=VOXEL_MM,
+        image_duration_s=None,
+    )
+
+
+def test_explicit_orbit_overrides_the_generated_acquisition_orbit(
+    tmp_path: Path,
+) -> None:
+    connector = _connector(tmp_path, "orb")
+    generated_radii_mm = tuple(240.0 + 5.0 * i for i in range(VIEWS))
+    connector.configure_acquisition(_acquisition_geometry(generated_radii_mm))
+
+    explicit_radii_cm = [35.0 + 0.5 * i for i in range(VIEWS)]
+    explicit = tmp_path / "caller-orbit.cor"
+    centre_bin = GRID // 2
+    explicit.write_text(
+        "".join(f"{r:12.3f}{centre_bin:6d}\n" for r in explicit_radii_cm)
+    )
+    explicit_bytes = explicit.read_bytes()
+
+    outputs = connector.run(RuntimeOperator(orbit_file=explicit))
+
+    _assert_readable(outputs)
+    # The explicit orbit was staged unchanged and the acquisition orbit, which
+    # would have used the different generated radii, was not created.
+    assert explicit.read_bytes() == explicit_bytes
+    assert not (tmp_path / "orb_acquisition.cor").exists()
+
+    header = Path(next(iter(outputs.values())).header_path).read_text()
+    expected = ", ".join(f"{r * 10:.1f}" for r in explicit_radii_cm)
+    assert f"Radii := {{{expected}}}" in header

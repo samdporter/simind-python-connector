@@ -10,6 +10,7 @@ import numpy as np
 
 from simind_python_connector.connectors.base import BaseConnector
 from simind_python_connector.connectors.python_connector import (
+    _ZUB_TABLE,
     ConfigSource,
     RuntimeOperator,
     SimindPythonConnector,
@@ -23,7 +24,9 @@ from simind_python_connector.core.types import (
     SimulationError,
 )
 from simind_python_connector.phantoms import (
+    AnalyticPhantom,
     LibraryPhantom,
+    MultipleInserts,
     VoxelPhantom,
     voxelise,
 )
@@ -245,13 +248,33 @@ class _NativeSimindAdaptor(BaseConnector):
     ) -> None:
         self.python_connector.set_activity(activity_mbq, time_per_projection_s)
 
+    def _input_write_paths(self) -> tuple[Path, ...]:
+        """Files the configured phantom's branch will write before execution."""
+        output_dir = self.python_connector.output_dir
+        prefix = self.python_connector.output_prefix
+        if self._phantom is None or isinstance(self._phantom, VoxelPhantom):
+            return (
+                output_dir / f"{prefix}_src.smi",
+                output_dir / f"{prefix}_dns.dmi",
+            )
+        if isinstance(self._phantom, LibraryPhantom):
+            return (output_dir / _ZUB_TABLE,)
+        if isinstance(self._phantom, AnalyticPhantom) and isinstance(
+            self._phantom.source, MultipleInserts
+        ):
+            return (output_dir / f"{prefix}.inp",)
+        return ()
+
     def run(self, runtime_operator: Optional[RuntimeOperator] = None) -> dict[str, Any]:
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.
         self._outputs = None
-        # Reject an invalid runtime operator before configure_phantom writes
-        # any source/density map over an earlier run's inputs.
-        self.python_connector._validate_runtime_operator(runtime_operator)
+        # Reject an invalid runtime operator, or an orbit that configure_phantom
+        # would overwrite, before it writes any source/density map over an
+        # earlier run's inputs.
+        self.python_connector._validate_runtime_operator(
+            runtime_operator, write_paths=self._input_write_paths()
+        )
         if self._phantom is not None:
             if self._source is not None or self._mu_map is not None:
                 raise ValueError(

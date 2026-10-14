@@ -139,9 +139,17 @@ class PyTomographySimindAdaptor(BaseConnector):
         self._outputs = None
         self._output_metadata = None
         self._output_header_paths = None
-        # Reject an invalid runtime operator before configure_voxel_phantom
-        # writes any source/density map over an earlier run's inputs.
-        self.python_connector._validate_runtime_operator(runtime_operator)
+        # Reject an invalid runtime operator, or an orbit that configure_voxel_
+        # phantom or set_energy_windows would overwrite, before either writes
+        # over an earlier run's inputs.
+        write_paths = (
+            self.output_dir / f"{self.output_prefix}_src.smi",
+            self.output_dir / f"{self.output_prefix}_dns.dmi",
+            self.output_dir / f"{self.output_prefix}.win",
+        )
+        self.python_connector._validate_runtime_operator(
+            runtime_operator, write_paths=write_paths
+        )
         self._validate_inputs()
         assert self._source is not None  # for type checkers
         assert self._mu_map is not None
