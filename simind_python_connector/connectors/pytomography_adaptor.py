@@ -25,7 +25,10 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     ValidationError,
 )
-from simind_python_connector.utils.simind_utils import validate_energy_windows
+from simind_python_connector.utils.simind_utils import (
+    validate_energy_window_prefix,
+    validate_energy_windows,
+)
 
 
 try:
@@ -117,6 +120,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         upper_bounds: Union[float, list[float]],
         scatter_orders: Union[int, list[int]],
     ) -> None:
+        validate_energy_window_prefix(self.python_connector.output_prefix)
         self._energy_windows = validate_energy_windows(
             lower_bounds, upper_bounds, scatter_orders
         )
@@ -148,6 +152,8 @@ class PyTomographySimindAdaptor(BaseConnector):
         # Reject an invalid runtime operator, or an orbit that configure_voxel_
         # phantom or set_energy_windows would overwrite, before either writes
         # over an earlier run's inputs.
+        if self._energy_windows is not None:
+            validate_energy_window_prefix(self.output_prefix)
         write_paths = (
             self.output_dir / f"{self.output_prefix}_src.smi",
             self.output_dir / f"{self.output_prefix}_dns.dmi",

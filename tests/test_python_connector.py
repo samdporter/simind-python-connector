@@ -619,6 +619,30 @@ def test_python_connector_set_energy_windows_writes_window_file(tmp_path: Path):
 
 
 @pytest.mark.unit
+def test_python_connector_window_prefix_limit_is_15_characters(
+    tmp_path: Path,
+):
+    max_prefix = "a" * 15
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix=max_prefix,
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+    assert (tmp_path / f"{max_prefix}.win").exists()
+
+    too_long = "b" * 16
+    connector.output_prefix = too_long
+    existing_window = tmp_path / f"{too_long}.win"
+    existing_window.write_bytes(b"existing window")
+
+    with pytest.raises(ValueError, match="15 characters"):
+        connector.set_energy_windows([126.0], [154.0], [0])
+
+    assert existing_window.read_bytes() == b"existing window"
+
+
+@pytest.mark.unit
 def test_python_connector_cleanup_preserves_window_file_it_wrote(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"),

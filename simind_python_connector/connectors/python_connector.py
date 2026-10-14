@@ -50,7 +50,10 @@ from simind_python_connector.utils.interfile import (
     ProjectionGeometry,
     load_interfile_array,
 )
-from simind_python_connector.utils.simind_utils import create_window_file
+from simind_python_connector.utils.simind_utils import (
+    create_window_file,
+    validate_energy_window_prefix,
+)
 
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
@@ -720,6 +723,7 @@ class SimindPythonConnector(BaseConnector):
     ) -> None:
         """Write a SIMIND window file for this connector run."""
         self._validate_output_prefix(self.output_prefix)
+        validate_energy_window_prefix(self.output_prefix)
         window_path = self.output_dir / f"{self.output_prefix}.win"
         create_window_file(
             lower_bounds,
@@ -748,6 +752,21 @@ class SimindPythonConnector(BaseConnector):
         a supplied orbit that is one of them, or the config destination, is
         rejected dereferenced so a real input is never overwritten by staging.
         """
+        if self._window_file_path is not None:
+            try:
+                validate_energy_window_prefix(self.output_prefix)
+            except ValueError as exc:
+                raise ValueError(
+                    f"{exc}; call set_energy_windows() again after changing "
+                    "output_prefix"
+                ) from exc
+            expected_window_path = self.output_dir / f"{self.output_prefix}.win"
+            if self._window_file_path != expected_window_path:
+                raise ValueError(
+                    "output_prefix changed after set_energy_windows(); call "
+                    "set_energy_windows() again before running"
+                )
+
         run_switches_holder = RuntimeSwitches()
         for key, value in self.runtime_switches.switches.items():
             run_switches_holder.set_switch(key, value)
