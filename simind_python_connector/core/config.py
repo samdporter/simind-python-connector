@@ -26,13 +26,25 @@ def _is_traversable_only(value) -> bool:
 class _UniqueKeyLoader(yaml.SafeLoader):
     """SafeLoader that rejects duplicate explicit mapping keys.
 
-    Only keys written in the original node are checked. SafeLoader's
-    ``flatten_mapping`` rewrites ``node.value`` to pull in merge-key (``<<``)
-    values, and those merged keys may legitimately be overridden by an
-    explicit key, so they must not count as duplicates.
+    Only keys written in a mapping's original node are checked; keys pulled in
+    by merge-key (``<<``) expansion may legitimately be overridden by an
+    explicit key, so they must not count as duplicates. ``flatten_mapping``
+    rewrites ``node.value`` in place, therefore the check runs before any
+    flattening. Merge sources are flattened recursively without ordinary
+    mapping construction, so the check also runs from ``flatten_mapping`` to
+    catch duplicates in inline and anchored merge sources. A node whose
+    original keys were already checked is recorded in ``_checked_mapping_nodes``
+    and skipped later, once its entries have been flattened.
     """
 
-    def construct_mapping(self, node, deep=False):
+    def __init__(self, stream):
+        super().__init__(stream)
+        self._checked_mapping_nodes = set()
+
+    def _check_explicit_keys(self, node, deep=False):
+        if node in self._checked_mapping_nodes:
+            return
+        self._checked_mapping_nodes.add(node)
         seen = set()
         for key_node, _value_node in node.value:
             if key_node.tag == "tag:yaml.org,2002:merge":
@@ -50,7 +62,14 @@ class _UniqueKeyLoader(yaml.SafeLoader):
             if key in seen:
                 raise ValueError(f"duplicate key in YAML mapping: {key!r}")
             seen.add(key)
+
+    def construct_mapping(self, node, deep=False):
+        self._check_explicit_keys(node, deep=deep)
         return super().construct_mapping(node, deep=deep)
+
+    def flatten_mapping(self, node):
+        self._check_explicit_keys(node)
+        return super().flatten_mapping(node)
 
 
 class SimulationConfig:
