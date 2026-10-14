@@ -1142,3 +1142,33 @@ def test_executor_rejects_none_or_bool_switch_value(
         SimindExecutor().run_simulation("case01", runtime_switches=runtime_switches)
 
     assert calls == []
+
+
+@pytest.mark.parametrize("switch", ["FI", "CC", "RR"])
+@pytest.mark.parametrize(
+    "value",
+    ["1 2", "bad name", "tab\tvalue", "line\nbreak", "nul\x00value"],
+)
+def test_executor_rejects_illegal_string_switch_before_execution(
+    monkeypatch: pytest.MonkeyPatch, switch: str, value: str
+) -> None:
+    calls = _capture_run(monkeypatch)
+
+    with pytest.raises(SimulationError):
+        SimindExecutor().run_simulation("case01", runtime_switches={switch: value})
+
+    assert calls == []
+
+
+def test_executor_serialize_runtime_switches_preserves_order_and_mp_count() -> None:
+    blob, mp_count = SimindExecutor._serialize_runtime_switches(
+        {"NN": 2, "MP": 4, "RR": 12345}
+    )
+
+    assert blob == "/NN:2/MP/RR:12345"
+    assert mp_count == "4"
+
+
+def test_executor_serialize_runtime_switches_rejects_illegal_value() -> None:
+    with pytest.raises(SimulationError, match="whitespace"):
+        SimindExecutor._serialize_runtime_switches({"RR": "1 2"})

@@ -194,6 +194,21 @@ def _record_executor_run(connector: SimindPythonConnector) -> dict[str, object]:
     return captured
 
 
+def _seed_connector_files(connector: SimindPythonConnector) -> dict[Path, bytes]:
+    prefix = connector.output_prefix
+    paths = [
+        connector.output_dir / f"{prefix}_src.smi",
+        connector.output_dir / f"{prefix}_dns.dmi",
+        connector.output_dir / f"{prefix}.win",
+        connector.output_dir / f"{prefix}.smc",
+        connector.output_dir / f"{prefix}_tot_w1.hs",
+        connector.output_dir / f"{prefix}_orbit.cor",
+    ]
+    for path in paths:
+        path.write_bytes(f"seeded:{path.name}".encode())
+    return {path: path.read_bytes() for path in paths}
+
+
 def _write_smc_with_basic_value_count(
     source: Path, destination: Path, value_count: int
 ) -> Path:
@@ -560,6 +575,90 @@ def test_python_connector_keeps_integral_float_nn_stored_value(tmp_path: Path):
 
     assert captured["runtime_switches"] == {"NN": 2.0}
     assert "NN" not in connector.runtime_switches.switches
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("switch", ["FI", "CC", "RR"])
+@pytest.mark.parametrize(
+    "value",
+    ["1 2", "bad name", "tab\tvalue", "line\nbreak", "nul\x00value"],
+)
+def test_python_connector_preflight_rejects_illegal_string_switch(
+    tmp_path: Path, switch: str, value: str
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+
+    with pytest.raises(SimulationError):
+        connector._validate_runtime_operator(RuntimeOperator(switches={switch: value}))
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_illegal_string_switch_before_any_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    orbit_source = tmp_path / "orbit.cor"
+    orbit_source.write_bytes(b"orbit")
+    seeded = _seed_connector_files(connector)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append((args, kwargs)),
+    )
+
+    with pytest.raises(SimulationError):
+        connector.run(
+            RuntimeOperator(switches={"FI": "bad name"}, orbit_file=orbit_source)
+        )
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("operator", [None, RuntimeOperator()])
+def test_python_connector_rejects_invalid_persistent_switch_before_any_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operator
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_runtime_switch("FI", "bad name")
+    seeded = _seed_connector_files(connector)
+    launched: list[object] = []
+    monkeypatch.setattr(
+        connector.executor,
+        "run_simulation",
+        lambda *args, **kwargs: launched.append((args, kwargs)),
+    )
+
+    with pytest.raises(SimulationError):
+        connector.run(operator)
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original
+
+
+@pytest.mark.unit
+def test_python_connector_valid_runtime_switch_overrides_invalid_persistent(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_runtime_switch("FI", "bad name")
+    captured = _record_executor_run(connector)
+
+    connector.run(RuntimeOperator(switches={"FI": "valid_name"}))
+
+    assert captured["runtime_switches"] == {"FI": "valid_name"}
 
 
 @pytest.mark.unit

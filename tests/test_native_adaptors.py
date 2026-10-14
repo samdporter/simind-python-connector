@@ -575,6 +575,9 @@ def _seed_existing_inputs(tmp_path: Path, prefix: str = "case01") -> dict[Path, 
         tmp_path / f"{prefix}_src.smi",
         tmp_path / f"{prefix}_dns.dmi",
         tmp_path / f"{prefix}.win",
+        tmp_path / f"{prefix}.smc",
+        tmp_path / f"{prefix}_tot_w1.hs",
+        tmp_path / f"{prefix}_orbit.cor",
     ]
     for path in paths:
         path.write_bytes(f"existing:{path.name}".encode())
@@ -586,6 +589,8 @@ def _invalid_runtime_operator(
 ) -> tuple[RuntimeOperator, type[Exception]]:
     if kind == "switch":
         return RuntimeOperator(switches={"NN": 0}), ValueError
+    if kind == "string":
+        return RuntimeOperator(switches={"FI": "bad name"}), SimulationError
     if kind == "orbit":
         orbit_dir = tmp_path / "orbit-dir"
         orbit_dir.mkdir(exist_ok=True)
@@ -630,7 +635,7 @@ def _make_pytomography_adaptor(
         (SirfSimindAdaptor, _patch_sirf_backend),
     ],
 )
-@pytest.mark.parametrize("kind", ["switch", "orbit", "timeout"])
+@pytest.mark.parametrize("kind", ["switch", "string", "orbit", "timeout"])
 def test_adaptor_rejects_invalid_runtime_operator_before_writes(
     cls, patch, kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -676,7 +681,7 @@ def test_adaptor_accepts_valid_runtime_operator(
     assert outputs == {}
 
 
-@pytest.mark.parametrize("kind", ["switch", "orbit", "timeout"])
+@pytest.mark.parametrize("kind", ["switch", "string", "orbit", "timeout"])
 def test_pytomography_adaptor_rejects_invalid_runtime_operator_before_writes(
     kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

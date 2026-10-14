@@ -325,30 +325,35 @@ class SimindPythonConnector(BaseConnector):
 
     def _validate_runtime_operator(
         self, runtime_operator: Optional[RuntimeOperator]
-    ) -> None:
-        """Validate a runtime operator without staging or writing any files.
+    ) -> RuntimeSwitches:
+        """Validate an operator and the persistent switches without side effects.
 
-        Applies the same switch, timeout and orbit checks run() performs, so a
-        caller can reject an invalid operator before phantom inputs are
-        overwritten.
+        Builds the effective switch set (persistent state plus this run's
+        overrides), serializes it exactly as the executor will, and checks the
+        timeout and orbit. Nothing is staged or written, so a caller can reject
+        an invalid run before phantom inputs are overwritten. The throwaway
+        holder is returned for run() to pass to the executor; adaptor callers
+        may ignore it.
         """
-        if runtime_operator is None:
-            return
+        effective_switches = RuntimeSwitches()
+        for key, value in self.runtime_switches.switches.items():
+            effective_switches.set_switch(key, value)
 
-        SimindExecutor.validate_timeout(runtime_operator.timeout)
+        if runtime_operator is not None:
+            SimindExecutor.validate_timeout(runtime_operator.timeout)
+            for key, value in runtime_operator.switches.items():
+                effective_switches.set_switch(key, value)
 
-        validation_switches = RuntimeSwitches()
-        for key, value in runtime_operator.switches.items():
-            validation_switches.set_switch(key, value)
+            orbit_file = runtime_operator.orbit_file
+            if orbit_file is not None:
+                orbit_path = Path(orbit_file).expanduser().resolve()
+                if not orbit_path.exists():
+                    raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+                if not orbit_path.is_file():
+                    raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
 
-        orbit_file = runtime_operator.orbit_file
-        if orbit_file is None:
-            return
-        orbit_path = Path(orbit_file).expanduser().resolve()
-        if not orbit_path.exists():
-            raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
-        if not orbit_path.is_file():
-            raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
+        SimindExecutor._serialize_runtime_switches(effective_switches.switches)
+        return effective_switches
 
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
@@ -364,19 +369,14 @@ class SimindPythonConnector(BaseConnector):
         self._require_valid_prefix(self.output_prefix)
         self._config_scoring_routine()
 
-        # Runtime-operator switches apply to this run only; merge them into
-        # a throwaway switch set instead of persistent connector state.
-        run_switches_holder = RuntimeSwitches()
-        for key, value in self.runtime_switches.switches.items():
-            run_switches_holder.set_switch(key, value)
+        # Validate the effective switches, timeout and orbit before staging,
+        # saving the configuration or clearing prior outputs so an invalid run
+        # cannot disturb existing files.
+        run_switches_holder = self._validate_runtime_operator(runtime_operator)
         orbit_file = None
         run_timeout: Optional[float] = None
         if runtime_operator is not None:
-            # Validate before staging the orbit or clearing prior outputs so an
-            # invalid timeout cannot disturb existing files.
             run_timeout = SimindExecutor.validate_timeout(runtime_operator.timeout)
-            for key, value in runtime_operator.switches.items():
-                run_switches_holder.set_switch(key, value)
             orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
 
         if self._phantom_extent_mm is not None:
