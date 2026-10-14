@@ -14,7 +14,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.requires_simind]
 @pytest.mark.parametrize("prefix", ["windowcase", "abcdefghijklmno"])
 def test_simind_honors_energy_window_through_maximum_safe_prefix(tmp_path, prefix):
     connector = SimindPythonConnector(
-        get("Example.yaml"), tmp_path, prefix,
+        get("Example.yaml"),
+        tmp_path,
+        prefix,
         quantization_scale=0.02 * DEFAULT_QUANTIZATION_SCALE,
     )
     source = np.zeros((8, 8, 8), np.float32)

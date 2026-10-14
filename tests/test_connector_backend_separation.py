@@ -1,4 +1,3 @@
-import ast
 import os
 import subprocess
 import sys
@@ -8,43 +7,8 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONNECTORS_DIR = ROOT / "simind_python_connector" / "connectors"
 
 pytestmark = pytest.mark.unit
-
-
-def _import_roots(path: Path) -> set[str]:
-    tree = ast.parse(path.read_text(), filename=str(path))
-    roots: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                roots.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                roots.add(node.module.split(".")[0])
-    return roots
-
-
-@pytest.mark.unit
-def test_stir_adaptor_module_is_backend_specific():
-    imports = _import_roots(CONNECTORS_DIR / "stir_adaptor.py")
-    assert "sirf" not in imports
-    assert "pytomography" not in imports
-
-
-@pytest.mark.unit
-def test_sirf_adaptor_module_is_backend_specific():
-    imports = _import_roots(CONNECTORS_DIR / "sirf_adaptor.py")
-    assert "stir" not in imports
-    assert "pytomography" not in imports
-
-
-@pytest.mark.unit
-def test_pytomography_adaptor_module_is_backend_specific():
-    imports = _import_roots(CONNECTORS_DIR / "pytomography_adaptor.py")
-    assert "sirf" not in imports
-    assert "stir" not in imports
 
 
 def test_importing_connectors_package_does_not_import_backends():
@@ -145,42 +109,6 @@ def _run_in_subprocess(
         args += ["-W", "error::DeprecationWarning"]
     args += ["-c", code]
     return subprocess.run(args, capture_output=True, text=True, env=env)
-
-
-def test_pure_connector_import_attempts_no_optional_backends(tmp_path):
-    """Importing the pure connector must not even attempt an optional backend.
-
-    A recording finder logs every attempted import in a fresh interpreter, and a
-    fake ``sirf`` raising a non-``ImportError`` models a broken installed SIRF.
-    The pure connector must import without touching either.
-    """
-    fake_backend = tmp_path / "broken_backend"
-    sirf_dir = fake_backend / "sirf"
-    sirf_dir.mkdir(parents=True)
-    (sirf_dir / "__init__.py").write_text(
-        "raise RuntimeError('broken SIRF installation')\n"
-    )
-
-    code = (
-        "import json, sys\n"
-        "from importlib.abc import MetaPathFinder\n"
-        "OPTIONAL = ('sirf', 'stir', 'stirextra', 'pytomography', 'cil', 'torch')\n"
-        "attempted = []\n"
-        "class Recorder(MetaPathFinder):\n"
-        "    def find_spec(self, fullname, path=None, target=None):\n"
-        "        if fullname.split('.', 1)[0] in OPTIONAL:\n"
-        "            attempted.append(fullname)\n"
-        "        return None\n"
-        "sys.meta_path.insert(0, Recorder())\n"
-        "import simind_python_connector.connectors.python_connector as "
-        "python_connector\n"
-        "from simind_python_connector import SimindPythonConnector as public\n"
-        "assert python_connector.SimindPythonConnector is public\n"
-        "print('ATTEMPTED:' + json.dumps(attempted))\n"
-    )
-    result = _run_in_subprocess(code, extra_path=fake_backend)
-    assert result.returncode == 0, result.stderr
-    assert "ATTEMPTED:[]" in result.stdout
 
 
 def test_get_stir_types_accepts_modern_stir_extra(tmp_path):

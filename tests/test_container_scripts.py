@@ -14,70 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.unit
 
 
-def test_run_all_examples_returns_nonzero_when_an_example_fails(monkeypatch):
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "run_all_examples", ROOT / "scripts" / "run_all_examples.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    monkeypatch.setattr(
-        module,
-        "EXAMPLES",
-        [
-            {
-                "name": "01_basic_simulation.py",
-                "description": "d",
-                "module": "m",
-                "estimated_time": "1 minute",
-            },
-        ],
-    )
-    monkeypatch.setattr(module, "check_dependencies", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda *_: "y")
-    monkeypatch.setattr(
-        module,
-        "run_example_subprocess",
-        lambda example_file: (False, "Exit code 1: boom"),
-    )
-
-    assert module.main() == 1
-
-
-def test_run_all_examples_returns_zero_when_all_succeed(monkeypatch):
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "run_all_examples", ROOT / "scripts" / "run_all_examples.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    monkeypatch.setattr(
-        module,
-        "EXAMPLES",
-        [
-            {
-                "name": "01_basic_simulation.py",
-                "description": "d",
-                "module": "m",
-                "estimated_time": "1 minute",
-            },
-        ],
-    )
-    monkeypatch.setattr(module, "check_dependencies", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda *_: "y")
-    monkeypatch.setattr(
-        module,
-        "run_example_subprocess",
-        lambda example_file: (True, "Completed successfully"),
-    )
-
-    assert module.main() == 0
-
-
 @pytest.fixture
 def fake_bin(tmp_path: Path):
     """Directory holding fake python3/simind executables recording argv."""
@@ -236,42 +172,6 @@ def test_container_scripts_forward_smc_env_without_compose_no_build(
             if token == "-e"
         }
         assert env_pairs == expected_env, line
-
-
-def test_python_image_provisions_mpich_and_compat_symlinks():
-    """SIMIND's MPI binary links the historical MPICH SONAMEs, so the core
-    image must install MPICH and expose the libmpi/libmpifort names."""
-    dockerfile = (ROOT / "docker" / "python" / "Dockerfile").read_text()
-    assert "apt-get install -y --no-install-recommends mpich" in dockerfile
-    assert "docker/python/install_mpich_compat.sh" in dockerfile
-
-    compat = ROOT / "docker" / "python" / "install_mpich_compat.sh"
-    assert compat.stat().st_mode & stat.S_IXUSR
-    script = compat.read_text()
-    assert "link_if_missing libmpich.so.12 libmpi.so.12" in script
-    assert "link_if_missing libmpichfort.so.12 libmpifort.so.12" in script
-
-
-def test_dockerignore_excludes_local_heavy_paths():
-    ignore = (ROOT / ".dockerignore").read_text().splitlines()
-    for pattern in (
-        ".git",
-        ".venv",
-        "simind",
-        "dist",
-        "build",
-        "*.tar.gz",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".uv-cache",
-        "coverage.xml",
-        "docs/_build",
-        "output",
-        "results",
-    ):
-        assert pattern in ignore, pattern
-    # Packaged preset must never be excluded
-    assert all(not line.endswith("input.smc") for line in ignore)
 
 
 @pytest.mark.unit

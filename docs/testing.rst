@@ -117,9 +117,6 @@ the official SIMIND site and manual:
 
 The container suite includes ``tests/test_container_library_isolation.py``,
 which asserts that each container can import only its target backend library.
-When SIMIND mode is enabled, it also runs geometry-isolation diagnostics:
-``tests/test_geometry_isolation_forward_projection.py`` and
-``tests/test_osem_geometry_diagnostics.py``.
 
 Alternative CI Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -142,9 +139,9 @@ The default CI job runs the tests that avoid heavyweight dependencies. These foc
 
 * **Conversion maths** – ``tests/test_schneider_density.py`` exercises the HU-to-density pipelines.
 * **Configuration & builders** – ``tests/test_simulation_config.py`` and ``tests/test_acquisition_builder_unit.py`` validate YAML/SMC handling plus Interfile header generation without a SIRF runtime.
-* **Connector behavior** – ``tests/test_python_connector.py``, ``tests/test_connectors_base.py``, and ``tests/test_connector_backend_separation.py`` cover the connector-first API without requiring reconstruction packages.
+* **Connector behavior** – ``tests/test_python_connector.py`` and ``tests/test_connector_backend_separation.py`` cover the connector-first API without requiring reconstruction packages.
 * **Utility helpers** – ``tests/test_utils.py``, ``tests/test_utils_small.py``, ``tests/test_interfile_parser.py``, and ``tests/test_interfile_numpy.py`` cover file parsing and small helper functions.
-* **Backend guards** – ``tests/test_backends.py``, ``tests/test_marker_policy.py``, and ``tests/test_examples_backend_separation.py`` ensure optional backend imports remain isolated.
+* **Backend guards** – ``tests/test_backends.py`` ensures optional backend imports remain isolated.
 
 Backend-Dependent Suites
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -164,7 +161,6 @@ SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
 
 * ``tests/test_integration.py`` for full workflow checks.
 * ``tests/test_container_library_isolation.py`` for backend container import isolation.
-* ``tests/test_geometry_isolation_forward_projection.py`` and ``tests/test_osem_geometry_diagnostics.py`` for backend geometry diagnostics.
 
 The MPI cases in ``tests/test_patch_release_simind.py`` additionally require
 ``mpirun``, the ``simind_mpi`` binary and its ``libmpi`` runtime libraries; the
