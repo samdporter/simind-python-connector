@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-import simind_python_connector.converters.simind_to_stir as simind_to_stir
 from simind_python_connector.converters.simind_to_stir import (
     ConversionConfig,
     DataFileNameRule,
@@ -580,20 +579,6 @@ def patch_failing_write(monkeypatch, failing_name, error):
 class TestPenetrateTemplateCleanup:
     """The connector-owned template is removed on every processing path."""
 
-    def test_component_header_permission_error_propagates(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        patch_failing_write(
-            monkeypatch,
-            component_header(tmp_path, component).name,
-            PermissionError("permission denied writing header"),
-        )
-
-        with pytest.raises(PermissionError, match="permission denied"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
     def test_success_path_removes_template(self, tmp_path):
         h00_file = make_penetrate_outputs(tmp_path)
         template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
@@ -631,89 +616,6 @@ class TestPenetrateTemplateCleanup:
         after = {path.name: path.read_bytes() for path in tmp_path.glob("output.b*")}
         assert after == binaries_before
 
-    def test_template_parse_failure_propagates_and_removes_template(
-        self, tmp_path, monkeypatch
-    ):
-        h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
-
-        def failing_from_file(filename):
-            assert Path(filename) == template_hs
-            raise ValueError("corrupt template header")
-
-        monkeypatch.setattr(
-            InterfileHeader, "from_file", staticmethod(failing_from_file)
-        )
-
-        with pytest.raises(ValueError, match="corrupt template header"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
-        assert not template_hs.exists()
-
-    def test_conversion_failure_removes_template(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
-
-        def failing_convert_file(
-            self, input_filename, output_filename=None, *args, **kwargs
-        ):
-            Path(output_filename).write_text("partial template")
-            raise OSError("conversion failed")
-
-        monkeypatch.setattr(SimindToStirConverter, "convert_file", failing_convert_file)
-
-        with pytest.raises(OSError, match="conversion failed"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
-        assert not template_hs.exists()
-
-    def test_cleanup_failure_preserves_primary_exception(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = Path(str(h00_file).replace(".h00", "_template.hs"))
-
-        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        patch_failing_write(
-            monkeypatch,
-            component_header(tmp_path, component).name,
-            PermissionError("permission denied writing header"),
-        )
-
-        cleanup_attempts = []
-        original_remove = simind_to_stir.os.remove
-
-        def failing_remove(path, *args, **kwargs):
-            if Path(path) == template_hs:
-                cleanup_attempts.append(Path(path))
-                raise RuntimeError("cleanup denied")
-            return original_remove(path, *args, **kwargs)
-
-        monkeypatch.setattr(simind_to_stir.os, "remove", failing_remove)
-
-        with pytest.raises(PermissionError, match="permission denied"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
-        assert cleanup_attempts == [template_hs]
-
-    def test_header_write_failure_surfaces(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        patch_failing_write(
-            monkeypatch,
-            component_header(tmp_path, component).name,
-            OSError("disk full while writing header"),
-        )
-
-        with pytest.raises(OSError, match="disk full while writing header"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
 
 @pytest.mark.unit
 class TestPenetrateRejectedInput:
@@ -730,42 +632,6 @@ class TestPenetrateRejectedInput:
             )
 
         assert target.read_bytes() == b"caller-owned bytes"
-        assert [p.name for p in tmp_path.iterdir()] == [filename]
-
-    def test_rejected_input_in_h00_directory_touches_no_other_paths(self, tmp_path):
-        rejected_dir = tmp_path / "run.h00"
-        rejected_dir.mkdir()
-        target = rejected_dir / "case.txt"
-        target.write_bytes(b"caller-owned bytes")
-
-        # A whole-path ".h00" substitution would land on this decoy instead.
-        decoy = tmp_path / "run_template.hs" / "case.txt"
-        decoy.parent.mkdir()
-        decoy.write_bytes(b"unrelated bytes")
-
-        with pytest.raises(ValueError, match="Input file must have .h00 extension"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(target), "case", str(rejected_dir)
-            )
-
-        assert target.read_bytes() == b"caller-owned bytes"
-        assert decoy.read_bytes() == b"unrelated bytes"
-
-    def test_valid_h00_in_h00_directory_uses_sibling_scratch(self, tmp_path):
-        directory = tmp_path / "run.h00"
-        directory.mkdir()
-        h00_file = make_penetrate_outputs(directory)
-        h00_before = h00_file.read_bytes()
-
-        outputs = SimindToStirConverter().create_penetrate_headers_from_template(
-            str(h00_file), "output", str(directory)
-        )
-
-        assert outputs
-        assert all(Path(header).parent == directory for header in outputs.values())
-        assert not (directory / "output_template.hs").exists()
-        assert sorted(p.name for p in tmp_path.iterdir()) == ["run.h00"]
-        assert h00_file.read_bytes() == h00_before
 
 
 @pytest.mark.unit

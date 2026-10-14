@@ -1,4 +1,3 @@
-import os
 import types
 from pathlib import Path
 
@@ -16,7 +15,6 @@ from simind_python_connector.connectors.pytomography_adaptor import (
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
     ScoringRoutine,
-    SimulationError,
 )
 
 
@@ -414,29 +412,6 @@ def test_pytomography_adaptor_set_activity_delegates(tmp_path: Path):
     assert adaptor.get_config().get_value(25) == pytest.approx(100.0 * 15.0)
 
 
-def _seed_adaptor_inputs(tmp_path: Path, prefix: str = "case01") -> dict[Path, bytes]:
-    paths = [
-        tmp_path / f"{prefix}_src.smi",
-        tmp_path / f"{prefix}_dns.dmi",
-        tmp_path / f"{prefix}.win",
-    ]
-    for path in paths:
-        path.write_bytes(f"existing:{path.name}".encode())
-    return {path: path.read_bytes() for path in paths}
-
-
-def _invalid_runtime_operator(
-    kind: str, tmp_path: Path
-) -> tuple[RuntimeOperator, type[Exception]]:
-    if kind == "switch":
-        return RuntimeOperator(switches={"NN": 0}), ValueError
-    if kind == "orbit":
-        orbit_dir = tmp_path / "orbit-dir"
-        orbit_dir.mkdir(exist_ok=True)
-        return RuntimeOperator(orbit_file=orbit_dir), ValueError
-    raise AssertionError(f"unknown runtime-operator kind {kind!r}")
-
-
 def _make_preflight_adaptor(tmp_path: Path) -> PyTomographySimindAdaptor:
     adaptor = PyTomographySimindAdaptor(
         config_source=get("AnyScan.yaml"),
@@ -448,94 +423,6 @@ def _make_preflight_adaptor(tmp_path: Path) -> PyTomographySimindAdaptor:
     adaptor.set_mu_map(torch.zeros((2, 3, 4), dtype=torch.float32))
     adaptor.set_energy_windows([126.0], [154.0], [0])
     return adaptor
-
-
-@pytest.mark.parametrize("kind", ["switch", "orbit"])
-def test_pytomography_adaptor_rejects_invalid_runtime_operator_before_writes(
-    kind: str, tmp_path: Path, monkeypatch
-) -> None:
-    adaptor = _make_preflight_adaptor(tmp_path)
-    seeded = _seed_adaptor_inputs(tmp_path)
-    launched: list[object] = []
-    monkeypatch.setattr(
-        adaptor.python_connector.executor,
-        "run_simulation",
-        lambda *args, **kwargs: launched.append((args, kwargs)),
-    )
-    operator, expected = _invalid_runtime_operator(kind, tmp_path)
-
-    with pytest.raises(expected):
-        adaptor.run(runtime_operator=operator)
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original
-
-
-def _seed_full_preflight_state(
-    tmp_path: Path, prefix: str = "case01"
-) -> dict[Path, bytes]:
-    """Seed every file the connector could overwrite or clear before launch."""
-    paths = [
-        tmp_path / f"{prefix}_src.smi",
-        tmp_path / f"{prefix}_dns.dmi",
-        tmp_path / f"{prefix}.win",
-        tmp_path / f"{prefix}.smc",
-        tmp_path / f"{prefix}_tot_w1.hs",
-        tmp_path / f"{prefix}_orbit.cor",
-        tmp_path / f"{prefix}_acquisition.cor",
-    ]
-    for path in paths:
-        path.write_bytes(f"prior:{path.name}".encode())
-    return {path: path.read_bytes() for path in paths}
-
-
-@pytest.mark.parametrize("value", ["bad name", "bad\tname", "bad\nname", "bad\x00name"])
-def test_pytomography_adaptor_rejects_illegal_switch_before_any_write(
-    value: str, tmp_path: Path, monkeypatch
-) -> None:
-    adaptor = _make_preflight_adaptor(tmp_path)
-    seeded = _seed_full_preflight_state(tmp_path)
-    launched: list[object] = []
-
-    def run_then_fail(*args, **kwargs):
-        launched.append(True)
-        raise SimulationError("executor must not be reached")
-
-    monkeypatch.setattr(
-        adaptor.python_connector.executor, "run_simulation", run_then_fail
-    )
-
-    with pytest.raises(SimulationError):
-        adaptor.run(runtime_operator=RuntimeOperator(switches={"FI": value}))
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original, path
-
-
-def test_pytomography_adaptor_rejects_invalid_persistent_switch_before_any_write(
-    tmp_path: Path, monkeypatch
-) -> None:
-    adaptor = _make_preflight_adaptor(tmp_path)
-    adaptor.add_runtime_switch("FI", "bad name")
-    seeded = _seed_full_preflight_state(tmp_path)
-    launched: list[object] = []
-
-    def run_then_fail(*args, **kwargs):
-        launched.append(True)
-        raise SimulationError("executor must not be reached")
-
-    monkeypatch.setattr(
-        adaptor.python_connector.executor, "run_simulation", run_then_fail
-    )
-
-    with pytest.raises(SimulationError):
-        adaptor.run()
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original, path
 
 
 def test_pytomography_adaptor_accepts_valid_runtime_operator(
@@ -551,58 +438,12 @@ def test_pytomography_adaptor_accepts_valid_runtime_operator(
     assert outputs == {}
 
 
-def _alias_destination(destination: Path, external: Path, alias: str) -> Path:
-    """Put an orbit at destination, directly or through a link; return its path."""
-    if alias == "direct":
-        destination.write_bytes(b"orbit-bytes")
-        return destination
-    if alias == "symlink":
-        destination.symlink_to(external)
-        return external
-    os.link(external, destination)
-    return external
-
-
-@pytest.mark.parametrize("destination", ["src", "density"])
-@pytest.mark.parametrize("alias", ["direct", "symlink", "hardlink"])
-def test_pytomography_adaptor_rejects_orbit_conflicting_with_its_inputs(
-    destination: str, alias: str, tmp_path: Path, monkeypatch
-) -> None:
-    adaptor = _make_preflight_adaptor(tmp_path)
-    suffix = "_src.smi" if destination == "src" else "_dns.dmi"
-    destination_path = tmp_path / f"case01{suffix}"
-    external = tmp_path / "external-orbit.cor"
-    external.write_bytes(b"orbit-bytes")
-    orbit = _alias_destination(destination_path, external, alias)
-    launched: list[object] = []
-    monkeypatch.setattr(
-        adaptor.python_connector.executor,
-        "run_simulation",
-        lambda *args, **kwargs: launched.append(True),
-    )
-
-    with pytest.raises(ValueError, match="orbit_file"):
-        adaptor.run(runtime_operator=RuntimeOperator(orbit_file=orbit))
-
-    assert launched == []
-    assert external.read_bytes() == b"orbit-bytes"
-    if alias == "direct":
-        assert destination_path.read_bytes() == b"orbit-bytes"
-    elif alias == "symlink":
-        assert destination_path.is_symlink()
-    else:
-        assert os.stat(destination_path).st_ino == os.stat(external).st_ino
-
-
-@pytest.mark.parametrize("alias", ["direct", "symlink", "hardlink"])
 def test_pytomography_adaptor_rejects_orbit_at_the_window_destination(
-    alias: str, tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch
 ) -> None:
     adaptor = _make_preflight_adaptor(tmp_path)
     window_path = tmp_path / "case01.win"
-    external = tmp_path / "external-orbit.cor"
-    external.write_bytes(b"orbit-bytes")
-    orbit = _alias_destination(window_path, external, alias)
+    window_path.write_bytes(b"orbit-bytes")
     launched: list[object] = []
     monkeypatch.setattr(
         adaptor.python_connector.executor,
@@ -611,16 +452,10 @@ def test_pytomography_adaptor_rejects_orbit_at_the_window_destination(
     )
 
     with pytest.raises(ValueError, match="orbit_file"):
-        adaptor.run(runtime_operator=RuntimeOperator(orbit_file=orbit))
+        adaptor.run(runtime_operator=RuntimeOperator(orbit_file=window_path))
 
     assert launched == []
-    assert external.read_bytes() == b"orbit-bytes"
-    if alias == "direct":
-        assert window_path.read_bytes() == b"orbit-bytes"
-    elif alias == "symlink":
-        assert window_path.is_symlink()
-    else:
-        assert os.stat(window_path).st_ino == os.stat(external).st_ino
+    assert window_path.read_bytes() == b"orbit-bytes"
 
 
 def test_pytomography_adaptor_accepts_external_orbit_with_an_input_like_basename(

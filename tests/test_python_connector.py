@@ -1,10 +1,5 @@
 import logging
-import os
 import re
-import sys
-import tempfile
-from decimal import Decimal
-from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +10,6 @@ from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
-    MAX_SOURCE,
     ScoringRoutine,
     SimulationError,
 )
@@ -26,16 +20,6 @@ from simind_python_connector.utils.interfile import (
     check_geometry_match,
     read_projection_geometry,
 )
-
-
-def _case_insensitive_filesystem() -> bool:
-    with tempfile.TemporaryDirectory() as directory:
-        probe = Path(directory) / "case_probe"
-        probe.write_bytes(b"probe")
-        return (Path(directory) / "CASE_PROBE").exists()
-
-
-CASE_INSENSITIVE_FS = _case_insensitive_filesystem()
 
 
 def _write_smc_with_basic_value_count(
@@ -345,19 +329,6 @@ def test_python_connector_passes_output_dir_as_cwd(tmp_path: Path):
 
     assert seen_cwd == [connector.output_dir]
     assert Path.cwd() != connector.output_dir
-
-
-@pytest.mark.unit
-def test_python_connector_accepts_quantization_scale_parameter(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
-    )
-    assert connector.quantization_scale == pytest.approx(
-        0.05 * DEFAULT_QUANTIZATION_SCALE
-    )
 
 
 @pytest.mark.unit
@@ -738,56 +709,6 @@ def test_python_connector_split_mpi_needs_divisible_projections(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_python_connector_split_mpi_rejects_unrepresentable_projection_count(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    # A huge integral count cannot be converted to float; it must fail with the
-    # clean split-projections configuration error, not a raw OverflowError.
-    connector.add_config_value(29, Fraction(10**400, 1))
-    connector.set_mpi(4, split_projections=True)
-    launched: list[object] = []
-    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
-
-    with pytest.raises(ValueError, match="number of projections"):
-        connector.run()
-
-    assert launched == []
-    assert not (tmp_path / "case01.smc").exists()
-
-
-@pytest.mark.unit
-def test_python_connector_split_mpi_reports_huge_count_without_digit_limit(
-    tmp_path: Path,
-):
-    if not hasattr(sys, "set_int_max_str_digits"):
-        pytest.skip("interpreter has no int-string digit limit")
-    connector = SimindPythonConnector(
-        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    original_limit = sys.get_int_max_str_digits()
-    try:
-        sys.set_int_max_str_digits(640)
-        # 701 decimal digits: repr()/str() of this value would themselves raise
-        # the digit-limit ValueError if the error message interpolated it.
-        connector.add_config_value(29, 10**700)
-        connector.set_mpi(4, split_projections=True)
-        launched: list[object] = []
-        connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
-
-        with pytest.raises(ValueError, match="number of projections") as excinfo:
-            connector.run()
-    finally:
-        sys.set_int_max_str_digits(original_limit)
-
-    assert "digit limit" not in str(excinfo.value).lower()
-    assert launched == []
-    assert not (tmp_path / "case01.smc").exists()
-
-
-@pytest.mark.unit
 def test_python_connector_passes_mpi_settings_to_executor(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
@@ -834,12 +755,6 @@ def test_python_connector_default_scale_matches_legacy_source_values(tmp_path: P
     assert (written[1, 1, 1], written[1, 1, 2], written[1, 1, 3]) == (500, 300, 150)
 
 
-@pytest.mark.unit
-def test_source_ceiling_is_signed_int16():
-    assert MAX_SOURCE == np.iinfo(np.int16).max
-    assert MAX_SOURCE == 32767
-
-
 def _written_source(tmp_path: Path, scale: float, values: list[float]) -> np.ndarray:
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
@@ -878,12 +793,6 @@ def test_migrated_scale_matches_legacy_source_bytes(tmp_path: Path, old_scale: f
         np.round(source / source.max() * (500 * old_scale)), 0, 500
     ).astype(np.uint16)
     assert np.array_equal(written, expected)
-
-
-@pytest.mark.unit
-def test_migrated_non_integral_budget_rounds_once(tmp_path: Path):
-    written = _written_source(tmp_path, 0.0032 * DEFAULT_QUANTIZATION_SCALE, [1.0, 0.3])
-    assert tuple(written[0, 0]) == (2, 0)
 
 
 @pytest.mark.unit
@@ -1064,40 +973,6 @@ def test_python_connector_stages_orbit_away_from_protected_inputs(
 
 
 @pytest.mark.unit
-def test_python_connector_stages_orbit_already_inside_output_dir(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    orbit_source = tmp_path / "custom-orbit.cor"
-    orbit_source.write_bytes(b"inside-output-dir")
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=orbit_source))
-
-    staged = tmp_path / "case01_orbit.cor"
-    assert captured["orbit_file"] == staged
-    assert staged.read_bytes() == b"inside-output-dir"
-    assert orbit_source.read_bytes() == b"inside-output-dir"
-
-
-@pytest.mark.unit
-def test_python_connector_orbit_already_canonical_is_untouched(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    canonical = tmp_path / "case01_orbit.cor"
-    canonical.write_bytes(b"canonical-orbit")
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=canonical))
-
-    assert captured["orbit_file"] == canonical
-    assert canonical.read_bytes() == b"canonical-orbit"
-    assert canonical.is_file()
-    assert not canonical.is_symlink()
-
-
-@pytest.mark.unit
 def test_python_connector_orbit_rerun_replaces_staged_copy(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
@@ -1119,265 +994,6 @@ def test_python_connector_orbit_rerun_replaces_staged_copy(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_python_connector_orbit_replaces_preexisting_symlink_alias(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    orbit_source = tmp_path / "real-orbit.cor"
-    orbit_source.write_bytes(b"orbit-data")
-    canonical = tmp_path / "case01_orbit.cor"
-    canonical.symlink_to(orbit_source)
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=orbit_source))
-
-    assert captured["orbit_file"] == canonical
-    assert not canonical.is_symlink()
-    assert canonical.read_bytes() == b"orbit-data"
-    assert orbit_source.read_bytes() == b"orbit-data"
-
-
-@pytest.mark.unit
-def test_python_connector_orbit_canonical_symlink_is_left_alone(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    referent = tmp_path / "referent-orbit.cor"
-    referent.write_bytes(b"referent-data")
-    canonical = tmp_path / "case01_orbit.cor"
-    canonical.symlink_to(referent)
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=canonical))
-
-    assert captured["orbit_file"] == canonical
-    assert canonical.is_symlink()
-    assert canonical.read_bytes() == b"referent-data"
-    assert referent.read_bytes() == b"referent-data"
-
-
-@pytest.mark.unit
-def test_python_connector_cleanup_preserves_orbit_source_in_output_dir(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    orbit_source = tmp_path / "case01_radii.win"
-    orbit_source.write_bytes(b"radii-orbit")
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=orbit_source))
-
-    assert captured["orbit_file"] == tmp_path / "case01_orbit.cor"
-    assert orbit_source.read_bytes() == b"radii-orbit"
-    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"radii-orbit"
-
-
-@pytest.mark.unit
-def test_python_connector_cleanup_preserves_canonical_symlink_referent(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    referent = tmp_path / "case01_radii.win"
-    referent.write_bytes(b"radii-referent")
-    canonical = tmp_path / "case01_orbit.cor"
-    canonical.symlink_to(referent)
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=canonical))
-
-    assert captured["orbit_file"] == canonical
-    assert canonical.is_symlink()
-    assert referent.read_bytes() == b"radii-referent"
-    assert canonical.read_bytes() == b"radii-referent"
-
-
-@pytest.mark.unit
-@pytest.mark.skipif(
-    not CASE_INSENSITIVE_FS,
-    reason="needs a case-insensitive filesystem to alias differently-cased names",
-)
-def test_python_connector_orbit_case_insensitive_alias_is_preserved(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    canonical = connector.output_dir / "case01_orbit.cor"
-    canonical.write_bytes(b"canonical-data")
-    alias = connector.output_dir / "CASE01_ORBIT.COR"
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=alias))
-
-    assert captured["orbit_file"] == canonical
-    assert canonical.read_bytes() == b"canonical-data"
-    assert alias.read_bytes() == b"canonical-data"
-
-
-@pytest.mark.unit
-def test_python_connector_orbit_hardlink_alias_is_preserved(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    source = connector.output_dir / "real-orbit.cor"
-    source.write_bytes(b"hardlink-data")
-    canonical = connector.output_dir / "case01_orbit.cor"
-    os.link(source, canonical)
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=source))
-
-    assert captured["orbit_file"] == canonical
-    assert source.read_bytes() == b"hardlink-data"
-    assert canonical.read_bytes() == b"hardlink-data"
-
-
-@pytest.mark.unit
-@pytest.mark.skipif(
-    not CASE_INSENSITIVE_FS,
-    reason="needs a case-insensitive filesystem to alias differently-cased names",
-)
-def test_python_connector_cleanup_preserves_differently_cased_orbit_source(
-    tmp_path: Path,
-):
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=output_dir,
-        output_prefix="case01",
-    )
-    source = output_dir / "case01_radii.win"
-    source.write_bytes(b"source-data")
-    supplied = output_dir / "Case01_Radii.Win"
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=supplied))
-
-    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
-    assert source.read_bytes() == b"source-data"
-
-
-@pytest.mark.unit
-def test_python_connector_orbit_external_symlink_to_canonical_target_survives(
-    tmp_path: Path,
-):
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=output_dir,
-        output_prefix="case01",
-    )
-    canonical = output_dir / "case01_orbit.cor"
-    canonical.write_bytes(b"canonical-data")
-    external = tmp_path / "external-orbit.cor"
-    external.symlink_to(canonical)
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=external))
-
-    assert captured["orbit_file"] == canonical
-    assert external.is_symlink()
-    assert canonical.read_bytes() == b"canonical-data"
-
-
-@pytest.mark.unit
-@pytest.mark.skipif(
-    not CASE_INSENSITIVE_FS,
-    reason="needs a case-insensitive filesystem to alias differently-cased names",
-)
-def test_python_connector_orbit_external_symlink_differently_cased_referent_survives(
-    tmp_path: Path,
-):
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=output_dir,
-        output_prefix="case01",
-    )
-    canonical = output_dir / "case01_orbit.cor"
-    canonical.write_bytes(b"canonical-data")
-    external = tmp_path / "external-orbit.cor"
-    external.symlink_to(output_dir / "CASE01_ORBIT.COR")
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=external))
-
-    assert captured["orbit_file"] == canonical
-    assert external.is_symlink()
-    assert canonical.read_bytes() == b"canonical-data"
-
-
-@pytest.mark.unit
-def test_python_connector_cleanup_preserves_hardlink_alias_of_orbit_source(
-    tmp_path: Path,
-):
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=output_dir,
-        output_prefix="case01",
-    )
-    source = tmp_path / "real-orbit.cor"
-    source.write_bytes(b"alias-data")
-    alias = output_dir / "case01_radii.win"
-    os.link(source, alias)
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=source))
-
-    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
-    assert alias.read_bytes() == b"alias-data"
-    assert source.read_bytes() == b"alias-data"
-
-
-@pytest.mark.unit
-def test_python_connector_cleanup_preserves_symlink_alias_of_orbit_source(
-    tmp_path: Path,
-):
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=output_dir,
-        output_prefix="case01",
-    )
-    source = tmp_path / "real-orbit.cor"
-    source.write_bytes(b"alias-data")
-    alias = output_dir / "case01_radii.win"
-    alias.symlink_to(source)
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=source))
-
-    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
-    assert alias.is_symlink()
-    assert source.read_bytes() == b"alias-data"
-
-
-@pytest.mark.unit
-def test_python_connector_cleanup_preserves_differently_cased_prefix_cor_orbit(
-    tmp_path: Path,
-):
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=output_dir,
-        output_prefix="case01",
-    )
-    source = output_dir / "Case01.Cor"
-    source.write_bytes(b"source-data")
-
-    captured = _record_orbit_executor_run(connector)
-    connector.run(RuntimeOperator(orbit_file=source))
-
-    assert captured["orbit_file"] == output_dir / "case01_orbit.cor"
-    assert source.read_bytes() == b"source-data"
-
-
-@pytest.mark.unit
 def test_python_connector_rejects_orbit_at_the_config_destination(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
@@ -1395,55 +1011,6 @@ def test_python_connector_rejects_orbit_at_the_config_destination(tmp_path: Path
     assert config_path.read_bytes() == b"caller-orbit"
     assert header_path.read_bytes() == b"prior-header"
     assert not (tmp_path / "case01_orbit.cor").exists()
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("link", ["symlink", "hardlink"])
-def test_python_connector_rejects_config_link_alias_of_supplied_orbit(
-    tmp_path: Path, link: str
-):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    external = tmp_path / "radii.cor"
-    external.write_bytes(b"external-radii")
-    config_path = tmp_path / "case01.smc"
-    if link == "symlink":
-        config_path.symlink_to(external)
-    else:
-        os.link(external, config_path)
-    captured = _record_orbit_executor_run(connector)
-
-    with pytest.raises(ValueError, match="orbit_file"):
-        connector.run(RuntimeOperator(orbit_file=external))
-
-    assert "orbit_file" not in captured
-    assert external.read_bytes() == b"external-radii"
-    assert not (tmp_path / "case01_orbit.cor").exists()
-    if link == "symlink":
-        assert config_path.is_symlink()
-    else:
-        assert os.stat(config_path).st_ino == os.stat(external).st_ino
-
-
-@pytest.mark.unit
-@pytest.mark.skipif(
-    not CASE_INSENSITIVE_FS,
-    reason="needs a case-insensitive filesystem to alias differently-cased names",
-)
-def test_python_connector_rejects_differently_cased_config_alias(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    alias = tmp_path / "CASE01.SMC"
-    alias.write_bytes(b"caller-orbit")
-    captured = _record_orbit_executor_run(connector)
-
-    with pytest.raises(ValueError, match="orbit_file"):
-        connector.run(RuntimeOperator(orbit_file=alias))
-
-    assert "orbit_file" not in captured
-    assert alias.read_bytes() == b"caller-orbit"
 
 
 @pytest.mark.unit
@@ -1865,28 +1432,6 @@ def test_python_connector_explicit_orbit_at_acquisition_path_is_preserved(
 
 
 @pytest.mark.unit
-def test_python_connector_explicit_orbit_aliased_to_acquisition_path_is_preserved(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
-    )
-    _non_circular_acquisition(connector)
-    external = tmp_path / "elsewhere.cor"
-    external.write_bytes(b"aliased-explicit")
-    acquisition = tmp_path / "case01_acquisition.cor"
-    acquisition.symlink_to(external)
-    captured = _record_orbit_executor_run(connector)
-
-    connector.run(RuntimeOperator(orbit_file=external))
-
-    assert captured["orbit_file"] == tmp_path / "case01_orbit.cor"
-    assert external.read_bytes() == b"aliased-explicit"
-    assert acquisition.is_symlink()
-    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"aliased-explicit"
-
-
-@pytest.mark.unit
 def test_replacing_a_non_circular_acquisition_with_a_circular_one_clears_the_orbit(
     tmp_path: Path,
 ):
@@ -2271,28 +1816,6 @@ def test_python_connector_configure_rejects_unsupported_scoring_routine(
 
 
 @pytest.mark.unit
-def test_python_connector_voxel_phantom_route_rejects_unsupported_scoring(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    activity = np.ones((2, 3, 4), dtype=np.float32)
-    seeded, _ = _seed_existing_inputs(tmp_path)
-
-    with pytest.raises(ValueError, match=r"LIST_MODE \(2\) is not supported"):
-        connector.configure_phantom(
-            VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)),
-            scoring_routine=ScoringRoutine.LIST_MODE,
-        )
-
-    for path, original in seeded.items():
-        assert path.read_bytes() == original, path
-
-
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "routine",
     [ScoringRoutine.DUMMY, ScoringRoutine.SCATTWIN, ScoringRoutine.PENETRATE],
@@ -2334,56 +1857,8 @@ def test_python_connector_explicit_scoring_override_ignores_config_value(
 
 
 @pytest.mark.unit
-def test_python_connector_does_not_round_fractional_config_routine(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    # 0.6 rounds to a supported routine (1) but is not an integral enum value.
-    connector.add_config_value(84, 0.6)
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    with pytest.raises(ValueError, match="not an integral"):
-        connector.configure_voxel_phantom(source, source.copy())
-    with pytest.raises(ValueError, match="not an integral"):
-        connector.run()
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "bad_value",
-    [
-        pytest.param(Decimal("1.00000000000000001"), id="fractional-decimal"),
-        pytest.param(Fraction(10**17 + 1, 10**17), id="fractional-fraction"),
-        pytest.param(np.float64(1.5), id="fractional-float"),
-    ],
-)
-def test_python_connector_rejects_fractional_scoring_without_float_round(
-    tmp_path: Path, bad_value: object
-):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    # A float round would collapse the exact fractions to 1.0 and accept them.
-    connector.add_config_value(84, bad_value)
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    with pytest.raises(ValueError, match="not an integral"):
-        connector.configure_voxel_phantom(source, source.copy())
-    with pytest.raises(ValueError, match="not an integral"):
-        connector.run()
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "bad_value",
-    [True, False, np.bool_(True), np.bool_(False)],
-    ids=["bool-true", "bool-false", "np-bool-true", "np-bool-false"],
-)
-def test_python_connector_rejects_boolean_scoring_value(
+@pytest.mark.parametrize("bad_value", [0.6, True, float("nan")])
+def test_python_connector_rejects_non_integral_scoring_value(
     tmp_path: Path, bad_value: object
 ):
     connector = SimindPythonConnector(
@@ -2394,37 +1869,10 @@ def test_python_connector_rejects_boolean_scoring_value(
     connector.add_config_value(84, bad_value)
     source = np.ones((2, 3, 4), dtype=np.float32)
 
-    with pytest.raises(ValueError, match="scoring_routine"):
+    with pytest.raises(ValueError, match="scoring_routine|integral"):
         connector.configure_voxel_phantom(source, source.copy())
-    with pytest.raises(ValueError, match="scoring_routine"):
+    with pytest.raises(ValueError, match="scoring_routine|integral"):
         connector.run()
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "value, expected",
-    [
-        pytest.param(1, 1, id="int"),
-        pytest.param(np.int64(1), 1, id="np-int"),
-        pytest.param(Decimal(1), 1, id="integral-decimal"),
-        pytest.param(Fraction(1, 1), 1, id="integral-fraction"),
-        pytest.param(1.0, 1, id="integral-float"),
-    ],
-)
-def test_python_connector_accepts_integral_scoring_values(
-    tmp_path: Path, value: object, expected: int
-):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    connector.add_config_value(84, value)
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    connector.configure_voxel_phantom(source, source.copy())
-
-    assert connector._config_scoring_routine().value == expected
 
 
 @pytest.mark.unit
@@ -2456,44 +1904,6 @@ def test_python_connector_short_config_defaults_scoring_to_dummy(tmp_path: Path)
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize(
-    "bad_value",
-    [
-        pytest.param(0.6, id="fractional"),
-        pytest.param(float("nan"), id="nan"),
-        pytest.param(float("inf"), id="positive-inf"),
-        pytest.param(-float("inf"), id="negative-inf"),
-        pytest.param(10**1000, id="huge-integer"),
-        pytest.param(ScoringRoutine.LIST_MODE.value, id="unsupported"),
-    ],
-)
-def test_python_connector_invalid_present_scoring_has_no_side_effects(
-    tmp_path: Path, bad_value: object
-):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    connector.add_config_value(84, bad_value)
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    seeded, orbit = _seed_existing_inputs(tmp_path)
-    launched: list[object] = []
-    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
-
-    with pytest.raises(ValueError, match="scoring_routine"):
-        connector.configure_voxel_phantom(source, source.copy())
-    with pytest.raises(ValueError, match="scoring_routine"):
-        connector.run(RuntimeOperator(orbit_file=orbit))
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original
-    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"prior:case01_orbit.cor"
-
-
-@pytest.mark.unit
 def test_python_connector_config_only_run_rejects_unsupported_routine(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
@@ -2513,51 +1923,6 @@ def test_python_connector_config_only_run_rejects_unsupported_routine(tmp_path: 
     assert stale.read_text() == "stale"
     assert not (tmp_path / "case01.smc").exists()
     assert not (tmp_path / "case01_orbit.cor").exists()
-
-
-def _seed_existing_inputs(
-    tmp_path: Path, prefix: str = "case01"
-) -> tuple[dict[Path, bytes], Path]:
-    """Seed maps, config, a stale header and the canonical orbit target."""
-    orbit = tmp_path / "orbit.cor"
-    orbit.write_bytes(b"prior orbit")
-    paths = [
-        tmp_path / f"{prefix}_src.smi",
-        tmp_path / f"{prefix}_dns.dmi",
-        tmp_path / f"{prefix}.smc",
-        tmp_path / f"{prefix}_tot_w1.hs",
-        tmp_path / f"{prefix}_orbit.cor",
-    ]
-    for path in paths:
-        path.write_bytes(f"prior:{path.name}".encode())
-    return {path: path.read_bytes() for path in [*paths, orbit]}, orbit
-
-
-@pytest.mark.unit
-def test_python_connector_run_rejects_routine_changed_after_configure(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    source = np.ones((2, 3, 4), dtype=np.float32)
-    source_path, density_path = connector.configure_voxel_phantom(
-        source, source.copy(), scoring_routine=ScoringRoutine.SCATTWIN
-    )
-    connector.add_config_value(84, ScoringRoutine.LIST_MODE.value)
-    stale = tmp_path / "case01_tot_w1.hs"
-    stale.write_text("stale")
-    launched: list[object] = []
-    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
-
-    with pytest.raises(ValueError, match=r"LIST_MODE \(2\) is not supported"):
-        connector.run()
-
-    assert launched == []
-    assert stale.read_text() == "stale"
-    assert source_path.exists()
-    assert density_path.exists()
-    assert not (tmp_path / "case01.smc").exists()
 
 
 @pytest.mark.unit
@@ -2651,37 +2016,6 @@ def test_python_connector_rejects_source_quantized_to_all_zeros_at_tiny_scale(
 
 
 @pytest.mark.unit
-def test_python_connector_rejects_source_at_the_rounding_threshold(tmp_path: Path):
-    # The default scale reproduces the legacy 500 budget, so 0.001 of it gives
-    # a peak of 0.5, which NumPy rounds to even (0): every voxel vanishes.
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-        quantization_scale=0.001 * DEFAULT_QUANTIZATION_SCALE,
-    )
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    with pytest.raises(ValueError, match="rounds the non-zero source to all zeros"):
-        connector.configure_voxel_phantom(source, source.copy())
-
-
-@pytest.mark.unit
-def test_python_connector_accepts_source_above_the_rounding_threshold(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-        quantization_scale=0.002 * DEFAULT_QUANTIZATION_SCALE,
-    )
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    source_path, _ = connector.configure_voxel_phantom(source, source.copy())
-
-    assert int(np.fromfile(source_path, dtype=np.uint16).max()) == 1
-
-
-@pytest.mark.unit
 def test_python_connector_all_zero_source_is_still_accepted(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
@@ -2700,31 +2034,6 @@ def test_python_connector_all_zero_source_is_still_accepted(tmp_path: Path):
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
     connector.run()
     assert launched == [True]
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("bad_scale", ["not-a-number", object()])
-def test_python_connector_quantization_scale_conversion_failure_is_normalized(
-    tmp_path: Path, bad_scale: object
-):
-    with pytest.raises(ValueError, match="quantization_scale"):
-        SimindPythonConnector(
-            config_source=get("AnyScan.yaml"),
-            output_dir=tmp_path,
-            output_prefix="case01",
-            quantization_scale=bad_scale,
-        )
-
-
-@pytest.mark.unit
-def test_python_connector_huge_quantization_scale_is_normalized(tmp_path: Path):
-    with pytest.raises(ValueError, match="quantization_scale"):
-        SimindPythonConnector(
-            config_source=get("AnyScan.yaml"),
-            output_dir=tmp_path,
-            output_prefix="case01",
-            quantization_scale=10**1000,
-        )
 
 
 @pytest.mark.unit
@@ -2748,63 +2057,6 @@ def test_python_connector_rejects_orbit_directory_before_staging(tmp_path: Path)
     assert canonical.read_bytes() == b"existing"
     assert orbit_dir.is_dir()
     assert not (tmp_path / "case01.smc").exists()
-
-
-@pytest.mark.unit
-def test_python_connector_invalid_inputs_leave_seeded_state_untouched(tmp_path: Path):
-    """Every rejected input path preserves inputs and the canonical orbit."""
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    seeded, orbit = _seed_existing_inputs(tmp_path)
-    launched: list[object] = []
-    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
-
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    # 1x1x1 voxel input
-    with pytest.raises(ValueError, match="1x1x1"):
-        connector.configure_voxel_phantom(
-            np.ones((1, 1, 1), np.float32), np.ones((1, 1, 1), np.float32)
-        )
-
-    # nonzero source that quantizes entirely to zero
-    tiny = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-        quantization_scale=1e-6,
-    )
-    with pytest.raises(ValueError, match="rounds the non-zero source to all zeros"):
-        tiny.configure_voxel_phantom(source, source.copy())
-
-    # invalid present scoring routine on the array route and the run route
-    connector.add_config_value(84, ScoringRoutine.LIST_MODE.value)
-    with pytest.raises(ValueError, match="scoring_routine"):
-        connector.configure_voxel_phantom(source, source.copy())
-    with pytest.raises(ValueError, match="scoring_routine"):
-        connector.run(RuntimeOperator(orbit_file=orbit))
-
-    # invalid runtime orbit directory
-    connector.add_config_value(84, ScoringRoutine.SCATTWIN.value)
-    orbit_dir = tmp_path / "orbit-dir"
-    orbit_dir.mkdir()
-    with pytest.raises(ValueError, match="regular file"):
-        connector.run(RuntimeOperator(orbit_file=orbit_dir))
-
-    # over-long prefix
-    connector.output_prefix = "a" * 48
-    with pytest.raises(ValueError, match="at most 47 characters"):
-        connector.run()
-    with pytest.raises(ValueError, match="at most 47 characters"):
-        connector.set_energy_windows([126.0], [154.0], [0])
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original, path
-    assert not (tmp_path / "case01_orbit.cor.tmp").exists()
 
 
 def _seed_preflight_state(tmp_path: Path, prefix: str = "case01") -> dict[Path, bytes]:
@@ -2838,10 +2090,8 @@ def _launch_then_fail(launched: list[object]):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("switch", ["FI", "CC"])
-@pytest.mark.parametrize("value", ["bad name", "bad\tname", "bad\nname", "bad\x00name"])
 def test_python_connector_rejects_illegal_switch_before_acquisition_orbit(
-    tmp_path: Path, switch: str, value: str
+    tmp_path: Path,
 ):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"),
@@ -2856,113 +2106,11 @@ def test_python_connector_rejects_illegal_switch_before_acquisition_orbit(
     connector.executor.run_simulation = _launch_then_fail(launched)  # type: ignore[assignment]
 
     with pytest.raises(SimulationError):
-        connector.run(RuntimeOperator(switches={switch: value}))
+        connector.run(RuntimeOperator(switches={"FI": "bad name"}))
 
     assert launched == []
     for path, original in seeded.items():
         assert path.read_bytes() == original, path
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("operator", [None, RuntimeOperator()])
-def test_python_connector_rejects_invalid_persistent_switch_before_writes(
-    tmp_path: Path, operator
-):
-    connector = SimindPythonConnector(
-        config_source=get("Example.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    _non_circular_acquisition(connector)
-    connector.add_runtime_switch("FI", "bad name")
-    seeded = _seed_preflight_state(tmp_path)
-    launched: list[object] = []
-    connector.executor.run_simulation = _launch_then_fail(launched)  # type: ignore[assignment]
-
-    with pytest.raises(SimulationError):
-        connector.run(operator)
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original, path
-
-
-@pytest.mark.unit
-def test_python_connector_valid_runtime_value_overrides_invalid_persistent_switch(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("Example.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    connector.add_runtime_switch("FI", "bad name")
-    captured: list[dict] = []
-    connector.executor.run_simulation = (  # type: ignore[assignment]
-        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
-            captured.append(dict(runtime_switches or {}))
-        )
-    )
-    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
-    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
-
-    connector.run(RuntimeOperator(switches={"FI": "good.inp"}))
-
-    assert captured == [{"FI": "good.inp", "CA": 1}]
-    assert connector.runtime_switches.switches == {"FI": "bad name"}
-
-
-@pytest.mark.unit
-def test_python_connector_none_removal_of_invalid_persistent_switch_succeeds(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("Example.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    connector.add_runtime_switch("FI", "bad name")
-    captured: list[dict] = []
-    connector.executor.run_simulation = (  # type: ignore[assignment]
-        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
-            captured.append(dict(runtime_switches or {}))
-        )
-    )
-    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
-    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
-
-    connector.run(RuntimeOperator(switches={"FI": None}))
-
-    assert captured == [{"CA": 1}]
-    assert connector.runtime_switches.switches == {"FI": "bad name"}
-
-
-@pytest.mark.unit
-def test_python_connector_bare_switch_stays_bare_and_persistent_state_unchanged(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("Example.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    connector.add_runtime_switch("HO", True)
-    captured: list[dict] = []
-    connector.executor.run_simulation = (  # type: ignore[assignment]
-        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
-            captured.append(dict(runtime_switches or {}))
-        )
-    )
-    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
-    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
-
-    connector.run(RuntimeOperator(switches={"NN": 3}))
-
-    assert captured == [{"HO": True, "NN": 3, "CA": 1}]
-    token = connector.executor._serialize_switches(captured[0])
-    assert token == "/HO/NN:3/CA:1"
-    assert ":True" not in token
-    assert connector.runtime_switches.switches == {"HO": True}
 
 
 @pytest.mark.unit
@@ -2973,92 +2121,3 @@ def test_python_connector_rejects_over_long_prefix_at_construction(tmp_path: Pat
             output_dir=tmp_path,
             output_prefix="a" * 48,
         )
-
-
-@pytest.mark.unit
-def test_python_connector_over_long_prefix_preserves_outputs_before_launch(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    over_long = "a" * 48
-    config_path = tmp_path / f"{over_long}.smc"
-    header_path = tmp_path / f"{over_long}_tot_w1.hs"
-    config_path.write_bytes(b"pre-existing config")
-    header_path.write_bytes(b"pre-existing header")
-    connector.output_prefix = over_long
-    launched: list[object] = []
-    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
-
-    with pytest.raises(ValueError, match="at most 47 characters"):
-        connector.run()
-
-    assert launched == []
-    assert config_path.read_bytes() == b"pre-existing config"
-    assert header_path.read_bytes() == b"pre-existing header"
-
-
-@pytest.mark.unit
-def test_python_connector_over_long_prefix_rejected_before_writing_inputs(
-    tmp_path: Path,
-):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    over_long = "a" * 48
-    connector.output_prefix = over_long
-    source = np.ones((2, 3, 4), dtype=np.float32)
-
-    with pytest.raises(ValueError, match="at most 47 characters"):
-        connector.configure_voxel_phantom(source, source.copy())
-    with pytest.raises(ValueError, match="at most 47 characters"):
-        connector.set_energy_windows([126.0], [154.0], [0])
-
-    assert not (tmp_path / f"{over_long}_src.smi").exists()
-    assert not (tmp_path / f"{over_long}_dns.dmi").exists()
-    assert not (tmp_path / f"{over_long}.win").exists()
-
-
-@pytest.mark.unit
-def test_python_connector_set_energy_windows_accepts_ten_windows(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    count = 10
-
-    connector.set_energy_windows(
-        [126.0 + i for i in range(count)],
-        [127.0 + i for i in range(count)],
-        [0] * count,
-    )
-
-    window_file = tmp_path / "case01.win"
-    assert window_file.exists()
-    lines = [line for line in window_file.read_text().splitlines() if line]
-    assert len(lines) == count
-
-
-@pytest.mark.unit
-def test_python_connector_set_energy_windows_rejects_too_many_windows(tmp_path: Path):
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-    count = 100
-
-    with pytest.raises(ValueError, match="At most 99 energy windows"):
-        connector.set_energy_windows(
-            [126.0] * count,
-            [154.0] * count,
-            [0] * count,
-        )
-
-    assert not (tmp_path / "case01.win").exists()

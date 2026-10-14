@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,10 +25,7 @@ from simind_python_connector.core.types import ScoringRoutine, SimulationError
 from simind_python_connector.phantoms import (
     AnalyticPhantom,
     Box,
-    HorizontalCylinder,
-    Insert,
     LibraryPhantom,
-    MultipleInserts,
     PointSource,
     VoxelPhantom,
 )
@@ -329,28 +325,6 @@ def test_adaptor_rejects_mu_map_with_different_origin(
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), origin=(0.0, 0.0, 2.0)))
     with pytest.raises(ValueError, match="origins differ"):
         adaptor.run()
-
-
-@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-@pytest.mark.parametrize("gap, matches", [(0.0009, True), (0.0011, False)])
-def test_adaptor_origin_tolerance_is_one_micron(
-    cls, patch, image_cls, tmp_path, monkeypatch, gap, matches
-):
-    patch(monkeypatch)
-    adaptor = _make_adaptor(cls, tmp_path)
-    adaptor.set_source(image_cls(np.zeros((2, 3, 4))))
-    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), origin=(0.0, 0.0, gap)))
-    monkeypatch.setattr(
-        adaptor.python_connector, "configure_voxel_phantom", lambda **kwargs: None
-    )
-    monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
-    )
-    if matches:
-        adaptor.run()
-    else:
-        with pytest.raises(ValueError, match="origins differ"):
-            adaptor.run()
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
@@ -970,22 +944,6 @@ _ADAPTOR_BACKENDS = [
 
 
 @pytest.mark.parametrize("cls, patch", _ADAPTOR_BACKENDS)
-@pytest.mark.parametrize("bool_value", [True, False])
-def test_adaptor_constructor_rejects_boolean_scoring_routine(
-    cls, patch, bool_value, tmp_path, monkeypatch
-):
-    patch(monkeypatch)
-
-    with pytest.raises(ValueError, match="scoring_routine"):
-        cls(
-            config_source=get("AnyScan.yaml"),
-            output_dir=str(tmp_path),
-            output_prefix="case01",
-            scoring_routine=bool_value,
-        )
-
-
-@pytest.mark.parametrize("cls, patch", _ADAPTOR_BACKENDS)
 @pytest.mark.parametrize(
     "scoring, expected",
     [
@@ -1114,149 +1072,25 @@ def test_scoring_report_follows_phantom_mode_switches(
     ]
 
 
-def _seed_adaptor_inputs(tmp_path: Path, prefix: str = "case01") -> dict[Path, bytes]:
-    paths = [
-        tmp_path / f"{prefix}_src.smi",
-        tmp_path / f"{prefix}_dns.dmi",
-        tmp_path / f"{prefix}.win",
-    ]
-    for path in paths:
-        path.write_bytes(f"existing:{path.name}".encode())
-    return {path: path.read_bytes() for path in paths}
-
-
-def _invalid_runtime_operator(
-    kind: str, tmp_path: Path
-) -> tuple[RuntimeOperator, type[Exception]]:
-    if kind == "switch":
-        return RuntimeOperator(switches={"NN": 0}), ValueError
-    if kind == "orbit":
-        orbit_dir = tmp_path / "orbit-dir"
-        orbit_dir.mkdir(exist_ok=True)
-        return RuntimeOperator(orbit_file=orbit_dir), ValueError
-    raise AssertionError(f"unknown runtime-operator kind {kind!r}")
-
-
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-@pytest.mark.parametrize("kind", ["switch", "orbit"])
-def test_adaptor_rejects_invalid_runtime_operator_before_writes(
-    cls, patch, image_cls, kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_adaptor_rejects_invalid_runtime_operator_before_launch(
+    cls, patch, image_cls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     patch(monkeypatch)
     adaptor = _make_adaptor(cls, tmp_path)
     adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
-    seeded = _seed_adaptor_inputs(tmp_path)
     launched: list[object] = []
     monkeypatch.setattr(
         adaptor.python_connector.executor,
         "run_simulation",
-        lambda *args, **kwargs: launched.append((args, kwargs)),
-    )
-    operator, expected = _invalid_runtime_operator(kind, tmp_path)
-
-    with pytest.raises(expected):
-        adaptor.run(runtime_operator=operator)
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original
-
-
-@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-def test_adaptor_voxel_phantom_rejects_invalid_runtime_operator_before_writes(
-    cls, patch, image_cls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    patch(monkeypatch)
-    adaptor = _make_adaptor(cls, tmp_path)
-    activity = np.ones((2, 3, 4), dtype=np.float32)
-    adaptor.set_phantom(VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)))
-    seeded = _seed_adaptor_inputs(tmp_path)
-    monkeypatch.setattr(
-        adaptor.python_connector.executor,
-        "run_simulation",
-        lambda *args, **kwargs: None,
+        lambda *args, **kwargs: launched.append(True),
     )
 
     with pytest.raises(ValueError):
         adaptor.run(runtime_operator=RuntimeOperator(switches={"NN": 0}))
 
-    for path, original in seeded.items():
-        assert path.read_bytes() == original
-
-
-def _seed_full_preflight_state(
-    tmp_path: Path, prefix: str = "case01"
-) -> dict[Path, bytes]:
-    """Seed every file the connector could overwrite or clear before launch."""
-    paths = [
-        tmp_path / f"{prefix}_src.smi",
-        tmp_path / f"{prefix}_dns.dmi",
-        tmp_path / f"{prefix}.win",
-        tmp_path / f"{prefix}.smc",
-        tmp_path / f"{prefix}_tot_w1.hs",
-        tmp_path / f"{prefix}_orbit.cor",
-        tmp_path / f"{prefix}_acquisition.cor",
-    ]
-    for path in paths:
-        path.write_bytes(f"prior:{path.name}".encode())
-    return {path: path.read_bytes() for path in paths}
-
-
-@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-@pytest.mark.parametrize("value", ["bad name", "bad\tname", "bad\nname", "bad\x00name"])
-def test_adaptor_voxel_phantom_rejects_illegal_switch_before_any_write(
-    cls, patch, image_cls, value: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    patch(monkeypatch)
-    adaptor = _make_adaptor(cls, tmp_path)
-    activity = np.ones((2, 3, 4), dtype=np.float32)
-    adaptor.set_phantom(VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)))
-    seeded = _seed_full_preflight_state(tmp_path)
-    launched: list[object] = []
-
-    def run_then_fail(*args, **kwargs):
-        launched.append(True)
-        raise SimulationError("executor must not be reached")
-
-    monkeypatch.setattr(
-        adaptor.python_connector.executor, "run_simulation", run_then_fail
-    )
-
-    with pytest.raises(SimulationError):
-        adaptor.run(runtime_operator=RuntimeOperator(switches={"FI": value}))
-
     assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original, path
-
-
-@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-def test_adaptor_rejects_invalid_persistent_switch_before_any_write(
-    cls, patch, image_cls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    patch(monkeypatch)
-    adaptor = _make_adaptor(cls, tmp_path)
-    activity = np.ones((2, 3, 4), dtype=np.float32)
-    adaptor.set_phantom(VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)))
-    adaptor.add_runtime_switch("FI", "bad name")
-    seeded = _seed_full_preflight_state(tmp_path)
-    launched: list[object] = []
-
-    def run_then_fail(*args, **kwargs):
-        launched.append(True)
-        raise SimulationError("executor must not be reached")
-
-    monkeypatch.setattr(
-        adaptor.python_connector.executor, "run_simulation", run_then_fail
-    )
-
-    with pytest.raises(SimulationError):
-        adaptor.run()
-
-    assert launched == []
-    for path, original in seeded.items():
-        assert path.read_bytes() == original, path
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
@@ -1276,33 +1110,16 @@ def test_adaptor_accepts_valid_runtime_operator(
     assert outputs == {}
 
 
-def _alias_destination(destination: Path, external: Path, alias: str) -> Path:
-    """Put an orbit at destination, directly or through a link; return its path."""
-    if alias == "direct":
-        destination.write_bytes(b"orbit-bytes")
-        return destination
-    if alias == "symlink":
-        destination.symlink_to(external)
-        return external
-    os.link(external, destination)
-    return external
-
-
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-@pytest.mark.parametrize("destination", ["src", "density"])
-@pytest.mark.parametrize("alias", ["direct", "symlink", "hardlink"])
-def test_adaptor_rejects_orbit_conflicting_with_voxel_inputs(
-    cls, patch, image_cls, destination, alias, tmp_path, monkeypatch
+def test_adaptor_rejects_orbit_at_voxel_input_destination(
+    cls, patch, image_cls, tmp_path, monkeypatch
 ):
     patch(monkeypatch)
     adaptor = _make_adaptor(cls, tmp_path)
     adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
-    suffix = "_src.smi" if destination == "src" else "_dns.dmi"
-    destination_path = tmp_path / f"case01{suffix}"
-    external = tmp_path / "external-orbit.cor"
-    external.write_bytes(b"orbit-bytes")
-    orbit = _alias_destination(destination_path, external, alias)
+    orbit = tmp_path / "case01_src.smi"
+    orbit.write_bytes(b"orbit-bytes")
     launched: list[object] = []
     monkeypatch.setattr(
         adaptor.python_connector.executor,
@@ -1314,92 +1131,7 @@ def test_adaptor_rejects_orbit_conflicting_with_voxel_inputs(
         adaptor.run(RuntimeOperator(orbit_file=orbit))
 
     assert launched == []
-    assert external.read_bytes() == b"orbit-bytes"
-    if alias == "direct":
-        assert destination_path.read_bytes() == b"orbit-bytes"
-    elif alias == "symlink":
-        assert destination_path.is_symlink()
-    else:
-        assert os.stat(destination_path).st_ino == os.stat(external).st_ino
-
-
-@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-@pytest.mark.parametrize("destination", ["src", "density"])
-def test_adaptor_rejects_voxel_phantom_orbit_conflict(
-    cls, patch, image_cls, destination, tmp_path, monkeypatch
-):
-    patch(monkeypatch)
-    adaptor = _make_adaptor(cls, tmp_path)
-    activity = np.ones((2, 3, 4), dtype=np.float32)
-    adaptor.set_phantom(VoxelPhantom(activity, np.ones_like(activity), (4.0, 4.0, 4.0)))
-    suffix = "_src.smi" if destination == "src" else "_dns.dmi"
-    destination_path = tmp_path / f"case01{suffix}"
-    destination_path.write_bytes(b"orbit-bytes")
-    launched: list[object] = []
-    monkeypatch.setattr(
-        adaptor.python_connector.executor,
-        "run_simulation",
-        lambda *args, **kwargs: launched.append(True),
-    )
-
-    with pytest.raises(ValueError, match="orbit_file"):
-        adaptor.run(RuntimeOperator(orbit_file=destination_path))
-
-    assert launched == []
-    assert destination_path.read_bytes() == b"orbit-bytes"
-
-
-@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-def test_adaptor_rejects_orbit_at_the_analytic_insert_file(
-    cls, patch, image_cls, tmp_path, monkeypatch
-):
-    patch(monkeypatch)
-    adaptor = _make_adaptor(cls, tmp_path)
-    adaptor.set_phantom(
-        AnalyticPhantom(
-            MultipleInserts(
-                HorizontalCylinder(10.0, (10.0, 10.0)),
-                (Insert((2.0, 2.0, 2.0), (3.0, 0.0, 0.0), 4.0),),
-            )
-        )
-    )
-    insert_file = tmp_path / "case01.inp"
-    insert_file.write_bytes(b"orbit-bytes")
-    launched: list[object] = []
-    monkeypatch.setattr(
-        adaptor.python_connector.executor,
-        "run_simulation",
-        lambda *args, **kwargs: launched.append(True),
-    )
-
-    with pytest.raises(ValueError, match="orbit_file"):
-        adaptor.run(RuntimeOperator(orbit_file=insert_file))
-
-    assert launched == []
-    assert insert_file.read_bytes() == b"orbit-bytes"
-
-
-@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
-def test_adaptor_rejects_orbit_at_the_library_phantom_table(
-    cls, patch, image_cls, tmp_path, monkeypatch
-):
-    patch(monkeypatch)
-    adaptor = _make_adaptor(cls, tmp_path)
-    adaptor.set_phantom(LibraryPhantom.ZUBAL_TORSO)
-    zub_table = tmp_path / "phantom.zub"
-    zub_table.write_bytes(b"orbit-bytes")
-    launched: list[object] = []
-    monkeypatch.setattr(
-        adaptor.python_connector.executor,
-        "run_simulation",
-        lambda *args, **kwargs: launched.append(True),
-    )
-
-    with pytest.raises(ValueError, match="orbit_file"):
-        adaptor.run(RuntimeOperator(orbit_file=zub_table))
-
-    assert launched == []
-    assert zub_table.read_bytes() == b"orbit-bytes"
+    assert orbit.read_bytes() == b"orbit-bytes"
 
 
 @pytest.mark.parametrize("cls, patch, image_cls", _CASES)

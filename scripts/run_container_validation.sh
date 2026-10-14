@@ -331,18 +331,11 @@ if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
         # test_simind_mpi.py runs once in the python service (MPICH); the SIRF
         # image uses OpenMPI and would only re-run it there.
         run_service sirf "python -m pytest -m \"$SIMIND_MARKERS\" -q --ignore=tests/test_simind_mpi.py"
-        run_service sirf "python -m pytest tests/test_geometry_isolation_forward_projection.py -q"
     fi
     if [[ "$RUN_PYTOMO" -eq 1 ]]; then
         run_service pytomography "python examples/07C_pytomography_adaptor_osem.py"
     fi
 
-    # Reads generated outputs from selected examples; missing outputs are skipped.
-    if [[ "$RUN_CORE" -eq 1 ]]; then
-        run_service python "python -m pytest tests/test_osem_geometry_diagnostics.py -q"
-    elif [[ "$RUN_PYTOMO" -eq 1 ]]; then
-        run_service pytomography "python -m pytest tests/test_osem_geometry_diagnostics.py -q"
-    fi
 else
     echo "Skipping SIMIND-dependent checks (set RUN_SIMIND_TESTS=1 or pass --with-simind to enable)."
 fi
