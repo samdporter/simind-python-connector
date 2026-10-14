@@ -679,6 +679,91 @@ def test_yaml_merge_key_override_is_accepted(tmp_path):
     assert config.data[61] == pytest.approx(5.0)
 
 
+def test_yaml_inline_merge_source_duplicate_keys_are_rejected(tmp_path):
+    text = "other_parameters:\n  <<: {61: 1.0, 61: 2.0}\n"
+
+    with pytest.raises(yaml.YAMLError, match="duplicate key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_duplicate_keys_in_inline_merge_sequence_member_are_rejected(tmp_path):
+    text = "other_parameters:\n  <<: [{61: 1.0, 61: 2.0}]\n"
+
+    with pytest.raises(yaml.YAMLError, match="duplicate key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_duplicate_keys_in_anchored_merge_source_are_rejected(tmp_path):
+    text = (
+        "wrapper:\n"
+        "  dupes: &dupes\n"
+        "    '61': 1.0\n"
+        "    '61': 2.0\n"
+        "other_parameters:\n"
+        "  <<: *dupes\n"
+    )
+
+    with pytest.raises(yaml.YAMLError, match="duplicate key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_chained_anchor_defaults_with_explicit_override_are_accepted(tmp_path):
+    text = (
+        "wrapper:\n"
+        "  base: &base\n"
+        "    '61': 1.0\n"
+        "  override: &override\n"
+        "    <<: *base\n"
+        "    '61': 2.0\n"
+        "other_parameters:\n"
+        "  <<: *override\n"
+    )
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.data[60] == pytest.approx(2.0)
+
+
+def test_yaml_repeated_anchors_and_multiple_override_levels_are_accepted(tmp_path):
+    text = (
+        "wrapper:\n"
+        "  base: &base\n"
+        "    '61': 1.0\n"
+        "    '62': 2.0\n"
+        "  copy: *base\n"
+        "  mid: &mid\n"
+        "    <<: *base\n"
+        "    '61': 10.0\n"
+        "other_parameters:\n"
+        "  <<: [*mid, *base]\n"
+        "  '63': 30.0\n"
+    )
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    # The earlier merge member (*mid) beats the later one (*base) for index 61.
+    assert config.data[60] == pytest.approx(10.0)
+    assert config.data[61] == pytest.approx(2.0)
+    assert config.data[62] == pytest.approx(30.0)
+
+
+def test_yaml_merge_sequence_precedence_and_destination_explicit_key(tmp_path):
+    text = (
+        "first: &first\n"
+        "  '61': 1.0\n"
+        "  '62': 2.0\n"
+        "second: &second\n"
+        "  '61': 10.0\n"
+        "  '63': 30.0\n"
+        "other_parameters:\n"
+        "  <<: [*first, *second]\n"
+        "  '61': 100.0\n"
+    )
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.data[60] == pytest.approx(100.0)  # explicit key beats merges
+    assert config.data[61] == pytest.approx(2.0)  # earlier merge member wins
+    assert config.data[62] == pytest.approx(30.0)  # later member fills the rest
+
+
 def test_yaml_unhashable_mapping_key_raises_constructor_error(tmp_path):
     text = "other_parameters:\n  [1, 2]: 5.0\n"
 

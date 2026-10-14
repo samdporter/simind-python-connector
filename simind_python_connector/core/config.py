@@ -19,35 +19,53 @@ import yaml
 class _UniqueKeyLoader(yaml.SafeLoader):
     """SafeLoader that rejects duplicate explicitly written mapping keys.
 
-    Merge keys (``<<``) keep their normal precedence: inherited entries may be
-    overridden explicitly and are not counted as duplicates. Duplicate keys are
-    detected on the original nodes, before ``flatten_mapping`` expands merges.
+    The explicit keys of a mapping node are checked exactly once, on the
+    original node, before merge keys (``<<``) are expanded. Checking runs from
+    both ``construct_mapping`` and ``flatten_mapping`` so that merge sources
+    are validated too, while a node that was already rewritten by
+    ``flatten_mapping`` (an anchored mapping reused as a merge source) is not
+    re-checked. Merge keys keep their normal precedence: inherited entries may
+    be overridden explicitly and are not counted as duplicates.
     """
+
+    def __init__(self, stream):
+        super().__init__(stream)
+        self._checked_mapping_nodes = set()
+
+    def _check_unique_explicit_keys(self, node, deep=False):
+        if node in self._checked_mapping_nodes:
+            return
+        seen = set()
+        for key_node, _ in node.value:
+            if key_node.tag == "tag:yaml.org,2002:merge":
+                continue
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                hash(key)
+            except TypeError as exc:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping",
+                    node.start_mark,
+                    "found unhashable key",
+                    key_node.start_mark,
+                ) from exc
+            if key in seen:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping",
+                    node.start_mark,
+                    f"found duplicate key {key!r}",
+                    key_node.start_mark,
+                )
+            seen.add(key)
+        self._checked_mapping_nodes.add(node)
+
+    def flatten_mapping(self, node):
+        self._check_unique_explicit_keys(node)
+        super().flatten_mapping(node)
 
     def construct_mapping(self, node, deep=False):
         if isinstance(node, yaml.MappingNode):
-            seen = set()
-            for key_node, _ in node.value:
-                if key_node.tag == "tag:yaml.org,2002:merge":
-                    continue
-                key = self.construct_object(key_node, deep=deep)
-                try:
-                    hash(key)
-                except TypeError as exc:
-                    raise yaml.constructor.ConstructorError(
-                        "while constructing a mapping",
-                        node.start_mark,
-                        "found unhashable key",
-                        key_node.start_mark,
-                    ) from exc
-                if key in seen:
-                    raise yaml.constructor.ConstructorError(
-                        "while constructing a mapping",
-                        node.start_mark,
-                        f"found duplicate key {key!r}",
-                        key_node.start_mark,
-                    )
-                seen.add(key)
+            self._check_unique_explicit_keys(node, deep=deep)
         return super().construct_mapping(node, deep=deep)
 
 
