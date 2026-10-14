@@ -16,6 +16,17 @@ class SimindNotFoundError(SimindError):
 # keeps the longest name (47 + 10 + 2 = 59) inside the buffer; three-digit N
 # would overflow it, so the window count is capped at 99.
 MAX_ENERGY_WINDOWS = 99
+MAX_ENERGY_WINDOW_PREFIX_LENGTH = 15
+
+
+def validate_energy_window_prefix(output_prefix: str) -> None:
+    """Reject prefixes SIMIND truncates when reading ``.win`` files."""
+    if len(output_prefix) > MAX_ENERGY_WINDOW_PREFIX_LENGTH:
+        raise ValueError(
+            "output_prefix must be at most "
+            f"{MAX_ENERGY_WINDOW_PREFIX_LENGTH} characters when energy windows "
+            f"are used, got {len(output_prefix)}"
+        )
 
 
 def _validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
@@ -47,6 +58,8 @@ def _validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
     validated_upper = []
     validated_orders = []
     for lower, upper, order in zip(lower_bounds, upper_bounds, scatter_orders):
+        if isinstance(lower, bool) or isinstance(upper, bool):
+            raise ValueError("Energy-window bounds must not be booleans")
         lower_f = float(lower)
         upper_f = float(upper)
         if not math.isfinite(lower_f) or not math.isfinite(upper_f):
@@ -56,7 +69,14 @@ def _validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
                 f"Energy-window lower bound {lower_f} must be below "
                 f"upper bound {upper_f}"
             )
-        order_int = int(order)
+        if isinstance(order, bool):
+            raise ValueError(f"Scatter orders must be integers, got {order!r}")
+        try:
+            order_int = int(order)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                f"Scatter orders must be integers, got {order!r}"
+            ) from exc
         if order_int != order:
             raise ValueError(f"Scatter orders must be integers, got {order!r}")
         if order_int < 0:

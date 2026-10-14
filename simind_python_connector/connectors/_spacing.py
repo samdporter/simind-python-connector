@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+import numpy as np
+
 
 def _call_or_value(value: Any) -> Any:
     return value() if callable(value) else value
@@ -72,6 +74,11 @@ def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
             f"{backend_name} source object must expose voxel_sizes() or "
             "get_grid_spacing()."
         )
+    if not np.isfinite(zyx).all() or any(size <= 0 for size in zyx):
+        raise ValueError(
+            f"{backend_name} voxel sizes must be finite and positive; "
+            f"got (z, y, x) = {tuple(zyx)} mm"
+        )
     if max(zyx) - min(zyx) > 1e-3:
         raise ValueError(
             f"{backend_name} images must have cubic voxels; got (z, y, x) = "
@@ -80,4 +87,74 @@ def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
     return float(zyx[0])
 
 
-__all__ = ["extract_voxel_size_mm"]
+def _numeric_array(value: Any) -> Optional[np.ndarray]:
+    try:
+        return np.asarray(value, dtype=float).reshape(-1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _spatial_geometry(image: Any) -> Optional[tuple[Any, ...]]:
+    """Read native geometry where the backend exposes a documented API.
+
+    SIRF's ImageData returns a GeometricalInfo from
+    ``get_geometrical_info()``, with offset, spacing, and direction-matrix getters.
+    STIR's VoxelsOnCartesianGrid exposes origin and signed grid spacing.
+    """
+    native_object = getattr(image, "native_object", image)
+    image = native_object() if callable(native_object) else native_object
+
+    get_geometrical_info = getattr(image, "get_geometrical_info", None)
+    if callable(get_geometrical_info):
+        info = get_geometrical_info()
+        getters = ("get_offset", "get_spacing", "get_direction_matrix")
+        if not all(callable(getattr(info, name, None)) for name in getters):
+            raise ValueError(
+                "Unable to read SIRF geometry from get_geometrical_info()."
+            )
+        arrays = [_numeric_array(getattr(info, name)()) for name in getters]
+        if any(array is None or not array.size for array in arrays):
+            raise ValueError(
+                "Unable to read SIRF geometry from get_geometrical_info()."
+            )
+        if any(not np.isfinite(array).all() for array in arrays if array is not None):
+            raise ValueError("SIRF geometry values must be finite.")
+        return ("sirf", np.concatenate(arrays))
+
+    get_origin = getattr(image, "get_origin", None)
+    get_grid_spacing = getattr(image, "get_grid_spacing", None)
+    if callable(get_origin) and callable(get_grid_spacing):
+        origin = _spacing_zyx(get_origin())
+        spacing = _spacing_zyx(get_grid_spacing())
+        if origin is None or spacing is None:
+            return None
+        minimum_indices = []
+        for axis in "zyx":
+            getter = getattr(image, f"get_min_{axis}", None)
+            if not callable(getter):
+                return None
+            minimum_indices.append(float(getter()))
+        physical_start = np.asarray(origin) + np.asarray(minimum_indices) * np.asarray(
+            spacing
+        )
+        return (
+            "stir",
+            physical_start,
+        )
+    return None
+
+
+def same_spatial_geometry(source: Any, mu_map: Any) -> bool:
+    """Compare origins, spacing, and axis directions when both APIs expose them."""
+    source_geometry = _spatial_geometry(source)
+    mu_geometry = _spatial_geometry(mu_map)
+    if source_geometry is None and mu_geometry is None:
+        return True
+    if source_geometry is None or mu_geometry is None:
+        return False
+    return source_geometry[0] == mu_geometry[0] and np.allclose(
+        source_geometry[1], mu_geometry[1], rtol=0.0, atol=1e-3
+    )
+
+
+__all__ = ["extract_voxel_size_mm", "same_spatial_geometry"]

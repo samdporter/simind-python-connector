@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Mapping, Optional, Sequence, Union
 
@@ -166,7 +167,20 @@ def load_interfile_array(header_path: HeaderInput) -> InterfileArray:
         "data offset in bytes",
         "data_offset_in_bytes",
     )
-    offset = int(float(offset_raw)) if offset_raw else 0
+    if offset_raw:
+        try:
+            offset_value = Decimal(offset_raw.strip())
+        except InvalidOperation as exc:
+            raise ValueError(
+                f"Data offset must be an integer, got {offset_raw!r}"
+            ) from exc
+        if not offset_value.is_finite() or offset_value != (
+            offset_value.to_integral_value()
+        ):
+            raise ValueError(f"Data offset must be an integer, got {offset_raw!r}")
+        offset = int(offset_value)
+    else:
+        offset = 0
     if offset < 0:
         raise ValueError(f"Negative data offset in Interfile header: {offset}")
     if offset % dtype.itemsize != 0:
