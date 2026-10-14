@@ -83,20 +83,9 @@ class SimindExecutor:
         if split_projections and mpi_count is None:
             raise SimulationError("split_projections needs mpi_processes")
 
-        switch_parts = []
-        for key, value in (runtime_switches or {}).items():
-            # None removes a switch, matching RuntimeSwitches.set_switch.
-            if value is None:
-                continue
-            switch = str(key).upper()
-            try:
-                _validate_switch_value(switch, value)
-            except ValueError as exc:
-                raise SimulationError(str(exc)) from exc
-            # True stands for a switch without a value, e.g. /HO.
-            switch_parts.append(f"/{key}" if value is True else f"/{key}:{value}")
-        if split_projections:
-            switch_parts.append("/MP")
+        switch_token = self._serialize_switches(
+            runtime_switches, split_projections=split_projections
+        )
 
         # SIMIND manual (MPI section): MPI runs use the separate simind_mpi
         # build. Without /MP every rank simulates all projections and the
@@ -122,8 +111,8 @@ class SimindExecutor:
         command += [prefix, prefix]
         if orbit_file is not None:
             command.append(self._validate_cli_token(orbit_file.name))
-        if switch_parts:
-            command.append(self._validate_cli_token("".join(switch_parts)))
+        if switch_token:
+            command.append(switch_token)
 
         self.logger.info("Running SIMIND: %s", " ".join(command))
         with (
@@ -163,6 +152,37 @@ class SimindExecutor:
         # diagnostic split across the boundary that neither stream contains.
         self._raise_for_reported_error(stdout_text)
         self._raise_for_reported_error(stderr_text)
+
+    @staticmethod
+    def _serialize_switches(
+        runtime_switches: Optional[Dict],
+        *,
+        split_projections: bool = False,
+    ) -> str:
+        """Validate and render switches as SIMIND's single ``/K:V...`` argument.
+
+        Side-effect free, so a caller can reject an illegal switch before
+        writing any input. ``None`` removes a switch and ``True`` renders a
+        bare ``/KEY``. Each value is checked against the public switch contract
+        and the joined token against the command-line rules (NUL, whitespace).
+        """
+        switch_parts = []
+        for key, value in (runtime_switches or {}).items():
+            # None removes a switch, matching RuntimeSwitches.set_switch.
+            if value is None:
+                continue
+            switch = str(key).upper()
+            try:
+                _validate_switch_value(switch, value)
+            except ValueError as exc:
+                raise SimulationError(str(exc)) from exc
+            # True stands for a switch without a value, e.g. /HO.
+            switch_parts.append(f"/{key}" if value is True else f"/{key}:{value}")
+        if split_projections:
+            switch_parts.append("/MP")
+        if not switch_parts:
+            return ""
+        return SimindExecutor._validate_cli_token("".join(switch_parts))
 
     @staticmethod
     def _read_and_replay(stdout_file, stderr_file) -> tuple[str, str]:

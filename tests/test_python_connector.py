@@ -2662,6 +2662,164 @@ def test_python_connector_invalid_inputs_leave_seeded_state_untouched(tmp_path: 
     assert not (tmp_path / "case01_orbit.cor.tmp").exists()
 
 
+def _seed_preflight_state(tmp_path: Path, prefix: str = "case01") -> dict[Path, bytes]:
+    """Seed every file run() could overwrite or clear before the executor."""
+    paths = [
+        tmp_path / f"{prefix}_src.smi",
+        tmp_path / f"{prefix}_dns.dmi",
+        tmp_path / f"{prefix}.win",
+        tmp_path / f"{prefix}.smc",
+        tmp_path / f"{prefix}_tot_w1.hs",
+        tmp_path / f"{prefix}_orbit.cor",
+        tmp_path / f"{prefix}_acquisition.cor",
+    ]
+    for path in paths:
+        path.write_bytes(f"prior:{path.name}".encode())
+    return {path: path.read_bytes() for path in paths}
+
+
+def _non_circular_acquisition(connector: SimindPythonConnector) -> None:
+    connector.configure_acquisition(
+        _acquisition(radius_mm=None, radii_mm=tuple(240.0 + i for i in range(60)))
+    )
+
+
+def _launch_then_fail(launched: list[object]):
+    def fake_run_simulation(*args, **kwargs):
+        launched.append(True)
+        raise SimulationError("executor must not be reached")
+
+    return fake_run_simulation
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("switch", ["FI", "CC"])
+@pytest.mark.parametrize("value", ["bad name", "bad\tname", "bad\nname", "bad\x00name"])
+def test_python_connector_rejects_illegal_switch_before_acquisition_orbit(
+    tmp_path: Path, switch: str, value: str
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    # Variable radii make run() regenerate the acquisition orbit before the
+    # supplied orbit would be staged and the config saved.
+    _non_circular_acquisition(connector)
+    seeded = _seed_preflight_state(tmp_path)
+    launched: list[object] = []
+    connector.executor.run_simulation = _launch_then_fail(launched)  # type: ignore[assignment]
+
+    with pytest.raises(SimulationError):
+        connector.run(RuntimeOperator(switches={switch: value}))
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original, path
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("operator", [None, RuntimeOperator()])
+def test_python_connector_rejects_invalid_persistent_switch_before_writes(
+    tmp_path: Path, operator
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    _non_circular_acquisition(connector)
+    connector.add_runtime_switch("FI", "bad name")
+    seeded = _seed_preflight_state(tmp_path)
+    launched: list[object] = []
+    connector.executor.run_simulation = _launch_then_fail(launched)  # type: ignore[assignment]
+
+    with pytest.raises(SimulationError):
+        connector.run(operator)
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original, path
+
+
+@pytest.mark.unit
+def test_python_connector_valid_runtime_value_overrides_invalid_persistent_switch(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_runtime_switch("FI", "bad name")
+    captured: list[dict] = []
+    connector.executor.run_simulation = (  # type: ignore[assignment]
+        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
+            captured.append(dict(runtime_switches or {}))
+        )
+    )
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+
+    connector.run(RuntimeOperator(switches={"FI": "good.inp"}))
+
+    assert captured == [{"FI": "good.inp", "CA": 1}]
+    assert connector.runtime_switches.switches == {"FI": "bad name"}
+
+
+@pytest.mark.unit
+def test_python_connector_none_removal_of_invalid_persistent_switch_succeeds(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_runtime_switch("FI", "bad name")
+    captured: list[dict] = []
+    connector.executor.run_simulation = (  # type: ignore[assignment]
+        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
+            captured.append(dict(runtime_switches or {}))
+        )
+    )
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+
+    connector.run(RuntimeOperator(switches={"FI": None}))
+
+    assert captured == [{"CA": 1}]
+    assert connector.runtime_switches.switches == {"FI": "bad name"}
+
+
+@pytest.mark.unit
+def test_python_connector_bare_switch_stays_bare_and_persistent_state_unchanged(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector.add_runtime_switch("HO", True)
+    captured: list[dict] = []
+    connector.executor.run_simulation = (  # type: ignore[assignment]
+        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
+            captured.append(dict(runtime_switches or {}))
+        )
+    )
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+
+    connector.run(RuntimeOperator(switches={"NN": 3}))
+
+    assert captured == [{"HO": True, "NN": 3, "CA": 1}]
+    token = connector.executor._serialize_switches(captured[0])
+    assert token == "/HO/NN:3/CA:1"
+    assert ":True" not in token
+    assert connector.runtime_switches.switches == {"HO": True}
+
+
 @pytest.mark.unit
 def test_python_connector_rejects_over_long_prefix_at_construction(tmp_path: Path):
     with pytest.raises(ValueError, match="at most 47 characters"):

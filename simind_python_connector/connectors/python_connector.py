@@ -717,28 +717,40 @@ class SimindPythonConnector(BaseConnector):
 
     def _validate_runtime_operator(
         self, runtime_operator: Optional[RuntimeOperator]
-    ) -> None:
-        """Validate a runtime operator without staging or writing any files.
+    ) -> RuntimeSwitches:
+        """Validate the effective switch set and orbit without writing files.
 
-        Applies the same switch and orbit checks run() performs, so a caller
-        can reject an invalid operator before phantom inputs or a generated
-        acquisition orbit are overwritten.
+        Builds the same persistent+runtime switch set run() uses (operator
+        values override persistent ones and None removes them), adds the
+        automatic CA=1 for the SCATTWIN routine and serialises it through the
+        executor, so an illegal switch is rejected before phantom inputs, an
+        acquisition orbit or a config are written. Returns the validated
+        holder for run().
         """
-        if runtime_operator is None:
-            return
+        run_switches_holder = RuntimeSwitches()
+        for key, value in self.runtime_switches.switches.items():
+            run_switches_holder.set_switch(key, value)
+        if runtime_operator is not None:
+            for key, value in runtime_operator.switches.items():
+                run_switches_holder.set_switch(key, value)
 
-        validation_switches = RuntimeSwitches()
-        for key, value in runtime_operator.switches.items():
-            validation_switches.set_switch(key, value)
+        # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin routine);
+        # primary is then tot - sca.
+        if self._config_scoring_routine() is ScoringRoutine.SCATTWIN and (
+            "CA" not in run_switches_holder.switches
+        ):
+            run_switches_holder.set_switch("CA", 1)
 
-        orbit_file = runtime_operator.orbit_file
-        if orbit_file is None:
-            return
-        orbit_path = Path(orbit_file).expanduser().resolve()
-        if not orbit_path.exists():
-            raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
-        if not orbit_path.is_file():
-            raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
+        self.executor._serialize_switches(run_switches_holder.switches)
+
+        if runtime_operator is not None and runtime_operator.orbit_file is not None:
+            orbit_path = Path(runtime_operator.orbit_file).expanduser().resolve()
+            if not orbit_path.exists():
+                raise FileNotFoundError(f"Orbit file not found: {orbit_path}")
+            if not orbit_path.is_file():
+                raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
+
+        return run_switches_holder
 
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None
@@ -752,7 +764,7 @@ class SimindPythonConnector(BaseConnector):
         # be supported or the prefix is no longer safe.
         self._validate_output_prefix(self.output_prefix)
         self._config_scoring_routine()
-        self._validate_runtime_operator(runtime_operator)
+        run_switches_holder = self._validate_runtime_operator(runtime_operator)
 
         if self._phantom_mode is None:
             self.logger.warning(
@@ -783,11 +795,8 @@ class SimindPythonConnector(BaseConnector):
                     )
             mpi_kwargs = {"mpi_processes": processes, "split_projections": split}
 
-        # Runtime-operator switches apply to this run only; merge them into
-        # a throwaway switch set instead of persistent connector state.
-        run_switches_holder = RuntimeSwitches()
-        for key, value in self.runtime_switches.switches.items():
-            run_switches_holder.set_switch(key, value)
+        # The effective switches are validated and serialised above, before
+        # the acquisition orbit below is generated or a supplied one staged.
         orbit_file = None
         if self._acquisition_radii_cm is not None:
             orbit_file = self.output_dir / f"{self.output_prefix}_acquisition.cor"
@@ -800,11 +809,8 @@ class SimindPythonConnector(BaseConnector):
                     f"{r:12.3f}{centre_bin:6d}\n" for r in self._acquisition_radii_cm
                 )
             )
-        if runtime_operator is not None:
-            for key, value in runtime_operator.switches.items():
-                run_switches_holder.set_switch(key, value)
-            if runtime_operator.orbit_file is not None:
-                orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
+        if runtime_operator is not None and runtime_operator.orbit_file is not None:
+            orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
 
         if self._phantom_extent_mm is not None:
             bin_mm = float(self.config.get_value(28)) * SIMIND_VOXEL_UNIT_CONVERSION
@@ -825,13 +831,6 @@ class SimindPythonConnector(BaseConnector):
                     length_mm,
                     fov_length_mm,
                 )
-
-        # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin
-        # routine); primary is then tot - sca.
-        if self._config_scoring_routine() is ScoringRoutine.SCATTWIN and (
-            "CA" not in run_switches_holder.switches
-        ):
-            run_switches_holder.set_switch("CA", 1)
 
         window_file = self._window_file_for_run(run_switches_holder.switches)
 
