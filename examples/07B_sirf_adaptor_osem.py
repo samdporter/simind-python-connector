@@ -25,22 +25,13 @@ import sirf.STIR as sirf
 from simind_python_connector import SirfSimindAdaptor, configs
 from simind_python_connector.builders import STIRSPECTImageDataBuilder
 from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
+from simind_python_connector.utils.geometry_phantom import build_asymmetric_phantom
 
 
 def _build_small_phantom(output_dir: Path) -> tuple[sirf.ImageData, sirf.ImageData]:
-    dims = (32, 32, 32)  # z, y, x
+    source, mu_map, _ = build_asymmetric_phantom()
+    dims = source.shape  # canonical z, y, x
     voxel_mm = (4.0, 4.0, 4.0)
-
-    z, y, x = np.indices(dims)
-    body = ((x - 16) ** 2 + (y - 16) ** 2 <= 10**2) & (np.abs(z - 16) <= 8)
-    hot = (x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 <= 4**2
-
-    source = np.zeros(dims, dtype=np.float32)
-    source[body] = 0.8
-    source[hot] = 2.0
-
-    mu_map = np.zeros_like(source)
-    mu_map[body] = 0.15
 
     source_builder = STIRSPECTImageDataBuilder(
         {
