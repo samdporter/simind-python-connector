@@ -61,14 +61,14 @@ def main() -> None:
 
     base_projection = _run_case(
         output_dir=output_dir / "seed_12345",
-        prefix="runtime_seed_12345",
+        prefix="seed_12345",
         source=source,
         mu_map=mu_map,
         seed=12345,
     )
     alt_projection = _run_case(
         output_dir=output_dir / "seed_54321",
-        prefix="runtime_seed_54321",
+        prefix="seed_54321",
         source=source,
         mu_map=mu_map,
         seed=54321,
