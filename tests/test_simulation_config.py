@@ -792,6 +792,93 @@ def test_yaml_explicit_key_overrides_merged_key(tmp_path):
     assert config.text_variables == {1: "explicit"}
 
 
+def test_yaml_inline_merge_source_duplicate_is_rejected(tmp_path):
+    text = "other_parameters: {<<: {61: 1.0, 61: 2.0}}\n"
+
+    with pytest.raises(ValueError, match="duplicate key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_duplicate_inside_anchored_source_is_rejected(tmp_path):
+    text = (
+        "defaults: &defaults\n"
+        "  61: 1.0\n"
+        "  61: 2.0\n"
+        "other_parameters:\n"
+        "  <<: *defaults\n"
+        "  61: 3.0\n"
+    )
+
+    with pytest.raises(ValueError, match="duplicate key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_duplicate_inside_inline_merge_sequence_member_is_rejected(tmp_path):
+    text = "other_parameters: {<<: [{61: 1.0, 61: 2.0}]}\n"
+
+    with pytest.raises(ValueError, match="duplicate key"):
+        SimulationConfig(_write_yaml(tmp_path, text))
+
+
+def test_yaml_chained_anchor_explicit_override_is_accepted(tmp_path):
+    text = (
+        "defaults:\n"
+        "  base: &base {61: 1.0}\n"
+        "  override: &override\n"
+        "    <<: *base\n"
+        "    61: 2.0\n"
+        "other_parameters: {<<: *override}\n"
+    )
+
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.data[60] == pytest.approx(2.0)
+
+
+def test_yaml_repeated_anchor_use_is_accepted(tmp_path):
+    text = (
+        "base: &base {61: 1.0}\n"
+        "first: {<<: *base}\n"
+        "other_parameters: {<<: *base, 61: 1.5}\n"
+    )
+
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.data[60] == pytest.approx(1.5)
+
+
+def test_yaml_multiple_chained_override_levels_are_accepted(tmp_path):
+    text = (
+        "base: &base {61: 1.0}\n"
+        "mid: &mid {<<: *base, 61: 2.0}\n"
+        "top: &top {<<: *mid, 61: 3.0}\n"
+        "other_parameters: {<<: *top}\n"
+    )
+
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.data[60] == pytest.approx(3.0)
+
+
+def test_yaml_merge_sequence_precedence_and_destination_override(tmp_path):
+    text = (
+        "first: &first {61: 1.0}\n"
+        "second: &second {61: 2.0, 63: 3.0}\n"
+        "other_parameters:\n"
+        "  <<: [*first, *second]\n"
+        "  62: 4.0\n"
+    )
+
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    # Earlier sequence members take precedence over later ones.
+    assert config.data[60] == pytest.approx(1.0)
+    # A later member still supplies keys the earlier one lacks.
+    assert config.data[62] == pytest.approx(3.0)
+    # An explicit destination key overrides every merged value.
+    assert config.data[61] == pytest.approx(4.0)
+
+
 def test_yaml_unhashable_mapping_key_raises_constructor_error(tmp_path):
     text = "? [a, b]\n: value\n"
 
