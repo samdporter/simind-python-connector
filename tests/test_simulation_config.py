@@ -1005,6 +1005,53 @@ def test_yaml_boolean_value_for_unrelated_index_is_still_accepted(tmp_path):
     assert config.get_value(38) == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param(
+            "parameters:\n"
+            "  source:\n"
+            "    photon_energy:\n"
+            "      index: 1\n"
+            "      value: 99.0\n"
+            "data_files:\n"
+            "  crystal_material:\n"
+            "    index: 4\n"
+            "    filepath: from_yaml\n"
+            "other_parameters:\n"
+            "  84: true\n",
+            id="other-parameters",
+        ),
+        pytest.param(
+            "parameters:\n"
+            "  source:\n"
+            "    photon_energy:\n"
+            "      index: 1\n"
+            "      value: 99.0\n"
+            "  simulation_control:\n"
+            "    scoring_routine:\n"
+            "      index: 84\n"
+            "      value: false\n"
+            "data_files:\n"
+            "  crystal_material:\n"
+            "    index: 4\n"
+            "    filepath: from_yaml\n",
+            id="parameters",
+        ),
+    ],
+)
+def test_yaml_rejected_boolean_scoring_leaves_existing_config_unchanged(tmp_path, text):
+    config = SimulationConfig(get("AnyScan.yaml"))
+    data_before = list(config.data)
+    files_before = dict(config.data_files)
+
+    with pytest.raises(ValueError, match="Index 84"):
+        config.import_yaml(_write_yaml(tmp_path, text))
+
+    assert config.data == data_before
+    assert config.data_files == files_before
+
+
 def test_bundled_configs_load_validate_and_save(tmp_path):
     """The bundled and documented configs still round-trip at fixed width."""
     names = list_configs()
