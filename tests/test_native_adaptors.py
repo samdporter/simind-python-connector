@@ -629,6 +629,55 @@ def _make_pytomography_adaptor(
     return adaptor
 
 
+_ADAPTOR_BACKENDS = [
+    (StirSimindAdaptor, _patch_stir_backend),
+    (SirfSimindAdaptor, _patch_sirf_backend),
+    (PyTomographySimindAdaptor, _patch_pytomography_backend),
+]
+
+
+@pytest.mark.parametrize("cls, patch", _ADAPTOR_BACKENDS)
+@pytest.mark.parametrize("bool_value", [True, False])
+def test_adaptor_constructor_rejects_boolean_scoring_routine(
+    cls, patch, bool_value, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+
+    with pytest.raises(ValueError, match="scoring_routine"):
+        cls(
+            config_source=get("AnyScan.yaml"),
+            output_dir=str(tmp_path),
+            output_prefix="case01",
+            scoring_routine=bool_value,
+        )
+
+
+@pytest.mark.parametrize("cls, patch", _ADAPTOR_BACKENDS)
+@pytest.mark.parametrize(
+    "scoring, expected",
+    [
+        pytest.param(None, None, id="none"),
+        pytest.param(0, ScoringRoutine.DUMMY, id="dummy-code"),
+        pytest.param(1, ScoringRoutine.SCATTWIN, id="scattwin-code"),
+        pytest.param(4, ScoringRoutine.PENETRATE, id="penetrate-code"),
+        pytest.param(ScoringRoutine.PENETRATE, ScoringRoutine.PENETRATE, id="enum"),
+    ],
+)
+def test_adaptor_constructor_accepts_valid_scoring_routine(
+    cls, patch, scoring, expected, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+
+    adaptor = cls(
+        config_source=get("AnyScan.yaml"),
+        output_dir=str(tmp_path),
+        output_prefix="case01",
+        scoring_routine=scoring,
+    )
+
+    assert adaptor._scoring_routine == expected
+
+
 @pytest.mark.parametrize(
     "cls, patch",
     [

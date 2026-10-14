@@ -43,6 +43,12 @@ class StirSimindAdaptor(BaseConnector):
         if stir is None:
             raise ImportError("StirSimindAdaptor requires the STIR Python package.")
 
+        # bool satisfies isinstance(..., int) and would silently become a code.
+        if isinstance(scoring_routine, bool):
+            raise ValueError(
+                f"scoring_routine must not be a boolean, got {scoring_routine!r}"
+            )
+
         self.python_connector = SimindPythonConnector(
             config_source=config_source,
             output_dir=output_dir,

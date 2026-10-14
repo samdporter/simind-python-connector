@@ -43,6 +43,12 @@ class SirfSimindAdaptor(BaseConnector):
         if sirf is None:
             raise ImportError("SirfSimindAdaptor requires the SIRF Python package.")
 
+        # bool satisfies isinstance(..., int) and would silently become a code.
+        if isinstance(scoring_routine, bool):
+            raise ValueError(
+                f"scoring_routine must not be a boolean, got {scoring_routine!r}"
+            )
+
         self.python_connector = SimindPythonConnector(
             config_source=config_source,
             output_dir=output_dir,
