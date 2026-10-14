@@ -25,7 +25,10 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     ValidationError,
 )
-from simind_python_connector.utils.simind_utils import _validate_energy_windows
+from simind_python_connector.utils.simind_utils import (
+    _validate_energy_windows,
+    validate_energy_window_prefix,
+)
 
 
 try:
@@ -113,6 +116,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         upper_bounds: Union[float, list[float]],
         scatter_orders: Union[int, list[int]],
     ) -> None:
+        validate_energy_window_prefix(self.python_connector.output_prefix)
         lowers, uppers, orders = _validate_energy_windows(
             lower_bounds, upper_bounds, scatter_orders
         )
@@ -133,6 +137,8 @@ class PyTomographySimindAdaptor(BaseConnector):
         self._output_metadata = None
         self._output_header_paths = None
         prefix = self.python_connector.output_prefix
+        if self._energy_windows is not None:
+            validate_energy_window_prefix(prefix)
         output_dir = self.python_connector.output_dir
         self.python_connector._validate_runtime_operator(
             runtime_operator,

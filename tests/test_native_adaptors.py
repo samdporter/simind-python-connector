@@ -73,6 +73,68 @@ class _ImageWithoutSpacing:
         self.array = array
 
 
+class _GeometryInfo:
+    def __init__(self, offset, spacing, direction) -> None:
+        self._offset = offset
+        self._spacing = spacing
+        self._direction = direction
+
+    def get_offset(self):
+        return self._offset
+
+    def get_spacing(self):
+        return self._spacing
+
+    def get_direction_matrix(self):
+        return self._direction
+
+
+class _SIRFImageWithGeometry:
+    def __init__(self, array: np.ndarray, geometry: _GeometryInfo) -> None:
+        self.array = array
+        self.geometry = geometry
+
+    def voxel_sizes(self):
+        return (2.0, 2.0, 2.0)
+
+    def get_geometrical_info(self):
+        return self.geometry
+
+
+class _STIRImageWithGeometry:
+    def __init__(
+        self, array: np.ndarray, origin, spacing, min_indices=(0, 0, 0)
+    ) -> None:
+        self.array = array
+        self._origin = origin
+        self._spacing = spacing
+        self._min_indices = min_indices
+
+    def get_grid_spacing(self):
+        return self._spacing
+
+    def get_origin(self):
+        return self._origin
+
+    def get_min_z(self):
+        return self._min_indices[0]
+
+    def get_min_y(self):
+        return self._min_indices[1]
+
+    def get_min_x(self):
+        return self._min_indices[2]
+
+
+class _NativeImageWrapper:
+    def __init__(self, native_object, array: np.ndarray) -> None:
+        self.native_object = native_object
+        self.array = array
+
+    def voxel_sizes(self):
+        return (2.0, 2.0, 2.0)
+
+
 class _AtOnlyGridSpacing:
     """Non-iterable STIR-style coordinate exposing values via at()."""
 
@@ -442,6 +504,316 @@ def test_adaptor_rejects_mu_map_with_different_voxel_size(
 
     with pytest.raises(ValueError, match="same voxel size"):
         adaptor.run()
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+@pytest.mark.parametrize("changed_prefix", ["case02", "b" * 16])
+def test_native_adaptor_rejects_changed_energy_window_prefix_before_writes(
+    cls,
+    patch,
+    changed_prefix: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_energy_windows([126.0], [154.0], [0])
+    original_window = tmp_path / "case01.win"
+    original_window_bytes = original_window.read_bytes()
+    changed_window = tmp_path / f"{changed_prefix}.win"
+    changed_window.write_bytes(b"existing changed window")
+    destinations = [
+        changed_window,
+        tmp_path / f"{changed_prefix}_src.smi",
+        tmp_path / f"{changed_prefix}_dns.dmi",
+    ]
+    for path in destinations[1:]:
+        path.write_bytes(b"existing voxel input")
+    adaptor.python_connector.output_prefix = changed_prefix
+
+    configured: list[bool] = []
+    launched: list[bool] = []
+    monkeypatch.setattr(
+        adaptor.python_connector,
+        "configure_voxel_phantom",
+        lambda **kwargs: configured.append(True),
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector,
+        "run",
+        lambda **kwargs: launched.append(True) or {},
+    )
+
+    with pytest.raises(ValueError, match="set_energy_windows"):
+        adaptor.run()
+
+    assert configured == []
+    assert launched == []
+    assert original_window.read_bytes() == original_window_bytes
+    assert [path.read_bytes() for path in destinations] == [
+        b"existing changed window",
+        b"existing voxel input",
+        b"existing voxel input",
+    ]
+
+
+@pytest.mark.parametrize(
+    "cls, spacing",
+    [
+        (StirSimindAdaptor, (4.0, float("nan"), 4.0)),
+        (SirfSimindAdaptor, (4.0, float("nan"), 4.0)),
+        (StirSimindAdaptor, (0.0, 0.0, 0.0)),
+        (SirfSimindAdaptor, (0.0, 0.0, 0.0)),
+        (StirSimindAdaptor, (-4.0, -4.0, -4.0)),
+        (SirfSimindAdaptor, (-4.0, -4.0, -4.0)),
+    ],
+)
+def test_adaptor_rejects_nonfinite_or_nonpositive_voxel_spacing(
+    cls, spacing
+) -> None:
+    image = _ImageWithVoxelSizes(np.zeros((2, 3, 4), dtype=np.float32), spacing)
+
+    with pytest.raises(ValueError, match="finite and positive"):
+        cls._extract_voxel_size_mm(image)
+
+
+@pytest.mark.parametrize(
+    "cls, patch, image_factory, geometries",
+    [
+        (
+            StirSimindAdaptor,
+            _patch_stir_backend,
+            lambda array, origin, direction: _STIRImageWithGeometry(
+                array, (0.0, *origin), (0.0, *(2.0 * v for v in direction))
+            ),
+            [
+                ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+                ((1.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+            ],
+        ),
+        (
+            SirfSimindAdaptor,
+            _patch_sirf_backend,
+            lambda array, origin, direction: _SIRFImageWithGeometry(
+                array,
+                _GeometryInfo(
+                    offset=origin,
+                    spacing=(2.0, 2.0, 2.0),
+                    direction=direction,
+                ),
+            ),
+            [
+                ((0.0, 0.0, 0.0), ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))),
+                ((1.0, 0.0, 0.0), ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))),
+            ],
+        ),
+    ],
+)
+def test_adaptor_rejects_mu_map_with_different_origin(
+    cls,
+    patch,
+    image_factory,
+    geometries,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    adaptor.set_source(image_factory(array, *geometries[0]))
+    adaptor.set_mu_map(image_factory(array, *geometries[1]))
+    monkeypatch.setattr(
+        stir_mod if cls is StirSimindAdaptor else sirf_mod,
+        "get_array",
+        lambda image: image.array,
+    )
+
+    with pytest.raises(ValueError, match="same spatial geometry"):
+        adaptor._validate_inputs()
+
+
+def test_sirf_adaptor_rejects_mu_map_with_different_axis_directions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_sirf_backend(monkeypatch)
+    adaptor = _make_adaptor(SirfSimindAdaptor, tmp_path)
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    directions = (
+        ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+        ((-1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+    )
+    adaptor.set_source(
+        _SIRFImageWithGeometry(
+            array, _GeometryInfo((0.0, 0.0, 0.0), (2.0, 2.0, 2.0), directions[0])
+        )
+    )
+    adaptor.set_mu_map(
+        _SIRFImageWithGeometry(
+            array, _GeometryInfo((0.0, 0.0, 0.0), (2.0, 2.0, 2.0), directions[1])
+        )
+    )
+    monkeypatch.setattr(sirf_mod, "get_array", lambda image: image.array)
+
+    with pytest.raises(ValueError, match="same spatial geometry"):
+        adaptor._validate_inputs()
+
+
+def test_sirf_adaptor_rejects_unreadable_present_geometry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_sirf_backend(monkeypatch)
+    adaptor = _make_adaptor(SirfSimindAdaptor, tmp_path)
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    malformed = _GeometryInfo(
+        offset=object(),
+        spacing=(2.0, 2.0, 2.0),
+        direction=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+    )
+    adaptor.set_source(_SIRFImageWithGeometry(array, malformed))
+    adaptor.set_mu_map(_SIRFImageWithGeometry(array.copy(), malformed))
+    monkeypatch.setattr(sirf_mod, "get_array", lambda image: image.array)
+
+    with pytest.raises(ValueError, match="Unable to read SIRF geometry"):
+        adaptor._validate_inputs()
+
+
+@pytest.mark.parametrize(
+    "cls, patch, source_native, mu_native",
+    [
+        (
+            StirSimindAdaptor,
+            _patch_stir_backend,
+            lambda array: _STIRImageWithGeometry(
+                array, (0.0, 0.0, 0.0, 0.0), (0.0, 2.0, 2.0, 2.0)
+            ),
+            lambda array: _STIRImageWithGeometry(
+                array, (0.0, 1.0, 0.0, 0.0), (0.0, 2.0, 2.0, 2.0)
+            ),
+        ),
+        (
+            SirfSimindAdaptor,
+            _patch_sirf_backend,
+            lambda array: _SIRFImageWithGeometry(
+                array,
+                _GeometryInfo(
+                    (0.0, 0.0, 0.0),
+                    (2.0, 2.0, 2.0),
+                    ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+                ),
+            ),
+            lambda array: _SIRFImageWithGeometry(
+                array,
+                _GeometryInfo(
+                    (1.0, 0.0, 0.0),
+                    (2.0, 2.0, 2.0),
+                    ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+                ),
+            ),
+        ),
+    ],
+)
+def test_adaptor_unwraps_native_images_before_comparing_geometry(
+    cls,
+    patch,
+    source_native,
+    mu_native,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    source = _NativeImageWrapper(source_native(array), array)
+    mu_map = _NativeImageWrapper(mu_native(array), array)
+    adaptor.set_source(source)
+    adaptor.set_mu_map(mu_map)
+    module = stir_mod if cls is StirSimindAdaptor else sirf_mod
+    monkeypatch.setattr(module, "get_array", lambda image: image.array)
+
+    with pytest.raises(ValueError, match="same spatial geometry"):
+        adaptor._validate_inputs()
+
+
+@pytest.mark.parametrize(
+    "cls, patch, image_factory",
+    [
+        (
+            StirSimindAdaptor,
+            _patch_stir_backend,
+            lambda array: _STIRImageWithGeometry(
+                array, (0.0, 0.0, 0.0, 0.0), (0.0, 2.0, 2.0, 2.0)
+            ),
+        ),
+        (
+            SirfSimindAdaptor,
+            _patch_sirf_backend,
+            lambda array: _SIRFImageWithGeometry(
+                array,
+                _GeometryInfo(
+                    (0.0, 0.0, 0.0),
+                    (2.0, 2.0, 2.0),
+                    ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+                ),
+            ),
+        ),
+    ],
+)
+def test_adaptor_accepts_wrapped_images_with_matching_geometry(
+    cls, patch, image_factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    adaptor.set_source(_NativeImageWrapper(image_factory(array), array))
+    adaptor.set_mu_map(_NativeImageWrapper(image_factory(array.copy()), array.copy()))
+    module = stir_mod if cls is StirSimindAdaptor else sirf_mod
+    monkeypatch.setattr(module, "get_array", lambda image: image.array)
+
+    adaptor._validate_inputs()
+
+
+def test_stir_adaptor_compares_physical_start_using_minimum_indices(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_stir_backend(monkeypatch)
+    adaptor = _make_adaptor(StirSimindAdaptor, tmp_path)
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    origin = (0.0, 0.0, 0.0, 0.0)
+    spacing = (0.0, 2.0, 2.0, 2.0)
+    adaptor.set_source(_STIRImageWithGeometry(array, origin, spacing, (0, 0, 0)))
+    adaptor.set_mu_map(_STIRImageWithGeometry(array, origin, spacing, (1, 0, 0)))
+    monkeypatch.setattr(stir_mod, "get_array", lambda image: image.array)
+
+    with pytest.raises(ValueError, match="same spatial geometry"):
+        adaptor._validate_inputs()
+
+
+@pytest.mark.parametrize(
+    "cls, patch, module",
+    [
+        (StirSimindAdaptor, _patch_stir_backend, stir_mod),
+        (SirfSimindAdaptor, _patch_sirf_backend, sirf_mod),
+    ],
+)
+def test_adaptor_accepts_duck_images_with_spacing_but_no_origin(
+    cls, patch, module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    array = np.zeros((2, 3, 4), dtype=np.float32)
+    source = _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 2.0))
+    mu_map = _ImageWithGridSpacing(array.copy(), (0.0, 2.0, 2.0, 2.0))
+    adaptor.set_source(source)
+    adaptor.set_mu_map(mu_map)
+    monkeypatch.setattr(module, "get_array", lambda image: image.array)
+
+    adaptor._validate_inputs()
 
 
 def test_stir_adaptor_clears_cached_outputs_on_failed_rerun(

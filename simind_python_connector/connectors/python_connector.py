@@ -33,7 +33,10 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
 )
 from simind_python_connector.utils.interfile_numpy import load_interfile_array
-from simind_python_connector.utils.simind_utils import create_window_file
+from simind_python_connector.utils.simind_utils import (
+    create_window_file,
+    validate_energy_window_prefix,
+)
 
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
@@ -309,6 +312,7 @@ class SimindPythonConnector(BaseConnector):
         """Write a SIMIND window file for this connector run."""
         self._require_output_dir()
         self._require_valid_prefix(self.output_prefix)
+        validate_energy_window_prefix(self.output_prefix)
         window_path = self.output_dir / f"{self.output_prefix}.win"
         try:
             create_window_file(
@@ -342,6 +346,21 @@ class SimindPythonConnector(BaseConnector):
         (``{prefix}.smc``); ``write_paths`` carries the extra destinations an
         adaptor will write so they can be checked too.
         """
+        if self._window_file_path is not None:
+            try:
+                validate_energy_window_prefix(self.output_prefix)
+            except ValueError as exc:
+                raise ValueError(
+                    f"{exc}; call set_energy_windows() again after changing "
+                    "output_prefix"
+                ) from exc
+            expected_window_path = self.output_dir / f"{self.output_prefix}.win"
+            if self._window_file_path != expected_window_path:
+                raise ValueError(
+                    "output_prefix changed after set_energy_windows(); call "
+                    "set_energy_windows() again before running"
+                )
+
         effective_switches = RuntimeSwitches()
         for key, value in self.runtime_switches.switches.items():
             effective_switches.set_switch(key, value)

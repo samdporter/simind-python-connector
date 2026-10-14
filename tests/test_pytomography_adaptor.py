@@ -207,6 +207,66 @@ def test_pytomography_primary_output_requires_a_successful_run(tmp_path: Path):
 
 
 @pytest.mark.unit
+def test_pytomography_rejects_long_window_prefix_at_setter(
+    tmp_path: Path,
+):
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="a" * 15,
+    )
+    adaptor.set_energy_windows([126.0], [154.0], [0])
+    previous_windows = adaptor._energy_windows
+    adaptor.python_connector.output_prefix = "b" * 16
+
+    with pytest.raises(ValueError, match="15 characters"):
+        adaptor.set_energy_windows([75.0], [225.0], [0])
+
+    assert adaptor._energy_windows == previous_windows
+
+
+@pytest.mark.unit
+def test_pytomography_revalidates_window_prefix_before_voxel_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    prefix = "a" * 15
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix=prefix,
+    )
+    source = torch.zeros((4, 3, 2), dtype=torch.float32)
+    adaptor.set_source(source)
+    adaptor.set_mu_map(torch.zeros_like(source))
+    adaptor.set_energy_windows([126.0], [154.0], [0])
+    too_long = "b" * 16
+    adaptor.python_connector.output_prefix = too_long
+    paths = (
+        tmp_path / f"{too_long}_src.smi",
+        tmp_path / f"{too_long}_dns.dmi",
+        tmp_path / f"{too_long}.win",
+    )
+    for path in paths:
+        path.write_bytes(b"existing data")
+
+    configured: list[bool] = []
+    monkeypatch.setattr(
+        adaptor.python_connector, "_validate_runtime_operator", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector,
+        "configure_voxel_phantom",
+        lambda **kwargs: configured.append(True),
+    )
+
+    with pytest.raises(ValueError, match="15 characters"):
+        adaptor.run()
+
+    assert configured == []
+    assert all(path.read_bytes() == b"existing data" for path in paths)
+
+
+@pytest.mark.unit
 def test_pytomography_primary_output_unsupported_after_populated_run(tmp_path: Path):
     connector = PyTomographySimindAdaptor(
         config_source=get("AnyScan.yaml"),

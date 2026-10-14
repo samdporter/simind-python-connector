@@ -6,7 +6,10 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from simind_python_connector.connectors._spacing import extract_voxel_size_mm
+from simind_python_connector.connectors._spacing import (
+    extract_voxel_size_mm,
+    same_spatial_geometry,
+)
 from simind_python_connector.connectors.base import BaseConnector
 from simind_python_connector.connectors.python_connector import (
     ConfigSource,
@@ -203,6 +206,11 @@ class StirSimindAdaptor(BaseConnector):
             raise ValueError(
                 f"source and mu_map must have the same voxel size, got "
                 f"{source_voxel_mm} mm and {mu_voxel_mm} mm"
+            )
+        if not same_spatial_geometry(self._source, self._mu_map):
+            raise ValueError(
+                "source and mu_map must have the same spatial geometry "
+                "(origin, spacing, and axis directions)"
             )
 
 

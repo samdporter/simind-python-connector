@@ -46,6 +46,38 @@ def test_load_interfile_array_respects_data_offset(tmp_path: Path, offset_key: s
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "offset_key",
+    (
+        "!data offset in bytes",
+        "data offset in bytes",
+        "data_offset_in_bytes",
+    ),
+)
+def test_load_interfile_array_rejects_fractional_data_offset(
+    tmp_path: Path, offset_key: str
+):
+    data_path = tmp_path / "projection.a00"
+    header_path = tmp_path / "projection.hs"
+    data_path.write_bytes(bytes((10, 20, 30, 40)))
+
+    header_path.write_text(
+        "\n".join(
+            [
+                "!number format := unsigned integer",
+                "!number of bytes per pixel := 1",
+                f"{offset_key} := 1.9",
+                "!matrix size [1] := 3",
+                "!name of data file := projection.a00",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="Data offset must be an integer"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
 def test_load_interfile_array_strips_quoted_data_filename(tmp_path: Path):
     data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
     data_path = tmp_path / "projection.a00"

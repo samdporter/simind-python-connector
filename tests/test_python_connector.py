@@ -75,7 +75,9 @@ def test_python_connector_rejects_unsafe_output_prefixes(
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("good_prefix", ["case_01", "case01", "0_case", "a"])
+@pytest.mark.parametrize(
+    "good_prefix", ["case_01", "case01", "0_case", "a", "a" * 47]
+)
 def test_python_connector_accepts_safe_output_prefixes(
     tmp_path: Path, good_prefix: str
 ):
@@ -1019,6 +1021,54 @@ def test_python_connector_set_energy_windows_writes_window_file(tmp_path: Path):
 
     lines = [line.strip() for line in window_file.read_text().splitlines() if line]
     assert lines[0] == "126.0,154.0,0"
+
+
+@pytest.mark.unit
+def test_python_connector_window_prefix_limit_is_15_characters(
+    tmp_path: Path,
+):
+    max_prefix = "a" * 15
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix=max_prefix,
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+    assert (tmp_path / f"{max_prefix}.win").exists()
+
+    too_long = "b" * 16
+    connector.output_prefix = too_long
+    existing_window = tmp_path / f"{too_long}.win"
+    existing_window.write_bytes(b"existing window")
+
+    with pytest.raises(ValueError, match="15 characters"):
+        connector.set_energy_windows([126.0], [154.0], [0])
+
+    assert existing_window.read_bytes() == b"existing window"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("lower_bounds", "upper_bounds", "scatter_orders"),
+    [
+        ([True], [154.0], [0]),
+        ([126.0], [154.0], [True]),
+        ([126.0], [154.0], [float("inf")]),
+    ],
+)
+def test_python_connector_rejects_boolean_and_non_finite_energy_windows(
+    tmp_path: Path, lower_bounds, upper_bounds, scatter_orders
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    with pytest.raises(ValueError):
+        connector.set_energy_windows(lower_bounds, upper_bounds, scatter_orders)
+
+    assert not (tmp_path / "case01.win").exists()
 
 
 @pytest.mark.unit
