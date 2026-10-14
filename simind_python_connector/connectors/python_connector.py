@@ -324,7 +324,10 @@ class SimindPythonConnector(BaseConnector):
         self._window_file_path = window_path
 
     def _validate_runtime_operator(
-        self, runtime_operator: Optional[RuntimeOperator]
+        self,
+        runtime_operator: Optional[RuntimeOperator],
+        *,
+        write_paths: tuple[Path, ...] = (),
     ) -> RuntimeSwitches:
         """Validate an operator and the persistent switches without side effects.
 
@@ -334,11 +337,16 @@ class SimindPythonConnector(BaseConnector):
         an invalid run before phantom inputs are overwritten. The throwaway
         holder is returned for run() to pass to the executor; adaptor callers
         may ignore it.
+
+        A supplied orbit is always checked against the config destination
+        (``{prefix}.smc``); ``write_paths`` carries the extra destinations an
+        adaptor will write so they can be checked too.
         """
         effective_switches = RuntimeSwitches()
         for key, value in self.runtime_switches.switches.items():
             effective_switches.set_switch(key, value)
 
+        orbit_path: Optional[Path] = None
         if runtime_operator is not None:
             SimindExecutor.validate_timeout(runtime_operator.timeout)
             for key, value in runtime_operator.switches.items():
@@ -352,8 +360,40 @@ class SimindPythonConnector(BaseConnector):
                 if not orbit_path.is_file():
                     raise ValueError(f"orbit_file must be a regular file: {orbit_path}")
 
+        if orbit_path is not None:
+            self._reject_orbit_overwrites(
+                orbit_path,
+                (self.output_dir / f"{self.output_prefix}.smc", *write_paths),
+            )
+
         SimindExecutor._serialize_runtime_switches(effective_switches.switches)
         return effective_switches
+
+    @staticmethod
+    def _reject_orbit_overwrites(
+        orbit_path: Path, destinations: tuple[Path, ...]
+    ) -> None:
+        """Reject a run whose writes would truncate the caller's orbit.
+
+        Destinations are compared by dereferenced device/inode, so a direct
+        path, a symlink, a hardlink or a differently-cased alias of the orbit
+        is recognised. Neither the orbit nor the destination is modified.
+        """
+        try:
+            orbit_stat = os.stat(orbit_path)
+        except OSError:
+            return
+        for destination in destinations:
+            try:
+                destination_stat = os.stat(destination)
+            except OSError:
+                continue
+            if os.path.samestat(orbit_stat, destination_stat):
+                raise ValueError(
+                    f"orbit_file {orbit_path} is the same file as destination "
+                    f"{destination}, which this run would overwrite; use a "
+                    "different orbit or output location."
+                )
 
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None

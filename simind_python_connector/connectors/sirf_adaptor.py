@@ -86,7 +86,15 @@ class SirfSimindAdaptor(BaseConnector):
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.
         self._outputs = None
-        self.python_connector._validate_runtime_operator(runtime_operator)
+        prefix = self.python_connector.output_prefix
+        output_dir = self.python_connector.output_dir
+        self.python_connector._validate_runtime_operator(
+            runtime_operator,
+            write_paths=(
+                output_dir / f"{prefix}_src.smi",
+                output_dir / f"{prefix}_dns.dmi",
+            ),
+        )
         self._validate_inputs()
         assert self._source is not None
         assert self._mu_map is not None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -681,6 +682,105 @@ def test_adaptor_accepts_valid_runtime_operator(
     assert outputs == {}
 
 
+def _make_conflicting_orbit(destination: Path, kind: str, tmp_path: Path) -> Path:
+    """Seed ``destination`` as a direct/symlink/hardlink alias of an orbit."""
+    if kind == "direct":
+        destination.write_bytes(b"orbit-bytes")
+        return destination
+    external = tmp_path / "radii.cor"
+    external.write_bytes(b"orbit-bytes")
+    if kind == "symlink":
+        destination.symlink_to(external)
+    else:
+        os.link(external, destination)
+    return external
+
+
+def _assert_conflicting_orbit_preserved(
+    destination: Path, orbit: Path, kind: str
+) -> None:
+    if kind == "direct":
+        assert destination.read_bytes() == b"orbit-bytes"
+        assert not destination.is_symlink()
+    elif kind == "symlink":
+        assert destination.is_symlink()
+        assert orbit.read_bytes() == b"orbit-bytes"
+    else:
+        assert os.path.samefile(destination, orbit)
+        assert orbit.read_bytes() == b"orbit-bytes"
+
+
+@pytest.mark.parametrize("filename", ["case01_src.smi", "case01_dns.dmi"])
+@pytest.mark.parametrize("kind", ["direct", "symlink", "hardlink"])
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+def test_adaptor_rejects_orbit_conflicting_with_voxel_destination(
+    cls,
+    patch,
+    kind: str,
+    filename: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    destination = tmp_path / filename
+    orbit = _make_conflicting_orbit(destination, kind, tmp_path)
+
+    original_configure = adaptor.python_connector.configure_voxel_phantom
+    configure_calls: list[int] = []
+
+    def spy_configure(*args, **kwargs):
+        configure_calls.append(1)
+        return original_configure(*args, **kwargs)
+
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_voxel_phantom", spy_configure
+    )
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(runtime_operator=RuntimeOperator(orbit_file=orbit))
+
+    assert configure_calls == []
+    _assert_conflicting_orbit_preserved(destination, orbit, kind)
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+def test_adaptor_accepts_external_orbit_resembling_voxel_destination(
+    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    source_dir = tmp_path / "input"
+    source_dir.mkdir()
+    orbit = source_dir / "case01_src.smi"
+    orbit.write_bytes(b"external-orbit")
+    connector = adaptor.python_connector
+    monkeypatch.setattr(connector.executor, "run_simulation", lambda *a, **k: None)
+    monkeypatch.setattr(connector, "_ensure_interfile_headers", lambda: [])
+    monkeypatch.setattr(connector, "_load_projection_outputs", lambda h: {})
+
+    outputs = adaptor.run(runtime_operator=RuntimeOperator(orbit_file=orbit))
+
+    assert outputs == {}
+    assert orbit.read_bytes() == b"external-orbit"
+    assert (tmp_path / "case01_orbit.cor").read_bytes() == b"external-orbit"
+
+
 @pytest.mark.parametrize("kind", ["switch", "string", "orbit", "timeout"])
 def test_pytomography_adaptor_rejects_invalid_runtime_operator_before_writes(
     kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -716,3 +816,41 @@ def test_pytomography_adaptor_accepts_valid_runtime_operator(
     )
 
     assert outputs == {}
+
+
+@pytest.mark.parametrize("filename", ["case01_src.smi", "case01_dns.dmi", "case01.win"])
+@pytest.mark.parametrize("kind", ["direct", "symlink", "hardlink"])
+def test_pytomography_adaptor_rejects_orbit_conflicting_with_destination(
+    kind: str, filename: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adaptor = _make_pytomography_adaptor(tmp_path, monkeypatch)
+    destination = tmp_path / filename
+    orbit = _make_conflicting_orbit(destination, kind, tmp_path)
+
+    original_configure = adaptor.python_connector.configure_voxel_phantom
+    original_windows = adaptor.python_connector.set_energy_windows
+    configure_calls: list[int] = []
+    window_calls: list[int] = []
+
+    def spy_configure(*args, **kwargs):
+        configure_calls.append(1)
+        return original_configure(*args, **kwargs)
+
+    def spy_windows(*args, **kwargs):
+        window_calls.append(1)
+        return original_windows(*args, **kwargs)
+
+    monkeypatch.setattr(
+        adaptor.python_connector, "configure_voxel_phantom", spy_configure
+    )
+    monkeypatch.setattr(adaptor.python_connector, "set_energy_windows", spy_windows)
+    monkeypatch.setattr(
+        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+    )
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        adaptor.run(runtime_operator=RuntimeOperator(orbit_file=orbit))
+
+    assert configure_calls == []
+    assert window_calls == []
+    _assert_conflicting_orbit_preserved(destination, orbit, kind)

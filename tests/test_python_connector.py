@@ -1457,6 +1457,95 @@ def test_python_connector_cleanup_preserves_differently_cased_prefix_cor_orbit(
 
 
 @pytest.mark.unit
+def test_python_connector_rejects_orbit_at_config_destination(tmp_path: Path):
+    # The config save writes {prefix}.smc, so an orbit supplied at that path
+    # would be truncated before the run even starts.
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    orbit = tmp_path / "case01.smc"
+    orbit.write_bytes(b"caller-orbit")
+    _record_executor_run(connector)
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        connector.run(RuntimeOperator(orbit_file=orbit))
+
+    assert orbit.read_bytes() == b"caller-orbit"
+    assert not (tmp_path / "case01_orbit.cor").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_config_destination_symlink_to_orbit(tmp_path: Path):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    orbit = tmp_path / "radii.cor"
+    orbit.write_bytes(b"external-orbit")
+    destination = output_dir / "case01.smc"
+    destination.symlink_to(orbit)
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    _record_executor_run(connector)
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        connector.run(RuntimeOperator(orbit_file=orbit))
+
+    assert destination.is_symlink()
+    assert orbit.read_bytes() == b"external-orbit"
+    assert not (output_dir / "case01_orbit.cor").exists()
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_config_destination_hardlink_to_orbit(tmp_path: Path):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    orbit = tmp_path / "radii.cor"
+    orbit.write_bytes(b"external-orbit")
+    destination = output_dir / "case01.smc"
+    os.link(orbit, destination)
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=output_dir,
+        output_prefix="case01",
+    )
+    _record_executor_run(connector)
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        connector.run(RuntimeOperator(orbit_file=orbit))
+
+    assert os.path.samefile(destination, orbit)
+    assert orbit.read_bytes() == b"external-orbit"
+    assert not (output_dir / "case01_orbit.cor").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(
+    not CASE_INSENSITIVE_FS,
+    reason="needs a case-insensitive filesystem to alias differently-cased names",
+)
+def test_python_connector_rejects_differently_cased_config_destination(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    orbit = tmp_path / "case01.smc"
+    orbit.write_bytes(b"caller-orbit")
+    alias = tmp_path / "Case01.SMC"
+    _record_executor_run(connector)
+
+    with pytest.raises(ValueError, match="orbit_file"):
+        connector.run(RuntimeOperator(orbit_file=alias))
+
+    assert orbit.read_bytes() == b"caller-orbit"
+    assert not (tmp_path / "case01_orbit.cor").exists()
+
+
+@pytest.mark.unit
 def test_python_connector_forwards_timeout_for_one_run_only(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"),
