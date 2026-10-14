@@ -40,6 +40,22 @@ Units
   ``(z, y, x)``, and raw ``get_grid_spacing()`` sequences follow the STIR
   coordinate layout ``(unused, z, y, x)``.
 
+Source and attenuation images must describe the same physical grid. The native
+adaptors compare SIRF offsets, spacing and direction matrices, or STIR physical
+array origins (including minimum indices). This also applies to backend-wrapped
+images. Spacing must be finite and positive. The adaptors reject mismatches;
+they do not resample or register images. Array-only objects without geometry
+metadata still require callers to supply aligned arrays.
+
+Energy-window filenames
+-----------------------
+
+With custom energy windows, use an output prefix of at most 15 characters.
+SIMIND v8 truncates its derived window filename to 19 characters including
+``.win`` and can silently use its default energy window instead. The connector
+rejects longer prefixes before writing inputs. If a Python/native connector's
+prefix changes after setting windows, call ``set_energy_windows()`` again.
+
 Projection Size
 ---------------
 
@@ -84,3 +100,17 @@ If reconstruction geometry looks wrong:
 3. Confirm PyTomography object-space tensors are in ``(x, y, z)``.
 4. Confirm attenuation-map orientation matches the reconstruction backend.
 5. Compare hotspot center-of-mass between source and recon in a common axis convention.
+
+Asymmetric geometry examples
+----------------------------
+
+The three OSEM examples now share an asymmetric phantom with three unequal hot
+markers, an L-shaped central structure and an asymmetric body. Its builder is
+``simind_python_connector.utils.geometry_phantom.build_asymmetric_phantom``.
+
+The higher-statistics experiments, forward projections and comparison reports
+used to investigate backend geometry were local diagnostic artifacts under
+``tmp/geometry_sweep``. That directory is ignored by Git, so those scripts,
+outputs and machine-specific measurements are not part of the distributed
+package. The checked-in examples and shared phantom builder are the reproducible
+starting point for running the backends with the same asymmetric input.

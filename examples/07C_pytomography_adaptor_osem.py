@@ -24,23 +24,16 @@ from pytomography.transforms.SPECT import (
 
 from simind_python_connector import PyTomographySimindAdaptor, configs
 from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
+from simind_python_connector.utils.geometry_phantom import build_asymmetric_phantom
 
 
 def _build_small_tensors() -> tuple[torch.Tensor, torch.Tensor]:
-    dims = (32, 32, 32)  # x, y, z
-
-    x, y, z = np.indices(dims)
-    body = ((x - 16) ** 2 + (y - 16) ** 2 <= 10**2) & (np.abs(z - 16) <= 8)
-    hot = (x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 <= 4**2
-
-    source = np.zeros(dims, dtype=np.float32)
-    source[body] = 0.8
-    source[hot] = 2.0
-
-    mu_map = np.zeros_like(source)
-    mu_map[body] = 0.15
-
-    return torch.from_numpy(source), torch.from_numpy(mu_map)
+    source_zyx, mu_zyx, _ = build_asymmetric_phantom()
+    source_xyz = PyTomographySimindAdaptor.from_simind_image_axes(
+        torch.from_numpy(source_zyx)
+    )
+    mu_xyz = PyTomographySimindAdaptor.from_simind_image_axes(torch.from_numpy(mu_zyx))
+    return source_xyz, mu_xyz
 
 
 def _projection_plane(projection_array: np.ndarray, view_index: int = 0) -> np.ndarray:
