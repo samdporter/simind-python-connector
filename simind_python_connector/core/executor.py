@@ -94,15 +94,6 @@ class SimindExecutor:
     ) -> None:
         validated_timeout = self.validate_timeout(timeout)
 
-        mp_present = False
-        mp_value = None
-        if runtime_switches:
-            for key, value in runtime_switches.items():
-                if str(key).lower() == "mp":
-                    mp_present = True
-                    mp_value = value
-                    break
-
         # shell=False passes the executable to execve as argv[0], so spaces
         # in its path are safe; other tokens must stay whitespace-free.
         validated_simind = self._validate_cli_token(
@@ -112,26 +103,9 @@ class SimindExecutor:
         validated_orbit_name = (
             self._validate_cli_token(orbit_file.name) if orbit_file else None
         )
-        validated_mp_value = self._validate_mp_count(mp_value) if mp_present else None
-
-        validated_switch_blob = None
-        if runtime_switches:
-            switch_parts = []
-            for key, value in runtime_switches.items():
-                switch = str(key).upper()
-                try:
-                    _validate_switch_value(switch, value)
-                except ValueError as exc:
-                    raise SimulationError(str(exc)) from exc
-                if switch == "MP":
-                    switch_parts.append(f"/{key}")
-                elif switch == "NN" and not isinstance(value, numbers.Integral):
-                    # NN accepts integral floats; the engine wants an integer.
-                    switch_parts.append(f"/{key}:{int(value)}")
-                else:
-                    switch_parts.append(f"/{key}:{value}")
-            if switch_parts:
-                validated_switch_blob = self._validate_cli_token("".join(switch_parts))
+        validated_switch_blob, validated_mp_value = self._serialize_runtime_switches(
+            runtime_switches
+        )
 
         if validated_mp_value is not None:
             # /MP splits the projections over the MPI processes, which only
@@ -309,6 +283,53 @@ class SimindExecutor:
         except ValueError as exc:
             raise SimulationError(str(exc)) from exc
         return str(int(value))
+
+    @staticmethod
+    def _serialize_runtime_switches(
+        runtime_switches: Optional[Dict],
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Validate switches and serialize them into one positional CLI token.
+
+        Returns the switch blob and the MPI process count, both ``None`` when
+        absent. Only in-memory checks run here, so the connector can reuse this
+        as a side-effect-free preflight before staging or overwriting files.
+        """
+        if not runtime_switches:
+            return None, None
+
+        mp_present = False
+        mp_value = None
+        for key, value in runtime_switches.items():
+            if str(key).lower() == "mp":
+                mp_present = True
+                mp_value = value
+                break
+
+        validated_mp_value = (
+            SimindExecutor._validate_mp_count(mp_value) if mp_present else None
+        )
+
+        switch_parts = []
+        for key, value in runtime_switches.items():
+            switch = str(key).upper()
+            try:
+                _validate_switch_value(switch, value)
+            except ValueError as exc:
+                raise SimulationError(str(exc)) from exc
+            if switch == "MP":
+                switch_parts.append(f"/{key}")
+            elif switch == "NN" and not isinstance(value, numbers.Integral):
+                # NN accepts integral floats; the engine wants an integer.
+                switch_parts.append(f"/{key}:{int(value)}")
+            else:
+                switch_parts.append(f"/{key}:{value}")
+
+        validated_switch_blob = (
+            SimindExecutor._validate_cli_token("".join(switch_parts))
+            if switch_parts
+            else None
+        )
+        return validated_switch_blob, validated_mp_value
 
     def _resolve_executable(self) -> str:
         """Make path-bearing executables absolute before ``cwd`` applies.
