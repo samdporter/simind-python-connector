@@ -14,6 +14,7 @@ from typing import Any, Dict, Mapping, Optional, Union
 
 import numpy as np
 
+from simind_python_connector.connectors._spacing import normalize_voxel_size_mm
 from simind_python_connector.connectors.base import BaseConnector
 from simind_python_connector.connectors.python_connector import (
     ConfigSource,
@@ -49,6 +50,8 @@ class PyTomographySimindAdaptor(BaseConnector):
     """SIMIND adaptor that consumes and returns PyTomography-native tensors.
 
     Public tensor convention for this connector is object space ``(x, y, z)``.
+    ``voxel_size_mm`` may be a scalar or a spacing tuple in ``(z, y, x)`` order;
+    this physical-spacing order is independent of the public tensor order.
     Internal SIMIND input files are written in SIMIND image order ``(z, y, x)``.
     Conversion also reverses axial slices to match PyTomography's SIMIND reader.
     """
@@ -59,7 +62,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         output_dir: PathLike,
         output_prefix: str = "output",
         photon_multiplier: int = 1,
-        voxel_size_mm: float = 4.0,
+        voxel_size_mm: float | tuple[float, float, float] = 4.0,
         quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
         scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
     ) -> None:
@@ -83,9 +86,12 @@ class PyTomographySimindAdaptor(BaseConnector):
         )
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_prefix = output_prefix
-        self.voxel_size_mm = float(voxel_size_mm)
-        if self.voxel_size_mm <= 0:
-            raise ValueError("voxel_size_mm must be > 0")
+        normalized_spacing = normalize_voxel_size_mm(voxel_size_mm)
+        self.voxel_size_mm = (
+            float(normalized_spacing[0])
+            if np.asarray(voxel_size_mm).ndim == 0
+            else normalized_spacing
+        )
 
         self._scoring_routine = (
             ScoringRoutine(scoring_routine)

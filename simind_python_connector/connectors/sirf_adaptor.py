@@ -8,6 +8,7 @@ import numpy as np
 
 from simind_python_connector.connectors._spacing import (
     extract_voxel_size_mm,
+    extract_voxel_spacing_mm,
     same_spatial_geometry,
 )
 from simind_python_connector.connectors.base import BaseConnector
@@ -110,7 +111,7 @@ class SirfSimindAdaptor(BaseConnector):
 
         source_arr = np.asarray(get_array(self._source), dtype=np.float32)
         mu_arr = np.asarray(get_array(self._mu_map), dtype=np.float32)
-        voxel_size_mm = self._extract_voxel_size_mm(self._source)
+        voxel_size_mm = self._extract_voxel_spacing_mm(self._source)
 
         self.python_connector.configure_voxel_phantom(
             source=source_arr,
@@ -189,6 +190,10 @@ class SirfSimindAdaptor(BaseConnector):
     def _extract_voxel_size_mm(image: Any) -> float:
         return extract_voxel_size_mm(image=image, backend_name="SIRF")
 
+    @staticmethod
+    def _extract_voxel_spacing_mm(image: Any) -> tuple[float, float, float]:
+        return extract_voxel_spacing_mm(image=image, backend_name="SIRF")
+
     def _validate_inputs(self) -> None:
         if self._source is None or self._mu_map is None:
             raise ValueError("Both source and mu_map must be set before run().")
@@ -200,12 +205,12 @@ class SirfSimindAdaptor(BaseConnector):
                 f"source and mu_map must have matching shapes, got "
                 f"{source_shape} and {mu_shape}"
             )
-        source_voxel_mm = self._extract_voxel_size_mm(self._source)
-        mu_voxel_mm = self._extract_voxel_size_mm(self._mu_map)
-        if abs(source_voxel_mm - mu_voxel_mm) > 1e-3:
+        source_voxel_mm = self._extract_voxel_spacing_mm(self._source)
+        mu_voxel_mm = self._extract_voxel_spacing_mm(self._mu_map)
+        if not np.allclose(source_voxel_mm, mu_voxel_mm, rtol=0.0, atol=1e-3):
             raise ValueError(
                 f"source and mu_map must have the same voxel size, got "
-                f"{source_voxel_mm} mm and {mu_voxel_mm} mm"
+                f"(z, y, x) {source_voxel_mm} mm and {mu_voxel_mm} mm"
             )
         if not same_spatial_geometry(self._source, self._mu_map):
             raise ValueError(

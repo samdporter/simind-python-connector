@@ -33,10 +33,10 @@ Units
 
 - SIMIND geometry parameters are configured in **cm**.
 - STIR/SIRF image geometry is typically expressed in **mm**.
-- Connectors handle conversion internally via voxel-size settings (for example,
-  runtime switch ``PX`` is set in cm for SIMIND).
-- STIR/SIRF adaptors read the voxel spacing in mm and need cubic voxels; other
-  images raise a ``ValueError``. Images report ``voxel_sizes()`` as
+- Connectors handle conversion internally. ``PX`` and SIMIND's image dimensions
+  use the in-plane spacing in cm; ``TH`` carries distinct axial spacing when
+  needed.
+- STIR/SIRF adaptors read spacing in mm. Images report ``voxel_sizes()`` as
   ``(z, y, x)``, and raw ``get_grid_spacing()`` sequences follow the STIR
   coordinate layout ``(unused, z, y, x)``.
 
@@ -74,8 +74,14 @@ Voxel Phantom Slices
 Image slices do not have to be square. The columns (x, Index 78 and 79) and
 rows (y, Index 81 and 82) of the source and density maps are set separately,
 and a SIMIND test checks that non-square slices give the same projections as
-the same slices padded to square. The voxels themselves must be square in-plane:
-SIMIND takes a single voxel side (Index 31 and the ``PX`` switch).
+the same slices padded to square. Voxels must be square in-plane because SIMIND
+takes one side for x/y (Index 31 and the ``PX`` switch); axial spacing may
+differ. The connector accepts a scalar (backward compatible) or a finite,
+positive ``(z, y, x)`` spacing tuple, with y and x matching within 0.001 mm.
+For distinct axial spacing it sets ``TH`` to the z spacing in cm, while ``PX``
+and Index 31 retain the in-plane spacing. A later cubic configuration clears a
+previously set ``TH``. PyTomography tensors remain in ``(x, y, z)`` order, but
+the ``voxel_size_mm`` tuple still uses canonical ``(z, y, x)`` order.
 
 Example Configuration Guardrails
 --------------------------------

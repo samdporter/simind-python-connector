@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import math
 import numbers
 import os
 import shutil
@@ -16,6 +15,7 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 
+from simind_python_connector.connectors._spacing import normalize_voxel_size_mm
 from simind_python_connector.connectors.base import BaseConnector
 from simind_python_connector.converters.attenuation import attenuation_to_density
 from simind_python_connector.converters.simind_to_stir import SimindToStirConverter
@@ -174,7 +174,7 @@ class SimindPythonConnector(BaseConnector):
         self,
         source: np.ndarray,
         mu_map: np.ndarray,
-        voxel_size_mm: float = 4.0,
+        voxel_size_mm: float | tuple[float, float, float] = 4.0,
         scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
     ) -> tuple[Path, Path]:
         """
@@ -199,9 +199,9 @@ class SimindPythonConnector(BaseConnector):
         if source_array.shape != mu_map_array.shape:
             raise ValueError("source and mu_map must have identical shapes")
 
-        vox_cm = float(voxel_size_mm) / SIMIND_VOXEL_UNIT_CONVERSION
-        if not math.isfinite(vox_cm) or vox_cm <= 0:
-            raise ValueError("voxel_size_mm must be > 0")
+        slice_mm, _, x_mm = normalize_voxel_size_mm(voxel_size_mm)
+        slice_cm = slice_mm / SIMIND_VOXEL_UNIT_CONVERSION
+        pixel_cm = x_mm / SIMIND_VOXEL_UNIT_CONVERSION
         if source_array.size == 0 or mu_map_array.size == 0:
             raise ValueError("source and mu_map must not be empty")
         if not np.isfinite(source_array).all() or not np.isfinite(mu_map_array).all():
@@ -260,15 +260,15 @@ class SimindPythonConnector(BaseConnector):
             cfg.set_value(84, routine.value)
 
         # Source geometry
-        cfg.set_value(2, dim_z * vox_cm / 2.0)
-        cfg.set_value(3, dim_x * vox_cm / 2.0)
-        cfg.set_value(4, dim_y * vox_cm / 2.0)
+        cfg.set_value(2, dim_z * slice_cm / 2.0)
+        cfg.set_value(3, dim_x * pixel_cm / 2.0)
+        cfg.set_value(4, dim_y * pixel_cm / 2.0)
 
         # Density geometry
-        cfg.set_value(5, dim_z * vox_cm / 2.0)
-        cfg.set_value(6, dim_x * vox_cm / 2.0)
-        cfg.set_value(7, dim_y * vox_cm / 2.0)
-        cfg.set_value(31, vox_cm)
+        cfg.set_value(5, dim_z * slice_cm / 2.0)
+        cfg.set_value(6, dim_x * pixel_cm / 2.0)
+        cfg.set_value(7, dim_y * pixel_cm / 2.0)
+        cfg.set_value(31, pixel_cm)
         cfg.set_value(33, 1)
         cfg.set_value(34, dim_z)
         cfg.set_value(78, dim_x)  # density map i
@@ -276,9 +276,12 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_value(81, dim_y)  # density map j
         cfg.set_value(82, dim_y)  # source map j
 
-        self.runtime_switches.set_switch("PX", vox_cm)
-        voxel_mm = float(voxel_size_mm)
-        self._phantom_extent_mm = (max(dim_x, dim_y) * voxel_mm, dim_z * voxel_mm)
+        self.runtime_switches.set_switch("PX", pixel_cm)
+        if abs(slice_mm - x_mm) <= 1e-3:
+            self.runtime_switches.switches.pop("TH", None)
+        else:
+            self.runtime_switches.set_switch("TH", slice_cm)
+        self._phantom_extent_mm = (max(dim_x, dim_y) * x_mm, dim_z * slice_mm)
 
         src_prefix = f"{self.output_prefix}_src"
         source_path = self.output_dir / f"{src_prefix}.smi"
