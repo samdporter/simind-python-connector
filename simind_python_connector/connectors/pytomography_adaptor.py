@@ -126,7 +126,16 @@ class PyTomographySimindAdaptor(BaseConnector):
         self._outputs = None
         self._output_metadata = None
         self._output_header_paths = None
-        self.python_connector._validate_runtime_operator(runtime_operator)
+        prefix = self.python_connector.output_prefix
+        output_dir = self.python_connector.output_dir
+        self.python_connector._validate_runtime_operator(
+            runtime_operator,
+            write_paths=(
+                output_dir / f"{prefix}_src.smi",
+                output_dir / f"{prefix}_dns.dmi",
+                output_dir / f"{prefix}.win",
+            ),
+        )
         self._validate_inputs()
         assert self._source is not None  # for type checkers
         assert self._mu_map is not None
