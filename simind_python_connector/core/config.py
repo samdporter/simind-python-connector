@@ -784,6 +784,43 @@ class SimulationConfig:
                 "value for Index 84"
             )
 
+    def _prescan_boolean_scoring_values(self, yaml_dict):
+        """Reject boolean Index 84 values before any section mutates state.
+
+        The sections are applied in order, so checking only where each value
+        would be written would leave earlier parameters/data_files updates
+        behind when a later section is rejected.
+        """
+        parameters = yaml_dict.get("parameters")
+        if isinstance(parameters, dict):
+            for group_name, group_params in parameters.items():
+                if not isinstance(group_params, dict):
+                    continue
+                for param_name, param_data in group_params.items():
+                    if not isinstance(param_data, dict):
+                        continue
+                    if "index" not in param_data or "value" not in param_data:
+                        continue
+                    label = f"parameters.{group_name}.{param_name}"
+                    try:
+                        index = self._normalise_index(param_data["index"], label)
+                    except ValueError:
+                        # The main pass reports the bad index itself.
+                        continue
+                    self._reject_boolean_scoring_value(
+                        index, param_data["value"], label
+                    )
+
+        other_parameters = yaml_dict.get("other_parameters")
+        if isinstance(other_parameters, dict):
+            for key, value in other_parameters.items():
+                try:
+                    index = self._normalise_index(key, "other_parameters")
+                except ValueError:
+                    # The main pass reports the bad index itself.
+                    continue
+                self._reject_boolean_scoring_value(index, value, "other_parameters")
+
     def import_yaml(self, filepath):
         """
         Import configuration from a YAML file.
@@ -797,6 +834,8 @@ class SimulationConfig:
         if yaml_dict is None:
             raise ValueError("YAML root must be a mapping, got an empty document")
         self._require_mapping(yaml_dict, "YAML root")
+
+        self._prescan_boolean_scoring_values(yaml_dict)
 
         # Update comment
         if "metadata" in yaml_dict:
@@ -818,9 +857,6 @@ class SimulationConfig:
                         continue
                     idx = self._normalise_index(param_data["index"], entry_label)
                     self._register_index(seen_indices, idx, "parameters")
-                    self._reject_boolean_scoring_value(
-                        idx, param_data["value"], entry_label
-                    )
                     if idx in self.index_dict and idx <= len(self.data):
                         self.data[idx - 1] = float(param_data["value"])
 
@@ -872,7 +908,6 @@ class SimulationConfig:
             for idx, value in self._normalise_index_mapping(
                 other_parameters, "other_parameters"
             ).items():
-                self._reject_boolean_scoring_value(idx, value, "other_parameters")
                 if idx > len(self.data):
                     self.data.extend([0.0] * (idx - len(self.data)))
                 self.data[idx - 1] = float(value)
