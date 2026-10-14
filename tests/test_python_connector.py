@@ -1391,3 +1391,59 @@ def test_python_connector_rejects_over_long_prefix_at_construction(tmp_path: Pat
             output_dir=tmp_path,
             output_prefix="a" * 48,
         )
+
+
+@pytest.mark.unit
+def test_python_connector_configures_axial_spacing_and_keeps_projection_grid(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((10, 6, 6), dtype=np.float32)
+    config = connector.get_config()
+    projection_grid = [config.get_value(index) for index in (28, 76, 77)]
+
+    connector.configure_voxel_phantom(
+        source, np.zeros_like(source), voxel_size_mm=(8.0, 4.0, 4.0)
+    )
+
+    assert config.get_value(2) == pytest.approx(10 * 0.8 / 2)
+    assert config.get_value(3) == pytest.approx(6 * 0.4 / 2)
+    assert config.get_value(4) == pytest.approx(6 * 0.4 / 2)
+    assert config.get_value(5) == pytest.approx(10 * 0.8 / 2)
+    assert config.get_value(6) == pytest.approx(6 * 0.4 / 2)
+    assert config.get_value(7) == pytest.approx(6 * 0.4 / 2)
+    assert config.get_value(31) == pytest.approx(0.4)
+    assert connector.runtime_switches.switches["PX"] == pytest.approx(0.4)
+    assert connector.runtime_switches.switches["TH"] == pytest.approx(0.8)
+    assert [config.get_value(index) for index in (28, 76, 77)] == projection_grid
+    assert connector._phantom_extent_mm == pytest.approx((24.0, 80.0))
+
+
+@pytest.mark.unit
+def test_python_connector_clears_axial_thickness_for_cubic_voxels(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((4, 4, 4), dtype=np.float32)
+    connector.configure_voxel_phantom(
+        source, np.zeros_like(source), voxel_size_mm=(8.0, 4.0, 4.0)
+    )
+
+    connector.configure_voxel_phantom(source, np.zeros_like(source), voxel_size_mm=4.0)
+
+    assert "TH" not in connector.runtime_switches.switches
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_non_square_in_plane_voxels(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    source = np.ones((4, 4, 4), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="square in-plane"):
+        connector.configure_voxel_phantom(
+            source, np.zeros_like(source), voxel_size_mm=(8.0, 4.0, 4.1)
+        )

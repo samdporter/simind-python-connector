@@ -169,7 +169,6 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
     assert captured["windows"] == ([75.0, 120.0], [85.0, 140.0], [0, 1])
     assert captured["runtime_operator"] is runtime_operator
-
     assert torch.equal(connector.get_total_output(window=1), outputs["tot_w1"])
     assert torch.equal(connector.get_scatter_output(window=1), outputs["sca_w1"])
     assert "pri_w1" not in outputs
@@ -178,6 +177,48 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
     assert connector.get_outputs() is outputs
     assert set(connector.get_outputs()) == {"tot_w1", "sca_w1", "air_w1"}
     assert torch.equal(connector.get_air_output(window=1), outputs["air_w1"])
+
+
+@pytest.mark.unit
+def test_pytomography_adaptor_forwards_zyx_voxel_spacing_for_xyz_tensors(
+    tmp_path: Path, monkeypatch
+):
+    connector = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        voxel_size_mm=(8.0, 4.0, 4.0),
+    )
+    tensor = torch.ones((4, 4, 2), dtype=torch.float32)
+    connector.set_source(tensor)
+    connector.set_mu_map(torch.zeros_like(tensor))
+    connector.set_energy_windows([126], [154], [0])
+    captured = {}
+    monkeypatch.setattr(
+        connector.python_connector,
+        "configure_voxel_phantom",
+        lambda **kwargs: captured.update(kwargs),
+    )
+    monkeypatch.setattr(
+        connector.python_connector, "run", lambda runtime_operator=None: {}
+    )
+    monkeypatch.setattr(
+        connector.python_connector, "set_energy_windows", lambda *args: None
+    )
+
+    connector.run()
+
+    assert captured["voxel_size_mm"] == (8.0, 4.0, 4.0)
+
+
+@pytest.mark.unit
+def test_pytomography_adaptor_rejects_nonsquare_inplane_spacing(tmp_path: Path):
+    with pytest.raises(ValueError, match="square in-plane"):
+        PyTomographySimindAdaptor(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            voxel_size_mm=(8.0, 4.0, 4.1),
+        )
 
 
 @pytest.mark.unit

@@ -7,6 +7,31 @@ from typing import Any, Optional
 import numpy as np
 
 
+def normalize_voxel_size_mm(voxel_size_mm: Any) -> tuple[float, float, float]:
+    """Return positive voxel spacing in canonical ``(z, y, x)`` order."""
+    try:
+        values = np.asarray(voxel_size_mm, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "voxel_size_mm must be a scalar or a (z, y, x) sequence"
+        ) from exc
+    if values.ndim == 0:
+        z = y = x = float(values)
+    elif values.ndim == 1 and values.size == 3:
+        z, y, x = (float(value) for value in values)
+    else:
+        raise ValueError("voxel_size_mm must be a scalar or a (z, y, x) sequence")
+    if not np.isfinite((z, y, x)).all() or min(z, y, x) <= 0:
+        raise ValueError(
+            "voxel_size_mm must be > 0 and all spacing values must be finite"
+        )
+    if abs(y - x) > 1e-3:
+        raise ValueError(
+            f"SIMIND requires square in-plane voxels; got y={y} mm and x={x} mm"
+        )
+    return z, y, x
+
+
 def _call_or_value(value: Any) -> Any:
     return value() if callable(value) else value
 
@@ -47,11 +72,13 @@ def _spacing_zyx(spacing: Any) -> Optional[tuple[float, float, float]]:
     return None
 
 
-def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
-    """Return the voxel size in mm from backend image metadata.
+def extract_voxel_spacing_mm(
+    image: Any, backend_name: str
+) -> tuple[float, float, float]:
+    """Return voxel spacing in mm from backend image metadata, in (z, y, x).
 
-    Backend images report spacing in ``(z, y, x)`` order. The connector takes a
-    single voxel size, so the voxels must be cubic.
+    SIMIND supports axial spacing distinct from the in-plane image spacing;
+    the in-plane dimensions must remain square.
     """
     zyx = None
     if hasattr(image, "voxel_sizes"):
@@ -74,17 +101,24 @@ def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
             f"{backend_name} source object must expose voxel_sizes() or "
             "get_grid_spacing()."
         )
-    if not np.isfinite(zyx).all() or any(size <= 0 for size in zyx):
+    try:
+        return normalize_voxel_size_mm(zyx)
+    except ValueError as exc:
         raise ValueError(
-            f"{backend_name} voxel sizes must be finite and positive; "
-            f"got (z, y, x) = {tuple(zyx)} mm"
-        )
-    if max(zyx) - min(zyx) > 1e-3:
+            f"{backend_name} voxel spacing is invalid (z, y, x) = {tuple(zyx)} mm: "
+            f"{exc}"
+        ) from exc
+
+
+def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
+    """Return a scalar for legacy callers when backend voxels are cubic."""
+    z, y, x = extract_voxel_spacing_mm(image, backend_name)
+    if max(z, y, x) - min(z, y, x) > 1e-3:
         raise ValueError(
             f"{backend_name} images must have cubic voxels; got (z, y, x) = "
-            f"{tuple(zyx)} mm"
+            f"{(z, y, x)} mm"
         )
-    return float(zyx[0])
+    return z
 
 
 def _numeric_array(value: Any) -> Optional[np.ndarray]:
@@ -157,4 +191,9 @@ def same_spatial_geometry(source: Any, mu_map: Any) -> bool:
     )
 
 
-__all__ = ["extract_voxel_size_mm", "same_spatial_geometry"]
+__all__ = [
+    "extract_voxel_size_mm",
+    "extract_voxel_spacing_mm",
+    "normalize_voxel_size_mm",
+    "same_spatial_geometry",
+]

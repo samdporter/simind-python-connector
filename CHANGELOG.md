@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.2] - Unreleased
 
 ### Added
+- Voxel phantoms accept separate axial and in-plane spacing via
+  `voxel_size_mm=(z, y, x)` in mm. SIRF/STIR adaptors read all three spacings
+  from their images; PyTomography accepts the same tuple order. In-plane
+  spacing must remain square (`y == x`), and scalar spacing remains supported.
 - `RuntimeOperator(timeout=...)` takes a limit in seconds; a run that exceeds it
   stops and raises `SimulationError`. The default remains unlimited.
 
