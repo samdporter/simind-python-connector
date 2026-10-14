@@ -66,6 +66,12 @@ class PyTomographySimindAdaptor(BaseConnector):
                 "(and typically pytomography in your environment)."
             )
 
+        # bool satisfies isinstance(..., int) and would silently become a code.
+        if isinstance(scoring_routine, bool):
+            raise ValueError(
+                f"scoring_routine must not be a boolean, got {scoring_routine!r}"
+            )
+
         self.python_connector = SimindPythonConnector(
             config_source=config_source,
             output_dir=output_dir,

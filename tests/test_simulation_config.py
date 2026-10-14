@@ -948,6 +948,63 @@ def test_yaml_canonical_data_file_entries_are_preserved(tmp_path):
     assert config.data_files[2] == "none"
 
 
+@pytest.mark.parametrize("flag", ["true", "false"])
+@pytest.mark.parametrize("key", ["84", "'84'", '"84"'])
+def test_yaml_boolean_other_parameter_scoring_value_is_rejected(tmp_path, key, flag):
+    path = _write_yaml(tmp_path, f"other_parameters:\n  {key}: {flag}\n")
+    original = path.read_text()
+
+    with pytest.raises(ValueError, match="Index 84"):
+        SimulationConfig(path)
+
+    assert path.read_text() == original
+
+
+@pytest.mark.parametrize("flag", ["true", "false"])
+@pytest.mark.parametrize("index_field", ["84", "'84'", '"84"'])
+def test_yaml_boolean_parameter_scoring_value_is_rejected(tmp_path, index_field, flag):
+    text = (
+        "parameters:\n"
+        "  simulation_control:\n"
+        "    scoring_routine:\n"
+        f"      index: {index_field}\n"
+        f"      value: {flag}\n"
+    )
+    path = _write_yaml(tmp_path, text)
+    original = path.read_text()
+
+    with pytest.raises(ValueError, match="Index 84"):
+        SimulationConfig(path)
+
+    assert path.read_text() == original
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("other_parameters:\n  '84': 4\n", 4.0),
+        (
+            "parameters:\n"
+            "  simulation_control:\n"
+            "    scoring_routine:\n"
+            "      index: '84'\n"
+            "      value: 1\n",
+            1.0,
+        ),
+    ],
+)
+def test_yaml_integral_scoring_routine_is_accepted(tmp_path, text, expected):
+    config = SimulationConfig(_write_yaml(tmp_path, text))
+
+    assert config.get_value("scoring_routine") == pytest.approx(expected)
+
+
+def test_yaml_boolean_value_for_unrelated_index_is_still_accepted(tmp_path):
+    config = SimulationConfig(_write_yaml(tmp_path, "other_parameters:\n  38: true\n"))
+
+    assert config.get_value(38) == pytest.approx(1.0)
+
+
 def test_bundled_configs_load_validate_and_save(tmp_path):
     """The bundled and documented configs still round-trip at fixed width."""
     names = list_configs()
