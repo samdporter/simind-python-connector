@@ -15,6 +15,7 @@ from simind_python_connector.connectors.pytomography_adaptor import (
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
     ScoringRoutine,
+    SimulationError,
 )
 
 
@@ -468,6 +469,72 @@ def test_pytomography_adaptor_rejects_invalid_runtime_operator_before_writes(
     assert launched == []
     for path, original in seeded.items():
         assert path.read_bytes() == original
+
+
+def _seed_full_preflight_state(
+    tmp_path: Path, prefix: str = "case01"
+) -> dict[Path, bytes]:
+    """Seed every file the connector could overwrite or clear before launch."""
+    paths = [
+        tmp_path / f"{prefix}_src.smi",
+        tmp_path / f"{prefix}_dns.dmi",
+        tmp_path / f"{prefix}.win",
+        tmp_path / f"{prefix}.smc",
+        tmp_path / f"{prefix}_tot_w1.hs",
+        tmp_path / f"{prefix}_orbit.cor",
+        tmp_path / f"{prefix}_acquisition.cor",
+    ]
+    for path in paths:
+        path.write_bytes(f"prior:{path.name}".encode())
+    return {path: path.read_bytes() for path in paths}
+
+
+@pytest.mark.parametrize("value", ["bad name", "bad\tname", "bad\nname", "bad\x00name"])
+def test_pytomography_adaptor_rejects_illegal_switch_before_any_write(
+    value: str, tmp_path: Path, monkeypatch
+) -> None:
+    adaptor = _make_preflight_adaptor(tmp_path)
+    seeded = _seed_full_preflight_state(tmp_path)
+    launched: list[object] = []
+
+    def run_then_fail(*args, **kwargs):
+        launched.append(True)
+        raise SimulationError("executor must not be reached")
+
+    monkeypatch.setattr(
+        adaptor.python_connector.executor, "run_simulation", run_then_fail
+    )
+
+    with pytest.raises(SimulationError):
+        adaptor.run(runtime_operator=RuntimeOperator(switches={"FI": value}))
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original, path
+
+
+def test_pytomography_adaptor_rejects_invalid_persistent_switch_before_any_write(
+    tmp_path: Path, monkeypatch
+) -> None:
+    adaptor = _make_preflight_adaptor(tmp_path)
+    adaptor.add_runtime_switch("FI", "bad name")
+    seeded = _seed_full_preflight_state(tmp_path)
+    launched: list[object] = []
+
+    def run_then_fail(*args, **kwargs):
+        launched.append(True)
+        raise SimulationError("executor must not be reached")
+
+    monkeypatch.setattr(
+        adaptor.python_connector.executor, "run_simulation", run_then_fail
+    )
+
+    with pytest.raises(SimulationError):
+        adaptor.run()
+
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original, path
 
 
 def test_pytomography_adaptor_accepts_valid_runtime_operator(

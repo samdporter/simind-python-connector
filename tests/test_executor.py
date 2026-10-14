@@ -1114,3 +1114,36 @@ def test_executor_direct_ca_switch_retains_semantics(
     SimindExecutor().run_simulation("case01", runtime_switches={"CA": 1})
 
     assert calls[0][0][-1] == "/CA:1"
+
+
+def test_executor_serialize_switches_preserves_bare_none_and_mp() -> None:
+    token = SimindExecutor._serialize_switches(
+        {"IF": "case01.inp", "HO": True, "RR": None, "NN": 3},
+        split_projections=True,
+    )
+
+    assert token == "/IF:case01.inp/HO/NN:3/MP"
+
+
+def test_executor_serialize_switches_empty_returns_empty_token() -> None:
+    assert SimindExecutor._serialize_switches(None) == ""
+    assert SimindExecutor._serialize_switches({}) == ""
+
+
+@pytest.mark.parametrize("switch", ["FI", "CC"])
+@pytest.mark.parametrize(
+    "value",
+    ["bad name", "bad\tname", "bad\nname", "bad\rname", "bad\x00name"],
+)
+def test_executor_serialize_switches_rejects_whitespace_and_nul(
+    switch: str, value: str
+) -> None:
+    with pytest.raises(SimulationError):
+        SimindExecutor._serialize_switches({switch: value})
+
+
+def test_executor_serialize_switches_rejects_invalid_value() -> None:
+    # The helper folds the public switch contract into SimulationError, the
+    # same way run_simulation did inline.
+    with pytest.raises(SimulationError, match="NN"):
+        SimindExecutor._serialize_switches({"NN": 0})
