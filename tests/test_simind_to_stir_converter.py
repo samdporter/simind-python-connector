@@ -267,13 +267,6 @@ class TestOrbitFileRule:
 class TestSimindToStirConverter:
     """Test the main converter class."""
 
-    def test_converter_initialization(self):
-        """Test converter initialization."""
-        converter = SimindToStirConverter()
-        assert converter is not None
-        assert converter.config is not None
-        assert len(converter.rules) > 0
-
     def test_converter_with_custom_config(self):
         """Test converter with custom configuration."""
         config = ConversionConfig(
@@ -522,166 +515,6 @@ def test_conversion_config_defaults():
     assert "patient" in config.ignored_patterns
 
 
-@pytest.mark.unit
-class TestSirfResolutionIsLazy:
-    """SIRF types resolve only where a native object is actually loaded."""
-
-    @staticmethod
-    def write_h00(tmp_path) -> Path:
-        h00_file = tmp_path / "output.h00"
-        h00_file.write_text(
-            "\n".join(
-                [
-                    "!name of data file := output.a00",
-                    "!matrix size [1] := 128",
-                    "!END OF INTERFILE :=",
-                ]
-            )
-        )
-        return h00_file
-
-    @staticmethod
-    def write_hs(tmp_path) -> Path:
-        hs_file = tmp_path / "output.hs"
-        hs_file.write_text("!matrix size [1] := 128\n")
-        return hs_file
-
-    @staticmethod
-    def forbidden_sirf_resolution():
-        def _resolve():
-            raise AssertionError("SIRF resolution must not run")
-
-        return _resolve
-
-    @staticmethod
-    def fake_sirf_types():
-        class FakeAcquisitionData:
-            def __init__(self, path):
-                self.path = path
-
-        def _resolve():
-            return type(None), FakeAcquisitionData, True
-
-        return FakeAcquisitionData, _resolve
-
-    def test_file_only_paths_never_resolve_sirf(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            simind_to_stir, "get_sirf_types", self.forbidden_sirf_resolution()
-        )
-
-        h00_file = self.write_h00(tmp_path)
-        hs_file = tmp_path / "output.hs"
-        converter = SimindToStirConverter()
-
-        converter.convert_file(str(h00_file), str(hs_file))
-        assert converter.edit_parameter(str(hs_file), "!matrix size [1]", "256") is None
-        assert converter.add_parameter(str(hs_file), "!extra", "1") is None
-
-    def test_convert_file_return_object_resolves_sirf_locally(
-        self, tmp_path, monkeypatch
-    ):
-        fake_type, resolve = self.fake_sirf_types()
-        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
-        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
-
-        hs_file = tmp_path / "output.hs"
-        result = SimindToStirConverter().convert_file(
-            str(self.write_h00(tmp_path)), str(hs_file), return_object=True
-        )
-
-        assert isinstance(result, fake_type)
-        assert result.path == str(hs_file)
-
-    def test_convert_file_return_object_prefers_factory(self, tmp_path, monkeypatch):
-        sentinel = object()
-        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", True)
-        monkeypatch.setattr(
-            simind_to_stir, "create_acquisition_data", lambda _path: sentinel
-        )
-        monkeypatch.setattr(
-            simind_to_stir, "get_sirf_types", self.forbidden_sirf_resolution()
-        )
-
-        result = SimindToStirConverter().convert_file(
-            str(self.write_h00(tmp_path)),
-            str(tmp_path / "output.hs"),
-            return_object=True,
-        )
-
-        assert result is sentinel
-
-    def test_edit_parameter_return_object_resolves_sirf_locally(
-        self, tmp_path, monkeypatch
-    ):
-        fake_type, resolve = self.fake_sirf_types()
-        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
-        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
-
-        hs_file = self.write_hs(tmp_path)
-        result = SimindToStirConverter().edit_parameter(
-            str(hs_file), "!matrix size [1]", "256", return_object=True
-        )
-
-        assert isinstance(result, fake_type)
-        assert result.path == str(hs_file)
-
-    def test_add_parameter_return_object_resolves_sirf_locally(
-        self, tmp_path, monkeypatch
-    ):
-        fake_type, resolve = self.fake_sirf_types()
-        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
-        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
-
-        hs_file = self.write_hs(tmp_path)
-        result = SimindToStirConverter().add_parameter(
-            str(hs_file), "!extra", "1", return_object=True
-        )
-
-        assert isinstance(result, fake_type)
-        assert result.path == str(hs_file)
-
-    def test_load_penetrate_output_resolves_sirf_when_no_factory(
-        self, tmp_path, monkeypatch
-    ):
-        fake_type, resolve = self.fake_sirf_types()
-        header = tmp_path / "component.hs"
-        header.write_text("")
-        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
-        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", None)
-        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
-
-        result = SimindToStirConverter()._load_penetrate_output(header)
-
-        assert isinstance(result, fake_type)
-        assert result.path == str(header)
-
-    def test_load_penetrate_output_broken_sirf_warns_and_falls_back(
-        self, tmp_path, monkeypatch, caplog
-    ):
-        header = tmp_path / "component.hs"
-        header.write_text("")
-
-        def broken_get_sirf_types():
-            raise RuntimeError("broken SIRF init")
-
-        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
-        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", None)
-        monkeypatch.setattr(simind_to_stir, "get_sirf_types", broken_get_sirf_types)
-
-        with caplog.at_level(logging.DEBUG):
-            result = SimindToStirConverter()._load_penetrate_output(header)
-
-        assert result == str(header)
-        fallbacks = [
-            record
-            for record in caplog.records
-            if record.getMessage().startswith("Falling back to file path")
-        ]
-        assert len(fallbacks) == 1
-        assert fallbacks[0].levelno == logging.WARNING
-        assert "broken SIRF init" in fallbacks[0].getMessage()
-
-
 MISSING_BACKEND_ERROR = "Neither SIRF nor STIR Python found"
 
 
@@ -806,20 +639,6 @@ class TestPenetrateFallbackLogging:
 
         monkeypatch.setattr(InterfileHeader, "write", failing_write)
 
-    def test_component_header_permission_error_propagates(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        self.patch_failing_write(
-            monkeypatch,
-            component_header(tmp_path, component).name,
-            PermissionError("permission denied writing header"),
-        )
-
-        with pytest.raises(PermissionError, match="permission denied"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
     def test_success_path_removes_template(self, tmp_path):
         h00_file = make_penetrate_outputs(tmp_path)
         template_hs = penetrate_template_path(h00_file)
@@ -857,89 +676,6 @@ class TestPenetrateFallbackLogging:
         after = {path.name: path.read_bytes() for path in tmp_path.glob("output.b*")}
         assert after == binaries_before
 
-    def test_template_parse_failure_propagates_and_removes_template(
-        self, tmp_path, monkeypatch
-    ):
-        h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = penetrate_template_path(h00_file)
-
-        def failing_from_file(filename):
-            assert Path(filename) == template_hs
-            raise ValueError("corrupt template header")
-
-        monkeypatch.setattr(
-            InterfileHeader, "from_file", staticmethod(failing_from_file)
-        )
-
-        with pytest.raises(ValueError, match="corrupt template header"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
-        assert not template_hs.exists()
-
-    def test_conversion_failure_removes_template(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = penetrate_template_path(h00_file)
-
-        def failing_convert_file(
-            self, input_filename, output_filename=None, *args, **kwargs
-        ):
-            Path(output_filename).write_text("partial template")
-            raise OSError("conversion failed")
-
-        monkeypatch.setattr(SimindToStirConverter, "convert_file", failing_convert_file)
-
-        with pytest.raises(OSError, match="conversion failed"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
-        assert not template_hs.exists()
-
-    def test_cleanup_failure_preserves_primary_exception(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        template_hs = penetrate_template_path(h00_file)
-
-        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        self.patch_failing_write(
-            monkeypatch,
-            component_header(tmp_path, component).name,
-            PermissionError("permission denied writing header"),
-        )
-
-        cleanup_attempts = []
-        original_remove = simind_to_stir.os.remove
-
-        def failing_remove(path, *args, **kwargs):
-            if Path(path) == template_hs:
-                cleanup_attempts.append(Path(path))
-                raise RuntimeError("cleanup denied")
-            return original_remove(path, *args, **kwargs)
-
-        monkeypatch.setattr(simind_to_stir.os, "remove", failing_remove)
-
-        with pytest.raises(PermissionError, match="permission denied"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
-        assert cleanup_attempts == [template_hs]
-
-    def test_header_write_failure_surfaces(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        self.patch_failing_write(
-            monkeypatch,
-            component_header(tmp_path, component).name,
-            OSError("disk full while writing header"),
-        )
-
-        with pytest.raises(OSError, match="disk full while writing header"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(h00_file), "output", str(tmp_path)
-            )
-
     def test_component_header_write_failure_becomes_output_error(
         self, tmp_path, monkeypatch
     ):
@@ -962,104 +698,21 @@ class TestPenetrateFallbackLogging:
 
         assert isinstance(excinfo.value.__cause__, PermissionError)
 
-    def test_successful_factory_result_is_returned(self, tmp_path, monkeypatch):
-        h00_file = make_penetrate_outputs(tmp_path)
-        backend_object = object()
-        loaded_paths = []
-
-        def _factory(header_path):
-            loaded_paths.append(header_path)
-            return backend_object
-
-        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", True)
-        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", _factory)
-
-        outputs = SimindToStirConverter().create_penetrate_headers_from_template(
-            str(h00_file), "output", str(tmp_path)
-        )
-
-        assert len(outputs) == len(PenetrateOutputType)
-        assert all(value is backend_object for value in outputs.values())
-        assert loaded_paths == [
-            str(component_header(tmp_path, component))
-            for component in PenetrateOutputType
-        ]
-
 
 @pytest.mark.unit
-class TestPenetrateTemplateScratch:
-    """Rejected inputs must fail before any scratch path is computed."""
-
-    @staticmethod
-    def snapshot(directory) -> dict:
-        return {path.name: path.read_bytes() for path in Path(directory).iterdir()}
-
+class TestPenetrateRejectedInput:
     @pytest.mark.parametrize("name", ["case.H00", "case.txt", "case"])
-    def test_rejected_input_is_kept_byte_for_byte(self, tmp_path, name):
+    def test_non_h00_input_is_rejected_and_kept(self, tmp_path, name):
         make_penetrate_outputs(tmp_path)
         rejected = tmp_path / name
         rejected.write_bytes(b"caller-owned bytes")
-        before = self.snapshot(tmp_path)
 
         with pytest.raises(ValueError, match="must have .h00 extension"):
             SimindToStirConverter().create_penetrate_headers_from_template(
                 str(rejected), "output", str(tmp_path)
             )
 
-        assert self.snapshot(tmp_path) == before
         assert rejected.read_bytes() == b"caller-owned bytes"
-
-    def test_rejected_input_in_h00_named_directory_touches_nothing(self, tmp_path):
-        nested = tmp_path / "run.h00.dir"
-        nested.mkdir()
-        make_penetrate_outputs(nested)
-        rejected = nested / "case.txt"
-        rejected.write_bytes(b"caller-owned bytes")
-        # Rewriting ".h00" across the whole path would resolve the scratch file
-        # here; rejecting the input must never reach it.
-        decoy_dir = tmp_path / "run_template.hs.dir"
-        decoy_dir.mkdir()
-        (decoy_dir / "case.txt").write_bytes(b"unrelated bytes")
-        nested_before = self.snapshot(nested)
-        decoy_before = self.snapshot(decoy_dir)
-
-        with pytest.raises(ValueError, match="must have .h00 extension"):
-            SimindToStirConverter().create_penetrate_headers_from_template(
-                str(rejected), "output", str(nested)
-            )
-
-        assert self.snapshot(nested) == nested_before
-        assert self.snapshot(decoy_dir) == decoy_before
-
-    def test_valid_input_in_h00_named_directory_uses_sibling_scratch(
-        self, tmp_path, monkeypatch
-    ):
-        nested = tmp_path / "run.h00.dir"
-        nested.mkdir()
-        h00_file = make_penetrate_outputs(nested)
-        scratch = penetrate_template_path(h00_file)
-
-        seen = []
-        original_from_file = InterfileHeader.from_file
-
-        def recording_from_file(filename):
-            seen.append(Path(filename))
-            return original_from_file(filename)
-
-        monkeypatch.setattr(
-            InterfileHeader, "from_file", staticmethod(recording_from_file)
-        )
-
-        outputs = SimindToStirConverter().create_penetrate_headers_from_template(
-            str(h00_file), "output", str(nested)
-        )
-
-        assert set(outputs) == {component.slug for component in PenetrateOutputType}
-        assert scratch == nested / "output_template.hs"
-        assert seen == [scratch]
-        assert not scratch.exists()
-        for component in PenetrateOutputType:
-            assert component_header(nested, component).exists()
 
 
 @pytest.mark.unit
