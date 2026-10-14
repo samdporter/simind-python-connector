@@ -522,6 +522,166 @@ def test_conversion_config_defaults():
     assert "patient" in config.ignored_patterns
 
 
+@pytest.mark.unit
+class TestSirfResolutionIsLazy:
+    """SIRF types resolve only where a native object is actually loaded."""
+
+    @staticmethod
+    def write_h00(tmp_path) -> Path:
+        h00_file = tmp_path / "output.h00"
+        h00_file.write_text(
+            "\n".join(
+                [
+                    "!name of data file := output.a00",
+                    "!matrix size [1] := 128",
+                    "!END OF INTERFILE :=",
+                ]
+            )
+        )
+        return h00_file
+
+    @staticmethod
+    def write_hs(tmp_path) -> Path:
+        hs_file = tmp_path / "output.hs"
+        hs_file.write_text("!matrix size [1] := 128\n")
+        return hs_file
+
+    @staticmethod
+    def forbidden_sirf_resolution():
+        def _resolve():
+            raise AssertionError("SIRF resolution must not run")
+
+        return _resolve
+
+    @staticmethod
+    def fake_sirf_types():
+        class FakeAcquisitionData:
+            def __init__(self, path):
+                self.path = path
+
+        def _resolve():
+            return type(None), FakeAcquisitionData, True
+
+        return FakeAcquisitionData, _resolve
+
+    def test_file_only_paths_never_resolve_sirf(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            simind_to_stir, "get_sirf_types", self.forbidden_sirf_resolution()
+        )
+
+        h00_file = self.write_h00(tmp_path)
+        hs_file = tmp_path / "output.hs"
+        converter = SimindToStirConverter()
+
+        converter.convert_file(str(h00_file), str(hs_file))
+        assert converter.edit_parameter(str(hs_file), "!matrix size [1]", "256") is None
+        assert converter.add_parameter(str(hs_file), "!extra", "1") is None
+
+    def test_convert_file_return_object_resolves_sirf_locally(
+        self, tmp_path, monkeypatch
+    ):
+        fake_type, resolve = self.fake_sirf_types()
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
+        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
+
+        hs_file = tmp_path / "output.hs"
+        result = SimindToStirConverter().convert_file(
+            str(self.write_h00(tmp_path)), str(hs_file), return_object=True
+        )
+
+        assert isinstance(result, fake_type)
+        assert result.path == str(hs_file)
+
+    def test_convert_file_return_object_prefers_factory(self, tmp_path, monkeypatch):
+        sentinel = object()
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", True)
+        monkeypatch.setattr(
+            simind_to_stir, "create_acquisition_data", lambda _path: sentinel
+        )
+        monkeypatch.setattr(
+            simind_to_stir, "get_sirf_types", self.forbidden_sirf_resolution()
+        )
+
+        result = SimindToStirConverter().convert_file(
+            str(self.write_h00(tmp_path)),
+            str(tmp_path / "output.hs"),
+            return_object=True,
+        )
+
+        assert result is sentinel
+
+    def test_edit_parameter_return_object_resolves_sirf_locally(
+        self, tmp_path, monkeypatch
+    ):
+        fake_type, resolve = self.fake_sirf_types()
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
+        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
+
+        hs_file = self.write_hs(tmp_path)
+        result = SimindToStirConverter().edit_parameter(
+            str(hs_file), "!matrix size [1]", "256", return_object=True
+        )
+
+        assert isinstance(result, fake_type)
+        assert result.path == str(hs_file)
+
+    def test_add_parameter_return_object_resolves_sirf_locally(
+        self, tmp_path, monkeypatch
+    ):
+        fake_type, resolve = self.fake_sirf_types()
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
+        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
+
+        hs_file = self.write_hs(tmp_path)
+        result = SimindToStirConverter().add_parameter(
+            str(hs_file), "!extra", "1", return_object=True
+        )
+
+        assert isinstance(result, fake_type)
+        assert result.path == str(hs_file)
+
+    def test_load_penetrate_output_resolves_sirf_when_no_factory(
+        self, tmp_path, monkeypatch
+    ):
+        fake_type, resolve = self.fake_sirf_types()
+        header = tmp_path / "component.hs"
+        header.write_text("")
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
+        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", None)
+        monkeypatch.setattr(simind_to_stir, "get_sirf_types", resolve)
+
+        result = SimindToStirConverter()._load_penetrate_output(header)
+
+        assert isinstance(result, fake_type)
+        assert result.path == str(header)
+
+    def test_load_penetrate_output_broken_sirf_warns_and_falls_back(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        header = tmp_path / "component.hs"
+        header.write_text("")
+
+        def broken_get_sirf_types():
+            raise RuntimeError("broken SIRF init")
+
+        monkeypatch.setattr(simind_to_stir, "BACKEND_AVAILABLE", False)
+        monkeypatch.setattr(simind_to_stir, "create_acquisition_data", None)
+        monkeypatch.setattr(simind_to_stir, "get_sirf_types", broken_get_sirf_types)
+
+        with caplog.at_level(logging.DEBUG):
+            result = SimindToStirConverter()._load_penetrate_output(header)
+
+        assert result == str(header)
+        fallbacks = [
+            record
+            for record in caplog.records
+            if record.getMessage().startswith("Falling back to file path")
+        ]
+        assert len(fallbacks) == 1
+        assert fallbacks[0].levelno == logging.WARNING
+        assert "broken SIRF init" in fallbacks[0].getMessage()
+
+
 MISSING_BACKEND_ERROR = "Neither SIRF nor STIR Python found"
 
 
