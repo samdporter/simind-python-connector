@@ -1,12 +1,16 @@
 include README.md
 include LICENSE
+include .dockerignore
 recursive-include simind_python_connector/data *.atn
 recursive-include simind_python_connector/data *.json
 recursive-include simind_python_connector/configs *.smc *.yaml
 recursive-include docs *.rst *.py
 include docs/_static/.gitkeep
 recursive-include tests *.py
-recursive-include examples *.py
+recursive-include tests/fixtures *.smc
+recursive-include examples *.py *.sh
+recursive-include scripts *.py *.sh
+recursive-include docker Dockerfile *.md *.txt *.yaml *.yml *.py *.sh
 exclude AGENTS.md
 exclude opencode.jsonc
 exclude CLAUDE.md
