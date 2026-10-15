@@ -26,7 +26,10 @@ def test_thick_slices_match_the_same_phantom_split_into_cubic_voxels(tmp_path):
         connector.configure_voxel_phantom(activity, attenuation, spacing)
         connector.set_energy_windows([126], [154], [0])
         for switch, value in (
-            ("FI", "tc99m"), ("CC", "ma-lehr"), ("NN", 10), ("RR", 7)
+            ("FI", "tc99m"),
+            ("CC", "ma-lehr"),
+            ("NN", 10),
+            ("RR", 7),
         ):
             connector.add_runtime_switch(switch, value)
         return connector.run()["tot_w1"].projection

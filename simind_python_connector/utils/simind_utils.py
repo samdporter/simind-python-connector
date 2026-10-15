@@ -74,9 +74,7 @@ def _validate_energy_windows(lower_bounds, upper_bounds, scatter_orders):
         try:
             order_int = int(order)
         except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError(
-                f"Scatter orders must be integers, got {order!r}"
-            ) from exc
+            raise ValueError(f"Scatter orders must be integers, got {order!r}") from exc
         if order_int != order:
             raise ValueError(f"Scatter orders must be integers, got {order!r}")
         if order_int < 0:

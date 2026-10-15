@@ -8,12 +8,9 @@ import numpy as np
 def build_asymmetric_phantom() -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
     """Return canonical ``(z, y, x)`` activity, attenuation, and cut indices."""
     z, y, x = np.indices((32, 32, 32))
-    body = (
-        ((x - 15.0) / 13.5) ** 2
-        + ((y - 15.0) / 12.0) ** 2
-        + ((z - 15.0) / 13.0) ** 2
-        <= 1.0
-    )
+    body = ((x - 15.0) / 13.5) ** 2 + ((y - 15.0) / 12.0) ** 2 + (
+        (z - 15.0) / 13.0
+    ) ** 2 <= 1.0
     body &= ~((x < 11) & (y > 21) & (z > 18))
 
     source = np.zeros((32, 32, 32), dtype=np.float32)
