@@ -7,7 +7,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-1.1.2 - Unreleased
+1.1.2 - 2026-10-15
 ------------------
 
 Added
@@ -82,6 +82,17 @@ Changed
 Fixed
 ~~~~~
 
+- ``load_table()`` reads both bundled NIST attenuation tables, skipping their
+  headers. Its documentation now gives the table units correctly: energy in
+  MeV and mass attenuation coefficient in cm²/g.
+- Source distributions include the fixtures and runner/container files needed
+  to run the bundled tests outside a Git checkout.
+- Custom energy-window filenames respect SIMIND's shorter filename buffer:
+  ``output_prefix`` is limited to 15 characters when an energy-window file is
+  used, preventing silently ignored energy bounds. Example 02 uses safe names.
+- Native source and attenuation images must share spatial geometry, including
+  origins and axis directions, before simulation. Interfile byte offsets are
+  parsed exactly and fractional offsets are rejected.
 - ``-`` is rejected in ``output_prefix``: SIMIND treats it as an argument
   delimiter, so the run silently produced no output.
 - Orbit files are always staged as ``{prefix}_orbit.cor``, so an orbit can no
