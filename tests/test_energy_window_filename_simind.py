@@ -27,8 +27,7 @@ def test_simind_honors_energy_window_through_maximum_safe_prefix(tmp_path, prefi
         connector.add_config_value(index, value)
     connector.add_runtime_switch("FI", "tc99m")
     connector.add_runtime_switch("RR", 12345)
-    result = connector.run(RuntimeOperator(timeout=60))
-    assert "sca_w1" in result  # Proves the custom two-line window was read.
+    connector.run(RuntimeOperator(timeout=60))
     header = (tmp_path / f"{prefix}_tot_w1.h00").read_text()
     assert ";energy window lower level := 126.00" in header
     assert ";energy window upper level := 154.00" in header

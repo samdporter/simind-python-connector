@@ -7,6 +7,32 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+1.1.3 - Unreleased
+------------------
+
+Added
+~~~~~
+
+- The ``CA`` runtime switch is accepted (``add_runtime_switch("CA", n)``). It
+  selects the SCATTWIN projections SIMIND writes: without it only ``tot``;
+  ``1`` adds ``sca`` and ``air``; ``2`` adds ``pri`` and ``air``.
+- ``get_primary_output()`` returns the primary projection written with
+  ``CA`` = 2.
+- ``get_scatter_output()`` and ``get_primary_output()`` return the total minus
+  the other component when only that one was written, and warn and return
+  ``None`` when neither was.
+
+Changed
+~~~~~~~
+
+- The energy-window file contains exactly the requested windows. An extra
+  scatter-order-1 line is no longer appended when every scatter order is 0, so
+  single-window runs no longer produce a duplicate ``sca_w2``. Set ``CA`` = 1 to
+  get scatter and air projections.
+- Internal tidy-up with no behaviour change: type hints use ``X | None`` and
+  built-in generics, ``__all__`` lists are sorted, and redundant ``pass``
+  statements are removed.
+
 1.1.2 - 2026-10-15
 ------------------
 

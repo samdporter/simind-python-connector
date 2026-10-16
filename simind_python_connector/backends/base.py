@@ -6,7 +6,6 @@ for working with both SIRF and STIR Python libraries.
 """
 
 from abc import ABC, abstractmethod
-from typing import Tuple, Union
 
 import numpy as np
 
@@ -28,7 +27,6 @@ class ImageDataInterface(ABC):
         Returns:
             ImageDataInterface: Wrapped image object
         """
-        pass
 
     @abstractmethod
     def write(self, filepath: str) -> None:
@@ -37,16 +35,14 @@ class ImageDataInterface(ABC):
         Args:
             filepath: Output file path
         """
-        pass
 
     @abstractmethod
-    def fill(self, data: Union[np.ndarray, float]) -> None:
+    def fill(self, data: np.ndarray | float) -> None:
         """Fill image with data.
 
         Args:
             data: Numpy array or scalar value
         """
-        pass
 
     @abstractmethod
     def clone(self) -> "ImageDataInterface":
@@ -55,7 +51,6 @@ class ImageDataInterface(ABC):
         Returns:
             ImageDataInterface: Cloned image object
         """
-        pass
 
     @abstractmethod
     def get_uniform_copy(self, value: float) -> "ImageDataInterface":
@@ -67,25 +62,22 @@ class ImageDataInterface(ABC):
         Returns:
             ImageDataInterface: New uniform image
         """
-        pass
 
     @abstractmethod
-    def dimensions(self) -> Tuple[int, int, int]:
+    def dimensions(self) -> tuple[int, int, int]:
         """Get image dimensions.
 
         Returns:
             Tuple[int, int, int]: (z, y, x) dimensions
         """
-        pass
 
     @abstractmethod
-    def voxel_sizes(self) -> Tuple[float, float, float]:
+    def voxel_sizes(self) -> tuple[float, float, float]:
         """Get voxel sizes in mm.
 
         Returns:
             Tuple[float, float, float]: (z, y, x) voxel sizes
         """
-        pass
 
     @abstractmethod
     def as_array(self) -> np.ndarray:
@@ -94,7 +86,6 @@ class ImageDataInterface(ABC):
         Returns:
             np.ndarray: Image data as numpy array
         """
-        pass
 
     @abstractmethod
     def sum(self) -> float:
@@ -103,7 +94,6 @@ class ImageDataInterface(ABC):
         Returns:
             float: Sum of all voxel values
         """
-        pass
 
     @abstractmethod
     def max(self) -> float:
@@ -112,7 +102,6 @@ class ImageDataInterface(ABC):
         Returns:
             float: Maximum voxel value
         """
-        pass
 
     @abstractmethod
     def maximum(self, value: float) -> None:
@@ -121,7 +110,6 @@ class ImageDataInterface(ABC):
         Args:
             value: Minimum value to clip to
         """
-        pass
 
     @property
     @abstractmethod
@@ -131,53 +119,43 @@ class ImageDataInterface(ABC):
         Returns either SIRF ``ImageData`` or STIR
         ``FloatVoxelsOnCartesianGrid``.
         """
-        pass
 
     # Arithmetic operations
     @abstractmethod
     def __add__(self, other):
         """Add two images or image and scalar."""
-        pass
 
     @abstractmethod
     def __sub__(self, other):
         """Subtract two images or image and scalar."""
-        pass
 
     @abstractmethod
     def __mul__(self, other):
         """Multiply image by scalar or element-wise."""
-        pass
 
     @abstractmethod
     def __truediv__(self, other):
         """Divide image by scalar or element-wise."""
-        pass
 
     @abstractmethod
     def __radd__(self, other):
         """Right-hand addition."""
-        pass
 
     @abstractmethod
     def __rsub__(self, other):
         """Right-hand subtraction."""
-        pass
 
     @abstractmethod
     def __rmul__(self, other):
         """Right-hand multiplication."""
-        pass
 
     @abstractmethod
     def __rtruediv__(self, other):
         """Right-hand division."""
-        pass
 
     @abstractmethod
     def __neg__(self):
         """Negate image."""
-        pass
 
     @abstractmethod
     def sapyb(
@@ -195,7 +173,6 @@ class ImageDataInterface(ABC):
         Returns:
             ImageDataInterface: self after modification (for chaining)
         """
-        pass
 
 
 class AcquisitionDataInterface(ABC):
@@ -212,7 +189,6 @@ class AcquisitionDataInterface(ABC):
         Returns:
             AcquisitionDataInterface: Wrapped acquisition object
         """
-        pass
 
     @abstractmethod
     def write(self, filepath: str) -> None:
@@ -221,16 +197,14 @@ class AcquisitionDataInterface(ABC):
         Args:
             filepath: Output file path
         """
-        pass
 
     @abstractmethod
-    def fill(self, data: Union[np.ndarray, float]) -> None:
+    def fill(self, data: np.ndarray | float) -> None:
         """Fill acquisition data.
 
         Args:
             data: Numpy array or scalar value
         """
-        pass
 
     @abstractmethod
     def clone(self) -> "AcquisitionDataInterface":
@@ -239,7 +213,6 @@ class AcquisitionDataInterface(ABC):
         Returns:
             AcquisitionDataInterface: Cloned object
         """
-        pass
 
     @abstractmethod
     def get_uniform_copy(self, value: float) -> "AcquisitionDataInterface":
@@ -251,19 +224,17 @@ class AcquisitionDataInterface(ABC):
         Returns:
             AcquisitionDataInterface: New uniform acquisition data
         """
-        pass
 
     @abstractmethod
-    def dimensions(self) -> Tuple:
+    def dimensions(self) -> tuple:
         """Get acquisition data dimensions.
 
         Returns:
             Tuple: Dimensions (varies by format)
         """
-        pass
 
     @property
-    def shape(self) -> Tuple:
+    def shape(self) -> tuple:
         """Get acquisition data shape (alias for dimensions()).
 
         Returns:
@@ -278,7 +249,6 @@ class AcquisitionDataInterface(ABC):
         Returns:
             np.ndarray: Acquisition data as numpy array
         """
-        pass
 
     @abstractmethod
     def sum(self) -> float:
@@ -287,7 +257,6 @@ class AcquisitionDataInterface(ABC):
         Returns:
             float: Sum of all counts
         """
-        pass
 
     @abstractmethod
     def max(self) -> float:
@@ -296,7 +265,6 @@ class AcquisitionDataInterface(ABC):
         Returns:
             float: Maximum bin value
         """
-        pass
 
     @abstractmethod
     def get_info(self) -> str:
@@ -305,68 +273,56 @@ class AcquisitionDataInterface(ABC):
         Returns:
             str: Metadata string
         """
-        pass
 
     @abstractmethod
-    def get_energy_window_bounds(self) -> Tuple[float, float]:
+    def get_energy_window_bounds(self) -> tuple[float, float]:
         """Get the energy window bounds for the acquisition.
 
         Returns:
             Tuple[float, float]: (lower_threshold, upper_threshold) in keV
         """
-        pass
 
     @property
     @abstractmethod
     def native_object(self):
         """Get the underlying native object (AcquisitionData or ProjData)."""
-        pass
 
     # Arithmetic operations
     @abstractmethod
     def __add__(self, other):
         """Add two acquisition data or acquisition data and scalar."""
-        pass
 
     @abstractmethod
     def __sub__(self, other):
         """Subtract two acquisition data or acquisition data and scalar."""
-        pass
 
     @abstractmethod
     def __mul__(self, other):
         """Multiply acquisition data by scalar or element-wise."""
-        pass
 
     @abstractmethod
     def __truediv__(self, other):
         """Divide acquisition data by scalar or element-wise."""
-        pass
 
     @abstractmethod
     def __radd__(self, other):
         """Right-hand addition."""
-        pass
 
     @abstractmethod
     def __rsub__(self, other):
         """Right-hand subtraction."""
-        pass
 
     @abstractmethod
     def __rmul__(self, other):
         """Right-hand multiplication."""
-        pass
 
     @abstractmethod
     def __rtruediv__(self, other):
         """Right-hand division."""
-        pass
 
     @abstractmethod
     def __neg__(self):
         """Negate acquisition data."""
-        pass
 
     @abstractmethod
     def sapyb(
@@ -384,4 +340,3 @@ class AcquisitionDataInterface(ABC):
         Returns:
             AcquisitionDataInterface: self after modification (for chaining)
         """
-        pass

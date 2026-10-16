@@ -11,7 +11,7 @@ import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 
@@ -73,9 +73,9 @@ class ProjectionResult:
 class RuntimeOperator:
     """Runtime modifiers applied when invoking SIMIND."""
 
-    switches: Dict[str, Any] = field(default_factory=dict)
-    orbit_file: Optional[PathLike] = None
-    timeout: Optional[float] = None
+    switches: dict[str, Any] = field(default_factory=dict)
+    orbit_file: PathLike | None = None
+    timeout: float | None = None
 
 
 class SimindPythonConnector(BaseConnector):
@@ -121,9 +121,9 @@ class SimindPythonConnector(BaseConnector):
         self.executor = SimindExecutor()
         self.converter = SimindToStirConverter()
 
-        self._outputs: Optional[dict[str, ProjectionResult]] = None
-        self._window_file_path: Optional[Path] = None
-        self._phantom_extent_mm: Optional[tuple[float, float]] = None
+        self._outputs: dict[str, ProjectionResult] | None = None
+        self._window_file_path: Path | None = None
+        self._phantom_extent_mm: tuple[float, float] | None = None
         self._orbit_source_paths: tuple[Path, ...] = ()
 
     @staticmethod
@@ -175,7 +175,7 @@ class SimindPythonConnector(BaseConnector):
         source: np.ndarray,
         mu_map: np.ndarray,
         voxel_size_mm: float | tuple[float, float, float] = 4.0,
-        scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
+        scoring_routine: ScoringRoutine | int | None = None,
     ) -> tuple[Path, Path]:
         """
         Configure voxel geometry and write source/density input files.
@@ -308,9 +308,9 @@ class SimindPythonConnector(BaseConnector):
 
     def set_energy_windows(
         self,
-        lower_bounds: Union[float, list[float]],
-        upper_bounds: Union[float, list[float]],
-        scatter_orders: Union[int, list[int]],
+        lower_bounds: float | list[float],
+        upper_bounds: float | list[float],
+        scatter_orders: int | list[int],
     ) -> None:
         """Write a SIMIND window file for this connector run."""
         self._require_output_dir()
@@ -332,7 +332,7 @@ class SimindPythonConnector(BaseConnector):
 
     def _validate_runtime_operator(
         self,
-        runtime_operator: Optional[RuntimeOperator],
+        runtime_operator: RuntimeOperator | None,
         *,
         write_paths: tuple[Path, ...] = (),
     ) -> RuntimeSwitches:
@@ -368,7 +368,7 @@ class SimindPythonConnector(BaseConnector):
         for key, value in self.runtime_switches.switches.items():
             effective_switches.set_switch(key, value)
 
-        orbit_path: Optional[Path] = None
+        orbit_path: Path | None = None
         if runtime_operator is not None:
             SimindExecutor.validate_timeout(runtime_operator.timeout)
             for key, value in runtime_operator.switches.items():
@@ -418,7 +418,7 @@ class SimindPythonConnector(BaseConnector):
                 )
 
     def run(
-        self, runtime_operator: Optional[RuntimeOperator] = None
+        self, runtime_operator: RuntimeOperator | None = None
     ) -> dict[str, ProjectionResult]:
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
@@ -436,7 +436,7 @@ class SimindPythonConnector(BaseConnector):
         # cannot disturb existing files.
         run_switches_holder = self._validate_runtime_operator(runtime_operator)
         orbit_file = None
-        run_timeout: Optional[float] = None
+        run_timeout: float | None = None
         if runtime_operator is not None:
             run_timeout = SimindExecutor.validate_timeout(runtime_operator.timeout)
             orbit_file = self._prepare_orbit_file(runtime_operator.orbit_file)
@@ -573,7 +573,7 @@ class SimindPythonConnector(BaseConnector):
                         f"Failed to remove stale output {path}: {exc}"
                     ) from exc
 
-    def _prepare_orbit_file(self, orbit_file: Optional[PathLike]) -> Optional[Path]:
+    def _prepare_orbit_file(self, orbit_file: PathLike | None) -> Path | None:
         if orbit_file is None:
             return None
 
@@ -723,8 +723,7 @@ class SimindPythonConnector(BaseConnector):
                     return PenetrateOutputType(component_id).slug
                 return f"b{component_id:02d}"
 
-        if stem.startswith(self.output_prefix):
-            stem = stem[len(self.output_prefix) :]
+        stem = stem.removeprefix(self.output_prefix)
         return stem.lstrip("_") or header_path.stem
 
     def _require_output_dir(self) -> None:

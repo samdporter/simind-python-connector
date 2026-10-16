@@ -20,7 +20,7 @@ Usage:
 import importlib
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Union
 
 from ..utils.import_helpers import _import_stir_extra
 from .base import AcquisitionDataInterface, ImageDataInterface
@@ -44,11 +44,11 @@ if TYPE_CHECKING:
         FloatVoxelsOnCartesianGrid = Any  # type: ignore[assignment]
 
 # Global backend state
-_backend: Optional[str] = None
+_backend: str | None = None
 _backend_initialized = False
 
 
-def _import_sirf_types() -> tuple[Optional[type], Optional[type]]:
+def _import_sirf_types() -> tuple[type | None, type | None]:
     """Import SIRF image/acquisition types lazily."""
     try:
         from sirf.STIR import AcquisitionData as SirfAcquisitionData  # type: ignore
@@ -58,7 +58,7 @@ def _import_sirf_types() -> tuple[Optional[type], Optional[type]]:
     return SirfImageData, SirfAcquisitionData
 
 
-def _import_stir_types() -> tuple[Optional[type], Optional[type]]:
+def _import_stir_types() -> tuple[type | None, type | None]:
     """Import STIR image/acquisition types lazily."""
     try:
         from stir import FloatVoxelsOnCartesianGrid as StirImageData  # type: ignore
@@ -69,7 +69,7 @@ def _import_stir_types() -> tuple[Optional[type], Optional[type]]:
     return StirImageData, StirProjData
 
 
-def detect_image_backend(obj: Any) -> Optional[str]:
+def detect_image_backend(obj: Any) -> str | None:
     """Return 'sirf' or 'stir' if obj is a native image type."""
     if obj is None:
         return None
@@ -85,7 +85,7 @@ def detect_image_backend(obj: Any) -> Optional[str]:
     return None
 
 
-def detect_acquisition_backend(obj: Any) -> Optional[str]:
+def detect_acquisition_backend(obj: Any) -> str | None:
     """Return 'sirf' or 'stir' if obj is a native acquisition type."""
     if obj is None:
         return None
@@ -102,8 +102,8 @@ def detect_acquisition_backend(obj: Any) -> Optional[str]:
 
 
 def detect_backend_from_interface(
-    obj: Union[ImageDataInterface, AcquisitionDataInterface, Any],
-) -> Optional[str]:
+    obj: ImageDataInterface | AcquisitionDataInterface | Any,
+) -> str | None:
     """Detect backend by unwrapping known interface objects."""
     native = getattr(obj, "native_object", None)
     if native is None:
@@ -116,7 +116,7 @@ def detect_backend_from_interface(
     return detect_acquisition_backend(native)
 
 
-def _activate_backend(preferred: Optional[str]) -> Optional[str]:
+def _activate_backend(preferred: str | None) -> str | None:
     """Force-activate a specific backend if requested."""
     if preferred is None:
         return None
@@ -211,9 +211,10 @@ def reset_backend() -> None:
 
 
 def create_image_data(
-    filepath_or_object: Optional[
-        Union[str, ImageDataInterface, "ImageData", "FloatVoxelsOnCartesianGrid"]
-    ] = None,
+    filepath_or_object: Union[
+        str, ImageDataInterface, "ImageData", "FloatVoxelsOnCartesianGrid"
+    ]
+    | None = None,
 ) -> ImageDataInterface:
     """Create an image data object using the current backend.
 
@@ -295,9 +296,10 @@ def create_image_data(
 
 
 def create_acquisition_data(
-    filepath_or_object: Optional[
-        Union[str, AcquisitionDataInterface, "AcquisitionData", "ProjData"]
-    ] = None,
+    filepath_or_object: Union[
+        str, AcquisitionDataInterface, "AcquisitionData", "ProjData"
+    ]
+    | None = None,
 ) -> AcquisitionDataInterface:
     """Create an acquisition data object using the current backend.
 
@@ -380,7 +382,7 @@ def create_acquisition_data(
 
 
 def load_image_data(
-    filepath: str, backend: Optional[Literal["sirf", "stir"]] = None
+    filepath: str, backend: Literal["sirf", "stir"] | None = None
 ) -> ImageDataInterface:
     """Load image data from file for the requested backend.
 
@@ -409,7 +411,7 @@ def load_image_data(
 
 
 def load_acquisition_data(
-    filepath: str, backend: Optional[Literal["sirf", "stir"]] = None
+    filepath: str, backend: Literal["sirf", "stir"] | None = None
 ) -> AcquisitionDataInterface:
     """Load acquisition data from file for the requested backend.
 
@@ -455,7 +457,7 @@ def is_stir_backend() -> bool:
     return get_backend() == "stir"
 
 
-def unwrap(obj: Union[ImageDataInterface, AcquisitionDataInterface]):
+def unwrap(obj: ImageDataInterface | AcquisitionDataInterface):
     """Get the native object from a wrapped backend object.
 
     Args:
@@ -470,19 +472,19 @@ def unwrap(obj: Union[ImageDataInterface, AcquisitionDataInterface]):
 
 
 __all__ = [
-    "get_backend",
-    "set_backend",
-    "reset_backend",
-    "detect_image_backend",
+    "AcquisitionDataInterface",
+    "ImageDataInterface",
+    "create_acquisition_data",
+    "create_image_data",
     "detect_acquisition_backend",
     "detect_backend_from_interface",
-    "create_image_data",
-    "create_acquisition_data",
-    "load_image_data",
-    "load_acquisition_data",
+    "detect_image_backend",
+    "get_backend",
     "is_sirf_backend",
     "is_stir_backend",
+    "load_acquisition_data",
+    "load_image_data",
+    "reset_backend",
+    "set_backend",
     "unwrap",
-    "ImageDataInterface",
-    "AcquisitionDataInterface",
 ]

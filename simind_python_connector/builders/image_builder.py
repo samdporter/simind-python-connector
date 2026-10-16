@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 
@@ -24,7 +24,7 @@ class STIRSPECTImageDataBuilder:
     def __init__(
         self,
         header_overrides=None,
-        backend: Optional[Literal["sirf", "stir"]] = None,
+        backend: Literal["sirf", "stir"] | None = None,
     ):
         if backend is not None and backend not in {"sirf", "stir"}:
             raise ValueError("backend must be one of: 'sirf', 'stir', or None")
@@ -58,7 +58,7 @@ class STIRSPECTImageDataBuilder:
             "!END OF INTERFILE": "",
         }
 
-        self.pixel_array: Optional[np.ndarray] = None
+        self.pixel_array: np.ndarray | None = None
 
         # Override defaults if header_overrides is provided.
         if header_overrides is not None:
@@ -98,7 +98,7 @@ class STIRSPECTImageDataBuilder:
             )
         return data
 
-    def build(self, output_path: Optional[str | Path] = None):
+    def build(self, output_path: str | Path | None = None):
         """
         Build and return the STIR ImageData object.
 

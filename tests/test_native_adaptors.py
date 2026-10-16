@@ -107,6 +107,10 @@ def _patch_stir_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     class _DummyStir:
         ProjData = _DummyProjData
 
+        @staticmethod
+        def ProjDataInMemory(proj_data):
+            return proj_data
+
     monkeypatch.setattr(stir_mod, "stir", _DummyStir)
     monkeypatch.setattr(stir_mod, "get_array", lambda image: image.array)
 
@@ -254,7 +258,7 @@ def test_stir_adaptor_missing_component_errors_list_available_keys(
     adaptor._outputs = {"tot_w1": "projection"}  # type: ignore[assignment]
 
     with pytest.raises(KeyError, match="Available: tot_w1"):
-        adaptor.get_scatter_output()
+        adaptor.get_scatter_output(window=2)
     with pytest.raises(KeyError, match="Available: tot_w1"):
         adaptor.get_penetrate_output("all_interactions")
 
@@ -390,7 +394,7 @@ def test_sirf_adaptor_missing_component_errors_list_available_keys(
     adaptor._outputs = {"tot_w1": "projection"}  # type: ignore[assignment]
 
     with pytest.raises(KeyError, match="Available: tot_w1"):
-        adaptor.get_scatter_output()
+        adaptor.get_scatter_output(window=2)
     with pytest.raises(KeyError, match="Available: tot_w1"):
         adaptor.get_penetrate_output("all_interactions")
 
@@ -624,19 +628,72 @@ def test_adaptor_primary_output_requires_a_successful_run(
         (SirfSimindAdaptor, _patch_sirf_backend),
     ],
 )
-def test_adaptor_primary_output_unsupported_after_populated_run(
+def test_adaptor_returns_written_scatter_and_primary(
     cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     patch(monkeypatch)
     adaptor = _make_adaptor(cls, tmp_path)
-    populated = {"tot_w1": "projection", "sca_w1": "scatter", "air_w1": "air"}
+    outputs = {
+        "tot_w1": np.array([5.0, 7.0]),
+        "sca_w1": np.array([1.0, 2.0]),
+        "pri_w1": np.array([4.0, 5.0]),
+    }
+    adaptor._outputs = dict(outputs)  # type: ignore[assignment]
+
+    assert adaptor.get_scatter_output(window=1) is outputs["sca_w1"]
+    assert adaptor.get_primary_output(window=1) is outputs["pri_w1"]
+
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+@pytest.mark.parametrize(
+    "written, getter, expected",
+    [
+        ("sca_w1", "get_primary_output", [4.0, 5.0]),
+        ("pri_w1", "get_scatter_output", [1.0, 2.0]),
+    ],
+)
+def test_adaptor_derives_missing_component_from_total(
+    cls,
+    patch,
+    written,
+    getter,
+    expected,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    components = {"sca_w1": np.array([1.0, 2.0]), "pri_w1": np.array([4.0, 5.0])}
+    populated = {"tot_w1": np.array([5.0, 7.0]), written: components[written]}
     adaptor._outputs = dict(populated)  # type: ignore[assignment]
 
-    with pytest.raises(NotImplementedError, match="standalone primary projection"):
-        adaptor.get_primary_output(window=1)
+    assert np.array_equal(getattr(adaptor, getter)(window=1), expected)
+    assert adaptor._outputs.keys() == populated.keys()
 
-    assert adaptor._outputs == populated
-    assert "pri_w1" not in adaptor._outputs
+
+@pytest.mark.parametrize(
+    "cls, patch",
+    [
+        (StirSimindAdaptor, _patch_stir_backend),
+        (SirfSimindAdaptor, _patch_sirf_backend),
+    ],
+)
+@pytest.mark.parametrize("getter", ["get_scatter_output", "get_primary_output"])
+def test_adaptor_warns_without_scatter_or_primary(
+    cls, patch, getter, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor._outputs = {"tot_w1": np.array([5.0, 7.0])}  # type: ignore[assignment]
+
+    with pytest.warns(UserWarning, match="add_runtime_switch\\('CA', 1\\)"):
+        assert getattr(adaptor, getter)(window=1) is None
 
 
 @pytest.mark.parametrize(

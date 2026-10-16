@@ -12,7 +12,6 @@ Example
 
 from importlib import resources as _res
 from pathlib import Path
-from typing import Union
 
 
 __all__ = ["get", "list"]
@@ -30,7 +29,7 @@ def get(name: str) -> Path:
     return _res.files(__package__).joinpath(name)
 
 
-def list(ext: Union[str, tuple[str, ...]] = (".yaml", ".smc")) -> list[str]:
+def list(ext: str | tuple[str, ...] = (".yaml", ".smc")) -> list[str]:
     """
     List files in this package (default: *.yaml / *.smc).
     """

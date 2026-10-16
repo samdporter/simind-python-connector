@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -36,7 +36,7 @@ def _call_or_value(value: Any) -> Any:
     return value() if callable(value) else value
 
 
-def _spacing_zyx(spacing: Any) -> Optional[tuple[float, float, float]]:
+def _spacing_zyx(spacing: Any) -> tuple[float, float, float] | None:
     try:
         values = tuple(float(v) for v in spacing)
     except Exception:
@@ -121,14 +121,14 @@ def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
     return z
 
 
-def _numeric_array(value: Any) -> Optional[np.ndarray]:
+def _numeric_array(value: Any) -> np.ndarray | None:
     try:
         return np.asarray(value, dtype=float).reshape(-1)
     except (TypeError, ValueError):
         return None
 
 
-def _spatial_geometry(image: Any) -> Optional[tuple[Any, ...]]:
+def _spatial_geometry(image: Any) -> tuple[Any, ...] | None:
     """Read native geometry where the backend exposes a documented API.
 
     SIRF's ImageData returns a GeometricalInfo from

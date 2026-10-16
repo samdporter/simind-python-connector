@@ -10,10 +10,10 @@ are unavailable.
 """
 
 from types import SimpleNamespace
-from typing import Any, Dict
+from typing import Any
 
 
-def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
+def get_backend_interfaces() -> tuple[bool, dict[str, Any]]:
     """Get all backend interfaces and utilities with fallback handling.
 
     This is the single source of truth for backend imports. When backends are
@@ -104,7 +104,7 @@ def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
         }
 
 
-def _to_namespace(mapping: Dict[str, Any]) -> SimpleNamespace:
+def _to_namespace(mapping: dict[str, Any]) -> SimpleNamespace:
     """Convert a dictionary to a SimpleNamespace (handles None gracefully)."""
     return SimpleNamespace(**(mapping or {}))
 
@@ -118,4 +118,4 @@ BACKENDS = SimpleNamespace(
 )
 
 
-__all__ = ["get_backend_interfaces", "BACKEND_AVAILABLE", "BACKENDS"]
+__all__ = ["BACKENDS", "BACKEND_AVAILABLE", "get_backend_interfaces"]

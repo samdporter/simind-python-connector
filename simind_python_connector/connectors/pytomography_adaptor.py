@@ -9,8 +9,9 @@ and returns torch tensors for projection outputs.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 
@@ -64,7 +65,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         photon_multiplier: int = 1,
         voxel_size_mm: float | tuple[float, float, float] = 4.0,
         quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
-        scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
+        scoring_routine: ScoringRoutine | int | None = None,
     ) -> None:
         if torch is None:
             raise ImportError(
@@ -99,14 +100,10 @@ class PyTomographySimindAdaptor(BaseConnector):
             else scoring_routine
         )
 
-        self._source: Optional[torch.Tensor] = None
-        self._mu_map: Optional[torch.Tensor] = None
-        self._energy_windows: Optional[tuple[list[float], list[float], list[int]]] = (
-            None
-        )
-        self._outputs: Optional[dict[str, torch.Tensor]] = None
-        self._output_metadata: Optional[dict[str, Mapping[str, str]]] = None
-        self._output_header_paths: Optional[dict[str, Path]] = None
+        self._source: torch.Tensor | None = None
+        self._mu_map: torch.Tensor | None = None
+        self._energy_windows: tuple[list[float], list[float], list[int]] | None = None
+        self._clear_outputs()
 
         self.add_runtime_switch("NN", photon_multiplier)
 
@@ -118,9 +115,9 @@ class PyTomographySimindAdaptor(BaseConnector):
 
     def set_energy_windows(
         self,
-        lower_bounds: Union[float, list[float]],
-        upper_bounds: Union[float, list[float]],
-        scatter_orders: Union[int, list[int]],
+        lower_bounds: float | list[float],
+        upper_bounds: float | list[float],
+        scatter_orders: int | list[int],
     ) -> None:
         validate_energy_window_prefix(self.python_connector.output_prefix)
         lowers, uppers, orders = _validate_energy_windows(
@@ -134,14 +131,17 @@ class PyTomographySimindAdaptor(BaseConnector):
     def add_runtime_switch(self, switch: str, value: Any) -> None:
         self.python_connector.add_runtime_switch(switch, value)
 
+    def _clear_outputs(self) -> None:
+        self._outputs: dict[str, torch.Tensor] | None = None
+        self._output_metadata: dict[str, Mapping[str, str]] | None = None
+        self._output_header_paths: dict[str, Path] | None = None
+
     def run(
-        self, runtime_operator: Optional[RuntimeOperator] = None
-    ) -> Dict[str, torch.Tensor]:
+        self, runtime_operator: RuntimeOperator | None = None
+    ) -> dict[str, torch.Tensor]:
         # Clear all output caches up front so failed reruns cannot leak
         # results from a previous successful run.
-        self._outputs = None
-        self._output_metadata = None
-        self._output_header_paths = None
+        self._clear_outputs()
         prefix = self.python_connector.output_prefix
         if self._energy_windows is not None:
             validate_energy_window_prefix(prefix)
@@ -201,7 +201,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         self._output_header_paths = header_paths
         return outputs
 
-    def get_outputs(self) -> Dict[str, torch.Tensor]:
+    def get_outputs(self) -> dict[str, torch.Tensor]:
         if self._outputs is None:
             raise RuntimeError("Run the connector first to produce outputs")
         return self._outputs
@@ -225,24 +225,15 @@ class PyTomographySimindAdaptor(BaseConnector):
     def get_total_output(self, window: int = 1) -> torch.Tensor:
         return self._get_component("tot", window)
 
-    def get_scatter_output(self, window: int = 1) -> torch.Tensor:
-        return self._get_component("sca", window)
+    def get_scatter_output(self, window: int = 1) -> torch.Tensor | None:
+        """Scatter projection, or total minus primary; None (with a warning)
+        when SIMIND wrote neither (see the CA runtime switch)."""
+        return self._get_window_output("sca", "pri", window)
 
-    def get_primary_output(self, window: int = 1) -> torch.Tensor:
-        """Primary output is unsupported by these adaptors.
-
-        SIMIND can emit primary data only through lower-level use such as the
-        ``/CA:2`` switch, so no standalone primary projection is produced here.
-        Before a successful run (and after a failed rerun) the empty output
-        cache still raises RuntimeError; once outputs exist this raises
-        NotImplementedError instead of the KeyError the old ``pri_*`` lookup
-        produced.
-        """
-        self.get_outputs()
-        raise NotImplementedError(
-            "SIMIND does not emit a standalone primary projection output. "
-            "get_primary_output() is not supported."
-        )
+    def get_primary_output(self, window: int = 1) -> torch.Tensor | None:
+        """Primary projection, or total minus scatter; None (with a warning)
+        when SIMIND wrote neither (see the CA runtime switch)."""
+        return self._get_window_output("pri", "sca", window)
 
     def get_air_output(self, window: int = 1) -> torch.Tensor:
         return self._get_component("air", window)

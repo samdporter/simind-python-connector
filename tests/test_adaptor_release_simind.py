@@ -1,10 +1,10 @@
 """Real-SIMIND SCATTWIN runs through the STIR, SIRF and PyTomography adaptors.
 
-Each test runs one small SIMIND simulation through the adaptor, checks that the
-total and scatter accessors return usable backend objects, and pins the primary
-projection contract: ``RuntimeError`` before a run and ``NotImplementedError``
-after one, without the output cache being mutated. The random seed is fixed so
-the runs are reproducible.
+Each test runs one small SIMIND simulation with ``CA:1`` through the adaptor,
+checks that the total and scatter accessors return usable backend objects, and
+pins the primary projection contract: ``RuntimeError`` before a run and total
+minus scatter after one, without the output cache being mutated. The random
+seed is fixed so the runs are reproducible.
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ from simind_python_connector.configs import get
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_simind]
 
-RUN_TIMEOUT = 600.0
+RUN_TIMEOUT = 10.0
+QUANTIZATION_SCALE = 0.001
 SEED = 12345
 VIEWS = 4
 SHAPE = (8, 8, 8)
@@ -53,12 +54,14 @@ def test_stir_adaptor_real_scattwin_run(tmp_path: Path):
         output_dir=str(tmp_path),
         output_prefix="stircase",
         photon_multiplier=1,
+        quantization_scale=QUANTIZATION_SCALE,
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
     adaptor.set_energy_windows([126], [154], [0])
     adaptor.add_config_value(29, VIEWS)
     adaptor.add_runtime_switch("RR", SEED)
+    adaptor.add_runtime_switch("CA", 1)
 
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_primary_output(window=1)
@@ -69,8 +72,12 @@ def test_stir_adaptor_real_scattwin_run(tmp_path: Path):
     assert float(adaptor.get_total_output(window=1).sum()) > 0
     assert adaptor.get_scatter_output(window=1) is outputs["sca_w1"]
 
-    with pytest.raises(NotImplementedError, match="standalone primary projection"):
-        adaptor.get_primary_output(window=1)
+    from simind_python_connector.backends.stir_backend import StirAcquisitionData
+
+    primary = StirAcquisitionData(adaptor.get_primary_output(window=1)).as_array()
+    total = StirAcquisitionData(outputs["tot_w1"]).as_array()
+    scatter = StirAcquisitionData(outputs["sca_w1"]).as_array()
+    assert np.allclose(primary, total - scatter)
 
     assert adaptor.get_outputs() is outputs
     assert "pri_w1" not in adaptor.get_outputs()
@@ -88,12 +95,14 @@ def test_sirf_adaptor_real_scattwin_run(tmp_path: Path):
         output_dir=str(tmp_path),
         output_prefix="sirfcase",
         photon_multiplier=1,
+        quantization_scale=QUANTIZATION_SCALE,
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
     adaptor.set_energy_windows([126], [154], [0])
     adaptor.add_config_value(29, VIEWS)
     adaptor.add_runtime_switch("RR", SEED)
+    adaptor.add_runtime_switch("CA", 1)
 
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_primary_output(window=1)
@@ -104,8 +113,10 @@ def test_sirf_adaptor_real_scattwin_run(tmp_path: Path):
     assert float(adaptor.get_total_output(window=1).as_array().sum()) > 0
     assert adaptor.get_scatter_output(window=1) is outputs["sca_w1"]
 
-    with pytest.raises(NotImplementedError, match="standalone primary projection"):
-        adaptor.get_primary_output(window=1)
+    assert np.allclose(
+        adaptor.get_primary_output(window=1).as_array(),
+        outputs["tot_w1"].as_array() - outputs["sca_w1"].as_array(),
+    )
 
     assert adaptor.get_outputs() is outputs
     assert "pri_w1" not in adaptor.get_outputs()
@@ -127,12 +138,14 @@ def test_pytomography_adaptor_real_scattwin_run(tmp_path: Path):
         output_prefix="pytcase",
         photon_multiplier=1,
         voxel_size_mm=VOXEL_MM[0],
+        quantization_scale=QUANTIZATION_SCALE,
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(torch.zeros_like(source))
     adaptor.set_energy_windows([126], [154], [0])
     adaptor.add_config_value(29, VIEWS)
     adaptor.add_runtime_switch("RR", SEED)
+    adaptor.add_runtime_switch("CA", 1)
 
     with pytest.raises(RuntimeError, match="Run the connector first"):
         adaptor.get_primary_output(window=1)
@@ -143,8 +156,9 @@ def test_pytomography_adaptor_real_scattwin_run(tmp_path: Path):
     assert float(adaptor.get_total_output(window=1).sum()) > 0
     assert adaptor.get_scatter_output(window=1) is outputs["sca_w1"]
 
-    with pytest.raises(NotImplementedError, match="standalone primary projection"):
-        adaptor.get_primary_output(window=1)
+    assert torch.allclose(
+        adaptor.get_primary_output(window=1), outputs["tot_w1"] - outputs["sca_w1"]
+    )
 
     assert adaptor.get_outputs() is outputs
     assert "pri_w1" not in adaptor.get_outputs()

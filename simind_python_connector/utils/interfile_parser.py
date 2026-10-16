@@ -7,13 +7,13 @@ eliminating duplicate parsing logic across the codebase.
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import Union
 
 
 Number = Union[tuple, list, float, int, str]
 
 
-def parse_interfile_line(line: str) -> Tuple[Optional[str], Optional[str]]:
+def parse_interfile_line(line: str) -> tuple[str | None, str | None]:
     """Parse a single interfile line and return (key, value) tuple.
 
     Args:
@@ -96,8 +96,8 @@ class InterfileEntry:
     """Represents a single line inside an interfile header."""
 
     text: str
-    key: Optional[str]
-    value: Optional[str]
+    key: str | None
+    value: str | None
 
     @classmethod
     def from_line(cls, line: str) -> "InterfileEntry":
@@ -132,7 +132,7 @@ class InterfileEntry:
 class InterfileHeader:
     """Editable representation of a parsed interfile header."""
 
-    def __init__(self, entries: List[InterfileEntry]):
+    def __init__(self, entries: list[InterfileEntry]):
         self._entries = entries
 
     @classmethod
@@ -144,7 +144,7 @@ class InterfileHeader:
     def copy(self) -> "InterfileHeader":
         return InterfileHeader([entry.copy() for entry in self._entries])
 
-    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    def get(self, key: str, default: str | None = None) -> str | None:
         for entry in reversed(self._entries):
             if entry.key == key:
                 return entry.value
@@ -173,14 +173,13 @@ class InterfileHeader:
 
     def write(self, filename: str) -> None:
         with open(filename, "w") as file:
-            for entry in self._entries:
-                file.write(entry.text)
+            file.writelines(entry.text for entry in self._entries)
 
 
 __all__ = [
-    "InterfileHeader",
     "InterfileEntry",
-    "parse_interfile_line",
+    "InterfileHeader",
     "parse_interfile_header",
+    "parse_interfile_line",
     "parse_interfile_with_regex",
 ]

@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional, Union
 
 from .config import _validate_switch_value
 from .types import OUTPUT_PREFIX_PATTERN, SimulationError
@@ -76,7 +75,7 @@ def _validate_output_prefix(prefix: object) -> str:
 class SimindExecutor:
     """Run SIMIND as a subprocess with optional MPI switch support."""
 
-    def __init__(self, executable: Union[str, Path, None] = None) -> None:
+    def __init__(self, executable: str | Path | None = None) -> None:
         self.logger = logging.getLogger(__name__)
         if executable is not None:
             self.executable = str(executable)
@@ -86,11 +85,11 @@ class SimindExecutor:
     def run_simulation(
         self,
         output_prefix: str,
-        orbit_file: Optional[Path] = None,
-        runtime_switches: Optional[Dict] = None,
-        cwd: Union[str, Path, None] = None,
+        orbit_file: Path | None = None,
+        runtime_switches: dict | None = None,
+        cwd: str | Path | None = None,
         *,
-        timeout: Union[int, float, None] = None,
+        timeout: float | None = None,
     ) -> None:
         validated_timeout = self.validate_timeout(timeout)
 
@@ -180,8 +179,8 @@ class SimindExecutor:
 
     @staticmethod
     def validate_timeout(
-        timeout: Union[int, float, None],
-    ) -> Optional[float]:
+        timeout: float | None,
+    ) -> float | None:
         """Return ``timeout`` as a float, rejecting unsafe values.
 
         ``timeout`` must be a finite number > 0 seconds; ``None`` passes
@@ -286,8 +285,8 @@ class SimindExecutor:
 
     @staticmethod
     def _serialize_runtime_switches(
-        runtime_switches: Optional[Dict],
-    ) -> tuple[Optional[str], Optional[str]]:
+        runtime_switches: dict | None,
+    ) -> tuple[str | None, str | None]:
         """Validate switches and serialize them into one positional CLI token.
 
         Returns the switch blob and the MPI process count, both ``None`` when

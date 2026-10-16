@@ -136,12 +136,19 @@ Adaptor Workflows
 Use adaptors when you want connector-managed SIMIND execution plus native
 objects for a target reconstruction package.
 
-Primary projections are unsupported by these adaptors. ``get_primary_output()``
-raises ``NotImplementedError`` once outputs exist and ``RuntimeError`` before a
-successful run. The adaptors consume SIMIND's standard SPECT output, which has
-no standalone primary file; primary projections can still be produced through
-lower-level SIMIND use with ``/CA:2``. Use ``get_total_output()`` and
-``get_scatter_output()`` instead.
+With the SCATTWIN scoring routine, SIMIND writes only the total projection
+unless the ``CA`` runtime switch asks for more: ``CA`` = 1 adds scatter
+(``sca``) and air (``air``) projections, ``CA`` = 2 adds primary (``pri``) and
+air projections.
+
+.. code-block:: python
+
+    adaptor.add_runtime_switch("CA", 1)
+
+``get_scatter_output()`` and ``get_primary_output()`` return the written
+projection, or the total minus the other one when only that was written
+(``tot = pri + sca``). When neither was written they warn and return ``None``.
+Before a successful run they raise ``RuntimeError``.
 
 STIR adaptor
 ~~~~~~~~~~~~

@@ -5,8 +5,6 @@ Provides wrappers around stir.FloatVoxelsOnCartesianGrid and stir.ProjData
 that conform to the backend interface.
 """
 
-from typing import Tuple, Union
-
 import numpy as np
 
 
@@ -71,7 +69,7 @@ class StirImageData(ImageDataInterface):
         """
         self._obj.write_to_file(filepath)
 
-    def fill(self, data: Union[np.ndarray, float]) -> None:
+    def fill(self, data: np.ndarray | float) -> None:
         """Fill with data."""
         if isinstance(data, (int, float)) or not isinstance(data, np.ndarray):
             self._obj.fill(float(data))
@@ -92,14 +90,14 @@ class StirImageData(ImageDataInterface):
         cloned._obj.fill(value)
         return cloned
 
-    def dimensions(self) -> Tuple[int, int, int]:
+    def dimensions(self) -> tuple[int, int, int]:
         """Get dimensions as (z, y, x)."""
         # Extract from numpy array shape
         arr = _import_stir_extra().to_numpy(self._obj)
         # STIR arrays are typically (z, y, x)
         return arr.shape
 
-    def voxel_sizes(self) -> Tuple[float, float, float]:
+    def voxel_sizes(self) -> tuple[float, float, float]:
         """Get voxel sizes as (z, y, x) in mm."""
         # Access STIR's grid spacing
         grid_spacing = self._obj.get_grid_spacing()
@@ -263,7 +261,7 @@ class StirAcquisitionData(AcquisitionDataInterface):
         """
         self._obj.write_to_file(filepath)
 
-    def fill(self, data: Union[np.ndarray, float]) -> None:
+    def fill(self, data: np.ndarray | float) -> None:
         """Fill with data."""
         if isinstance(data, (int, float)):
             self._obj.fill(float(data))
@@ -289,7 +287,7 @@ class StirAcquisitionData(AcquisitionDataInterface):
         cloned._obj.fill(value)
         return cloned
 
-    def dimensions(self) -> Tuple:
+    def dimensions(self) -> tuple:
         """Get dimensions."""
         # Extract from numpy array
         arr = _import_stir_extra().to_numpy(self._obj)
@@ -329,7 +327,7 @@ class StirAcquisitionData(AcquisitionDataInterface):
         info = self._obj.get_proj_data_info()
         return str(info)
 
-    def get_energy_window_bounds(self) -> Tuple[float, float]:
+    def get_energy_window_bounds(self) -> tuple[float, float]:
         """Get the energy window bounds for the acquisition.
 
         Returns:

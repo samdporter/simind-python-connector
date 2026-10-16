@@ -48,6 +48,7 @@ def main() -> None:
     connector.add_config_value(53, 0)
     connector.set_energy_windows([126.0], [154.0], [0])
     add_standard_runtime(connector, photon_multiplier=1, seed=12345, nuclide="tc99m")
+    connector.add_runtime_switch("CA", 1)  # also write scatter and air projections
 
     outputs = connector.run()
     total = outputs["tot_w1"].projection

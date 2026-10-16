@@ -127,13 +127,6 @@ def create_window_file(
 
     with open(output_filename, "w") as file:
         for i in range(len(lower_bounds)):
-            # for some reason simind doesn't like the last line to have a newline
-            # character
             file.write(
                 f"{float(lower_bounds[i])},{float(upper_bounds[i])},{int(scatter_orders[i])}\n"
             )
-        # simind sometimes doesn't output scatter files unless there's one line
-        # with a dedicated scatter order
-        # annoyingle this will create one extra total, air, scatter file
-        if all(order < 1 for order in scatter_orders):
-            file.write(f"{float(lower_bounds[-1])},{float(upper_bounds[-1])},1")
