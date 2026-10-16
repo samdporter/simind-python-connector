@@ -52,7 +52,7 @@ def main() -> None:
 
     outputs = connector.run()
     total = outputs["tot_w1"].projection
-    scatter = outputs.get("sca_w1", outputs["tot_w1"]).projection
+    scatter = outputs["sca_w1"].projection
     primary = np.clip(total - scatter, a_min=0.0, a_max=None)
 
     np.save(output_dir / "total.npy", total)

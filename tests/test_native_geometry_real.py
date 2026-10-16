@@ -12,7 +12,8 @@ pytestmark = pytest.mark.integration
 @pytest.mark.parametrize("wrapped", [False, True])
 @pytest.mark.parametrize("spacing", [(4, 4, 4), (8, 4, 4)])
 def test_real_sirf_adaptor_rejects_shifted_attenuation(tmp_path, wrapped, spacing):
-    sirf = pytest.importorskip("sirf.STIR")
+    import sirf.STIR as sirf
+
     from simind_python_connector.backends.sirf_backend import SirfImageData
     from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
 
@@ -35,7 +36,8 @@ def test_real_sirf_adaptor_rejects_shifted_attenuation(tmp_path, wrapped, spacin
 @pytest.mark.parametrize("wrapped", [False, True])
 @pytest.mark.parametrize("spacing", [(4, 4, 4), (8, 4, 4)])
 def test_real_stir_adaptor_rejects_shifted_attenuation(tmp_path, wrapped, spacing):
-    stir = pytest.importorskip("stir")
+    import stir
+
     from simind_python_connector.backends.stir_backend import StirImageData
     from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
     from simind_python_connector.utils.stir_utils import create_stir_image

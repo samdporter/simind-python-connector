@@ -4,8 +4,11 @@ services:
       context: ..
       dockerfile: docker/python/Dockerfile
     image: simind-python-connector/python:dev
+    # Match the SIRF-based images so outputs in the shared mount stay writable.
+    user: "${HOST_UID:-1000}:${HOST_GID:-100}"
     working_dir: /workspace
     environment:
+      HOME: /tmp
       SIMIND_CONNECTOR_BACKEND: python
       SIMIND_ROOT: /workspace/simind
       SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}

@@ -302,6 +302,7 @@ if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
     fi
     if [[ "$RUN_STIR" -eq 1 ]]; then
         run_service stir "python examples/07A_stir_adaptor_osem.py"
+        run_service stir "python -m pytest -m \"requires_simind and requires_stir\" -q"
     fi
     if [[ "$RUN_SIRF" -eq 1 ]]; then
         run_service sirf "python examples/07B_sirf_adaptor_osem.py"
@@ -309,6 +310,7 @@ if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
     fi
     if [[ "$RUN_PYTOMO" -eq 1 ]]; then
         run_service pytomography "python examples/07C_pytomography_adaptor_osem.py"
+        run_service pytomography "python -m pytest -m \"requires_simind and requires_pytomography\" -q"
     fi
 
 else

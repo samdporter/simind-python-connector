@@ -1,100 +1,47 @@
+"""Skip tests whose external runtime is unavailable."""
+
+import importlib
+import os
+import shutil
+
 import pytest
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config, items):
-    """Modify test collection based on available dependencies."""
+    requirements = {
+        "requires_sirf": ("sirf.STIR", "SIRF"),
+        "requires_stir": ("stir", "STIR Python"),
+        "requires_cil": ("cil", "CIL"),
+        "requires_pytomography": ("pytomography", "PyTomography"),
+        "requires_setr": ("setr", "SETR"),
+    }
+    # Run after marker deselection so unit tests do not load unused backends.
+    for marker, (module, label) in requirements.items():
+        affected = [item for item in items if marker in item.keywords]
+        if not affected:
+            continue
+        try:
+            importlib.import_module(module)
+            if marker == "requires_stir":
+                from simind_python_connector.utils.import_helpers import (
+                    _import_stir_extra,
+                )
 
-    # Check if SIRF is available
-    try:
-        import sirf.STIR  # noqa: F401
+                _import_stir_extra()
+        except ImportError:
+            skip = pytest.mark.skip(reason=f"{label} not available")
+            for item in affected:
+                item.add_marker(skip)
 
-        sirf_available = True
-    except ImportError:
-        sirf_available = False
-
-    # Check if STIR Python is available, reusing the production modern/legacy
-    # detection so a broken stir.extra dependency is not masked by the legacy
-    # fallback (which would wrongly skip requires_stir tests as if unavailable).
-    try:
-        import stir  # noqa: F401
-
-        from simind_python_connector.utils.import_helpers import _import_stir_extra
-
-        _import_stir_extra()
-        stir_available = True
-    except ImportError:
-        stir_available = False
-
-    # Check if CIL is available
-    try:
-        import cil  # noqa: F401
-
-        cil_available = True
-    except ImportError:
-        cil_available = False
-
-    # Check if PyTomography is available
-    try:
-        import pytomography  # noqa: F401
-
-        pytomography_available = True
-    except ImportError:
-        pytomography_available = False
-
-    # Check if SETR is available
-    try:
-        import setr  # noqa: F401
-
-        setr_available = True
-    except ImportError:
-        setr_available = False
-
-    # Check if SIMIND is available (command line tool)
-    import shutil
-
-    simind_available = shutil.which("simind") is not None
-
-    # Check if we're in CI environment
-    import os
-
-    in_ci = (
-        os.getenv("CI", "false").lower() == "true"
-        or os.getenv("GITHUB_ACTIONS", "false").lower() == "true"
+    simind_available = (
+        shutil.which(os.environ.get("SIMIND_BIN") or "simind") is not None
     )
-
-    skip_sirf = pytest.mark.skip(reason="SIRF not available")
-    skip_stir = pytest.mark.skip(reason="STIR Python not available")
-    skip_cil = pytest.mark.skip(reason="CIL not available")
-    skip_pytomography = pytest.mark.skip(reason="PyTomography not available")
-    skip_setr = pytest.mark.skip(reason="SETR not available")
-    skip_simind = pytest.mark.skip(reason="SIMIND not available")
-    skip_ci = pytest.mark.skip(reason="Skipped in CI environment")
-
+    in_ci = any(
+        os.getenv(name, "false").lower() == "true" for name in ("CI", "GITHUB_ACTIONS")
+    )
     for item in items:
-        # Skip SIRF-dependent tests if SIRF not available
-        if "requires_sirf" in item.keywords and not sirf_available:
-            item.add_marker(skip_sirf)
-
-        # Skip STIR-dependent tests if STIR not available
-        if "requires_stir" in item.keywords and not stir_available:
-            item.add_marker(skip_stir)
-
-        # Skip CIL-dependent tests if CIL not available
-        if "requires_cil" in item.keywords and not cil_available:
-            item.add_marker(skip_cil)
-
-        # Skip PyTomography-dependent tests if PyTomography not available
-        if "requires_pytomography" in item.keywords and not pytomography_available:
-            item.add_marker(skip_pytomography)
-
-        # Skip SETR-dependent tests if SETR not available
-        if "requires_setr" in item.keywords and not setr_available:
-            item.add_marker(skip_setr)
-
-        # Skip SIMIND-dependent tests if SIMIND not available
         if "requires_simind" in item.keywords and not simind_available:
-            item.add_marker(skip_simind)
-
-        # Skip CI-incompatible tests in CI environments
+            item.add_marker(pytest.mark.skip(reason="SIMIND not available"))
         if "ci_skip" in item.keywords and in_ci:
-            item.add_marker(skip_ci)
+            item.add_marker(pytest.mark.skip(reason="Skipped in CI environment"))

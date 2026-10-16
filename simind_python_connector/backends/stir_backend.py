@@ -5,6 +5,9 @@ Provides wrappers around stir.FloatVoxelsOnCartesianGrid and stir.ProjData
 that conform to the backend interface.
 """
 
+import operator
+import warnings
+
 import numpy as np
 
 
@@ -16,6 +19,8 @@ try:
     _import_stir_extra()
 
     STIR_AVAILABLE = True
+    # STIR 6.2 and earlier give images no arithmetic operators.
+    _IMAGE_OPERATORS = hasattr(stir.FloatVoxelsOnCartesianGrid, "__add__")
 except ImportError:
     STIR_AVAILABLE = False
 
@@ -144,30 +149,39 @@ class StirImageData(ImageDataInterface):
     def __repr__(self) -> str:
         return f"StirImageData(dims={self.dimensions()})"
 
-    # Arithmetic operations - delegate to underlying STIR object
-    def __add__(self, other):
+    def _apply(self, other, operation) -> "StirImageData":
         if isinstance(other, StirImageData):
-            return StirImageData(self._obj + other._obj)
-        else:
-            return StirImageData(self._obj + float(other))
+            other = other._obj
+        elif not isinstance(other, stir.FloatVoxelsOnCartesianGrid):
+            other = float(other)
+        if _IMAGE_OPERATORS:
+            return StirImageData(operation(self._obj, other))
+
+        warnings.warn(
+            "STIR 6.2 and earlier have no image arithmetic, so StirImageData "
+            "computes it in NumPy. Support for these STIR versions is "
+            "deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        if not isinstance(other, float):
+            other = _import_stir_extra().to_numpy(other)
+        result = self._obj.get_empty_copy()
+        values = operation(self.as_array(), other).astype(np.float32, copy=False)
+        result.fill(values.flat)
+        return StirImageData(result)
+
+    def __add__(self, other):
+        return self._apply(other, operator.add)
 
     def __sub__(self, other):
-        if isinstance(other, StirImageData):
-            return StirImageData(self._obj - other._obj)
-        else:
-            return StirImageData(self._obj - float(other))
+        return self._apply(other, operator.sub)
 
     def __mul__(self, other):
-        if isinstance(other, StirImageData):
-            return StirImageData(self._obj * other._obj)
-        else:
-            return StirImageData(self._obj * float(other))
+        return self._apply(other, operator.mul)
 
     def __truediv__(self, other):
-        if isinstance(other, StirImageData):
-            return StirImageData(self._obj / other._obj)
-        else:
-            return StirImageData(self._obj / float(other))
+        return self._apply(other, operator.truediv)
 
     def __radd__(self, other):
         if isinstance(other, stir.FloatVoxelsOnCartesianGrid):
@@ -321,11 +335,8 @@ class StirAcquisitionData(AcquisitionDataInterface):
         self.fill(arr)
 
     def get_info(self) -> str:
-        """Get metadata info."""
-        # STIR doesn't have a direct get_info() string method
-        # Construct info from proj_data_info
-        info = self._obj.get_proj_data_info()
-        return str(info)
+        """Get the projection data info as STIR parameter text."""
+        return self._obj.get_proj_data_info().parameter_info()
 
     def get_energy_window_bounds(self) -> tuple[float, float]:
         """Get the energy window bounds for the acquisition.

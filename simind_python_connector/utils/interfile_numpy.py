@@ -190,6 +190,12 @@ def load_interfile_array(header_path: HeaderInput) -> InterfileArray:
             "pixel boundary"
         )
 
+    payload_bytes = data_path.stat().st_size - offset
+    if payload_bytes % dtype.itemsize:
+        raise ValueError(
+            f"Data size mismatch for {data_path}: {payload_bytes} payload bytes "
+            f"do not contain a whole number of {dtype.itemsize}-byte pixels"
+        )
     flat = np.fromfile(data_path, dtype=dtype, offset=offset)
 
     # Projection and tomographic payloads are treated as at least 3D:

@@ -1,106 +1,84 @@
-"""Tests for arithmetic operations on backend wrappers."""
+"""Element-wise arithmetic on SIRF wrappers, using real backend data."""
 
+import operator
+
+import numpy as np
 import pytest
 
-from simind_python_connector.utils.stir_utils import create_stir_acqdata
+from simind_python_connector.backends.sirf_backend import (
+    SirfAcquisitionData,
+    SirfImageData,
+)
+from simind_python_connector.utils.stir_utils import (
+    create_stir_acqdata,
+    create_stir_image,
+)
 
 
-# Mark as requiring backend
-pytestmark = pytest.mark.requires_sirf
+pytestmark = [pytest.mark.integration, pytest.mark.requires_sirf]
 
 
-def test_scalar_multiplication(acquisition_template):
-    """Test scalar multiplication on wrapped acquisition data."""
-    a = acquisition_template.clone()
-    a.fill(10.0)
-
-    # Test scalar multiplication (what failed in 03_multi_window.py)
-    c = a * 2.0
-    expected_sum = a.sum() * 2.0
-    assert abs(c.sum() - expected_sum) < 1e-6, "Scalar multiplication failed"
-
-
-def test_right_hand_scalar_multiplication(acquisition_template):
-    """Test right-hand scalar multiplication."""
-    b = acquisition_template.clone()
-    b.fill(5.0)
-
-    d = 3.0 * b
-    expected_sum = b.sum() * 3.0
-    assert abs(d.sum() - expected_sum) < 1e-6, "Right-hand scalar multiplication failed"
+def _make_operands(kind):
+    if kind == "image":
+        left = SirfImageData(create_stir_image([2, 3, 4], [4.0] * 3, backend="sirf"))
+    else:
+        left = SirfAcquisitionData(
+            create_stir_acqdata([4, 3], 2, [4.42, 4.42], backend="sirf")
+        )
+    right = left.clone()
+    shape = left.as_array().shape
+    left.fill(np.arange(1, np.prod(shape) + 1, dtype=np.float32).reshape(shape))
+    right.fill(np.linspace(2, 3, np.prod(shape), dtype=np.float32).reshape(shape))
+    return left, right
 
 
-def test_addition(acquisition_template):
-    """Test addition of two acquisition data objects."""
-    a = acquisition_template.clone()
-    b = acquisition_template.clone()
-    a.fill(10.0)
-    b.fill(5.0)
-
-    e = a + b
-    expected_sum = a.sum() + b.sum()
-    assert abs(e.sum() - expected_sum) < 1e-6, "Addition failed"
+@pytest.fixture(params=["image", "acquisition"])
+def operands(request):
+    return _make_operands(request.param)
 
 
-def test_subtraction(acquisition_template):
-    """Test subtraction of two acquisition data objects."""
-    a = acquisition_template.clone()
-    b = acquisition_template.clone()
-    a.fill(10.0)
-    b.fill(5.0)
-
-    f = a - b
-    expected_sum = a.sum() - b.sum()
-    assert abs(f.sum() - expected_sum) < 1e-6, "Subtraction failed"
-
-
-def test_division_by_scalar(acquisition_template):
-    """Test division by scalar."""
-    a = acquisition_template.clone()
-    a.fill(20.0)
-
-    c = a / 2.0
-    expected_sum = a.sum() / 2.0
-    assert abs(c.sum() - expected_sum) < 1e-6, "Division by scalar failed"
-
-
-def test_negation(acquisition_template):
-    """Test negation operator."""
-    a = acquisition_template.clone()
-    a.fill(10.0)
-
-    b = -a
-    expected_sum = -a.sum()
-    assert abs(b.sum() - expected_sum) < 1e-6, "Negation failed"
+@pytest.mark.parametrize(
+    "operation", [operator.add, operator.sub, operator.mul, operator.truediv]
+)
+@pytest.mark.parametrize("operand", ["wrapper", "scalar", "scalar_left"])
+def test_wrapper_arithmetic(operands, operation, operand):
+    left, right = operands
+    left_values = left.as_array().copy()
+    right_values = right.as_array().copy()
+    if operand == "wrapper":
+        result = operation(left, right)
+        expected = operation(left_values, right_values)
+    elif operand == "scalar":
+        result = operation(left, 2.0)
+        expected = operation(left_values, 2.0)
+    else:
+        result = operation(2.0, left)
+        expected = operation(2.0, left_values)
+    assert type(result) is type(left)
+    np.testing.assert_allclose(result.as_array(), expected, rtol=1e-5)
+    np.testing.assert_array_equal(left.as_array(), left_values)
+    np.testing.assert_array_equal(right.as_array(), right_values)
 
 
-def test_complex_expression(acquisition_template):
-    """Test the complex expression from 03_multi_window.py example."""
-    # This is the operation that originally failed:
-    # scatter_estimate = lower_scatter * (window_widths[1] / (2 * window_widths[0]))
-    #                    + upper_scatter * (window_widths[1] / (2 * window_widths[2]))
+def test_wrapper_negation(operands):
+    left, _ = operands
+    before = left.as_array().copy()
+    result = -left
+    assert type(result) is type(left)
+    np.testing.assert_allclose(result.as_array(), -before)
+    np.testing.assert_array_equal(left.as_array(), before)
 
-    window_widths = [6, 28, 6]  # keV
-    lower_scatter = acquisition_template.clone()
-    lower_scatter.fill(100.0)
-    upper_scatter = acquisition_template.clone()
-    upper_scatter.fill(80.0)
 
-    # Calculate expected value
-    factor1 = window_widths[1] / (2 * window_widths[0])  # 28 / 12 = 2.333...
-    factor2 = window_widths[1] / (2 * window_widths[2])  # 28 / 12 = 2.333...
-    expected_sum = lower_scatter.sum() * factor1 + upper_scatter.sum() * factor2
-
-    # Perform the operation
-    scatter_estimate = lower_scatter * factor1 + upper_scatter * factor2
-
-    assert abs(scatter_estimate.sum() - expected_sum) < 1e-3, (
-        "Complex expression failed"
+def test_triple_energy_window_scatter_estimate():
+    lower, upper = _make_operands("acquisition")
+    lower_values = lower.as_array().copy()
+    upper_values = upper.as_array().copy()
+    # A 28 keV photopeak with 6 and 8 keV side windows.
+    result = lower * (28 / (2 * 6)) + upper * (28 / (2 * 8))
+    np.testing.assert_allclose(
+        result.as_array(),
+        lower_values * (28 / 12) + upper_values * (28 / 16),
+        rtol=1e-5,
     )
-
-
-@pytest.fixture
-def acquisition_template():
-    """Provide acquisition data template for testing."""
-    # Create template with 60 projections, 64x64 matrix
-    return create_stir_acqdata([64, 64], 60, [4.42, 4.42])
+    np.testing.assert_array_equal(lower.as_array(), lower_values)
+    np.testing.assert_array_equal(upper.as_array(), upper_values)

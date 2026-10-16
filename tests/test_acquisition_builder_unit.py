@@ -1,13 +1,3 @@
-import sys
-import types
-
-
-try:
-    import pydicom  # noqa: F401
-except ImportError:
-    # Only stub when genuinely unavailable so real-pydicom tests can coexist.
-    sys.modules["pydicom"] = types.ModuleType("pydicom")
-
 import numpy as np
 import pytest
 
@@ -92,7 +82,6 @@ def test_build_writes_header_and_data(tmp_path, fake_create_acquisition):
     # Builder should return the stub object and write via it
     assert acq is fake_create_acquisition[0]
     assert acq.write_calls == [str(header_path)]
-    assert acq.fill_data is not None
     assert acq.fill_data.shape[0] == 1  # segments dimension
 
 

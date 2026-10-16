@@ -7,7 +7,7 @@ import contextlib
 import importlib
 
 
-# Lazy imports to avoid SIRF dependencies in CI
+# Load backend utilities only when requested.
 def __getattr__(name):
     if name in (
         "interfile_numpy",
@@ -37,18 +37,10 @@ def get_array(obj):
     Raises:
         AttributeError: If object cannot be converted to array
     """
-    # Check if it's a wrapped backend object
-    if hasattr(obj, "as_array") and callable(obj.as_array):
-        return obj.as_array()
-
-    # Try SIRF native methods
-    if hasattr(obj, "asarray"):
-        try:
-            return obj.asarray()
-        except Exception:
-            return obj.as_array()  # Fallback to as_array if asarray fails
-    if hasattr(obj, "as_array"):
-        return obj.as_array()
+    for name in ("as_array", "asarray"):
+        method = getattr(obj, name, None)
+        if callable(method):
+            return method()
 
     # Try STIR native conversion
     with contextlib.suppress(ImportError, TypeError, AttributeError):
@@ -108,13 +100,11 @@ def to_projdata_in_memory(proj_data):
 
 
 __all__ = [
-    "cil_partitioner",
     "get_array",
     "interfile_numpy",
     "io_utils",
     "simind_utils",
     "sirf_stir_utils",
-    "step_size_rules",
     "stir_utils",
     "to_projdata_in_memory",
 ]

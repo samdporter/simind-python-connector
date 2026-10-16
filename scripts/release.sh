@@ -82,9 +82,7 @@ if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
     exit 1
 fi
 
-# Replace the version in one file and check that it now holds the expected
-# line. Checking the result rather than a change lets the script release the
-# version already in _version.py.
+# Check the resulting metadata even when releasing the current version.
 set_version() {
     local file="$1"
     local expression="$2"
@@ -106,16 +104,17 @@ set_version simind_python_connector/_version.py \
     "s/^__version__ = \"${CURRENT_VERSION}\"/__version__ = \"${NEW_VERSION}\"/" \
     "^__version__ = \"${NEW_VERSION_RE}\"$"
 set_version .zenodo.json \
-    "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/" \
+    "s/\"version\": \"[^\"]*\"/\"version\": \"${NEW_VERSION}\"/" \
     "\"version\": \"${NEW_VERSION_RE}\""
 set_version CITATION.cff \
-    "s/^version: ${CURRENT_VERSION}$/version: ${NEW_VERSION}/;s/^date-released: .*/date-released: ${RELEASE_DATE}/" \
+    "s/^version: .*/version: ${NEW_VERSION}/;s/^date-released: .*/date-released: ${RELEASE_DATE}/" \
     "^version: ${NEW_VERSION_RE}$" "^date-released: ${RELEASE_DATE}$"
 
 log_info "Committing and tagging..."
-git add simind_python_connector/_version.py .zenodo.json \
-    CITATION.cff CHANGELOG.md docs/changelog.rst
-git commit -m "chore: release ${NEW_VERSION}"
+RELEASE_FILES=(simind_python_connector/_version.py .zenodo.json
+    CITATION.cff CHANGELOG.md docs/changelog.rst)
+git add -- "${RELEASE_FILES[@]}"
+git commit --only -m "chore: release ${NEW_VERSION}" -- "${RELEASE_FILES[@]}"
 git tag -a "$TAG" -m "Release ${NEW_VERSION}"
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)

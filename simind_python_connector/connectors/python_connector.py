@@ -9,6 +9,7 @@ import logging
 import numbers
 import os
 import shutil
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Union
@@ -34,6 +35,7 @@ from simind_python_connector.core.types import (
 )
 from simind_python_connector.utils.interfile_numpy import load_interfile_array
 from simind_python_connector.utils.simind_utils import (
+    _validate_energy_windows,
     create_window_file,
     validate_energy_window_prefix,
 )
@@ -123,6 +125,7 @@ class SimindPythonConnector(BaseConnector):
 
         self._outputs: dict[str, ProjectionResult] | None = None
         self._window_file_path: Path | None = None
+        self._window_scatter_orders: tuple[int, ...] = ()
         self._phantom_extent_mm: tuple[float, float] | None = None
         self._orbit_source_paths: tuple[Path, ...] = ()
 
@@ -316,19 +319,18 @@ class SimindPythonConnector(BaseConnector):
         self._require_output_dir()
         self._require_valid_prefix(self.output_prefix)
         validate_energy_window_prefix(self.output_prefix)
+        lowers, uppers, orders = _validate_energy_windows(
+            lower_bounds, upper_bounds, scatter_orders
+        )
         window_path = self.output_dir / f"{self.output_prefix}.win"
         try:
-            create_window_file(
-                lower_bounds,
-                upper_bounds,
-                scatter_orders,
-                output_filename=str(window_path),
-            )
+            create_window_file(lowers, uppers, orders, output_filename=str(window_path))
         except OSError as exc:
             raise OutputError(
                 f"Failed to write energy-window file {window_path}: {exc}"
             ) from exc
         self._window_file_path = window_path
+        self._window_scatter_orders = tuple(orders)
 
     def _validate_runtime_operator(
         self,
@@ -429,12 +431,26 @@ class SimindPythonConnector(BaseConnector):
         # grown past the engine's buffer-safe length.
         self._require_output_dir()
         self._require_valid_prefix(self.output_prefix)
-        self._config_scoring_routine()
+        routine = self._config_scoring_routine()
 
         # Validate the effective switches, timeout and orbit before staging,
         # saving the configuration or clearing prior outputs so an invalid run
         # cannot disturb existing files.
         run_switches_holder = self._validate_runtime_operator(runtime_operator)
+        # A window with scatter order > 0 makes SIMIND V8 write scatter and
+        # air projections regardless of CA, so CA decides only when all are 0.
+        if (
+            routine is ScoringRoutine.SCATTWIN
+            and "CA" not in run_switches_holder.switches
+            and not any(self._window_scatter_orders)
+        ):
+            warnings.warn(
+                "SCATTWIN without the CA runtime switch writes only total (tot) "
+                "projections. Set add_runtime_switch('CA', 1) for scatter and "
+                "air, ('CA', 2) for primary, scatter and air, or ('CA', 0) to "
+                "keep total-only output.",
+                stacklevel=2,
+            )
         orbit_file = None
         run_timeout: float | None = None
         if runtime_operator is not None:

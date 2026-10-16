@@ -20,6 +20,7 @@ def test_thick_slices_match_the_same_phantom_split_into_cubic_voxels(tmp_path):
 
     def simulate(name, activity, attenuation, spacing):
         connector = SimindPythonConnector(get("Example.yaml"), tmp_path / name, name)
+        connector.get_config().set_flag(8, False)
         connector.get_config().set_flag(11, True)
         for index, value in ((29, 4), (53, 0), (28, 0.4), (76, 32), (77, 16)):
             connector.add_config_value(index, value)
@@ -29,7 +30,6 @@ def test_thick_slices_match_the_same_phantom_split_into_cubic_voxels(tmp_path):
             ("FI", "tc99m"),
             ("CC", "ma-lehr"),
             ("NN", 10),
-            ("RR", 7),
         ):
             connector.add_runtime_switch(switch, value)
         return connector.run()["tot_w1"].projection

@@ -62,21 +62,15 @@ def test_shell_runner_passes_backend_only_to_supporting_examples(
         timeout=120,
     )
 
-    # The script tolerates individual failures but must not misreport
-    assert result.returncode in (0, 1), result.stderr
+    assert result.returncode == 0, result.stdout + result.stderr
 
     recorded = fake_bin["log"].read_text().splitlines()
-    backend_examples_recorded = [
-        line.split()[0] for line in recorded if line.endswith("--backend stir")
-    ]
-    assert backend_examples_recorded, recorded
-    assert all(name.endswith(BACKEND_EXAMPLES) for name in backend_examples_recorded), (
-        recorded
-    )
+    commands = {Path(tokens[0]).name: tokens[1:] for tokens in map(str.split, recorded)}
+    assert set(commands) == set(BACKEND_EXAMPLES + NON_BACKEND_EXAMPLES)
+    for example in BACKEND_EXAMPLES:
+        assert commands[example] == ["--backend", "stir"]
     for example in NON_BACKEND_EXAMPLES:
-        assert not any(
-            line.startswith(example) and "--backend" in line for line in recorded
-        ), (example, recorded)
+        assert commands[example] == []
 
 
 def test_container_validation_script_rejects_no_build_without_image(

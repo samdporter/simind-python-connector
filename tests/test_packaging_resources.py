@@ -4,19 +4,18 @@ import subprocess
 import sys
 import tarfile
 import zipfile
+from email.parser import Parser
 from pathlib import Path
 
 import pytest
 
+from simind_python_connector import __version__
 from simind_python_connector.configs import get
 from simind_python_connector.configs import list as list_configs
 from simind_python_connector.data import load_table
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-pytestmark = pytest.mark.unit
-
 
 REQUIRED_CONFIGS = (
     "AnyScan.yaml",
@@ -27,12 +26,14 @@ REQUIRED_CONFIGS = (
 )
 
 
+@pytest.mark.unit
 def test_configs_inventory_includes_presets():
     names = set(list_configs())
     for required in REQUIRED_CONFIGS:
         assert required in names, (required, sorted(names))
 
 
+@pytest.mark.unit
 def test_configs_get_resolves_existing_resources():
     for name in REQUIRED_CONFIGS:
         resource = get(name)
@@ -48,6 +49,7 @@ def test_configs_get_resolves_existing_resources():
         ("bone.atn", (1.0e-3, 3.442e3)),
     ],
 )
+@pytest.mark.unit
 def test_load_table_reads_packaged_attenuation_data(name, first_row):
     table = load_table(name)
 
@@ -57,6 +59,7 @@ def test_load_table_reads_packaged_attenuation_data(name, first_row):
     assert table[0] == pytest.approx(first_row)
 
 
+@pytest.mark.integration
 @pytest.mark.slow
 def test_built_artifacts_contain_packaged_resources(tmp_path: Path):
     """Build wheel and sdist artifacts and assert their required files ship."""
@@ -81,7 +84,13 @@ def test_built_artifacts_contain_packaged_resources(tmp_path: Path):
     assert len(sdists) == 1
     with zipfile.ZipFile(wheels[0]) as archive:
         names = archive.namelist()
+        metadata_name = next(
+            name for name in names if name.endswith(".dist-info/METADATA")
+        )
+        metadata = Parser().parsestr(archive.read(metadata_name).decode())
+        assert metadata["Version"] == __version__
     for packaged in (
+        "simind_python_connector/_version.py",
         "simind_python_connector/configs/input.smc",
         "simind_python_connector/configs/AnyScan.yaml",
         "simind_python_connector/data/h2o.atn",

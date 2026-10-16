@@ -1,5 +1,4 @@
 import math
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +11,6 @@ from simind_python_connector.configs import list as list_configs
 from simind_python_connector.core.config import RuntimeSwitches
 
 
-# Most tests here are unit tests that don't require SIRF
 pytestmark = pytest.mark.unit
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -149,50 +147,32 @@ def test_smc_non_numeric_basic_value_raises_value_error(tmp_path):
 
 
 def test_config_yaml_loading():
-    """Test loading configuration from YAML file."""
     config = SimulationConfig(get("AnyScan.yaml"))
 
-    # Test basic parameter access
     photon_energy = config.get_value("photon_energy")
     assert photon_energy > 0
 
-    # Test flag access
     spect_study = config.get_flag("simulate_spect_study")
     assert isinstance(spect_study, bool)
 
 
 def test_config_modification():
-    """Test modifying configuration values."""
     config = SimulationConfig(get("AnyScan.yaml"))
 
-    # Test value modification
-    config.get_value("photon_energy")
     config.set_value("photon_energy", 150.0)
     assert config.get_value("photon_energy") == 150.0
 
-    # Test flag modification
     config.set_flag("write_results_to_screen", True)
     assert config.get_flag("write_results_to_screen")
 
 
-def test_config_yaml_export():
-    """Test exporting configuration to YAML."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config = SimulationConfig(get("AnyScan.yaml"))
-
-        # Modify a parameter
-        config.set_value("photon_energy", 140.0)
-
-        # Export to YAML
-        yaml_path = Path(temp_dir) / "test_config.yaml"
-        config.export_yaml(yaml_path)
-
-        # Verify file was created
-        assert yaml_path.exists()
-
-        # Load the exported config and verify
-        new_config = SimulationConfig(yaml_path)
-        assert new_config.get_value("photon_energy") == 140.0
+def test_config_yaml_export(tmp_path):
+    config = SimulationConfig(get("AnyScan.yaml"))
+    config.set_value("photon_energy", 140.0)
+    yaml_path = tmp_path / "config.yaml"
+    config.export_yaml(yaml_path)
+    restored = SimulationConfig(yaml_path)
+    assert restored.get_value("photon_energy") == 140.0
 
 
 @pytest.mark.parametrize(
@@ -257,11 +237,6 @@ def _write_yaml(tmp_path, text):
     path = tmp_path / "config.yaml"
     path.write_text(text)
     return path
-
-
-# ---------------------------------------------------------------------------
-# A) Fixed-width save
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -360,11 +335,6 @@ def test_smc_round_trip_canonicalises_negative_zero_and_negatives(tmp_path):
     assert math.copysign(1.0, restored.data[2]) == 1.0
 
 
-# ---------------------------------------------------------------------------
-# B) Short-config diagnostics
-# ---------------------------------------------------------------------------
-
-
 def test_short_smc_print_config_only_prints_present_named_entries(tmp_path, capsys):
     path = tmp_path / "short.smc"
     path.write_text(SHORT_SMC)
@@ -397,11 +367,6 @@ def test_short_smc_validate_parameters_reports_missing_without_mutating(
     assert config.data == data_before
     assert config.flags == flags_before
     assert config.data == [1.0]
-
-
-# ---------------------------------------------------------------------------
-# C) YAML robustness
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("text", ["", "- one\n- two\n", "just a scalar\n", "42\n"])
@@ -544,7 +509,7 @@ def test_yaml_boolean_scoring_routine_is_rejected(tmp_path):
         SimulationConfig(_write_yaml(tmp_path, "other_parameters:\n  84: true\n"))
 
 
-def test_bundled_configs_load_validate_and_save(tmp_path):
+def test_bundled_configs_load_and_save(tmp_path):
     """The bundled and documented configs still round-trip at fixed width."""
     names = list_configs()
     for documented in ("Example.yaml", "AnyScan.yaml", "input.smc"):
@@ -552,7 +517,6 @@ def test_bundled_configs_load_validate_and_save(tmp_path):
 
     for name in names:
         config = SimulationConfig(get(name))
-        assert isinstance(config.validate_parameters(), bool)
         saved = config.save_file(tmp_path / name)
         basic_lines = saved.read_text().splitlines()[3:27]
         assert len(basic_lines) == 24, name

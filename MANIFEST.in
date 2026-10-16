@@ -11,12 +11,8 @@ recursive-include tests/fixtures *.smc
 recursive-include examples *.py *.sh
 recursive-include scripts *.py *.sh
 recursive-include docker Dockerfile *.md *.txt *.yaml *.yml *.py *.sh
-exclude AGENTS.md
-exclude opencode.jsonc
-exclude CLAUDE.md
 exclude simind_manual.pdf
 prune simind
-prune docs/superpowers
 prune docs/_build
 prune docs/_generated
 global-exclude __pycache__

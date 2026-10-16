@@ -29,6 +29,7 @@ def _phantom() -> tuple[np.ndarray, np.ndarray]:
 
 def _simulate(output_dir: Path, source: np.ndarray, mu: np.ndarray) -> np.ndarray:
     connector = SimindPythonConnector(get("Example.yaml"), output_dir, "case01")
+    connector.get_config().set_flag(8, False)
     connector.get_config().set_flag(11, True)
     connector.add_config_value(29, 4)
     connector.add_config_value(53, 0)
@@ -37,7 +38,7 @@ def _simulate(output_dir: Path, source: np.ndarray, mu: np.ndarray) -> np.ndarra
     connector.add_config_value(77, 8)
     connector.configure_voxel_phantom(source, mu, VOXEL_MM)
     connector.set_energy_windows([126], [154], [0])
-    for switch, value in (("FI", "tc99m"), ("CC", "ma-lehr"), ("NN", 10), ("RR", 7)):
+    for switch, value in (("FI", "tc99m"), ("CC", "ma-lehr"), ("NN", 30)):
         connector.add_runtime_switch(switch, value)
     return connector.run()["tot_w1"].projection
 

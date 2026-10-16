@@ -20,7 +20,8 @@ WORKDIR /workspace
 COPY --chown=1000:100 . /workspace
 
 RUN python -m pip install --upgrade pip \
-    && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
+    && pip install --constraint /workspace/docker/constraints.txt \
+        -e ".[dev,examples]" imagecodecs tifffile \
     && python - <<'PY'
 import importlib
 for module in ("sirf.STIR", "pytest"):

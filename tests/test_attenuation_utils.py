@@ -108,13 +108,16 @@ def test_get_sirf_attenuation_rho_times_1000_fills_image(
     values = np.arange(24, dtype=np.uint16)
     header_path = _write_attenuation_files(tmp_path, values.tobytes())
 
-    image = get_sirf_attenuation_from_simind(str(header_path), attn_type="rho*1000")
+    image = get_sirf_attenuation_from_simind(
+        str(header_path), photopeak_energy=0.15, attn_type="rho*1000"
+    )
 
     filled = np.asarray(image.filled, dtype=np.float64)
     assert filled.shape == (4, 3, 2)
-    assert filled.sum() > 0
+    np.testing.assert_allclose(filled, values.reshape(4, 3, 2) / 1000 * 0.15)
     # SIRF takes (z, y, x), like dim and origin.
     assert image.init_args["vsize"] == pytest.approx((3.5, 2.5, 1.5))
+    assert image.init_args["origin"] == pytest.approx((128.0, -128.0, -128.0))
 
 
 def test_get_sirf_attenuation_rejects_unknown_attn_type(

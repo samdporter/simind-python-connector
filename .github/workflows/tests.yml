@@ -57,11 +57,16 @@ jobs:
         run: |
           twine check dist/*
       - name: Smoke-test wheel resources
+        working-directory: /tmp
         run: |
           python -m venv /tmp/wheel-env
-          /tmp/wheel-env/bin/pip install --quiet dist/*.whl
+          /tmp/wheel-env/bin/pip install --quiet "$GITHUB_WORKSPACE"/dist/*.whl
           /tmp/wheel-env/bin/python -c 'from simind_python_connector.configs import get; assert get("input.smc").is_file()'
           /tmp/wheel-env/bin/python -c 'from simind_python_connector.data import data_path; assert data_path("h2o.atn").is_file()'
+      - name: Test source and wheel contents
+        run: |
+          /tmp/wheel-env/bin/pip install --quiet pytest build
+          /tmp/wheel-env/bin/python -m pytest tests/test_packaging_resources.py -m integration
 
   container-core:
     runs-on: ubuntu-latest

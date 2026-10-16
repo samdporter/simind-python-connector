@@ -93,8 +93,13 @@ def _run_in_subprocess(
     *,
     extra_path: Path | None = None,
     deprecations_as_errors: bool = False,
+    blocked_imports: str | None = None,
 ):
-    """Run ``code`` in a fresh interpreter with the fake package on the path."""
+    """Run ``code`` in a fresh interpreter with the fake package on the path.
+
+    ``blocked_imports`` names module roots the import guard blocks, so a real
+    backend installed on the host cannot stand in for one a case leaves out.
+    """
     env = dict(os.environ)
     paths = [str(ROOT)]
     if extra_path is not None:
@@ -103,6 +108,9 @@ def _run_in_subprocess(
         # backend container's import guard must not block it. Isolation from
         # the real backends is asserted separately.
         env.pop("SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS", None)
+    if blocked_imports is not None:
+        paths.insert(0, str(ROOT / "docker" / "import_guard"))
+        env["SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS"] = blocked_imports
     env["PYTHONPATH"] = os.pathsep.join(paths + [env.get("PYTHONPATH", "")])
     args = [sys.executable]
     if deprecations_as_errors:
@@ -172,7 +180,9 @@ def test_get_stir_types_unavailable_without_extra_module(tmp_path):
         "assert available is False and img is type(None) and proj is type(None)\n"
         "print('OK')\n"
     )
-    result = _run_in_subprocess(code, extra_path=pkg)
+    # The fake ``stir`` has no ``extra`` submodule; blocking ``stirextra``
+    # keeps a real legacy module on the host from being found instead.
+    result = _run_in_subprocess(code, extra_path=pkg, blocked_imports="stirextra")
     assert result.returncode == 0, result.stderr
     assert "OK" in result.stdout
 

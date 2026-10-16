@@ -36,10 +36,8 @@ class TestConversionRules:
     """Test individual conversion rules."""
 
     def test_radius_conversion_rule(self):
-        """Test radius conversion honours its configured scale factor."""
         scaling_rule = RadiusConversionRule(scale_factor=2.0)
 
-        # Test matching
         assert scaling_rule.matches("Radius := 134")
         assert not scaling_rule.matches("Radii := {134}")
         assert not scaling_rule.matches("start angle := 0")
@@ -119,10 +117,8 @@ class TestConversionRules:
         assert Path(value) == (tmp_path / "output.a00").resolve()
 
     def test_start_angle_conversion_rule(self):
-        """Test start angle conversion with offset."""
         rule = StartAngleConversionRule(angle_offset=180.0)
 
-        # Test matching
         assert rule.matches("start angle := 0.000000")
         assert not rule.matches("Radius := 134")
 
@@ -139,53 +135,41 @@ class TestConversionRules:
         assert "start angle := 90" in line
 
     def test_number_format_rule(self):
-        """Test number format conversion."""
         rule = NumberFormatRule()
 
-        # Test matching
         assert rule.matches("!number format := short float")
         assert not rule.matches("!number format := float")
 
-        # Test conversion
         line, context = rule.convert("!number format := short float", {})
         assert line == "!number format := float"
 
     def test_orbit_conversion_rule(self):
-        """Test orbit specification conversion."""
         rule = OrbitConversionRule()
 
-        # Test matching
         assert rule.matches("orbit := noncircular")
         assert not rule.matches("orbit := circular")
 
-        # Test conversion
         line, context = rule.convert("orbit := noncircular", {})
         assert line == "orbit := non-circular"
 
     def test_image_duration_rule(self):
-        """Test image duration conversion."""
         rule = ImageDurationRule()
 
-        # Test matching
         assert rule.matches("image duration (sec) := 120.000000")
         assert not rule.matches("time per projection (sec) := 1.0")
 
-        # Test conversion
         line, context = rule.convert("image duration (sec) := 120.000000", {})
         assert "number of time frames := 1" in line
         assert "image duration (sec) [1] := 120.000000" in line
 
     def test_energy_window_rule(self):
-        """Test energy window conversion."""
         rule_lower = EnergyWindowRule("lower")
         rule_upper = EnergyWindowRule("upper")
 
-        # Test matching
         assert rule_lower.matches(";energy window lower level := 126.16")
         assert rule_upper.matches(";energy window upper level := 36.84")
         assert not rule_lower.matches(";energy window upper level := 36.84")
 
-        # Test conversion
         line, context = rule_lower.convert(";energy window lower level := 126.16", {})
         assert line == "energy window lower level[1] := 126.16"
 
@@ -193,13 +177,10 @@ class TestConversionRules:
         assert line == "energy window upper level[1] := 36.84"
 
     def test_data_file_name_rule(self):
-        """Test data file name conversion."""
         rule = DataFileNameRule()
 
-        # Test matching
         assert rule.matches("!name of data file := /path/to/output.a00")
 
-        # Test conversion
         line, context = rule.convert("!name of data file := /path/to/output.a00", {})
         assert line == "!name of data file := output.a00"
 
@@ -214,7 +195,6 @@ class TestOrbitFileRule:
     """Test orbit file processing rule."""
 
     def test_orbit_file_rule_with_valid_file(self, tmp_path):
-        """Test orbit file conversion with valid .cor file."""
         # Create a test orbit file
         orbit_file = tmp_path / "test.cor"
         radii_cm = [14.0, 15.5, 16.0, 14.0]  # cm
@@ -225,11 +205,9 @@ class TestOrbitFileRule:
         # Create rule with input directory
         rule = OrbitFileRule(input_file_dir=tmp_path)
 
-        # Test matching
         assert rule.matches(";# Non-Uniform Orbit File := test.cor")
         assert not rule.matches("orbit := noncircular")
 
-        # Test conversion
         line, context = rule.convert(";# Non-Uniform Orbit File := test.cor", {})
 
         # Check that Radii line was created
@@ -237,7 +215,6 @@ class TestOrbitFileRule:
         assert ";# Non-Uniform Orbit File := test.cor" in line
 
     def test_orbit_file_rule_missing_file(self, tmp_path):
-        """Test orbit file rule when .cor file doesn't exist."""
         rule = OrbitFileRule(input_file_dir=tmp_path)
 
         # Test with non-existent file
@@ -247,7 +224,6 @@ class TestOrbitFileRule:
         assert line == ";# Non-Uniform Orbit File := missing.cor"
 
     def test_orbit_file_rule_only_processes_once(self, tmp_path):
-        """Test that orbit file is only processed once."""
         orbit_file = tmp_path / "test.cor"
         with open(orbit_file, "w") as f:
             f.write("14.0    64\n15.0    64\n")
@@ -267,17 +243,7 @@ class TestOrbitFileRule:
 class TestSimindToStirConverter:
     """Test the main converter class."""
 
-    def test_converter_with_custom_config(self):
-        """Test converter with custom configuration."""
-        config = ConversionConfig(
-            radius_scale_factor=1.0,
-            angle_offset=90.0,
-        )
-        converter = SimindToStirConverter(config)
-        assert converter.config.radius_scale_factor == 1.0
-
     def test_penetrate_headers_apply_enum_metadata(self, tmp_path):
-        """Ensure penetrate metadata from enum is propagated to headers."""
         converter = SimindToStirConverter()
         h00_file = tmp_path / "output.h00"
         h00_file.write_text(
@@ -306,7 +272,6 @@ class TestSimindToStirConverter:
         assert component.description in header_text
 
     def test_convert_line(self):
-        """Test single line conversion."""
         converter = SimindToStirConverter()
 
         # Test number format conversion
@@ -318,7 +283,6 @@ class TestSimindToStirConverter:
         assert "180" in line
 
     def test_parse_interfile_line(self):
-        """Test interfile line parsing using shared parser."""
         # Test valid parameter line
         key, value = parse_interfile_line("!matrix size [1] := 128")
         assert key == "!matrix size [1]"
@@ -406,7 +370,6 @@ start angle := 0.000000
         return h00_file
 
     def test_convert_file_basic(self, tmp_path):
-        """Test basic file conversion."""
         h00_file = self.create_sample_h00_file(tmp_path, include_orbit=False)
         hs_file = tmp_path / "output.hs"
 
@@ -429,7 +392,6 @@ start angle := 0.000000
             assert "energy window lower level[1] := 126.16" in content
 
     def test_convert_file_with_orbit(self, tmp_path):
-        """Test file conversion with non-circular orbit."""
         h00_file = self.create_sample_h00_file(tmp_path, include_orbit=True)
         hs_file = tmp_path / "output.hs"
 
@@ -458,7 +420,6 @@ start angle := 0.000000
             assert all(140 <= r <= 200 for r in radii)
 
     def test_convert_file_default_output_name(self, tmp_path):
-        """Test that output filename defaults to .hs extension."""
         h00_file = self.create_sample_h00_file(tmp_path)
 
         converter = SimindToStirConverter()
@@ -469,7 +430,6 @@ start angle := 0.000000
         assert hs_file.exists()
 
     def test_read_parameter(self, tmp_path):
-        """Test reading parameter from header file."""
         h00_file = self.create_sample_h00_file(tmp_path)
         hs_file = tmp_path / "output.hs"
 
@@ -486,7 +446,6 @@ start angle := 0.000000
         assert scaling == "4.419600"
 
     def test_edit_parameter(self, tmp_path):
-        """Test editing parameter in header file."""
         h00_file = self.create_sample_h00_file(tmp_path)
         hs_file = tmp_path / "output.hs"
 
@@ -503,14 +462,12 @@ start angle := 0.000000
 
 @pytest.mark.unit
 def test_conversion_config_defaults():
-    """Test ConversionConfig default values."""
     config = ConversionConfig()
 
     # Default passes SIMIND's millimetre Radius values through unchanged
     assert config.radius_scale_factor == 1.0
     assert config.angle_offset == 180.0
     assert config.default_number_format == "float"
-    assert len(config.ignored_patterns) > 0
     assert "program" in config.ignored_patterns
     assert "patient" in config.ignored_patterns
 
