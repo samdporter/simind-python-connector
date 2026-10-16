@@ -21,7 +21,13 @@ def test_documentation_uses_package_version():
 
 @pytest.mark.parametrize(
     ("bump", "expected"),
-    [("patch", "1.2.4"), ("minor", "1.3.0"), ("major", "2.0.0"), ("2.1.0", "2.1.0")],
+    [
+        ("patch", "1.2.4"),
+        ("minor", "1.3.0"),
+        ("major", "2.0.0"),
+        ("2.1.0", "2.1.0"),
+        ("1.2.3", "1.2.3"),
+    ],
 )
 def test_release_updates_metadata_and_tags(tmp_path, bump, expected):
     def run(*args):
