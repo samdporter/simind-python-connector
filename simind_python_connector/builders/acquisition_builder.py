@@ -454,17 +454,9 @@ class STIRSPECTAcquisitionDataBuilder:
                                 self.header.pop("Radius", None)
 
                             radial_processed = True
-                            print(
-                                f"Debug: Direct radii processed - all same: "
-                                f"{len(set(rp_list)) == 1}, values: {rp_list[:5]}..."
-                            )
-
                         else:
                             # Single value
                             mean_radial_position = float(rp_val)
-                            print(
-                                f"Debug: Single radial position: {mean_radial_position}"
-                            )
                     else:
                         warnings.warn(
                             "Mean radial position not found in Rotation Information "
@@ -475,11 +467,6 @@ class STIRSPECTAcquisitionDataBuilder:
                     # Only process tomo view offset if we haven't already processed
                     # direct radii
                     if not radial_processed:
-                        print(
-                            "Debug: Processing tomo view offset since direct radii "
-                            "not processed"
-                        )
-
                         # Process Detector Information Sequence & Tomo View Offset
                         det_info_seq_tag = (0x0055, 0x1022)
                         tomo_view_offset_tag = (0x0013, 0x101E)
@@ -533,11 +520,6 @@ class STIRSPECTAcquisitionDataBuilder:
                         else:
                             self.header["Radius"] = str(mean_radial_position)
                             self.header["orbit"] = "circular"
-                    else:
-                        print(
-                            "Debug: Skipping tomo view offset processing - direct "
-                            "radii already processed"
-                        )
 
                 else:
                     warnings.warn("Rotation Information Sequence is empty.")
@@ -552,11 +534,11 @@ class STIRSPECTAcquisitionDataBuilder:
         try:
             self.header[";#acquisition date"] = ds.AcquisitionDate
         except AttributeError:
-            warnings.warn("StudyDate not found in DICOM.")
+            warnings.warn("AcquisitionDate not found in DICOM.")
         try:
             self.header[";#acquisition time"] = ds.AcquisitionTime
         except AttributeError:
-            warnings.warn("StudyTime not found in DICOM.")
+            warnings.warn("AcquisitionTime not found in DICOM.")
         try:
             acq_num = ds.get("AcquisitionNumber", None)
             if acq_num is not None:

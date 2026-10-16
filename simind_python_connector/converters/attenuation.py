@@ -5,7 +5,6 @@ This module provides functions to convert Hounsfield Units (HU) to attenuation
 coefficients and densities based on both bilinear and Schneider piecewise models.
 """
 
-import importlib.resources as pkg_resources
 import json
 import warnings
 from pathlib import Path
@@ -17,14 +16,7 @@ from simind_python_connector.data import data_path
 
 def get_package_data_path(filename):
     """Get the path to a data file in the package."""
-    try:
-        # Python 3.9+
-        files = pkg_resources.files("simind_python_connector.data")
-        return files / filename
-    except AttributeError:
-        # Python 3.8
-        with pkg_resources.path("simind_python_connector.data", filename) as path:
-            return path
+    return data_path(filename)
 
 
 def interpolate_attenuation_coefficient(filename, energy):
@@ -172,7 +164,6 @@ def attenuation_to_density(attenuation_array, photon_energy, file_path=None):
     mu_bone = get_attenuation_coefficient("bone", photon_energy, file_path)
 
     # Densities
-    # density_air = 0.001225  # g/cm^3  # Not used in this calculation
     density_water = 1.0  # g/cm^3
     density_bone = 1.85  # g/cm^3
 

@@ -1,4 +1,5 @@
 import re
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -229,6 +230,36 @@ def test_run_warns_when_the_phantom_is_larger_than_the_field_of_view(
         _run_without_simind(connector)
     assert "longer than the projection field of view" in caplog.text
     assert "wider than" not in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "routine, switches, orders, warns",
+    [
+        (ScoringRoutine.SCATTWIN, {}, [0, 0], True),
+        (ScoringRoutine.SCATTWIN, {"CA": 0}, [0, 0], False),
+        (ScoringRoutine.SCATTWIN, {"CA": 1}, [0, 0], False),
+        # An order > 0 makes SIMIND V8 write scatter and air without CA.
+        (ScoringRoutine.SCATTWIN, {}, [0, 1], False),
+        (ScoringRoutine.PENETRATE, {}, [0, 0], False),
+    ],
+)
+def test_run_warns_when_scattwin_runs_without_ca(
+    tmp_path: Path, routine, switches, orders, warns
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(84, routine.value)
+    connector.set_energy_windows([126.0, 126.0], [154.0, 154.0], orders)
+    connector.set_runtime_switches(switches)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _run_without_simind(connector)
+
+    ca_warnings = [w for w in caught if "CA runtime switch" in str(w.message)]
+    assert len(ca_warnings) == int(warns)
 
 
 @pytest.mark.unit
@@ -1194,7 +1225,6 @@ def test_python_connector_short_config_defaults_scoring_to_dummy(tmp_path: Path)
         connector.run()
 
     assert launched == [True]
-    assert connector._is_penetrate_routine() is False
     assert SimulationConfig(tmp_path / "case01.smc").get_value(84) == 0
 
 
@@ -1418,7 +1448,6 @@ def test_python_connector_configures_axial_spacing_and_keeps_projection_grid(
     assert connector.runtime_switches.switches["PX"] == pytest.approx(0.4)
     assert connector.runtime_switches.switches["TH"] == pytest.approx(0.8)
     assert [config.get_value(index) for index in (28, 76, 77)] == projection_grid
-    assert connector._phantom_extent_mm == pytest.approx((24.0, 80.0))
 
 
 @pytest.mark.unit

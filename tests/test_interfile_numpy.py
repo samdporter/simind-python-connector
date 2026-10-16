@@ -133,10 +133,11 @@ def test_load_interfile_array_rejects_truncated_payload(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_load_interfile_array_rejects_trailing_payload(tmp_path: Path):
+@pytest.mark.parametrize("extra_bytes", [b"\x00", b"\x00\x00\x00\x00"])
+def test_load_interfile_array_rejects_trailing_payload(tmp_path: Path, extra_bytes):
     data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
     header_path = tmp_path / "projection.hs"
-    (tmp_path / "projection.a00").write_bytes(data.tobytes() + b"\x00\x00\x00\x00")
+    (tmp_path / "projection.a00").write_bytes(data.tobytes() + extra_bytes)
 
     header_path.write_text(
         "\n".join(

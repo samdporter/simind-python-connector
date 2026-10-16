@@ -61,12 +61,10 @@ SPECT header remains. Measured on a real SIMIND V8.0 run, 49 characters is the
 exact maximum prefix for ``{prefix}_tot_w1.a00``; a 50-character prefix
 truncates it. The 47-character cap is a conservative policy with a small margin
 below that measured boundary, not an engine-measured limit. The longest
-engine-written name adds a ``_tot_w{N}.a00`` suffix (10 characters plus the
-digits of the window number), and when every scatter order is below 1 the
-window file gains the required extra line, which adds one more output set, so
-the suffix can reach 13 characters and a 47-character prefix plus that suffix
-uses the 60-character buffer exactly. To stay inside that budget, at most 99
-energy windows are accepted; a larger set raises ``ValueError``.
+engine-written name adds a ``_tot_w{N}.a00`` suffix. With at most 99 energy
+windows this suffix is 12 characters long, leaving a margin inside the
+60-character buffer. Window files contain exactly the requested windows;
+more than 99 windows raises ``ValueError``.
 
 ``RuntimeOperator`` carries per-run switches, an orbit file and an optional
 timeout in seconds. A run that exceeds the timeout stops and raises
@@ -116,6 +114,11 @@ supported by the Interfile connector. LIST_MODE (2) and FORCED_COLLIMATION (3)
 write outputs the connector cannot read, so they are rejected at preflight;
 they remain available through lower-level use of the package.
 
+For repeatable diagnostic runs on SIMIND V8, set
+``connector.get_config().set_flag(8, False)`` to reuse the same initial random
+state. The bundled configurations enable Flag 8 for independent simulations.
+The ``RR`` switch alone does not make repeated runs reproducible.
+
 A literal 1x1x1 voxel phantom is rejected (SIMIND does not support it), so pad
 the source and mu map to at least two voxels in one dimension. A non-zero
 source that ``quantization_scale`` rounds to all zeros is also rejected;
@@ -136,10 +139,19 @@ Adaptor Workflows
 Use adaptors when you want connector-managed SIMIND execution plus native
 objects for a target reconstruction package.
 
+Enabling ``keep_all_views_in_cache`` in SIRF/STIR can cause memory errors on
+large acquisitions. Disable it if view caching exhausts available memory.
+
 With the SCATTWIN scoring routine, SIMIND V8 writes only the total projection
 unless the ``CA`` runtime switch asks for more: ``CA`` = 1 adds scatter
 (``sca``) and air (``air``) projections, ``CA`` = 2 adds primary (``pri``),
-scatter and air projections.
+scatter and air projections. A SCATTWIN run without ``CA`` issues a
+``UserWarning``; set ``CA`` = 0 to keep total-only output without it.
+
+Keep energy-window scatter orders at 0 unless you need SIMIND's per-order
+behaviour. On V8, a window with scatter order above 0 produces only
+``sca_wN`` (no ``tot_wN``), and its presence makes SIMIND also write ``sca``
+and ``air`` for the order-0 windows whatever ``CA`` is set to.
 
 .. code-block:: python
 

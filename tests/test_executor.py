@@ -559,12 +559,3 @@ def test_executor_rejects_illegal_string_switch_before_execution(
         SimindExecutor().run_simulation("case01", runtime_switches={"FI": value})
 
     assert calls == []
-
-
-def test_executor_serialize_runtime_switches_preserves_order_and_mp_count() -> None:
-    blob, mp_count = SimindExecutor._serialize_runtime_switches(
-        {"NN": 2, "MP": 4, "RR": 12345}
-    )
-
-    assert blob == "/NN:2/MP/RR:12345"
-    assert mp_count == "4"

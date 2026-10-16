@@ -110,17 +110,6 @@ def extract_voxel_spacing_mm(
         ) from exc
 
 
-def extract_voxel_size_mm(image: Any, backend_name: str) -> float:
-    """Return a scalar for legacy callers when backend voxels are cubic."""
-    z, y, x = extract_voxel_spacing_mm(image, backend_name)
-    if max(z, y, x) - min(z, y, x) > 1e-3:
-        raise ValueError(
-            f"{backend_name} images must have cubic voxels; got (z, y, x) = "
-            f"{(z, y, x)} mm"
-        )
-    return z
-
-
 def _numeric_array(value: Any) -> np.ndarray | None:
     try:
         return np.asarray(value, dtype=float).reshape(-1)
@@ -192,7 +181,6 @@ def same_spatial_geometry(source: Any, mu_map: Any) -> bool:
 
 
 __all__ = [
-    "extract_voxel_size_mm",
     "extract_voxel_spacing_mm",
     "normalize_voxel_size_mm",
     "same_spatial_geometry",

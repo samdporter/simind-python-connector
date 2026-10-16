@@ -51,6 +51,7 @@ def main() -> None:
     connector.set_energy_windows(lowers, uppers, orders)
     connector.add_config_value(1, 208.0)
     add_standard_runtime(connector, photon_multiplier=1, seed=12345, nuclide="lu177")
+    connector.add_runtime_switch("CA", 0)  # total projections only
 
     outputs = connector.run()
 

@@ -16,7 +16,7 @@ ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${PATH}
 # MPICH runtime for SIMIND's MPI binary; the compat script exposes the library
 # names that binary was built against. See docker/python/install_mpich_compat.sh.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends mpich \
+    && apt-get install -y --no-install-recommends git mpich \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/python/install_mpich_compat.sh /usr/local/bin/install_mpich_compat.sh

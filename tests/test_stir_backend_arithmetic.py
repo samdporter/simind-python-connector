@@ -4,6 +4,8 @@ These exercise the scalar-on-left and unary operators that STIR's native
 bindings do not implement, on both wrapper classes.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -144,6 +146,22 @@ def test_acquisition_forward_operators_agree():
     np.testing.assert_allclose(
         (acquisition + other).as_array(), before + before, rtol=1e-5
     )
+
+
+def test_image_arithmetic_warns_only_on_stir_without_image_operators():
+    import stir
+
+    image = _make_image()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        image + image
+
+    deprecations = [w for w in caught if "STIR 6.2" in str(w.message)]
+    legacy = not hasattr(stir.FloatVoxelsOnCartesianGrid, "__add__")
+    assert len(deprecations) == int(legacy)
+    # The warning names the caller's line, so it is shown outside the package.
+    assert all(w.filename == __file__ for w in deprecations)
+    assert all(w.category is DeprecationWarning for w in deprecations)
 
 
 def test_get_array_matches_stir_extra_conversion():

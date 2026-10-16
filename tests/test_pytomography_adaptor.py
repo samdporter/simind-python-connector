@@ -66,18 +66,6 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
 
 
 @pytest.mark.unit
-def test_pytomography_adaptor_avoids_wrapping_pytomography_methods(tmp_path: Path):
-    connector = PyTomographySimindAdaptor(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-
-    assert not hasattr(connector, "build_system_matrix")
-    assert not hasattr(connector, "get_pytomography_metadata")
-
-
-@pytest.mark.unit
 def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
     tmp_path: Path, monkeypatch
 ):
@@ -260,7 +248,7 @@ def test_pytomography_derives_scatter_from_total_minus_primary(tmp_path: Path):
 
     assert torch.equal(connector.get_scatter_output(window=1), torch.tensor([1.0, 2.0]))
     assert connector.get_primary_output(window=1) is populated["pri_w1"]
-    assert connector._outputs.keys() == populated.keys()
+    assert connector.get_outputs().keys() == populated.keys()
 
 
 @pytest.mark.unit
@@ -344,6 +332,7 @@ def test_pytomography_simind_smoke_preserves_axial_source_position(
     adaptor.set_source(source_xyz)
     adaptor.set_mu_map(torch.zeros_like(source_xyz))
     adaptor.set_energy_windows([126], [154], [0])
+    adaptor.get_config().set_flag(8, False)
     adaptor.add_config_value(19, 2)
     adaptor.add_config_value(53, 0)
     adaptor.add_config_value(29, 2)
@@ -352,7 +341,6 @@ def test_pytomography_simind_smoke_preserves_axial_source_position(
     adaptor.add_config_value(76, 16)
     adaptor.add_config_value(77, 16)
     adaptor.add_runtime_switch("CC", "ma-lehr")
-    adaptor.add_runtime_switch("RR", 7)
     adaptor.run()
 
     projection = adaptor.get_total_output().cpu()

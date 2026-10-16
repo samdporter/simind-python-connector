@@ -47,6 +47,7 @@ def _run_case(
     connector.add_config_value(53, 0)
     connector.set_energy_windows([75.0], [225.0], [0])
     add_standard_runtime(connector, photon_multiplier=1, seed=seed)
+    connector.add_runtime_switch("CA", 0)  # total projections only
     outputs = connector.run()
     return outputs["tot_w1"].projection
 

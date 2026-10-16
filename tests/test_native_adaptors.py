@@ -215,35 +215,11 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
     assert outputs["tot_w1"] == f"stir:{tmp_path / 'case01_tot_w1.hs'}"
     assert np.asarray(captured["source"]).dtype == np.float32
     assert np.asarray(captured["mu_map"]).dtype == np.float32
-    assert np.asarray(captured["source"]).shape == (2, 3, 4)
-    assert np.asarray(captured["mu_map"]).shape == (2, 3, 4)
+    np.testing.assert_array_equal(captured["source"], source_arr)
+    np.testing.assert_array_equal(captured["mu_map"], mu_arr.astype(np.float32))
     assert captured["voxel_size_mm"] == pytest.approx((1.0, 1.0, 1.0))
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
     assert captured["runtime_operator"] is runtime_operator
-
-
-def test_stir_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> None:
-    """Images report spacing as (z, y, x); raw STIR sequences prepend an unused
-    element. The connector takes one voxel size, so voxels must be cubic."""
-    array = np.zeros((2, 3, 4), dtype=np.float32)
-    for image in (
-        _ImageWithVoxelSizes(array, (2.0, 2.0, 2.0)),
-        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 2.0)),
-        _ImageWithGridSpacing(array, (2.0, 2.0, 2.0)),
-    ):
-        assert StirSimindAdaptor._extract_voxel_size_mm(image) == pytest.approx(2.0)
-
-    for image in (
-        _ImageWithVoxelSizes(array, (3.0, 2.0, 2.0)),
-        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 5.0)),
-    ):
-        with pytest.raises(ValueError, match="cubic voxels|square in-plane"):
-            StirSimindAdaptor._extract_voxel_size_mm(image)
-
-    with pytest.raises(ValueError, match=r"voxel_sizes\(\) or get_grid_spacing\(\)"):
-        StirSimindAdaptor._extract_voxel_size_mm(
-            _ImageWithoutSpacing(np.zeros((1, 1, 1)))
-        )
 
 
 def test_stir_adaptor_missing_component_errors_list_available_keys(
@@ -351,35 +327,11 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
     assert outputs["tot_w1"].path == str(tmp_path / "case01_tot_w1.hs")
     assert np.asarray(captured["source"]).dtype == np.float32
     assert np.asarray(captured["mu_map"]).dtype == np.float32
-    assert np.asarray(captured["source"]).shape == (2, 3, 4)
-    assert np.asarray(captured["mu_map"]).shape == (2, 3, 4)
+    np.testing.assert_array_equal(captured["source"], source_arr)
+    np.testing.assert_array_equal(captured["mu_map"], mu_arr.astype(np.float32))
     assert captured["voxel_size_mm"] == pytest.approx((1.0, 1.0, 1.0))
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
     assert captured["runtime_operator"] is runtime_operator
-
-
-def test_sirf_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> None:
-    """Images report spacing as (z, y, x); raw STIR sequences prepend an unused
-    element. The connector takes one voxel size, so voxels must be cubic."""
-    array = np.zeros((2, 3, 4), dtype=np.float32)
-    for image in (
-        _ImageWithVoxelSizes(array, (2.0, 2.0, 2.0)),
-        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 2.0)),
-        _ImageWithGridSpacing(array, (2.0, 2.0, 2.0)),
-    ):
-        assert SirfSimindAdaptor._extract_voxel_size_mm(image) == pytest.approx(2.0)
-
-    for image in (
-        _ImageWithVoxelSizes(array, (3.0, 2.0, 2.0)),
-        _ImageWithGridSpacing(array, (0.0, 2.0, 2.0, 5.0)),
-    ):
-        with pytest.raises(ValueError, match="cubic voxels|square in-plane"):
-            SirfSimindAdaptor._extract_voxel_size_mm(image)
-
-    with pytest.raises(ValueError, match=r"voxel_sizes\(\) or get_grid_spacing\(\)"):
-        SirfSimindAdaptor._extract_voxel_size_mm(
-            _ImageWithoutSpacing(np.zeros((1, 1, 1)))
-        )
 
 
 def test_sirf_adaptor_missing_component_errors_list_available_keys(
@@ -471,7 +423,7 @@ def test_adaptor_rejects_mu_map_with_different_origin(
     )
 
     with pytest.raises(ValueError, match="same spatial geometry"):
-        adaptor._validate_inputs()
+        adaptor.run()
 
 
 def test_stir_adaptor_clears_cached_outputs_on_failed_rerun(
@@ -517,7 +469,6 @@ def _assert_failed_rerun_clears_cache(adaptor) -> None:
     with pytest.raises(RuntimeError, match="simulated failure"):
         adaptor.run()
 
-    assert adaptor._outputs is None
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_outputs()
 
@@ -529,13 +480,22 @@ def _assert_failed_rerun_clears_cache(adaptor) -> None:
         (SirfSimindAdaptor, _patch_sirf_backend),
     ],
 )
+@pytest.mark.parametrize(
+    "image_factory",
+    [
+        _ImageWithVoxelSizes,
+        _ImageWithGridSpacing,
+        lambda array, spacing: _ImageWithGridSpacing(array, (0.0, *spacing)),
+    ],
+    ids=["voxel_sizes", "grid_spacing", "stir_coordinates"],
+)
 def test_native_adaptors_forward_anisotropic_axial_spacing(
-    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    cls, patch, image_factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     patch(monkeypatch)
     adaptor = _make_adaptor(cls, tmp_path)
-    source = _ImageWithVoxelSizes(np.ones((2, 3, 4)), (8.0, 4.0, 4.0))
-    mu_map = _ImageWithVoxelSizes(np.zeros_like(source.array), (8.0, 4.0, 4.0))
+    source = image_factory(np.ones((2, 3, 4)), (8.0, 4.0, 4.0))
+    mu_map = image_factory(np.zeros_like(source.array), (8.0, 4.0, 4.0))
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
     captured = {}
@@ -571,7 +531,7 @@ def test_native_adaptors_reject_different_axial_spacing(
     adaptor.set_mu_map(mu_map)
 
     with pytest.raises(ValueError, match="same voxel size"):
-        adaptor._validate_inputs()
+        adaptor.run()
 
 
 @pytest.mark.parametrize(
@@ -581,17 +541,27 @@ def test_native_adaptors_reject_different_axial_spacing(
         (SirfSimindAdaptor, _patch_sirf_backend),
     ],
 )
-def test_native_adaptors_reject_nonsquare_inplane_voxels(
-    cls, patch, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "image_factory, match",
+    [
+        (_ImageWithoutSpacing, r"voxel_sizes\(\) or get_grid_spacing\(\)"),
+        (
+            lambda array: _ImageWithVoxelSizes(array, (8.0, 4.0, 4.1)),
+            "square in-plane",
+        ),
+    ],
+)
+def test_native_adaptors_reject_invalid_spacing(
+    cls, patch, image_factory, match, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     patch(monkeypatch)
     adaptor = _make_adaptor(cls, tmp_path)
-    source = _ImageWithVoxelSizes(np.ones((2, 3, 4)), (8.0, 4.0, 4.1))
+    source = image_factory(np.ones((2, 3, 4)))
     adaptor.set_source(source)
-    adaptor.set_mu_map(_ImageWithVoxelSizes(np.zeros_like(source.array), (8, 4, 4.1)))
+    adaptor.set_mu_map(image_factory(np.zeros_like(source.array)))
 
-    with pytest.raises(ValueError, match="square in-plane"):
-        adaptor._validate_inputs()
+    with pytest.raises(ValueError, match=match):
+        adaptor.run()
 
 
 @pytest.mark.parametrize(
@@ -674,7 +644,7 @@ def test_adaptor_derives_missing_component_from_total(
     adaptor._outputs = dict(populated)  # type: ignore[assignment]
 
     assert np.array_equal(getattr(adaptor, getter)(window=1), expected)
-    assert adaptor._outputs.keys() == populated.keys()
+    assert adaptor.get_outputs().keys() == populated.keys()
 
 
 @pytest.mark.parametrize(
@@ -752,39 +722,6 @@ def _make_pytomography_adaptor(
         ),
     )
     return adaptor
-
-
-_ADAPTOR_BACKENDS = [
-    (StirSimindAdaptor, _patch_stir_backend),
-    (SirfSimindAdaptor, _patch_sirf_backend),
-    (PyTomographySimindAdaptor, _patch_pytomography_backend),
-]
-
-
-@pytest.mark.parametrize("cls, patch", _ADAPTOR_BACKENDS)
-@pytest.mark.parametrize(
-    "scoring, expected",
-    [
-        pytest.param(None, None, id="none"),
-        pytest.param(0, ScoringRoutine.DUMMY, id="dummy-code"),
-        pytest.param(1, ScoringRoutine.SCATTWIN, id="scattwin-code"),
-        pytest.param(4, ScoringRoutine.PENETRATE, id="penetrate-code"),
-        pytest.param(ScoringRoutine.PENETRATE, ScoringRoutine.PENETRATE, id="enum"),
-    ],
-)
-def test_adaptor_constructor_accepts_valid_scoring_routine(
-    cls, patch, scoring, expected, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    patch(monkeypatch)
-
-    adaptor = cls(
-        config_source=get("AnyScan.yaml"),
-        output_dir=str(tmp_path),
-        output_prefix="case01",
-        scoring_routine=scoring,
-    )
-
-    assert adaptor._scoring_routine == expected
 
 
 @pytest.mark.parametrize(

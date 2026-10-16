@@ -1,8 +1,4 @@
-# This file contains a few useful functions for converting SIMIND output to
-# STIR format.
-### It should probably be cleaned up and object-orientedified at some point.
-
-### Author: Sam Porter, Efstathios Varzakis
+"""Image, acquisition and Interfile helpers for STIR and SIRF."""
 
 import contextlib
 import os
@@ -18,7 +14,7 @@ from .import_helpers import get_sirf_types
 from .interfile_parser import parse_interfile_header, parse_interfile_line
 
 
-# Conditional import for SIRF to avoid CI dependencies
+# SIRF is optional; the NumPy and file helpers work without it.
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Unpack interfaces needed by stir_utils
@@ -93,7 +89,8 @@ def get_sirf_attenuation_from_simind(
 
     Args:
         attn_filename (string): file name of simind attenuation file header
-        new_filename (string): file name of new attenuation file header
+        photopeak_energy (float): Legacy density-to-attenuation multiplier in
+            cm²/g, despite its name. Used only for ``rho*1000`` input.
         attn_type (str, optional): unit of attenuation binary file. Defaults to 'mu'.
 
     Returns:
@@ -134,7 +131,7 @@ def get_sirf_attenuation_from_simind(
     if attn_type == "mu":
         image.fill(attn)
     elif attn_type == "rho*1000":
-        # Density-scaled input: convert g/cm^3 to mu at the photopeak energy.
+        # The legacy argument is an attenuation coefficient, not an energy.
         image.fill(attn / 1000 * photopeak_energy)
 
     return image
@@ -444,7 +441,7 @@ def create_simple_phantom():
     voxel_size = [4.42, 4.42, 4.42]  # mm
 
     # Create empty image
-    phantom = create_stir_image(matrix_dim, voxel_size)
+    phantom = create_image_data(create_stir_image(matrix_dim, voxel_size))
     phantom_array = get_array(phantom)
 
     # Add cylindrical background (body)
@@ -471,7 +468,7 @@ def create_simple_phantom():
                     phantom_array[z, y, x] = 40  # Hot spot activity
 
     phantom.fill(phantom_array)
-    return phantom
+    return phantom.native_object
 
 
 def create_attenuation_map(phantom):
@@ -482,6 +479,6 @@ def create_attenuation_map(phantom):
     attn_array = get_array(phantom).copy()
     attn_array[attn_array > 0] = mu_water_140keV
 
-    mu_map = phantom.clone()
+    mu_map = create_image_data(phantom).clone()
     mu_map.fill(attn_array)
-    return mu_map
+    return mu_map.native_object

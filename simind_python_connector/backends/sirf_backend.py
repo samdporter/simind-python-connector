@@ -70,11 +70,7 @@ class SirfImageData(ImageDataInterface):
 
     def as_array(self) -> np.ndarray:
         """Convert to numpy array."""
-        # Try asarray first (newer SIRF), fall back to as_array
-        if hasattr(self._obj, "asarray"):
-            return self._obj.asarray()
-        else:
-            return self._obj.as_array()
+        return self._obj.as_array()
 
     def sum(self) -> float:
         """Sum all values."""
@@ -124,16 +120,18 @@ class SirfImageData(ImageDataInterface):
             return SirfImageData(self._obj / other)
 
     def __radd__(self, other):
-        return SirfImageData(other + self._obj)
+        return self + other
 
     def __rsub__(self, other):
-        return SirfImageData(other - self._obj)
+        return -self + other
 
     def __rmul__(self, other):
-        return SirfImageData(other * self._obj)
+        return self * other
 
     def __rtruediv__(self, other):
-        return SirfImageData(other / self._obj)
+        if isinstance(other, ImageData):
+            return SirfImageData(other) / self
+        return self.get_uniform_copy(float(other)) / self
 
     def __neg__(self):
         return SirfImageData(-self._obj)
@@ -203,11 +201,7 @@ class SirfAcquisitionData(AcquisitionDataInterface):
 
     def as_array(self) -> np.ndarray:
         """Convert to numpy array."""
-        # Try asarray first (newer SIRF), fall back to as_array
-        if hasattr(self._obj, "asarray"):
-            return self._obj.asarray()
-        else:
-            return self._obj.as_array()
+        return self._obj.as_array()
 
     def sum(self) -> float:
         """Sum all values."""
@@ -277,16 +271,18 @@ class SirfAcquisitionData(AcquisitionDataInterface):
             return SirfAcquisitionData(self._obj / other)
 
     def __radd__(self, other):
-        return SirfAcquisitionData(other + self._obj)
+        return self + other
 
     def __rsub__(self, other):
-        return SirfAcquisitionData(other - self._obj)
+        return -self + other
 
     def __rmul__(self, other):
-        return SirfAcquisitionData(other * self._obj)
+        return self * other
 
     def __rtruediv__(self, other):
-        return SirfAcquisitionData(other / self._obj)
+        if isinstance(other, AcquisitionData):
+            return SirfAcquisitionData(other) / self
+        return self.get_uniform_copy(float(other)) / self
 
     def __neg__(self):
         return SirfAcquisitionData(-self._obj)

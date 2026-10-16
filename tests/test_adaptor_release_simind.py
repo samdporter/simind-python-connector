@@ -1,11 +1,4 @@
-"""Real-SIMIND SCATTWIN runs through the STIR, SIRF and PyTomography adaptors.
-
-Each test runs one small SIMIND simulation with ``CA:1`` through the adaptor,
-checks that the total and scatter accessors return usable backend objects, and
-pins the primary projection contract: ``RuntimeError`` before a run and total
-minus scatter after one, without the output cache being mutated. The random
-seed is fixed so the runs are reproducible.
-"""
+"""SCATTWIN output access and arithmetic through real reconstruction backends."""
 
 from __future__ import annotations
 
@@ -20,9 +13,9 @@ from simind_python_connector.configs import get
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_simind]
 
-RUN_TIMEOUT = 10.0
-QUANTIZATION_SCALE = 0.001
-SEED = 12345
+RUN_TIMEOUT = 60.0
+PHOTON_MULTIPLIER = 5
+MU_WATER = 0.15  # cm^-1 at 140 keV, so the run has phantom scatter
 VIEWS = 4
 SHAPE = (8, 8, 8)
 VOXEL_MM = (4.0, 4.0, 4.0)
@@ -34,17 +27,29 @@ def _point_array(shape: tuple[int, ...] = SHAPE) -> np.ndarray:
     return source
 
 
+def _configure_scattwin(adaptor):
+    adaptor.get_config().set_flag(8, False)
+    adaptor.set_energy_windows([126], [154], [0])
+    adaptor.add_config_value(29, VIEWS)
+    adaptor.add_runtime_switch("FI", "tc99m")
+    adaptor.add_runtime_switch("CC", "ma-lehr")
+    adaptor.add_runtime_switch("CA", 1)
+
+
 def _stir_or_sirf_images(create_stir_image, backend: str):
+    # Native STIR images fill from an iterator; SIRF images take the array.
+    def values(array):
+        return array.flat if backend == "stir" else array
+
     source = create_stir_image(list(SHAPE), list(VOXEL_MM), backend=backend)
-    source.fill(_point_array())
+    source.fill(values(_point_array()))
     mu_map = create_stir_image(list(SHAPE), list(VOXEL_MM), backend=backend)
-    mu_map.fill(np.zeros(SHAPE, np.float32))
+    mu_map.fill(values(np.full(SHAPE, MU_WATER, np.float32)))
     return source, mu_map
 
 
 @pytest.mark.requires_stir
 def test_stir_adaptor_real_scattwin_run(tmp_path: Path):
-    pytest.importorskip("stir")
     from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
     from simind_python_connector.utils.stir_utils import create_stir_image
 
@@ -53,15 +58,11 @@ def test_stir_adaptor_real_scattwin_run(tmp_path: Path):
         config_source=get("Example.yaml"),
         output_dir=str(tmp_path),
         output_prefix="stircase",
-        photon_multiplier=1,
-        quantization_scale=QUANTIZATION_SCALE,
+        photon_multiplier=PHOTON_MULTIPLIER,
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
-    adaptor.set_energy_windows([126], [154], [0])
-    adaptor.add_config_value(29, VIEWS)
-    adaptor.add_runtime_switch("RR", SEED)
-    adaptor.add_runtime_switch("CA", 1)
+    _configure_scattwin(adaptor)
 
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_primary_output(window=1)
@@ -70,6 +71,7 @@ def test_stir_adaptor_real_scattwin_run(tmp_path: Path):
 
     assert {"tot_w1", "sca_w1"} <= set(outputs)
     assert float(adaptor.get_total_output(window=1).sum()) > 0
+    assert float(outputs["sca_w1"].sum()) > 0
     assert adaptor.get_scatter_output(window=1) is outputs["sca_w1"]
 
     from simind_python_connector.backends.stir_backend import StirAcquisitionData
@@ -85,7 +87,6 @@ def test_stir_adaptor_real_scattwin_run(tmp_path: Path):
 
 @pytest.mark.requires_sirf
 def test_sirf_adaptor_real_scattwin_run(tmp_path: Path):
-    pytest.importorskip("sirf.STIR")
     from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
     from simind_python_connector.utils.stir_utils import create_stir_image
 
@@ -94,15 +95,11 @@ def test_sirf_adaptor_real_scattwin_run(tmp_path: Path):
         config_source=get("Example.yaml"),
         output_dir=str(tmp_path),
         output_prefix="sirfcase",
-        photon_multiplier=1,
-        quantization_scale=QUANTIZATION_SCALE,
+        photon_multiplier=PHOTON_MULTIPLIER,
     )
     adaptor.set_source(source)
     adaptor.set_mu_map(mu_map)
-    adaptor.set_energy_windows([126], [154], [0])
-    adaptor.add_config_value(29, VIEWS)
-    adaptor.add_runtime_switch("RR", SEED)
-    adaptor.add_runtime_switch("CA", 1)
+    _configure_scattwin(adaptor)
 
     with pytest.raises(RuntimeError, match="Run the adaptor first"):
         adaptor.get_primary_output(window=1)
@@ -111,6 +108,7 @@ def test_sirf_adaptor_real_scattwin_run(tmp_path: Path):
 
     assert {"tot_w1", "sca_w1"} <= set(outputs)
     assert float(adaptor.get_total_output(window=1).as_array().sum()) > 0
+    assert float(outputs["sca_w1"].as_array().sum()) > 0
     assert adaptor.get_scatter_output(window=1) is outputs["sca_w1"]
 
     assert np.allclose(
@@ -124,8 +122,8 @@ def test_sirf_adaptor_real_scattwin_run(tmp_path: Path):
 
 @pytest.mark.requires_pytomography
 def test_pytomography_adaptor_real_scattwin_run(tmp_path: Path):
-    torch = pytest.importorskip("torch")
-    pytest.importorskip("pytomography")
+    import torch
+
     from simind_python_connector.connectors.pytomography_adaptor import (
         PyTomographySimindAdaptor,
     )
@@ -136,16 +134,12 @@ def test_pytomography_adaptor_real_scattwin_run(tmp_path: Path):
         config_source=get("Example.yaml"),
         output_dir=tmp_path,
         output_prefix="pytcase",
-        photon_multiplier=1,
+        photon_multiplier=PHOTON_MULTIPLIER,
         voxel_size_mm=VOXEL_MM[0],
-        quantization_scale=QUANTIZATION_SCALE,
     )
     adaptor.set_source(source)
-    adaptor.set_mu_map(torch.zeros_like(source))
-    adaptor.set_energy_windows([126], [154], [0])
-    adaptor.add_config_value(29, VIEWS)
-    adaptor.add_runtime_switch("RR", SEED)
-    adaptor.add_runtime_switch("CA", 1)
+    adaptor.set_mu_map(torch.full_like(source, MU_WATER))
+    _configure_scattwin(adaptor)
 
     with pytest.raises(RuntimeError, match="Run the connector first"):
         adaptor.get_primary_output(window=1)
@@ -154,6 +148,7 @@ def test_pytomography_adaptor_real_scattwin_run(tmp_path: Path):
 
     assert {"tot_w1", "sca_w1"} <= set(outputs)
     assert float(adaptor.get_total_output(window=1).sum()) > 0
+    assert float(outputs["sca_w1"].sum()) > 0
     assert adaptor.get_scatter_output(window=1) is outputs["sca_w1"]
 
     assert torch.allclose(

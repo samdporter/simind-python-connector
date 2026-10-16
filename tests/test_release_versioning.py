@@ -40,9 +40,9 @@ def test_release_updates_metadata_and_tags(tmp_path, bump, expected):
     (tmp_path / "simind_python_connector").mkdir()
     version_file = tmp_path / "simind_python_connector/_version.py"
     version_file.write_text('__version__ = "1.2.3"\n')
-    (tmp_path / ".zenodo.json").write_text('{"version": "1.2.3"}\n')
+    (tmp_path / ".zenodo.json").write_text('{"version": "1.2.2"}\n')
     (tmp_path / "CITATION.cff").write_text(
-        "version: 1.2.3\ndate-released: 2000-01-01\n"
+        "version: 1.2.2\ndate-released: 2000-01-01\n"
     )
     (tmp_path / "CHANGELOG.md").write_text(f"## [{expected}] - 2026-10-16\n")
     (tmp_path / "docs").mkdir()
@@ -54,6 +54,8 @@ def test_release_updates_metadata_and_tags(tmp_path, bump, expected):
     run("git", "-c", "commit.gpgsign=false", "commit", "-m", "Initial")
     run("git", "config", "commit.gpgsign", "false")
     run("git", "config", "tag.gpgsign", "false")
+    (tmp_path / "unrelated.txt").write_text("Unfinished work\n")
+    run("git", "add", "unrelated.txt")
 
     run("bash", "scripts/release.sh", bump)
 
@@ -63,4 +65,7 @@ def test_release_updates_metadata_and_tags(tmp_path, bump, expected):
     assert f"version: {expected}\n" in citation
     assert "date-released: 2000-01-01" not in citation
     assert run("git", "tag", "--list") == f"v{expected}"
-    assert run("git", "status", "--porcelain") == ""
+    assert (
+        "unrelated.txt" not in run("git", "ls-tree", "--name-only", "HEAD").splitlines()
+    )
+    assert run("git", "status", "--porcelain") == "A  unrelated.txt"

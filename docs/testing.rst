@@ -29,14 +29,15 @@ Automatic Dependency Detection
 
 The test suite automatically detects available dependencies:
 
-* **SIRF detection**: Attempts to ``import sirf``
+* **SIRF detection**: Attempts to ``import sirf.STIR``
 * **STIR detection**: Attempts to ``import stir``, then imports the STIR
   conversion helpers the way the package itself does (``stir.extra`` preferred,
   the legacy ``stirextra`` module only as a fallback), so a broken
   ``stir.extra`` dependency is reported as unavailable instead of being masked
   by the legacy module
 * **PyTomography detection**: Attempts to ``import pytomography``
-* **SIMIND detection**: Checks if ``simind`` command is available
+* **SIMIND detection**: Uses ``$SIMIND_BIN`` when set, otherwise looks for
+  ``simind`` on ``PATH``
 * **CI detection**: Checks ``CI`` or ``GITHUB_ACTIONS`` environment variables
 
 Tests requiring unavailable dependencies are automatically skipped with informative messages.
@@ -118,17 +119,6 @@ the official SIMIND site and manual:
 The container suite includes ``tests/test_container_library_isolation.py``,
 which asserts that each container can import only its target backend library.
 
-Alternative CI Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The dependency-exclusion selection lives in ``.github/workflows/tests.yml`` so it
-applies to CI only; the default ``pytest`` run keeps every available test.
-
-.. code-block:: bash
-
-    # Run only the CI-friendly selection locally
-    pytest -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not requires_setr and not ci_skip"
-
 Test Categories
 ---------------
 
@@ -140,8 +130,8 @@ The default CI job runs the tests that avoid heavyweight dependencies. These foc
 * **Conversion maths** – ``tests/test_schneider_density.py`` exercises the HU-to-density pipelines.
 * **Configuration & builders** – ``tests/test_simulation_config.py`` and ``tests/test_acquisition_builder_unit.py`` validate YAML/SMC handling plus Interfile header generation without a SIRF runtime.
 * **Connector behavior** – ``tests/test_python_connector.py`` and ``tests/test_connector_backend_separation.py`` cover the connector-first API without requiring reconstruction packages.
-* **Utility helpers** – ``tests/test_utils.py``, ``tests/test_utils_small.py``, ``tests/test_interfile_parser.py``, and ``tests/test_interfile_numpy.py`` cover file parsing and small helper functions.
-* **Backend guards** – ``tests/test_backends.py`` ensures optional backend imports remain isolated.
+* **Utility helpers** – ``tests/test_utils_small.py``, ``tests/test_interfile_parser.py``, and ``tests/test_interfile_numpy.py`` cover file parsing and small helper functions.
+* **Backend dispatch** – ``tests/test_backends.py`` covers backend detection and dispatch with stand-in backends.
 
 Backend-Dependent Suites
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -149,15 +139,16 @@ Backend-Dependent Suites
 Tests that construct real STIR/SIRF/PyTomography objects carry dependency
 markers and are skipped when those packages are unavailable. These include:
 
-* ``tests/test_native_adaptors.py`` for STIR/SIRF adaptor behavior.
+* ``tests/test_native_geometry_real.py`` for native STIR/SIRF image geometry.
+* ``tests/test_utils.py`` for phantom, image and acquisition helpers on SIRF and STIR.
 * ``tests/test_pytomography_adaptor.py`` for PyTomography tensor and output adaptation.
-* ``tests/test_arithmetic_operations.py`` and ``tests/test_sirf_stir_utils.py`` for backend wrapper/helper behavior.
+* ``tests/test_arithmetic_operations.py`` and ``tests/test_stir_backend_arithmetic.py`` for arithmetic on real backend objects.
 
 SIMIND and Container Diagnostics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
-``simind`` command is available. Container and geometry diagnostics include:
+SIMIND-dependent tests use ``requires_simind`` and are skipped unless SIMIND
+is found. Container and geometry diagnostics include:
 
 * ``tests/test_integration.py`` for full workflow checks.
 * ``tests/test_container_library_isolation.py`` for backend container import isolation.
@@ -167,13 +158,6 @@ The MPI cases in ``tests/test_patch_release_simind.py`` additionally require
 latter two are provided by ``docker/python/Dockerfile``, which installs MPICH
 and exposes the ``libmpi.so.12``/``libmpifort.so.12`` names SIMIND links
 against. They never run in GitHub CI because the SIMIND binary is not tracked.
-
-Integration Test
-~~~~~~~~~~~~~~~~
-
-``tests/test_integration.py`` orchestrates a full example run and needs
-external runtime dependencies. It is marked with dependency markers so it is
-skipped in lightweight CI environments.
 
 Configuration Files
 -------------------
@@ -195,34 +179,19 @@ tests/conftest.py
 Adding New Tests
 ----------------
 
-When adding new tests, use appropriate markers:
+Use ``unit`` for isolated behavior and ``integration`` for workflows involving
+external systems. Add the relevant dependency markers whenever a test needs a
+reconstruction library or SIMIND. The distribution build check runs once in
+the CI build job, separately from the unit test matrix.
 
-.. code-block:: python
+Assert observable results: array values and orientation, saved file contents,
+metadata or a useful failure. Stub external I/O at the boundary when needed.
+Tests that only check whether a function exists, repeat its implementation or
+assert private storage details do not establish that a workflow works.
 
-    import pytest
-
-    @pytest.mark.unit
-    def test_pure_python_logic():
-        """Test that doesn't need external dependencies."""
-        assert True
-
-    @pytest.mark.requires_sirf  
-    def test_sirf_functionality():
-        """Test that uses SIRF objects."""
-        from sirf.STIR import ImageData
-        # ... test code
-
-    @pytest.mark.requires_simind
-    def test_simind_execution():
-        """Test that calls SIMIND command."""
-        # ... test code that runs simind
-
-    @pytest.mark.requires_pytomography
-    def test_pytomography_path():
-        """Test that uses PyTomography APIs."""
-        # ... test code that imports pytomography
-
-This ensures your tests will be properly categorized and run in the appropriate environments.
+SIMIND geometry comparisons use Flag 8 set to false for a repeatable initial
+random state. Choose photon statistics to support the numerical tolerance;
+setting ``RR`` alone does not make V8 simulations reproducible.
 
 Continuous Integration
 ----------------------
@@ -234,5 +203,3 @@ GitHub Actions is used to run tests automatically. The CI workflow:
 3. **Executes CI-friendly tests** using dependency markers
 4. **Generates coverage reports** for the tested code
 5. **Builds and validates the package**
-
-This approach ensures reliable CI while maintaining comprehensive test coverage for local development.

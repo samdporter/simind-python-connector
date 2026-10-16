@@ -127,6 +127,7 @@ def main() -> None:
     adaptor.add_runtime_switch("CC", "ma-megp")
     adaptor.add_runtime_switch("NN", 1)
     adaptor.add_runtime_switch("RR", 12345)
+    adaptor.add_runtime_switch("CA", 0)  # total projections only
     adaptor.add_config_value(1, 140.0)
     adaptor.add_config_value(19, 2)
     adaptor.add_config_value(53, 0)

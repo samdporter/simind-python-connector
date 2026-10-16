@@ -2,5 +2,7 @@
 # NumPy is capped below 2.x: the STIR/SIRF binaries in the synerbi/sirf base
 # images are compiled against NumPy 1.x and crash with NumPy 2 (see README
 # "NumPy ABI" notes).
+# Backend installs also resolve the base image's imagecodecs and tifffile so
+# their NumPy requirements stay compatible with this cap.
 numpy<2.0
 pytest==8.4.2

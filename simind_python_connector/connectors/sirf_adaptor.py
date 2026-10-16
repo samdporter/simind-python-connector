@@ -7,7 +7,6 @@ from typing import Any
 import numpy as np
 
 from simind_python_connector.connectors._spacing import (
-    extract_voxel_size_mm,
     extract_voxel_spacing_mm,
     same_spatial_geometry,
 )
@@ -176,10 +175,6 @@ class SirfSimindAdaptor(BaseConnector):
             available = ", ".join(sorted(outputs))
             raise KeyError(f"Output {key!r} not available. Available: {available}")
         return outputs[key]
-
-    @staticmethod
-    def _extract_voxel_size_mm(image: Any) -> float:
-        return extract_voxel_size_mm(image=image, backend_name="SIRF")
 
     @staticmethod
     def _extract_voxel_spacing_mm(image: Any) -> tuple[float, float, float]:

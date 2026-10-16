@@ -85,9 +85,6 @@ force-single-line = false
 lines-after-imports = 2
 known-first-party = ["simind_python_connector"]
 
-[tool.ruff.lint.per-file-ignores]
-"simind_python_connector/configs/get_sirf_sinos.ipynb" = ["E501", "E722"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short --strict-markers --durations=10"
@@ -107,4 +104,6 @@ console_output_style = "progress"
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+    # Checked by test_run_warns_when_scattwin_runs_without_ca.
+    "ignore:SCATTWIN without the CA runtime switch:UserWarning",
 ]

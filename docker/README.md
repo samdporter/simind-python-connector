@@ -74,6 +74,9 @@ Services
 Notes
 -----
 
+- All services write to the repository mount as uid 1000, gid 100 (the SIRF
+  images' `jovyan` user). Set `HOST_UID`/`HOST_GID` to run the `python`
+  service as a different host user.
 - The SIRF container build arg is `SIRF_BASE_IMAGE`.
 - The STIR container build arg is `STIR_BASE_IMAGE`.
 - Install SIMIND by following the official installation instructions on the SIMIND website.

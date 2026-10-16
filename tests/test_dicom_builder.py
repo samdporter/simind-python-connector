@@ -23,6 +23,7 @@ def _make_dicom(
     with_rotation: bool = True,
     with_time: bool = True,
     with_energy_windows: bool = True,
+    explicit_frames: bool = False,
 ) -> Path:
     """Write a minimal NM DICOM file exercising the builder's parsing."""
     file_meta = FileMetaDataset()
@@ -32,6 +33,13 @@ def _make_dicom(
 
     ds = FileDataset(str(path), {}, file_meta=file_meta, preamble=b"\0" * 128)
     ds.Modality = "NM"
+    ds.AcquisitionDate = "20260101"
+    ds.AcquisitionTime = "120000"
+    ds.AcquisitionNumber = 1
+    ds.Manufacturer = "Test scanner"
+    ds.InstitutionName = "Test institution"
+    ds.PatientName = "Test^Patient"
+    ds.StudyDescription = "SPECT"
     ds.SOPClassUID = file_meta.MediaStorageSOPClassUID
     ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
     ds.Rows = rows
@@ -43,7 +51,7 @@ def _make_dicom(
     ds.BitsStored = 16
     ds.HighBit = 15
     ds.PixelRepresentation = 0
-    if frames > 1:
+    if frames > 1 or explicit_frames:
         ds.NumberOfFrames = frames
 
     pixel = np.arange(frames * rows * cols, dtype=np.uint16).reshape(frames, rows, cols)
@@ -54,6 +62,7 @@ def _make_dicom(
         rot.StartAngle = 180
         rot.ScanArc = 360
         rot.RotationDirection = "CW"
+        rot.RadialPosition = 200.0
         if with_time:
             from pydicom.dataelem import DataElement
 
@@ -88,7 +97,6 @@ def test_single_frame_dicom_populates_header_and_pixels(tmp_path: Path):
     assert builder.header["!matrix size [2]"] == "4"
     assert builder.header["scaling factor (mm/pixel) [1]"] == "2.0"
     assert builder.header["scaling factor (mm/pixel) [2]"] == "1.5"
-    assert builder.pixel_array is not None
     assert builder.pixel_array.ndim == 4
     assert builder.pixel_array.shape == (1, 4, 1, 5)
     # Frames-first promotion feeds the same transpose/rotation as multiframe
@@ -105,7 +113,9 @@ def test_single_frame_pixels_match_explicit_one_frame_multiframe(tmp_path: Path)
             str(_make_dicom(tmp_path / "single.dcm", frames=1))
         )
     multi = _new_builder()
-    multi.update_header_from_dicom(str(_make_dicom(tmp_path / "multi1.dcm", frames=1)))
+    multi.update_header_from_dicom(
+        str(_make_dicom(tmp_path / "multi1.dcm", frames=1, explicit_frames=True))
+    )
 
     assert np.array_equal(single.pixel_array, multi.pixel_array)
 
@@ -141,8 +151,12 @@ def test_missing_rotation_sequence_warns_but_keeps_pixel_data(tmp_path: Path):
     builder = _new_builder()
     with pytest.warns(UserWarning, match="Rotation Information"):
         builder.update_header_from_dicom(str(dicom_path))
+    with_rotation = _new_builder()
+    with_rotation.update_header_from_dicom(
+        str(_make_dicom(tmp_path / "rot.dcm", frames=2))
+    )
 
-    assert builder.pixel_array is not None
+    assert np.array_equal(builder.pixel_array, with_rotation.pixel_array)
 
 
 def test_missing_energy_windows_warns(tmp_path: Path):
