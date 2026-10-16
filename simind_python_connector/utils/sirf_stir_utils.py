@@ -8,7 +8,7 @@ uniform interface layer.
 
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from simind_python_connector.backends import (
     AcquisitionDataInterface,
@@ -34,7 +34,7 @@ def _validate_backend_name(name: str) -> str:
     return name
 
 
-def _ensure_backend(preferred: Optional[str]) -> None:
+def _ensure_backend(preferred: str | None) -> None:
     """Ensure a particular backend is active if explicitly requested."""
     if preferred is None:
         return
@@ -45,7 +45,7 @@ def _ensure_backend(preferred: Optional[str]) -> None:
 
 
 def ensure_image_interface(
-    value: image_like, preferred_backend: Optional[str] = None
+    value: image_like, preferred_backend: str | None = None
 ) -> ImageDataInterface:
     """Return an ImageDataInterface for the provided value."""
     if isinstance(value, ImageDataInterface):
@@ -64,7 +64,7 @@ def ensure_image_interface(
 
 
 def ensure_acquisition_interface(
-    value: acquisition_like, preferred_backend: Optional[str] = None
+    value: acquisition_like, preferred_backend: str | None = None
 ) -> AcquisitionDataInterface:
     """Return an AcquisitionDataInterface for the provided value."""
     if isinstance(value, AcquisitionDataInterface):
@@ -85,7 +85,7 @@ def ensure_acquisition_interface(
 
 def to_native_image(
     value: image_like,
-    preferred_backend: Optional[str] = None,
+    preferred_backend: str | None = None,
     ensure_interface: bool = True,
 ) -> Any:
     """
@@ -114,7 +114,7 @@ def to_native_image(
 
 def to_native_acquisition(
     value: acquisition_like,
-    preferred_backend: Optional[str] = None,
+    preferred_backend: str | None = None,
     ensure_interface: bool = True,
 ) -> Any:
     """Retrieve a native acquisition object from any supported input."""
@@ -135,8 +135,8 @@ def to_native_acquisition(
 
 
 def register_and_enforce_backend(
-    detected_backend: Optional[str], current_backend: Optional[str]
-) -> Optional[str]:
+    detected_backend: str | None, current_backend: str | None
+) -> str | None:
     """Register and enforce backend consistency across simulator inputs.
 
     This helper manages backend hints and ensures that all inputs to the
@@ -186,9 +186,9 @@ def register_and_enforce_backend(
 
 
 __all__ = [
-    "ensure_image_interface",
     "ensure_acquisition_interface",
-    "to_native_image",
-    "to_native_acquisition",
+    "ensure_image_interface",
     "register_and_enforce_backend",
+    "to_native_acquisition",
+    "to_native_image",
 ]

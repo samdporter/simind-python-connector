@@ -1322,6 +1322,7 @@ def _validate_switch_value(switch, value):
 class RuntimeSwitches:
     def __init__(self):
         self.standard_switch_dict = {
+            "CA": "Scattwin output files",
             "CC": "Collimator code",
             "DF": "Density file segment",
             "ES": "Energy offset",

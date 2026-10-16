@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -66,7 +66,7 @@ class StirSimindAdaptor(BaseConnector):
         )
         self._source: Any = None
         self._mu_map: Any = None
-        self._outputs: Optional[dict[str, Any]] = None
+        self._outputs: dict[str, Any] | None = None
 
         self.add_runtime_switch("NN", photon_multiplier)
 
@@ -92,7 +92,7 @@ class StirSimindAdaptor(BaseConnector):
     def add_runtime_switch(self, switch: str, value: Any) -> None:
         self.python_connector.add_runtime_switch(switch, value)
 
-    def run(self, runtime_operator: Optional[RuntimeOperator] = None) -> dict[str, Any]:
+    def run(self, runtime_operator: RuntimeOperator | None = None) -> dict[str, Any]:
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.
         self._outputs = None
@@ -126,7 +126,7 @@ class StirSimindAdaptor(BaseConnector):
         }
         return self._outputs
 
-    def get_outputs(self) -> Dict[str, Any]:
+    def get_outputs(self) -> dict[str, Any]:
         if self._outputs is None:
             raise RuntimeError("Run the adaptor first to produce outputs.")
         return self._outputs
@@ -135,23 +135,17 @@ class StirSimindAdaptor(BaseConnector):
         return self._get_component("tot", window)
 
     def get_scatter_output(self, window: int = 1) -> Any:
-        return self._get_component("sca", window)
+        """Scatter projection, or total minus primary; None (with a warning)
+        when SIMIND wrote neither (see the CA runtime switch)."""
+        return self._get_window_output("sca", "pri", window)
 
     def get_primary_output(self, window: int = 1) -> Any:
-        """Primary output is unsupported by these adaptors.
+        """Primary projection, or total minus scatter; None (with a warning)
+        when SIMIND wrote neither (see the CA runtime switch)."""
+        return self._get_window_output("pri", "sca", window)
 
-        SIMIND can emit primary data only through lower-level use such as the
-        ``/CA:2`` switch, so no standalone primary projection is produced here.
-        Before a successful run (and after a failed rerun) the empty output
-        cache still raises RuntimeError; once outputs exist this raises
-        NotImplementedError instead of the KeyError the old ``pri_*`` lookup
-        produced.
-        """
-        self.get_outputs()
-        raise NotImplementedError(
-            "SIMIND does not emit a standalone primary projection output. "
-            "get_primary_output() is not supported."
-        )
+    def _subtract_outputs(self, minuend: Any, subtrahend: Any) -> Any:
+        return stir.ProjDataInMemory(minuend) - stir.ProjDataInMemory(subtrahend)
 
     def get_air_output(self, window: int = 1) -> Any:
         return self._get_component("air", window)

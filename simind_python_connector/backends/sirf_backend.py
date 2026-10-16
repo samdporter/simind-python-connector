@@ -5,7 +5,7 @@ Provides wrappers around sirf.STIR.ImageData and sirf.STIR.AcquisitionData
 that conform to the backend interface.
 """
 
-from typing import Tuple, Union
+from typing import Union
 
 import numpy as np
 
@@ -60,11 +60,11 @@ class SirfImageData(ImageDataInterface):
         """Create uniform copy."""
         return SirfImageData(self._obj.get_uniform_copy(value))
 
-    def dimensions(self) -> Tuple[int, int, int]:
+    def dimensions(self) -> tuple[int, int, int]:
         """Get dimensions as (z, y, x)."""
         return self._obj.dimensions()
 
-    def voxel_sizes(self) -> Tuple[float, float, float]:
+    def voxel_sizes(self) -> tuple[float, float, float]:
         """Get voxel sizes as (z, y, x) in mm."""
         return self._obj.voxel_sizes()
 
@@ -197,7 +197,7 @@ class SirfAcquisitionData(AcquisitionDataInterface):
         """Create uniform copy."""
         return SirfAcquisitionData(self._obj.get_uniform_copy(value))
 
-    def dimensions(self) -> Tuple:
+    def dimensions(self) -> tuple:
         """Get dimensions."""
         return self._obj.dimensions()
 
@@ -223,7 +223,7 @@ class SirfAcquisitionData(AcquisitionDataInterface):
         """Get metadata info."""
         return self._obj.get_info()
 
-    def get_energy_window_bounds(self) -> Tuple[float, float]:
+    def get_energy_window_bounds(self) -> tuple[float, float]:
         """Get the energy window bounds for the acquisition.
 
         Returns:

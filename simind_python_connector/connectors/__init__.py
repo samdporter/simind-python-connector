@@ -34,10 +34,10 @@ def __getattr__(name):
 __all__ = [
     "BaseConnector",
     "NumpyConnector",
-    "PyTomographySimindAdaptor",
     "ProjectionResult",
+    "PyTomographySimindAdaptor",
     "RuntimeOperator",
-    "SirfSimindAdaptor",
     "SimindPythonConnector",
+    "SirfSimindAdaptor",
     "StirSimindAdaptor",
 ]

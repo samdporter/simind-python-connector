@@ -108,13 +108,13 @@ def to_projdata_in_memory(proj_data):
 
 
 __all__ = [
+    "cil_partitioner",
     "get_array",
     "interfile_numpy",
-    "to_projdata_in_memory",
     "io_utils",
     "simind_utils",
-    "stir_utils",
     "sirf_stir_utils",
     "step_size_rules",
-    "cil_partitioner",
+    "stir_utils",
+    "to_projdata_in_memory",
 ]

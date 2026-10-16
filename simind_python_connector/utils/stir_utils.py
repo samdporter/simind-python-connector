@@ -8,7 +8,6 @@ import contextlib
 import os
 import re
 import tempfile
-from typing import Optional
 
 import numpy as np
 
@@ -352,7 +351,7 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
     return harmonize_stir_attributes(attributes)
 
 
-def _normalize_backend_name(backend: Optional[str]) -> Optional[str]:
+def _normalize_backend_name(backend: str | None) -> str | None:
     """Normalize explicit backend names for builder helpers."""
     if backend is None:
         return None
@@ -365,9 +364,7 @@ def _normalize_backend_name(backend: Optional[str]) -> Optional[str]:
     return normalized
 
 
-def create_stir_image(
-    matrix_dim: list, voxel_size: list, backend: Optional[str] = None
-):
+def create_stir_image(matrix_dim: list, voxel_size: list, backend: str | None = None):
     """Create a uniform (zeros) STIR image object.
 
     Args:
@@ -404,7 +401,7 @@ def create_stir_acqdata(
     proj_matrix: list,
     num_projections: int,
     pixel_size: list,
-    backend: Optional[str] = None,
+    backend: str | None = None,
 ):
     """Create a uniform (zeros) STIR acquisition object.
 

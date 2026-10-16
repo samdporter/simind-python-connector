@@ -9,10 +9,10 @@ import importlib
 def __getattr__(name):
     if name == "STIRSPECTAcquisitionDataBuilder":
         mod = importlib.import_module(".acquisition_builder", __name__)
-        return getattr(mod, "STIRSPECTAcquisitionDataBuilder")
+        return mod.STIRSPECTAcquisitionDataBuilder
     elif name == "STIRSPECTImageDataBuilder":
         mod = importlib.import_module(".image_builder", __name__)
-        return getattr(mod, "STIRSPECTImageDataBuilder")
+        return mod.STIRSPECTImageDataBuilder
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 

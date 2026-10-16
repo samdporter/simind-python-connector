@@ -5,10 +5,11 @@ Utilities for loading Interfile projection data directly into NumPy.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Mapping, Optional, Sequence, Union
+from typing import Union
 
 import numpy as np
 
@@ -31,7 +32,7 @@ class InterfileArray:
     metadata: dict[str, str]
 
 
-def _lookup_header_value(header: Mapping[str, str], *keys: str) -> Optional[str]:
+def _lookup_header_value(header: Mapping[str, str], *keys: str) -> str | None:
     """Return the first matching value for a header key (case-insensitive)."""
     lower_map = {key.lower(): value for key, value in header.items()}
     for key in keys:
@@ -96,7 +97,7 @@ def _extract_numpy_dtype(header: Mapping[str, str]) -> np.dtype:
     return dtype.newbyteorder("=")
 
 
-def _extract_projection_count(header: Mapping[str, str]) -> Optional[int]:
+def _extract_projection_count(header: Mapping[str, str]) -> int | None:
     """Extract projection/image count used for 3D SPECT sinograms."""
     raw = _lookup_header_value(
         header,
@@ -118,7 +119,7 @@ def _extract_projection_count(header: Mapping[str, str]) -> Optional[int]:
 
 def _infer_leading_axis_count(
     metadata: Mapping[str, str], plane_elements: int, payload_elements: int
-) -> Optional[int]:
+) -> int | None:
     """Infer leading stack axis for headers that only declare 2D planes."""
     if plane_elements <= 0:
         return None

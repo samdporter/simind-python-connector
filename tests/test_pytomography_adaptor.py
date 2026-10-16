@@ -172,8 +172,9 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
     assert torch.equal(connector.get_total_output(window=1), outputs["tot_w1"])
     assert torch.equal(connector.get_scatter_output(window=1), outputs["sca_w1"])
     assert "pri_w1" not in outputs
-    with pytest.raises(NotImplementedError, match="standalone primary projection"):
-        connector.get_primary_output(window=1)
+    assert torch.equal(
+        connector.get_primary_output(window=1), outputs["tot_w1"] - outputs["sca_w1"]
+    )
     assert connector.get_outputs() is outputs
     assert set(connector.get_outputs()) == {"tot_w1", "sca_w1", "air_w1"}
     assert torch.equal(connector.get_air_output(window=1), outputs["air_w1"])
@@ -248,20 +249,33 @@ def test_pytomography_primary_output_requires_a_successful_run(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_pytomography_primary_output_unsupported_after_populated_run(tmp_path: Path):
+def test_pytomography_derives_scatter_from_total_minus_primary(tmp_path: Path):
     connector = PyTomographySimindAdaptor(
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
     )
-    populated = {"tot_w1": "projection", "sca_w1": "scatter", "air_w1": "air"}
+    populated = {"tot_w1": torch.tensor([5.0, 7.0]), "pri_w1": torch.tensor([4.0, 5.0])}
     connector._outputs = dict(populated)  # type: ignore[assignment]
 
-    with pytest.raises(NotImplementedError, match="standalone primary projection"):
-        connector.get_primary_output(window=1)
+    assert torch.equal(connector.get_scatter_output(window=1), torch.tensor([1.0, 2.0]))
+    assert connector.get_primary_output(window=1) is populated["pri_w1"]
+    assert connector._outputs.keys() == populated.keys()
 
-    assert connector._outputs == populated
-    assert "pri_w1" not in connector._outputs
+
+@pytest.mark.unit
+def test_pytomography_warns_without_scatter_or_primary(tmp_path: Path):
+    connector = PyTomographySimindAdaptor(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    connector._outputs = {"tot_w1": torch.tensor([5.0, 7.0])}  # type: ignore[assignment]
+
+    with pytest.warns(UserWarning, match="add_runtime_switch\\('CA', 1\\)"):
+        assert connector.get_scatter_output(window=1) is None
+    with pytest.warns(UserWarning, match="add_runtime_switch\\('CA', 1\\)"):
+        assert connector.get_primary_output(window=1) is None
 
 
 @pytest.mark.unit

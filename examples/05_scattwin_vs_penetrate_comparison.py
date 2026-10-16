@@ -47,6 +47,10 @@ def _run_case(
     connector.add_config_value(53, 1)
     connector.set_energy_windows([75.0], [225.0], [0])
     add_standard_runtime(connector, photon_multiplier=1, seed=12345)
+    # CA = 1 makes SCATTWIN write scatter and air projections; PENETRATE would
+    # drop its per-component outputs with it.
+    if scoring_routine == 1:
+        connector.add_runtime_switch("CA", 1)
 
     results = connector.run()
     return {key: value.projection for key, value in results.items()}

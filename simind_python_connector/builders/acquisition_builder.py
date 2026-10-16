@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 import pydicom
@@ -32,7 +32,7 @@ class STIRSPECTAcquisitionDataBuilder:
     def __init__(
         self,
         header_overrides=None,
-        backend: Optional[Literal["sirf", "stir"]] = None,
+        backend: Literal["sirf", "stir"] | None = None,
     ):
         if backend is not None and backend not in {"sirf", "stir"}:
             raise ValueError("backend must be one of: 'sirf', 'stir', or None")
@@ -80,7 +80,7 @@ class STIRSPECTAcquisitionDataBuilder:
         """
         self.header.update(updates)
 
-    def build(self, output_path: Optional[str | Path] = None):
+    def build(self, output_path: str | Path | None = None):
         """
         Build and return the STIR AcquisitionData object.
         """
@@ -120,8 +120,9 @@ class STIRSPECTAcquisitionDataBuilder:
             self.header["!END OF INTERFILE"] = ""
 
             with open(header_path, "w") as f:
-                for key, value in self.header.items():
-                    f.write(f"{key} := {value}\n")
+                f.writelines(
+                    f"{key} := {value}\n" for key, value in self.header.items()
+                )
 
             self.pixel_array.tofile(raw_file_path)
 

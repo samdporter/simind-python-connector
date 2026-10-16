@@ -3,7 +3,7 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from simind_python_connector.core.types import PenetrateOutputType
 from simind_python_connector.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
@@ -31,7 +31,7 @@ class ConversionConfig:
     radius_scale_factor: float = 1.0  # pass-through; SIMIND writes Radius in mm
     angle_offset: float = 180.0  # degrees
     default_number_format: str = "float"
-    ignored_patterns: List[str] = None
+    ignored_patterns: list[str] = None
 
     def __post_init__(self):
         if self.ignored_patterns is None:
@@ -58,7 +58,7 @@ class ConversionRule:
         """Check if this rule applies to the given line."""
         raise NotImplementedError
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         """Convert the line and return new line plus updated context."""
         raise NotImplementedError
 
@@ -72,7 +72,7 @@ class RadiusConversionRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return "Radius" in line and ":=" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         try:
             # Apply the configured scale factor (default 1.0 keeps SIMIND's
             # millimetre Radius values unchanged).
@@ -86,14 +86,14 @@ class RadiusConversionRule(ConversionRule):
 class OrbitFileRule(ConversionRule):
     """Process non-circular orbit file reference and insert Radii array."""
 
-    def __init__(self, input_file_dir: Optional[Path] = None):
+    def __init__(self, input_file_dir: Path | None = None):
         self.input_file_dir = input_file_dir
         self.orbit_file_processed = False
 
     def matches(self, line: str) -> bool:
         return ";# Non-Uniform Orbit File" in line and not self.orbit_file_processed
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         try:
             # Extract orbit filename
             orbit_filename = line.split(":=")[-1].strip()
@@ -150,7 +150,7 @@ class StartAngleConversionRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return "start angle" in line and ":=" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         try:
             angle = float(line.split()[3]) + self.angle_offset
             return f"start angle := {angle % 360}", context
@@ -165,7 +165,7 @@ class RotationDirectionRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return "CCW" in line or "CW" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         if "CCW" in line:
             context["rotation_direction"] = "CCW"
         elif "CW" in line:
@@ -179,7 +179,7 @@ class NumberFormatRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return "!number format := short float" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         return "!number format := float", context
 
 
@@ -189,7 +189,7 @@ class OrbitConversionRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return "orbit" in line and "noncircular" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         return "orbit := non-circular", context
 
 
@@ -199,7 +199,7 @@ class ImageDurationRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return "image duration" in line and ":=" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         try:
             parts = line.split()
             duration = parts[4]
@@ -221,7 +221,7 @@ class EnergyWindowRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return f";energy window {self.window_type} level" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         try:
             value = line.split()[-1]
             return f"energy window {self.window_type} level[1] := {value}", context
@@ -235,8 +235,8 @@ class DataFileNameRule(ConversionRule):
 
     def __init__(
         self,
-        override_filename: Optional[str] = None,
-        data_dir: Optional[Path] = None,
+        override_filename: str | None = None,
+        data_dir: Path | None = None,
     ):
         self.override_filename = override_filename
         self.data_dir = data_dir
@@ -244,7 +244,7 @@ class DataFileNameRule(ConversionRule):
     def matches(self, line: str) -> bool:
         return "!name of data file" in line
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         try:
             if self.override_filename:
                 # Use the override filename
@@ -263,7 +263,7 @@ class DataFileNameRule(ConversionRule):
 class IgnorePatternRule(ConversionRule):
     """Add semicolon to ignored pattern lines."""
 
-    def __init__(self, patterns: List[str]):
+    def __init__(self, patterns: list[str]):
         self.patterns = patterns
 
     def matches(self, line: str) -> bool:
@@ -272,7 +272,7 @@ class IgnorePatternRule(ConversionRule):
         key = line.split(":=")[0]
         return any(pattern in key for pattern in self.patterns)
 
-    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    def convert(self, line: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         return ";" + line, context
 
 
@@ -282,7 +282,7 @@ class SimindToStirConverter:
     capabilities.
     """
 
-    def __init__(self, config: Optional[ConversionConfig] = None):
+    def __init__(self, config: ConversionConfig | None = None):
         self.config = config or ConversionConfig()
         self.input_file_dir = None  # Will be set during convert_file
         self.rules = self._create_rules()
@@ -290,9 +290,9 @@ class SimindToStirConverter:
 
     def _create_rules(
         self,
-        data_file_override: Optional[str] = None,
-        data_dir: Optional[Path] = None,
-    ) -> List[ConversionRule]:
+        data_file_override: str | None = None,
+        data_dir: Path | None = None,
+    ) -> list[ConversionRule]:
         """Create conversion rules in order of priority."""
         return [
             # Data-file names must be rewritten before ignore rules run:
@@ -312,8 +312,8 @@ class SimindToStirConverter:
         ]
 
     def convert_line(
-        self, line: str, context: Dict[str, Any]
-    ) -> Tuple[str, Dict[str, Any]]:
+        self, line: str, context: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
         """Convert a single line using the first matching rule."""
         line = line.strip()
 
@@ -345,10 +345,10 @@ class SimindToStirConverter:
     def convert_file(
         self,
         input_filename: str,
-        output_filename: Optional[str] = None,
-        data_file: Optional[str] = None,
+        output_filename: str | None = None,
+        data_file: str | None = None,
         return_object: bool = False,
-    ) -> Optional[Union["AcquisitionData", AcquisitionDataInterface]]:
+    ) -> Union["AcquisitionData", AcquisitionDataInterface] | None:
         """Convert a SIMIND header file to STIR format.
 
         Returns:
@@ -416,7 +416,7 @@ class SimindToStirConverter:
 
     def create_penetrate_headers_from_template(
         self, h00_file: str, output_prefix: str, output_dir: str
-    ) -> Dict[str, "AcquisitionData"]:
+    ) -> dict[str, "AcquisitionData"]:
         """
         Create multiple STIR headers for penetrate routine from single .h00 template.
 
@@ -520,7 +520,7 @@ class SimindToStirConverter:
 
     def find_penetrate_h00_file(
         self, output_prefix: str, output_dir: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Find the single .h00 file created by penetrate routine.
 
@@ -555,7 +555,7 @@ class SimindToStirConverter:
                 "Remove stale outputs or use a distinct output prefix."
             )
 
-    def read_parameter(self, filename: str, parameter: str) -> Optional[str]:
+    def read_parameter(self, filename: str, parameter: str) -> str | None:
         """Read a parameter from a header file."""
         if not filename.endswith((".hs", ".h00")):
             self.logger.error("File must have .hs or .h00 extension")
@@ -576,7 +576,7 @@ class SimindToStirConverter:
         self,
         filename: str,
         parameter: str,
-        value: Union[str, float],
+        value: str | float,
         return_object: bool = False,
     ) -> Optional["AcquisitionData"]:
         """Edit a parameter in a header file."""
@@ -609,7 +609,7 @@ class SimindToStirConverter:
         self,
         filename: str,
         parameter: str,
-        value: Union[str, float],
+        value: str | float,
         line_number: int = 0,
         return_object: bool = False,
     ) -> Optional["AcquisitionData"]:
@@ -745,7 +745,7 @@ class SimindToStirConverter:
     def validate_and_correct_radius(
         self,
         output_file: str,
-        template_file: Optional[str] = None,
+        template_file: str | None = None,
         tolerance_factor: float = 2.0,
     ) -> bool:
         """

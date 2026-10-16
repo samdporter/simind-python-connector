@@ -7,7 +7,6 @@ import blocks scattered throughout the codebase.
 """
 
 import warnings
-from typing import Tuple, Type
 
 
 def _import_stir_extra():
@@ -35,7 +34,7 @@ def _import_stir_extra():
     return stirextra
 
 
-def get_sirf_types() -> Tuple[Type, Type, bool]:
+def get_sirf_types() -> tuple[type, type, bool]:
     """Import SIRF types with fallback.
 
     Returns:
@@ -50,7 +49,7 @@ def get_sirf_types() -> Tuple[Type, Type, bool]:
         return type(None), type(None), False
 
 
-def get_stir_types() -> Tuple[Type, Type, bool]:
+def get_stir_types() -> tuple[type, type, bool]:
     """Import STIR Python types with fallback.
 
     The array-conversion helpers live either in the modern ``stir.extra``
@@ -71,7 +70,7 @@ def get_stir_types() -> Tuple[Type, Type, bool]:
     return stir.FloatVoxelsOnCartesianGrid, stir.ProjData, True
 
 
-def get_backend_types() -> Tuple[Type, Type, Type, Type, str]:
+def get_backend_types() -> tuple[type, type, type, type, str]:
     """Import backend-agnostic types (tries SIRF first, then STIR).
 
     Returns:
@@ -100,7 +99,7 @@ def get_backend_types() -> Tuple[Type, Type, Type, Type, str]:
 
 
 __all__ = [
+    "get_backend_types",
     "get_sirf_types",
     "get_stir_types",
-    "get_backend_types",
 ]
