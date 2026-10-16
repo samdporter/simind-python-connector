@@ -4,8 +4,9 @@ services:
       context: ..
       dockerfile: docker/python/Dockerfile
     image: simind-python-connector/python:dev
-    # Match the SIRF-based images so outputs in the shared mount stay writable.
-    user: "${HOST_UID:-1000}:${HOST_GID:-100}"
+    # The container scripts run this service as the invoking host user so its
+    # outputs in the shared mount stay writable; direct use runs as root.
+    user: "${HOST_UID:-0}:${HOST_GID:-0}"
     working_dir: /workspace
     environment:
       HOME: /tmp
