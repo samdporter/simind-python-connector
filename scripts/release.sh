@@ -3,7 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-PYPROJECT="${PROJECT_ROOT}/pyproject.toml"
+VERSION_FILE="${PROJECT_ROOT}/simind_python_connector/_version.py"
 CHANGELOG_MD="${PROJECT_ROOT}/CHANGELOG.md"
 CHANGELOG_RST="${PROJECT_ROOT}/docs/changelog.rst"
 
@@ -23,11 +23,11 @@ fi
 
 VERSION_TYPE="$1"
 
-# Extract current version from pyproject.toml
-CURRENT_VERSION=$(grep "^version = " "$PYPROJECT" | sed 's/.*"\([^"]*\)".*/\1/')
+# Read the same version used by the package, documentation and build backend.
+CURRENT_VERSION=$(sed -n 's/^__version__ = "\([^"]*\)"$/\1/p' "$VERSION_FILE")
 
 if [ -z "$CURRENT_VERSION" ]; then
-    log_error "Could not extract version from $PYPROJECT"
+    log_error "Could not extract version from $VERSION_FILE"
     exit 1
 fi
 
@@ -96,16 +96,13 @@ set_version() {
 }
 
 log_info "Updating version sources..."
-set_version pyproject.toml "s/^version = \"${CURRENT_VERSION}\"/version = \"${NEW_VERSION}\"/"
-set_version simind_python_connector/__init__.py "s/__version__ = \"${CURRENT_VERSION}\"/__version__ = \"${NEW_VERSION}\"/"
-set_version docs/conf.py "s/^release = \"${CURRENT_VERSION}\"/release = \"${NEW_VERSION}\"/"
+set_version simind_python_connector/_version.py "s/^__version__ = \"${CURRENT_VERSION}\"/__version__ = \"${NEW_VERSION}\"/"
 set_version .zenodo.json "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/"
 set_version CITATION.cff "s/^version: ${CURRENT_VERSION}$/version: ${NEW_VERSION}/;s/^date-released: .*/date-released: ${RELEASE_DATE}/"
-set_version uv.lock "/^name = \"simind-python-connector\"$/{n;s/^version = \"${CURRENT_VERSION}\"$/version = \"${NEW_VERSION}\"/;}"
 
 log_info "Committing and tagging..."
-git add pyproject.toml simind_python_connector/__init__.py docs/conf.py .zenodo.json \
-    CITATION.cff uv.lock CHANGELOG.md docs/changelog.rst
+git add simind_python_connector/_version.py .zenodo.json \
+    CITATION.cff CHANGELOG.md docs/changelog.rst
 git commit -m "chore: release ${NEW_VERSION}"
 git tag -a "$TAG" -m "Release ${NEW_VERSION}"
 
@@ -116,4 +113,4 @@ echo "Next steps:"
 echo "  1. Push the branch and the tag: git push origin ${BRANCH} ${TAG}"
 echo "  2. Publish the release from that tag:"
 echo "     gh release create ${TAG} --verify-tag --title \"${NEW_VERSION}\" --notes-file <notes.md>"
-echo "  3. publish.yml runs the tests, checks ${TAG} against pyproject.toml and publishes to PyPI."
+echo "  3. publish.yml runs the tests, checks ${TAG} against _version.py and publishes to PyPI."

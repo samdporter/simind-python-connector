@@ -3,7 +3,8 @@
 import os
 import sys
 from datetime import datetime
-from importlib import metadata as importlib_metadata
+from pathlib import Path
+from runpy import run_path
 
 
 # Add the package to the path
@@ -13,13 +14,9 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "simind-python-connector"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-release = "1.1.3"
-for dist_name in ("simind-python-connector",):
-    try:
-        release = importlib_metadata.version(dist_name)
-        break
-    except importlib_metadata.PackageNotFoundError:
-        continue
+release = run_path(
+    str(Path(__file__).resolve().parents[1] / "simind_python_connector/_version.py")
+)["__version__"]
 version = ".".join(release.split(".")[:2])
 
 # General configuration
