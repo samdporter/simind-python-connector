@@ -44,7 +44,7 @@ class BaseConnector(ABC):
         SCATTWIN totals satisfy ``tot = pri + sca``, so a missing scatter or
         primary projection is the total minus the other one. When neither is
         available this warns and returns None: SIMIND writes them only when the
-        CA runtime switch is set (1 for sca and air, 2 for pri and air).
+        CA runtime switch is set (1 for sca and air, 2 for pri, sca and air).
         """
         outputs = self.get_outputs()
         key = f"{prefix}_w{window}"
