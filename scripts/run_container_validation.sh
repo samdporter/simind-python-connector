@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker/compose.yaml"
+# Run the python service as the invoking user, who owns the mounted checkout.
+export HOST_UID="${HOST_UID:-$(id -u)}" HOST_GID="${HOST_GID:-$(id -g)}"
 
 # Backward-compatible env switch.
 RUN_SIMIND_TESTS="${RUN_SIMIND_TESTS:-0}"
