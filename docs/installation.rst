@@ -65,6 +65,16 @@ maintained by** the SIMIND project or Lund University.
 SIMIND is **not** distributed with this package (or on PyPI) and must be
 installed separately.
 
+Supported SIMIND Versions
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This release supports and is tested with **SIMIND V8.0**.
+
+**SIMIND V9.0 is not supported yet.** V9 changes several output formats and
+behaviours the connector relies on, so runs can fail or return incorrect
+projections. V9 support will follow in a later release; until then, use
+SIMIND V8.0.
+
 Use the official SIMIND resources for installation and manual/reference
 documentation:
 

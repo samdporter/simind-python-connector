@@ -19,6 +19,9 @@ University.
 SIMIND is **not distributed** with this package. You must separately obtain and
 install a licensed SIMIND installation.
 
+**Supported SIMIND version:** SIMIND V8.0. SIMIND V9.0 is not supported yet;
+V9 support will follow in a later release.
+
 ## Quick Links
 - [Full Documentation](https://simind-python-connector.readthedocs.io/)
 - [Installation](https://simind-python-connector.readthedocs.io/en/latest/installation.html)

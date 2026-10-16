@@ -136,10 +136,10 @@ Adaptor Workflows
 Use adaptors when you want connector-managed SIMIND execution plus native
 objects for a target reconstruction package.
 
-With the SCATTWIN scoring routine, SIMIND writes only the total projection
+With the SCATTWIN scoring routine, SIMIND V8 writes only the total projection
 unless the ``CA`` runtime switch asks for more: ``CA`` = 1 adds scatter
-(``sca``) and air (``air``) projections, ``CA`` = 2 adds primary (``pri``) and
-air projections.
+(``sca``) and air (``air``) projections, ``CA`` = 2 adds primary (``pri``),
+scatter and air projections.
 
 .. code-block:: python
 

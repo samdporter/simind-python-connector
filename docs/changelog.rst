@@ -7,15 +7,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-1.1.3 - Unreleased
+1.1.3 - 2026-10-16
 ------------------
 
 Added
 ~~~~~
 
 - The ``CA`` runtime switch is accepted (``add_runtime_switch("CA", n)``). It
-  selects the SCATTWIN projections SIMIND writes: without it only ``tot``;
-  ``1`` adds ``sca`` and ``air``; ``2`` adds ``pri`` and ``air``.
+  selects the SCATTWIN projections SIMIND V8 writes: without it only ``tot``;
+  ``1`` adds ``sca`` and ``air``; ``2`` adds ``pri``, ``sca`` and ``air``.
 - ``get_primary_output()`` returns the primary projection written with
   ``CA`` = 2.
 - ``get_scatter_output()`` and ``get_primary_output()`` return the total minus
@@ -32,6 +32,13 @@ Changed
 - Internal tidy-up with no behaviour change: type hints use ``X | None`` and
   built-in generics, ``__all__`` lists are sorted, and redundant ``pass``
   statements are removed.
+
+Notes
+~~~~~
+
+- This release supports SIMIND V8.0. SIMIND V9.0 is not supported yet: it
+  changes several output formats and behaviours the connector relies on, so
+  V9 support will follow in a later release.
 
 1.1.2 - 2026-10-15
 ------------------
