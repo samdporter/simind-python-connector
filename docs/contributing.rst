@@ -44,3 +44,24 @@ If you make changes that affect the documentation:
 .. code-block:: bash
 
     sphinx-build -b html docs docs/_build/html
+
+Preparing a Release
+-------------------
+
+The version is defined once in ``simind_python_connector/_version.py``.
+Package builds, ``simind_python_connector.__version__``, documentation and the
+publishing workflow all read it directly.
+
+Write the release notes for the next version in ``CHANGELOG.md`` and
+``docs/changelog.rst``, then run:
+
+.. code-block:: bash
+
+    bash scripts/release.sh patch
+
+Use ``minor``, ``major`` or an exact version such as ``1.2.0`` instead of
+``patch`` when appropriate. The script updates the shared version and the
+Zenodo and citation metadata, including the citation release date, then creates
+a local release commit and tag. Review your working tree first; the script also
+commits the release notes. It prints the commands for pushing and publishing.
+No other version values need editing by hand.

@@ -21,7 +21,7 @@ jobs:
           python-version: "3.12"
       - name: Check the tag matches the package version
         run: |
-          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          version=$(python -c "import runpy; print(runpy.run_path('simind_python_connector/_version.py')['__version__'])")
           if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
             echo "Tag $GITHUB_REF_NAME does not match version $version"
             exit 1
