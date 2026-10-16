@@ -5,25 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.3] - 2026-10-16
+## [1.2.0] - 2026-10-16
+
+### Changed
+- **Breaking:** without the `CA` runtime switch, SCATTWIN runs return only the
+  total projection. The energy-window file now holds exactly the requested
+  windows; 1.1.x appended a scatter-order-1 line when every order was 0, which
+  made SIMIND also write `sca`, `air` and a duplicate `sca_w2`. Code that reads
+  `outputs["sca_w1"]` or `get_scatter_output()` needs
+  `add_runtime_switch("CA", 1)`.
+- Internal tidy-up with no behaviour change: type hints use `X | None` and
+  built-in generics, `__all__` lists are sorted, and redundant `pass`
+  statements are removed.
 
 ### Added
 - The `CA` runtime switch is accepted (`add_runtime_switch("CA", n)`). It
   selects the SCATTWIN projections SIMIND V8 writes: without it only `tot`;
   `1` adds `sca` and `air`; `2` adds `pri`, `sca` and `air`.
+- A SCATTWIN run without the `CA` switch, and with every scatter order 0,
+  issues a `UserWarning` saying that only total projections will be written.
 - `get_primary_output()` returns the primary projection written with `CA` = 2.
 - `get_scatter_output()` and `get_primary_output()` return the total minus the
   other component when only that one was written, and warn and return `None`
   when neither was.
 
-### Changed
-- The energy-window file contains exactly the requested windows. An extra
-  scatter-order-1 line is no longer appended when every scatter order is 0, so
-  single-window runs no longer produce a duplicate `sca_w2`. Set `CA` = 1 to
-  get scatter and air projections.
-- Internal tidy-up with no behaviour change: type hints use `X | None` and
-  built-in generics, `__all__` lists are sorted, and redundant `pass`
-  statements are removed.
+### Fixed
+- `number - x` on SIRF image and acquisition wrappers returned wrong values.
+- `StirImageData` arithmetic raised `TypeError` on STIR 6.2, and
+  `create_simple_phantom()` and `create_attenuation_map()` failed there.
+- `StirAcquisitionData.get_info()` returns STIR's parameter text instead of the
+  SWIG object's address.
+- `from simind_python_connector.utils import *` raised `AttributeError`.
+- Interfile data with a partial trailing pixel is rejected instead of the extra
+  bytes being ignored.
+- The DICOM acquisition builder no longer prints debug lines, and its warnings
+  name the missing `AcquisitionDate` and `AcquisitionTime` fields.
+
+### Deprecated
+- STIR 6.2 and earlier, which have no image arithmetic. `StirImageData`
+  computes it in NumPy there and issues a `DeprecationWarning`; support will be
+  removed in a future release.
 
 ### Notes
 - This release supports SIMIND V8.0. SIMIND V9.0 is not supported yet: it
