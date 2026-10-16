@@ -82,23 +82,35 @@ if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
     exit 1
 fi
 
-# Replace the version in one file and check that it changed.
+# Replace the version in one file and check that it now holds the expected
+# line. Checking the result rather than a change lets the script release the
+# version already in _version.py.
 set_version() {
     local file="$1"
     local expression="$2"
+    shift 2
     sed -i.bak "$expression" "$file"
-    if cmp -s "$file" "$file.bak"; then
-        rm -f "$file.bak"
-        log_error "Could not update the version in $file"
-        exit 1
-    fi
     rm -f "$file.bak"
+    local expected
+    for expected in "$@"; do
+        if ! grep -qE -- "$expected" "$file"; then
+            log_error "Could not set '${expected}' in $file"
+            exit 1
+        fi
+    done
 }
 
+NEW_VERSION_RE="${NEW_VERSION//./\\.}"
 log_info "Updating version sources..."
-set_version simind_python_connector/_version.py "s/^__version__ = \"${CURRENT_VERSION}\"/__version__ = \"${NEW_VERSION}\"/"
-set_version .zenodo.json "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/"
-set_version CITATION.cff "s/^version: ${CURRENT_VERSION}$/version: ${NEW_VERSION}/;s/^date-released: .*/date-released: ${RELEASE_DATE}/"
+set_version simind_python_connector/_version.py \
+    "s/^__version__ = \"${CURRENT_VERSION}\"/__version__ = \"${NEW_VERSION}\"/" \
+    "^__version__ = \"${NEW_VERSION_RE}\"$"
+set_version .zenodo.json \
+    "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/" \
+    "\"version\": \"${NEW_VERSION_RE}\""
+set_version CITATION.cff \
+    "s/^version: ${CURRENT_VERSION}$/version: ${NEW_VERSION}/;s/^date-released: .*/date-released: ${RELEASE_DATE}/" \
+    "^version: ${NEW_VERSION_RE}$" "^date-released: ${RELEASE_DATE}$"
 
 log_info "Committing and tagging..."
 git add simind_python_connector/_version.py .zenodo.json \
