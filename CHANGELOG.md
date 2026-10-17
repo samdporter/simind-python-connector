@@ -124,6 +124,11 @@ satisfied requirement).
   `examples/run_all_examples.sh` and the `requires_setr` marker.
 
 ### Fixed
+- `STIRSPECTAcquisitionDataBuilder.update_header_from_dicom` mirrored the bin
+  (column) axis of the DICOM projections, so STIR and SIRF data built from DICOM
+  disagreed with the vendor Interfile export and with PyTomography. Rows, frames and
+  columns now keep their DICOM order. The start angle is also rounded to whole
+  degrees, because STIR truncates a value such as 359.999997 to 359.
 - The projection pixel size and matrix set from the phantom image overwrote the
   configured values and gave square projections for cubic phantoms (and cut off the
   axial field of view for slices thicker than the pixels). `configure_voxel_phantom`

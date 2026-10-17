@@ -342,10 +342,12 @@ class STIRSPECTAcquisitionDataBuilder:
 
                     # Extract basic rotation parameters
                     if "StartAngle" in rot_item:
-                        self.header["start angle"] = str(rot_item.StartAngle)
+                        self.header["start angle"] = str(
+                            round(float(rot_item.StartAngle))
+                        )
                     elif (0x0054, 0x0200) in rot_item:
                         self.header["start angle"] = str(
-                            rot_item[(0x0054, 0x0200)].value
+                            round(float(rot_item[(0x0054, 0x0200)].value))
                         )
 
                     if (0x0018, 0x1242) in rot_item:
@@ -562,7 +564,4 @@ class STIRSPECTAcquisitionDataBuilder:
             raise ValueError(
                 f"pixel data must be 2D or 3D, got {raw_pixel_array.ndim}D"
             )
-        self.pixel_array = np.transpose(raw_pixel_array, (2, 0, 1))
-        # rotate the image by 90 degrees cW in axis 1
-        self.pixel_array = np.rot90(self.pixel_array, 3, axes=(0, 2))
-        self.pixel_array = np.expand_dims(self.pixel_array, axis=0)
+        self.pixel_array = np.transpose(raw_pixel_array, (1, 0, 2))[np.newaxis]

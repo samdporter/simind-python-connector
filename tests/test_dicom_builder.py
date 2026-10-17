@@ -24,6 +24,7 @@ def _make_dicom(
     with_rotation: bool = True,
     with_time: bool = True,
     with_energy_windows: bool = True,
+    start_angle: float = 180,
 ) -> Path:
     """Write a minimal NM DICOM file exercising the builder's parsing."""
     file_meta = FileMetaDataset()
@@ -52,7 +53,7 @@ def _make_dicom(
 
     if with_rotation:
         rot = Dataset()
-        rot.StartAngle = 180
+        rot.StartAngle = start_angle
         rot.ScanArc = 360
         rot.RotationDirection = "CW"
         if with_time:
@@ -92,11 +93,19 @@ def test_single_frame_dicom_populates_header_and_pixels(tmp_path: Path):
     assert builder.pixel_array is not None
     assert builder.pixel_array.ndim == 4
     assert builder.pixel_array.shape == (1, 4, 1, 5)
-    # Frames-first promotion feeds the same transpose/rotation as multiframe
-    # data: rows keep their order and columns are mirrored.
+    # Rows and columns keep their DICOM order, as in the vendor Interfile export.
     source = np.arange(20, dtype=np.uint16).reshape(4, 5)
-    expected = source[:, ::-1][np.newaxis, :, np.newaxis, :]
+    expected = source[np.newaxis, :, np.newaxis, :]
     assert np.array_equal(builder.pixel_array, expected)
+
+
+def test_start_angle_is_rounded_to_whole_degrees(tmp_path: Path):
+    dicom_path = _make_dicom(tmp_path / "angle.dcm", frames=4, start_angle=359.999997)
+
+    builder = _new_builder()
+    builder.update_header_from_dicom(str(dicom_path))
+
+    assert builder.header["start angle"] == "360"
 
 
 def test_single_frame_pixels_match_explicit_one_frame_multiframe(tmp_path: Path):
