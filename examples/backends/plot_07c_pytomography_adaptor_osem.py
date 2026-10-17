@@ -3,8 +3,8 @@ PyTomography adaptor OSEM
 =========================
 
 SIMIND simulation followed by PyTomography OSEM reconstruction. This is a
-quick low-history run on a tiny phantom, so the projection and the
-reconstruction are noisy. Only PyTomography and torch data objects are used
+quick low-history Tc-99m run on a tiny phantom, so the projection and the
+reconstruction are mildly noisy. Only PyTomography and torch data objects are used
 in the adaptor and reconstruction path.
 """
 
@@ -67,9 +67,9 @@ mu_tensor = torch.from_numpy(mu_map)
 # --------
 # ``PyTomographySimindAdaptor`` takes the tensors directly. The projections
 # are requested on the reconstruction grid: 32 x 32 bins of 4 mm (Index 28 is
-# in cm), with a single 126-154 keV window for Tc-99m. SCATTWIN
-# writes the total projection and, separately, the scatter in that window
-# (switch ``CA`` 2 asks for the split).
+# in cm), for Tc-99m (140 keV) with a single 126-154 keV window and the
+# ma-lehr collimator. SCATTWIN writes the total projection and, separately,
+# the scatter in that window (switch ``CA`` 2 asks for the split).
 
 adaptor = PyTomographySimindAdaptor(
     config_source=configs.get("Example.yaml"),
@@ -103,17 +103,17 @@ if projection_tensor.ndim != 3:
     )
 scatter_tensor = adaptor.get_scatter_output(window=1).to(dtype=torch.float32)
 print(f"Projection sum: {float(projection_tensor.sum()):.3f}")
-print(f"Scatter sum: {float(scatter_tensor.sum()):.3f}")
 
 # %%
 # Reconstruct with OSEM, without and with scatter
 # -----------------------------------------------
-# The system matrix is the attenuation map alone. PSF modelling is left out to
-# keep the example quick, so the reconstruction keeps the collimator blur that
-# SIMIND simulated, and the three 07 examples agree. Modelling the PSF
+# The system matrix is the attenuation map alone. PSF modelling is left out
+# to keep the example quick, so the reconstruction does not model the
+# collimator blur and the images stay blurred. Modelling the PSF
 # (``SPECTPSFTransform``, or SPECTUB ``set_resolution_model`` with the
-# collimator's sigma) needs about 20 updates and is not used here. OSEM runs
-# 2 iterations of 4 subsets, the same 8 subiterations as 07A and 07B.
+# collimator's sigma) needs about 20 updates and is not used here. All three
+# 07 examples run OSEM with 4 subsets and 8 subiterations (2 full
+# iterations), so the three backends agree.
 #
 # The total projection is reconstructed twice. The second reconstruction has
 # SIMIND's own scatter estimate for this run as a fixed additive term, floored
@@ -158,10 +158,14 @@ np.save(
 # Compare with the truth
 # ----------------------
 # Hot-to-background ratio of the mean reconstructed values in the hot sphere
-# and in the body away from it, against the true ratio. Object tensors are
-# (x, y, z) and projections are [view, radial, axial], so images are
-# transposed to put y or axial on the rows. Axial index 0 is on the top row,
-# as in 07A and 07B.
+# and in the body away from it, against the true ratio. In this small phantom
+# scatter is only the printed fraction of the window, so a fixed additive
+# term lowers the absolute level by about that much but barely changes the
+# ratio: SIMIND's scatter is smooth and follows the body. The ratio here
+# differs slightly from 07A and 07B, which use a different projector
+# discretisation. Object tensors are (x, y, z) and projections are [view,
+# radial, axial], so images are transposed to put y or axial on the rows.
+# Axial index 0 is on the top row, as in 07A and 07B.
 
 source_arr = source_tensor.detach().cpu().numpy()
 proj_arr = projection_tensor.detach().cpu().numpy()
@@ -170,7 +174,9 @@ recons = {
     "SIMIND scatter term": recon_scatter.detach().cpu().numpy(),
 }
 
+scatter_fraction = float(scatter_tensor.sum() / projection_tensor.sum())
 background = body & ((x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 > 8**2)
+print(f"Scatter fraction of the window: {scatter_fraction:.1%}")
 print(f"True hot-to-background ratio: {2.0 / 0.8:.2f}")
 for name, recon_arr in recons.items():
     ratio = recon_arr[hot].mean() / recon_arr[background].mean()

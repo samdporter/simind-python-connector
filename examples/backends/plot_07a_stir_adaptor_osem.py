@@ -3,8 +3,8 @@ STIR adaptor OSEM
 =================
 
 SIMIND simulation followed by STIR OSEM reconstruction. This is a quick
-low-history run on a tiny phantom with few projection views, so the
-projection and the reconstruction are noisy.
+low-history Tc-99m run on a tiny phantom with few projection views, so the
+projection and the reconstruction are mildly noisy.
 
 Unit note: STIR image geometry is defined in mm and SIMIND geometry
 parameters are in cm. The adaptor handles the mm to cm conversion.
@@ -86,9 +86,9 @@ mu_image = read_stir_image(mu_map, output_dir / "stir_mu")
 # --------
 # ``StirSimindAdaptor`` takes the STIR images directly. The projections are
 # requested on the reconstruction grid: 32 x 32 bins of 4 mm (Index 28 is in
-# cm), with a single 126-154 keV window for Tc-99m. SCATTWIN
-# writes the total projection and, separately, the scatter in that window
-# (switch ``CA`` 2 asks for the split).
+# cm), for Tc-99m (140 keV) with a single 126-154 keV window and the ma-lehr
+# collimator. SCATTWIN writes the total projection and, separately, the
+# scatter in that window (switch ``CA`` 2 asks for the split).
 
 adaptor = StirSimindAdaptor(
     config_source=configs.get("Example.yaml"),
@@ -117,18 +117,17 @@ projection = adaptor.get_total_output(window=1)
 scatter = adaptor.get_scatter_output(window=1)
 projection.write_to_file(str(output_dir / "stir_total.hs"))
 print(f"Projection sum: {projection.sum():.3f}")
-print(f"Scatter sum: {scatter.sum():.3f}")
 
 # %%
 # Reconstruct with OSEM, without and with scatter
 # -----------------------------------------------
 # The system model is SPECTUB with the attenuation map. PSF modelling is left
-# out to keep the example quick, so the reconstruction keeps the collimator
-# blur that SIMIND simulated, and the three 07 examples agree. Modelling the
-# PSF (SPECTUB ``set_resolution_model`` with the collimator's sigma, or
-# PyTomography's ``SPECTPSFTransform``) needs about 20 updates and is not used
-# here. All three 07 examples run OSEM with 4 subsets and 8 subiterations
-# (2 full iterations).
+# out to keep the example quick, so the reconstruction does not model the
+# collimator blur and the images stay blurred. Modelling the PSF (SPECTUB
+# ``set_resolution_model`` with the collimator's sigma, or PyTomography's
+# ``SPECTPSFTransform``) needs about 20 updates and is not used here. All
+# three 07 examples run OSEM with 4 subsets and 8 subiterations (2 full
+# iterations), so the three backends agree.
 #
 # The total projection is reconstructed twice. The second reconstruction has
 # SIMIND's own scatter estimate for this run as a fixed additive term, floored
@@ -185,7 +184,10 @@ recon_scatter.write_to_file(str(output_dir / "stir_osem_recon_scatter.hv"))
 # Compare with the truth
 # ----------------------
 # Hot-to-background ratio of the mean reconstructed values in the hot sphere
-# and in the body away from it, against the true ratio.
+# and in the body away from it, against the true ratio. In this small phantom
+# scatter is only the printed fraction of the window, so a fixed additive
+# term lowers the absolute level by about that much but barely changes the
+# ratio: SIMIND's scatter is smooth and follows the body.
 
 source_arr = get_array(source_image)
 proj_arr = get_array(projection)
@@ -194,7 +196,9 @@ recons = {
     "SIMIND scatter term": get_array(recon_scatter),
 }
 
+scatter_fraction = float(scatter.sum() / projection.sum())
 background = body & ((x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 > 8**2)
+print(f"Scatter fraction of the window: {scatter_fraction:.1%}")
 print(f"True hot-to-background ratio: {2.0 / 0.8:.2f}")
 for name, recon_arr in recons.items():
     ratio = recon_arr[hot].mean() / recon_arr[background].mean()
