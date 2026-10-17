@@ -20,6 +20,15 @@ At-a-Glance Axis Conventions
   even on its fallback path (outputs without a per-key ``.h00``, such as
   PENETRATE): the core ``(view, axial, bin)`` array is transposed and its axial
   direction reversed to match the reader.
+- PyTomography DICOM projections (``pytomography.io.SPECT.dicom.get_projections``)
+  are also ``(theta, r, z)``, but the views are sorted by PyTomography's
+  detector angle, ``(gantry angle + 180) mod 360``, and ``z`` runs from the
+  bottom DICOM row upward. For a 360-degree acquisition of ``N`` views,
+  PyTomography view ``k`` is DICOM frame ``(k + N/2) mod N``. STIR/SIRF
+  projections built from the same DICOM (``update_header_from_dicom``) keep
+  the DICOM frame, row and column order: ``arr[0, row, frame, col]``. To
+  display a PyTomography view with the head end up, use
+  ``imshow(proj[k].T, origin="lower")``.
 
 Practical Implication
 ---------------------
@@ -31,6 +40,8 @@ When comparing STIR/SIRF and PyTomography outputs:
   (input -> system matrix -> reconstruction).
 - Connector internals convert object tensors to SIMIND image file order
   ``(z, y, x)`` when writing ``.smi/.dmi`` inputs.
+- PyTomography view 0 and STIR view 0 are generally different physical views;
+  compare by angle, not by index.
 
 Units
 -----

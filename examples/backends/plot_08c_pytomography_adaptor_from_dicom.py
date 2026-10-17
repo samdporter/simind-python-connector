@@ -48,13 +48,18 @@ print(f"Projection shape (theta, r, z): {projection.shape}")
 # %%
 # Plot two views
 # --------------
-# Views 0 and 30 of the 120 views, 90 degrees apart. The tensor is transposed
-# so rows are axial and columns are radial.
+# DICOM frames 0 and 30 of the 120 views, 90 degrees apart, as in 08A and 08B.
+# PyTomography orders the views by its own detector angle, (gantry angle + 180)
+# mod 360, so its view k is DICOM frame (k + 60) mod 120 and frame 0 is view 60.
+# The tensor is transposed and drawn with ``origin="lower"`` so rows are axial
+# with the head end up, and columns are radial.
 
+n_views = projection.shape[0]
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-for ax, view in zip(axes, (0, 30)):
-    ax.imshow(projection[view].T, cmap="magma")
-    ax.set_title(f"PyTomography projection (view {view})")
+for ax, frame in zip(axes, (0, 30)):
+    view = (frame - n_views // 2) % n_views
+    ax.imshow(projection[view].T, cmap="magma", origin="lower")
+    ax.set_title(f"PyTomography (DICOM frame {frame})")
     ax.axis("off")
 fig.tight_layout()
 fig.savefig(output_dir / "pytomography_from_dicom_summary.png", dpi=140)

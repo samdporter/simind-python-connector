@@ -106,8 +106,10 @@ print(f"Projection sum: {float(projection_tensor.sum()):.3f}")
 # %%
 # Reconstruct with OSEM
 # ---------------------
-# The system matrix combines attenuation and the PSF read from the SIMIND
-# header of the total window.
+# The system matrix combines attenuation and the collimator PSF read from the
+# SIMIND header of the total window (ma-megp: sigma 1.72 mm at the collimator
+# face, slope 0.031, the values 07A and 07B pass to SPECTUB). OSEM runs 2
+# iterations of 4 subsets, the same 8 subiterations as 07A and 07B.
 
 total_h00_path = adaptor.get_output_header_path("tot_w1")
 object_meta, proj_meta = pytomo_simind.get_metadata(str(total_h00_path))
@@ -140,8 +142,9 @@ print(f"Reconstruction sum: {float(reconstruction.sum()):.3f}")
 # ---------------
 # Central slice of the input source, the first projection view and the
 # central slice of the OSEM reconstruction. Object tensors are (x, y, z) and
-# projections are [view, radial, axial], so both are transposed to put axial
-# or y on the rows.
+# projections are [view, radial, axial], so all are transposed to put y or axial
+# on the rows. The projection is drawn with ``origin="lower"`` so the axial
+# direction points up, as in 07A and 07B.
 
 source_arr = source_tensor.detach().cpu().numpy()
 proj_arr = projection_tensor.detach().cpu().numpy()
@@ -150,7 +153,7 @@ recon_arr = reconstruction.detach().cpu().numpy()
 fig, axes = plt.subplots(1, 3, figsize=(12, 4))
 axes[0].imshow(source_arr[:, :, source_arr.shape[2] // 2].T, cmap="viridis")
 axes[0].set_title("Input source")
-axes[1].imshow(proj_arr[0].T, cmap="magma")
+axes[1].imshow(proj_arr[0].T, cmap="magma", origin="lower")
 axes[1].set_title("Projection (view 0)")
 axes[2].imshow(recon_arr[:, :, recon_arr.shape[2] // 2].T, cmap="viridis")
 axes[2].set_title("OSEM reconstruction")

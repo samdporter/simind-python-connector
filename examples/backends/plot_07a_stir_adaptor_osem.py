@@ -118,8 +118,14 @@ print(f"Projection sum: {projection.sum():.3f}")
 # %%
 # Reconstruct with OSEM
 # ---------------------
-# The projection matrix is SPECTUB with the attenuation map and no resolution
-# model. With direct STIR bindings, calling ``set_up()`` on the projector or
+# The system model is SPECTUB with the attenuation map and the collimator
+# resolution model. Its parameters, sigma at the collimator face 1.72 mm
+# (sqrt(0.106^2 + 0.136^2) cm) and a slope of 0.031, come from the ma-megp
+# collimator PSF that SIMIND simulates and that example 07C models with
+# ``SPECTPSFTransform``. All three 07 examples run OSEM with 4 subsets and 8
+# subiterations (2 full iterations).
+#
+# With direct STIR bindings, calling ``set_up()`` on the projector or
 # objective before the reconstructor can collapse SPECTUB reconstructions to
 # zero, so the chain is configured and only the reconstructor is set up.
 
@@ -128,7 +134,7 @@ reconstruction.fill(1.0)
 
 proj_matrix = stir.ProjMatrixByBinSPECTUB()
 proj_matrix.set_attenuation_image_sptr(mu_image)
-proj_matrix.set_resolution_model(0.0, 0.0, False)
+proj_matrix.set_resolution_model(1.72, 0.031, False)
 proj_matrix.set_keep_all_views_in_cache(True)
 
 projector_pair = stir.ProjectorByBinPairUsingProjMatrixByBin()
@@ -137,13 +143,13 @@ projector_pair.set_proj_matrix_sptr(proj_matrix)
 objective = stir.PoissonLogLikelihoodWithLinearModelForMeanAndProjData3DFloat()
 objective.set_projector_pair_sptr(projector_pair)
 objective.set_proj_data_sptr(projection)
-objective.set_num_subsets(2)
+objective.set_num_subsets(4)
 
 recon = stir.OSMAPOSLReconstruction3DFloat()
 recon.set_objective_function(objective)
 recon.set_input_data(projection)
-recon.set_num_subsets(2)
-recon.set_num_subiterations(2)
+recon.set_num_subsets(4)
+recon.set_num_subiterations(8)
 recon.set_disable_output(True)
 recon.set_up(reconstruction)
 recon.reconstruct(reconstruction)
