@@ -63,6 +63,10 @@ satisfied requirement).
   tutorials, from `SIMIND_CONNECTOR_Y90_DATA` or a pooch download once published.
 
 ### Changed
+- Examples 01-08 moved to `examples/getting_started/` and `examples/backends/` as
+  `plot_*` sphinx-gallery files, with their rendered outputs in the documentation.
+  Examples 08A/08B/08C no longer take a DICOM argument; they read the Y-90 dataset
+  (`datasets.fetch_y90_phantom`).
 - Python 3.10 or newer is required.
 - Configuration behaviour: the projection bin size and matrix (Index 28, 76, 77)
   come from the configuration (or `configure_acquisition`/`set_template`), not from
