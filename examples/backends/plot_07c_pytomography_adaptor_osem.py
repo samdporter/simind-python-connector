@@ -67,7 +67,9 @@ mu_tensor = torch.from_numpy(mu_map)
 # --------
 # ``PyTomographySimindAdaptor`` takes the tensors directly. The projections
 # are requested on the reconstruction grid: 32 x 32 bins of 4 mm (Index 28 is
-# in cm), with a single 75-225 keV window for Y-90 bremsstrahlung.
+# in cm), with a single 75-225 keV window for Y-90 bremsstrahlung. SCATTWIN
+# writes the total projection and, separately, the scatter in that window
+# (switch ``CA`` 2 asks for the split).
 
 adaptor = PyTomographySimindAdaptor(
     config_source=configs.get("Example.yaml"),
@@ -75,12 +77,13 @@ adaptor = PyTomographySimindAdaptor(
     output_prefix="pytomo_case01",
     photon_multiplier=1,
     voxel_size_mm=4.0,
-    quantization_scale=0.04 * DEFAULT_QUANTIZATION_SCALE,
+    quantization_scale=0.09 * DEFAULT_QUANTIZATION_SCALE,
 )
 adaptor.set_source(source_tensor)
 adaptor.set_mu_map(mu_tensor)
 adaptor.set_energy_windows([75], [225], [0])
 adaptor.add_runtime_switch("FI", "y90_tissue")
+adaptor.add_runtime_switch("CA", 2)
 adaptor.add_runtime_switch("CC", "ma-megp")
 adaptor.add_runtime_switch("NN", 1)
 adaptor.add_runtime_switch("RR", 12345)
@@ -98,17 +101,24 @@ if projection_tensor.ndim != 3:
         "Expected projection tensor shape [views, bins, axial], "
         f"got {tuple(projection_tensor.shape)}"
     )
+scatter_tensor = adaptor.get_scatter_output(window=1).to(dtype=torch.float32)
 print(f"Projection sum: {float(projection_tensor.sum()):.3f}")
+print(f"Scatter sum: {float(scatter_tensor.sum()):.3f}")
 
 # %%
-# Reconstruct with OSEM
-# ---------------------
+# Reconstruct with OSEM, without and with scatter
+# -----------------------------------------------
 # The system matrix is the attenuation map alone. PSF modelling is left out to
 # keep the example quick, so the reconstruction keeps the collimator blur that
 # SIMIND simulated, and the three 07 examples agree. Modelling the PSF
 # (``SPECTPSFTransform``, or SPECTUB ``set_resolution_model(1.72, 0.029, True)``
 # for this collimator) needs about 20 updates and is not used here. OSEM runs
 # 2 iterations of 4 subsets, the same 8 subiterations as 07A and 07B.
+#
+# The total projection is reconstructed twice. The second reconstruction has
+# SIMIND's own scatter estimate for this run as a fixed additive term, floored
+# at a small positive value. It is not updated during the reconstruction; the
+# MC-scatter-in-the-loop examples refresh it.
 
 total_h00_path = adaptor.get_output_header_path("tot_w1")
 object_meta, proj_meta = pytomo_simind.get_metadata(str(total_h00_path))
@@ -122,39 +132,73 @@ system_matrix = SPECTSystemMatrix(
     object_meta=object_meta,
     proj_meta=proj_meta,
 )
-likelihood = likelihoods.PoissonLogLikelihood(
-    system_matrix=system_matrix,
-    projections=projection_tensor,
-)
-reconstruction = algorithms.OSEM(likelihood=likelihood)(2, n_subsets=4)
+
+
+def reconstruct(additive_term=None):
+    likelihood = likelihoods.PoissonLogLikelihood(
+        system_matrix=system_matrix,
+        projections=projection_tensor,
+        additive_term=additive_term,
+    )
+    return algorithms.OSEM(likelihood=likelihood)(2, n_subsets=4)
+
+
+recon_no_scatter = reconstruct()
+recon_scatter = reconstruct(scatter_tensor.clamp(min=1e-5))
 
 np.save(
     output_dir / "pytomo_total_tensor.npy", projection_tensor.detach().cpu().numpy()
 )
-np.save(output_dir / "pytomo_osem_recon.npy", reconstruction.detach().cpu().numpy())
-print(f"Reconstruction sum: {float(reconstruction.sum()):.3f}")
+np.save(output_dir / "pytomo_osem_recon.npy", recon_no_scatter.detach().cpu().numpy())
+np.save(
+    output_dir / "pytomo_osem_recon_scatter.npy", recon_scatter.detach().cpu().numpy()
+)
 
 # %%
-# Plot the result
-# ---------------
-# Central slice of the input source, the first projection view and the
-# central slice of the OSEM reconstruction. Object tensors are (x, y, z) and
-# projections are [view, radial, axial], so all are transposed to put y or axial
-# on the rows. Axial index 0 is on the top row, as in 07A and 07B.
+# Compare with the truth
+# ----------------------
+# Hot-to-background ratio of the mean reconstructed values in the hot sphere
+# and in the body away from it, against the true ratio. Object tensors are
+# (x, y, z) and projections are [view, radial, axial], so images are
+# transposed to put y or axial on the rows. Axial index 0 is on the top row,
+# as in 07A and 07B.
 
 source_arr = source_tensor.detach().cpu().numpy()
 proj_arr = projection_tensor.detach().cpu().numpy()
-recon_arr = reconstruction.detach().cpu().numpy()
+recons = {
+    "No scatter term": recon_no_scatter.detach().cpu().numpy(),
+    "SIMIND scatter term": recon_scatter.detach().cpu().numpy(),
+}
 
-fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-axes[0].imshow(source_arr[:, :, source_arr.shape[2] // 2].T, cmap="viridis")
-axes[0].set_title("Input source")
-axes[1].imshow(proj_arr[0].T, cmap="magma")
-axes[1].set_title("Projection (view 0)")
-axes[2].imshow(recon_arr[:, :, recon_arr.shape[2] // 2].T, cmap="viridis")
-axes[2].set_title("OSEM reconstruction")
-for ax in axes:
+background = body & ((x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 > 8**2)
+print(f"True hot-to-background ratio: {2.0 / 0.8:.2f}")
+for name, recon_arr in recons.items():
+    ratio = recon_arr[hot].mean() / recon_arr[background].mean()
+    print(f"{name}: hot-to-background ratio {ratio:.2f}")
+
+fig = plt.figure(figsize=(14, 7))
+grid = fig.add_gridspec(2, 4)
+panels = [
+    ("Input source", source_arr[:, :, 16].T, "viridis"),
+    ("Projection (view 0)", proj_arr[0].T, "magma"),
+    *[
+        (f"OSEM, {name.lower()}", arr[:, :, 16].T, "viridis")
+        for name, arr in recons.items()
+    ],
+]
+for column, (title, image, cmap) in enumerate(panels):
+    ax = fig.add_subplot(grid[0, column])
+    ax.imshow(image, cmap=cmap)
+    ax.set_title(title)
     ax.axis("off")
+
+ax = fig.add_subplot(grid[1, :])
+ax.plot(source_arr[:, 16, 16] / source_arr[background].mean(), "k", label="Truth")
+for name, recon_arr in recons.items():
+    ax.plot(recon_arr[:, 16, 16] / recon_arr[background].mean(), label=name)
+ax.set_xlabel("x (voxel), profile through the hot sphere")
+ax.set_ylabel("Relative to background mean")
+ax.legend()
 fig.tight_layout()
 fig.savefig(output_dir / "pytomo_osem_summary.png", dpi=140)
 plt.show()

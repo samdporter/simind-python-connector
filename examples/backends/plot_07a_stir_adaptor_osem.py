@@ -86,19 +86,22 @@ mu_image = read_stir_image(mu_map, output_dir / "stir_mu")
 # --------
 # ``StirSimindAdaptor`` takes the STIR images directly. The projections are
 # requested on the reconstruction grid: 32 x 32 bins of 4 mm (Index 28 is in
-# cm), with a single 75-225 keV window for Y-90 bremsstrahlung.
+# cm), with a single 75-225 keV window for Y-90 bremsstrahlung. SCATTWIN
+# writes the total projection and, separately, the scatter in that window
+# (switch ``CA`` 2 asks for the split).
 
 adaptor = StirSimindAdaptor(
     config_source=configs.get("Example.yaml"),
     output_dir=str(output_dir),
     output_prefix="stir_case01",
     photon_multiplier=1,
-    quantization_scale=0.04 * DEFAULT_QUANTIZATION_SCALE,
+    quantization_scale=0.09 * DEFAULT_QUANTIZATION_SCALE,
 )
 adaptor.set_source(source_image)
 adaptor.set_mu_map(mu_image)
 adaptor.set_energy_windows([75], [225], [0])
 adaptor.add_runtime_switch("FI", "y90_tissue")
+adaptor.add_runtime_switch("CA", 2)
 adaptor.add_runtime_switch("CC", "ma-megp")
 adaptor.add_runtime_switch("NN", 1)
 adaptor.add_runtime_switch("RR", 12345)
@@ -111,13 +114,14 @@ adaptor.add_config_value(77, 32)
 adaptor.run()
 
 projection = adaptor.get_total_output(window=1)
-projection_path = output_dir / "stir_total.hs"
-projection.write_to_file(str(projection_path))
+scatter = adaptor.get_scatter_output(window=1)
+projection.write_to_file(str(output_dir / "stir_total.hs"))
 print(f"Projection sum: {projection.sum():.3f}")
+print(f"Scatter sum: {scatter.sum():.3f}")
 
 # %%
-# Reconstruct with OSEM
-# ---------------------
+# Reconstruct with OSEM, without and with scatter
+# -----------------------------------------------
 # The system model is SPECTUB with the attenuation map. PSF modelling is left
 # out to keep the example quick, so the reconstruction keeps the collimator
 # blur that SIMIND simulated, and the three 07 examples agree. Modelling the
@@ -126,60 +130,98 @@ print(f"Projection sum: {projection.sum():.3f}")
 # here. All three 07 examples run OSEM with 4 subsets and 8 subiterations
 # (2 full iterations).
 #
+# The total projection is reconstructed twice. The second reconstruction has
+# SIMIND's own scatter estimate for this run as a fixed additive term, floored
+# at a small positive value. It is not updated during the reconstruction; the
+# MC-scatter-in-the-loop examples refresh it.
+#
 # With direct STIR bindings, calling ``set_up()`` on the projector or
 # objective before the reconstructor can collapse SPECTUB reconstructions to
 # zero, so the chain is configured and only the reconstructor is set up.
 
-reconstruction = source_image.get_empty_copy()
-reconstruction.fill(1.0)
 
-proj_matrix = stir.ProjMatrixByBinSPECTUB()
-proj_matrix.set_attenuation_image_sptr(mu_image)
-proj_matrix.set_resolution_model(0.0, 0.0, False)
-proj_matrix.set_keep_all_views_in_cache(True)
+def reconstruct(additive_term=None):
+    reconstruction = source_image.get_empty_copy()
+    reconstruction.fill(1.0)
 
-projector_pair = stir.ProjectorByBinPairUsingProjMatrixByBin()
-projector_pair.set_proj_matrix_sptr(proj_matrix)
+    proj_matrix = stir.ProjMatrixByBinSPECTUB()
+    proj_matrix.set_attenuation_image_sptr(mu_image)
+    proj_matrix.set_resolution_model(0.0, 0.0, False)
+    proj_matrix.set_keep_all_views_in_cache(True)
 
-objective = stir.PoissonLogLikelihoodWithLinearModelForMeanAndProjData3DFloat()
-objective.set_projector_pair_sptr(projector_pair)
-objective.set_proj_data_sptr(projection)
-objective.set_num_subsets(4)
+    projector_pair = stir.ProjectorByBinPairUsingProjMatrixByBin()
+    projector_pair.set_proj_matrix_sptr(proj_matrix)
 
-recon = stir.OSMAPOSLReconstruction3DFloat()
-recon.set_objective_function(objective)
-recon.set_input_data(projection)
-recon.set_num_subsets(4)
-recon.set_num_subiterations(8)
-recon.set_disable_output(True)
-recon.set_up(reconstruction)
-recon.reconstruct(reconstruction)
+    objective = stir.PoissonLogLikelihoodWithLinearModelForMeanAndProjData3DFloat()
+    objective.set_projector_pair_sptr(projector_pair)
+    objective.set_proj_data_sptr(projection)
+    if additive_term is not None:
+        objective.set_additive_proj_data_sptr(additive_term)
+    objective.set_num_subsets(4)
 
-recon_path = output_dir / "stir_osem_recon.hv"
-reconstruction.write_to_file(str(recon_path))
-print(f"Reconstruction sum: {reconstruction.sum():.3f}")
+    recon = stir.OSMAPOSLReconstruction3DFloat()
+    recon.set_objective_function(objective)
+    recon.set_input_data(projection)
+    recon.set_num_subsets(4)
+    recon.set_num_subiterations(8)
+    recon.set_disable_output(True)
+    recon.set_up(reconstruction)
+    recon.reconstruct(reconstruction)
+    return reconstruction
+
+
+additive_term = stir.ProjDataInMemory(
+    projection.get_exam_info(), projection.get_proj_data_info()
+)
+additive_term.fill(np.maximum(get_array(scatter), 1e-5).astype(np.float32).flat)
+
+recon_no_scatter = reconstruct()
+recon_scatter = reconstruct(additive_term)
+
+recon_no_scatter.write_to_file(str(output_dir / "stir_osem_recon.hv"))
+recon_scatter.write_to_file(str(output_dir / "stir_osem_recon_scatter.hv"))
 
 # %%
-# Plot the result
-# ---------------
-# Central slice of the input source, the first projection view and the
-# central slice of the OSEM reconstruction.
+# Compare with the truth
+# ----------------------
+# Hot-to-background ratio of the mean reconstructed values in the hot sphere
+# and in the body away from it, against the true ratio.
 
 source_arr = get_array(source_image)
 proj_arr = get_array(projection)
-recon_arr = get_array(reconstruction)
+recons = {
+    "No scatter term": get_array(recon_no_scatter),
+    "SIMIND scatter term": get_array(recon_scatter),
+}
+
+background = body & ((x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 > 8**2)
+print(f"True hot-to-background ratio: {2.0 / 0.8:.2f}")
+for name, recon_arr in recons.items():
+    ratio = recon_arr[hot].mean() / recon_arr[background].mean()
+    print(f"{name}: hot-to-background ratio {ratio:.2f}")
 
 proj_view0 = proj_arr[0, :, 0, :] if proj_arr.ndim == 4 else proj_arr[:, 0, :]
 
-fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-axes[0].imshow(source_arr[source_arr.shape[0] // 2], cmap="viridis")
-axes[0].set_title("Input source")
-axes[1].imshow(proj_view0, cmap="magma")
-axes[1].set_title("Projection (view 0)")
-axes[2].imshow(recon_arr[recon_arr.shape[0] // 2], cmap="viridis")
-axes[2].set_title("OSEM reconstruction")
-for ax in axes:
+fig = plt.figure(figsize=(14, 7))
+grid = fig.add_gridspec(2, 4)
+panels = [
+    ("Input source", source_arr[16], "viridis"),
+    ("Projection (view 0)", proj_view0, "magma"),
+    *[(f"OSEM, {name.lower()}", arr[16], "viridis") for name, arr in recons.items()],
+]
+for column, (title, image, cmap) in enumerate(panels):
+    ax = fig.add_subplot(grid[0, column])
+    ax.imshow(image, cmap=cmap)
+    ax.set_title(title)
     ax.axis("off")
+
+ax = fig.add_subplot(grid[1, :])
+ax.plot(source_arr[16, 16, :] / source_arr[background].mean(), "k", label="Truth")
+for name, recon_arr in recons.items():
+    ax.plot(recon_arr[16, 16, :] / recon_arr[background].mean(), label=name)
+ax.set_xlabel("x (voxel), profile through the hot sphere")
+ax.set_ylabel("Relative to background mean")
+ax.legend()
 fig.tight_layout()
 fig.savefig(output_dir / "stir_osem_summary.png", dpi=140)
 plt.show()
