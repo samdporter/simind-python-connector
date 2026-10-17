@@ -62,6 +62,8 @@ Added
   ``nema_iec_phantom``; ``configure_phantom`` on the connector and
   ``set_phantom`` / ``get_ground_truth`` on the SIRF/STIR adaptors.
 - Examples 09-12 for the reconstruction and phantom workflows.
+- ``simind_python_connector.datasets.fetch_y90_phantom``: the Y-90 phantom data for the
+  tutorials, from ``SIMIND_CONNECTOR_Y90_DATA`` or a pooch download once published.
 
 Changed
 ~~~~~~~

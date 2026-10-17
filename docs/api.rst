@@ -100,6 +100,14 @@ Phantoms
 .. automodule:: simind_python_connector.phantoms
    :members:
 
+Datasets
+--------
+
+.. automodule:: simind_python_connector.datasets
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Utilities
 ---------
 
