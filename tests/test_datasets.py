@@ -33,6 +33,15 @@ def test_unpublished_record_points_at_the_environment_variable(monkeypatch):
         datasets.fetch_y90_phantom()
 
 
+def test_published_record_without_a_checksum_is_rejected(monkeypatch):
+    monkeypatch.delenv("SIMIND_CONNECTOR_Y90_DATA", raising=False)
+    monkeypatch.setattr(
+        datasets, "Y90_PHANTOM_RECORD", {"url": "https://x/y.zip", "sha256": ""}
+    )
+    with pytest.raises(RuntimeError, match="checksum"):
+        datasets.fetch_y90_phantom()
+
+
 def test_published_record_is_fetched_and_unzipped_with_its_hash(tmp_path, monkeypatch):
     pooch = pytest.importorskip("pooch")
     monkeypatch.delenv("SIMIND_CONNECTOR_Y90_DATA", raising=False)
