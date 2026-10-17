@@ -4,10 +4,17 @@ import os
 import sys
 from datetime import datetime
 from importlib import metadata as importlib_metadata
+from pathlib import Path
+
+from sphinx_gallery.sorting import ExplicitOrder
 
 
 # Add the package to the path
 sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("."))
+
+from _gallery import BACKENDS, execution_pattern  # noqa: E402
+
 
 # Project information
 project = "simind-python-connector"
@@ -31,6 +38,7 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx_autodoc_typehints",
     "myst_parser",
+    "sphinx_gallery.gen_gallery",
 ]
 source_suffix = {
     ".rst": "restructuredtext",
@@ -38,7 +46,13 @@ source_suffix = {
 }
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "superpowers/**"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "superpowers/**",
+    "examples",
+]
 
 # Options for HTML output
 html_theme = "sphinx_rtd_theme"
@@ -97,3 +111,30 @@ myst_enable_extensions = [
     "substitution",
     "tasklist",
 ]
+
+# Sphinx-gallery: each build executes only the examples of one backend, the
+# rest render from their committed outputs.
+backend = os.environ.get("SIMIND_GALLERY_BACKEND")
+if backend and backend not in BACKENDS:
+    raise ValueError(
+        f"SIMIND_GALLERY_BACKEND must be one of {BACKENDS}, got {backend!r}"
+    )
+
+sphinx_gallery_conf = {
+    "examples_dirs": "../examples",
+    "gallery_dirs": "auto_examples",
+    "filename_pattern": (
+        execution_pattern(Path("../examples").resolve(), backend) if backend else r"^$"
+    ),
+    "plot_gallery": "True" if backend else "False",
+    "ignore_pattern": r"^_[^/]*\.py$",
+    "within_subsection_order": "FileNameSortKey",
+    "subsection_order": ExplicitOrder(
+        ["../examples/getting_started", "../examples/backends"]
+    ),
+    "abort_on_example_error": True,
+    "remove_config_comments": True,
+    "download_all_examples": False,
+    "image_scrapers": ("matplotlib",),
+    "matplotlib_animations": False,
+}

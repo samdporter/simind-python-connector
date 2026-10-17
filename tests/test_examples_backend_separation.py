@@ -1,23 +1,15 @@
 """Keep core examples backend-free and adaptor examples isolated."""
 
-import ast
+import importlib.util
 from pathlib import Path
 
 import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def _import_roots(path: Path) -> set[str]:
-    tree = ast.parse(path.read_text(), filename=str(path))
-    roots = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            roots.update(alias.name.split(".")[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            roots.add(node.module.split(".")[0])
-    return roots
+spec = importlib.util.spec_from_file_location("gallery", ROOT / "docs" / "_gallery.py")
+gallery = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gallery)
 
 
 @pytest.mark.unit
@@ -39,8 +31,7 @@ def _import_roots(path: Path) -> set[str]:
     ],
 )
 def test_core_examples_do_not_import_optional_backends(name: str):
-    roots = _import_roots(ROOT / "examples" / name)
-    assert not roots & {"sirf", "stir", "pytomography"}
+    assert gallery.example_backend(ROOT / "examples" / name) == "python"
 
 
 @pytest.mark.parametrize(
@@ -53,6 +44,4 @@ def test_core_examples_do_not_import_optional_backends(name: str):
 )
 @pytest.mark.unit
 def test_adaptor_examples_import_only_their_backend(name: str, backend: str):
-    roots = _import_roots(ROOT / "examples" / name)
-    assert backend in roots
-    assert not roots & ({"sirf", "stir", "pytomography"} - {backend})
+    assert gallery.example_backend(ROOT / "examples" / name) == backend
