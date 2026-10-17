@@ -22,7 +22,7 @@ STIR projection from DICOM
 ==========================
 
 Create a STIR projection object from a DICOM NM projection file. The data
-is the Y-90 bremsstrahlung study used throughout the examples: a Mediso
+is a Y-90 bremsstrahlung study: a Mediso
 AnyScan acquisition of 120 views over 360 degrees, 128 x 128 bins of
 4.2578 mm and a 75-225 keV window. It is fetched with ``fetch_y90_phantom``.
 
@@ -143,7 +143,7 @@ Views 0 and 30 of the 120 views, 90 degrees apart.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.611 seconds)
+   **Total running time of the script:** (0 minutes 0.436 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08a_stir_adaptor_from_dicom.py:

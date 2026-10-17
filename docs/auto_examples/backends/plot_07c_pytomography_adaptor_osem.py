@@ -113,7 +113,7 @@ print(f"Projection sum: {float(projection_tensor.sum()):.3f}")
 # (``SPECTPSFTransform``, or SPECTUB ``set_resolution_model`` with the
 # collimator's sigma) needs about 20 updates and is not used here. All three
 # 07 examples run OSEM with 4 subsets and 8 subiterations (2 full
-# iterations), so the three backends agree.
+# iterations), so the three backends use the same settings.
 #
 # The total projection is reconstructed twice. The second reconstruction has
 # SIMIND's own scatter estimate for this run as a fixed additive term, floored
@@ -159,11 +159,11 @@ np.save(
 # ----------------------
 # Hot-to-background ratio of the mean reconstructed values in the hot sphere
 # and in the body away from it, against the true ratio. In this small phantom
-# scatter is only the printed fraction of the window, so a fixed additive
-# term lowers the absolute level by about that much but barely changes the
-# ratio: SIMIND's scatter is smooth and follows the body. The ratio here
-# differs slightly from 07A and 07B, which use a different projector
-# discretisation. Object tensors are (x, y, z) and projections are [view,
+# scatter is a small share of the counts in the window (the printed fraction),
+# so a fixed additive term lowers the absolute level by about that share but
+# barely changes the ratio: SIMIND's scatter is smooth and follows the body.
+# The ratio here differs slightly from 07A and 07B, which use a different
+# projector discretisation. Object tensors are (x, y, z) and projections are [view,
 # radial, axial], so images are transposed to put y or axial on the rows.
 # Axial index 0 is on the top row, as in 07A and 07B.
 

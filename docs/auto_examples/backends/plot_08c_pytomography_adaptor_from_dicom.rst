@@ -22,18 +22,17 @@ PyTomography projection from DICOM
 ==================================
 
 Create a PyTomography projection tensor from a DICOM NM projection file,
-following PyTomography's DICOM IO API. The data is the Y-90 bremsstrahlung
-study used throughout the examples: a Mediso AnyScan acquisition of 120
-views over 360 degrees, 128 x 128 bins of 4.2578 mm and a 75-225 keV window.
-It is fetched with ``fetch_y90_phantom``.
+following PyTomography's DICOM IO API. The data is a Y-90 bremsstrahlung
+study: a Mediso AnyScan acquisition of 120 views over 360 degrees, 128 x 128
+bins of 4.2578 mm and a 75-225 keV window. It is fetched with ``fetch_y90_phantom``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 13-16
+.. GENERATED FROM PYTHON SOURCE LINES 12-15
 
 Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 16-35
+.. GENERATED FROM PYTHON SOURCE LINES 15-34
 
 .. code-block:: Python
 
@@ -63,14 +62,14 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 36-40
+.. GENERATED FROM PYTHON SOURCE LINES 35-39
 
 Load the projections
 --------------------
 ``get_projections`` returns a tensor ordered (theta, r, z). ``index_peak=0``
 selects the first energy window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 40-48
+.. GENERATED FROM PYTHON SOURCE LINES 39-47
 
 .. code-block:: Python
 
@@ -96,7 +95,7 @@ selects the first energy window.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 49-56
+.. GENERATED FROM PYTHON SOURCE LINES 48-55
 
 Plot two views
 --------------
@@ -106,7 +105,7 @@ mod 360, so its view k is DICOM frame (k + 60) mod 120 and frame 0 is view 60.
 The tensor is transposed and drawn with ``origin="lower"`` so rows are axial
 with the head end up, and columns are radial.
 
-.. GENERATED FROM PYTHON SOURCE LINES 56-67
+.. GENERATED FROM PYTHON SOURCE LINES 55-66
 
 .. code-block:: Python
 
@@ -136,7 +135,7 @@ with the head end up, and columns are radial.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.125 seconds)
+   **Total running time of the script:** (0 minutes 0.128 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py:
