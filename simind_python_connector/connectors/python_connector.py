@@ -891,8 +891,8 @@ class SimindPythonConnector(BaseConnector):
                 # the same histories and the summed result equals a serial run.
                 raise ValueError(
                     "A fixed RR seed gives every MPI process the same histories, "
-                    "so replicate MPI adds no statistics; remove RR (SIMIND then "
-                    "seeds each process differently) or use split_projections"
+                    "so replicate MPI adds no statistics; remove RR (simind_mpi then "
+                    "seeds process r as RR=r+1) or use split_projections"
                 )
             mpi_kwargs = {"mpi_processes": processes, "split_projections": split}
 

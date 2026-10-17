@@ -95,14 +95,16 @@ integer >= 1.
 
 By default every process simulates all projections and SIMIND sums them, the
 same as one process with ``processes`` times more histories. Each process then
-needs its own random numbers: SIMIND seeds the processes differently only when
-no ``RR`` switch is given, so ``run()`` refuses a fixed ``RR`` with more than
-one replicate process (every process would repeat the same histories and the
-result would equal the serial run). ``split_projections=True`` (``/MP``)
-shares the projections out instead; Index 29 must be a multiple of
-``processes``, a fixed ``RR`` is allowed, and the PENETRATE scoring routine is
-refused because ``simind_mpi`` writes only the primary process's PENETRATE
-projections.
+needs its own random numbers. Without an ``RR`` switch, ``simind_mpi`` seeds
+process ``r`` (counting from 0) exactly as ``RR = r + 1`` (checked on v8 and v9: a two-process
+run is the mean of the serial runs with ``RR`` 1 and 2), so do not combine
+replicate output with serial runs that use those small ``RR`` values. With a
+fixed ``RR`` every process would repeat the same histories and the result
+would equal the serial run, so ``run()`` refuses a fixed ``RR`` with more than
+one replicate process. ``split_projections=True`` (``/MP``) shares the
+projections out instead; Index 29 must be a multiple of ``processes``, a fixed
+``RR`` is allowed, and the PENETRATE scoring routine is refused because
+``simind_mpi`` writes only the primary process's PENETRATE projections.
 
 .. code-block:: python
 

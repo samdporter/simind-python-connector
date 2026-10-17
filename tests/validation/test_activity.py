@@ -8,8 +8,17 @@ from tests.test_release_regressions_simind import GRID, VOXEL_MM, _connector
 pytestmark = [pytest.mark.validation, pytest.mark.requires_simind]
 
 
+PADDING_NOTE = (
+    "workdir padded to 60 chars: v9 Linux path-length abort (see v9-path-crash finding)"
+)
+
+
 def _long_path(tmp_path):
-    # v9 Linux SCATTWIN aborts (heap corruption) for output paths of 35-48 chars
+    # Workaround for an engine defect, not a connector requirement: v9 Linux
+    # SCATTWIN aborts with heap corruption for output paths of about 35-48
+    # characters with this single-voxel source (a two-voxel source also
+    # aborted at padded lengths). Applied on every engine so v8 and v9 run the
+    # same cases; every record from these runs carries PADDING_NOTE.
     directory = tmp_path / ("x" * max(1, 60 - len(str(tmp_path)) - 1))
     directory.mkdir(exist_ok=True)
     return directory
@@ -51,12 +60,17 @@ def test_activity_doubling(validate, tmp_path):
     tot2 = _total(tmp_path, "a20", activity_mbq=20)
 
     validate(
-        "activity_doubling", float(tot2.sum() / tot1.sum()), expected=2.0, rel=1e-5
+        "activity_doubling",
+        float(tot2.sum() / tot1.sum()),
+        expected=2.0,
+        rel=1e-5,
+        note=PADDING_NOTE,
     )
     validate(
         "activity_doubling_binwise",
         _max_relative_deviation_from(2.0, tot1, tot2),
         upper=1e-5,
+        note=PADDING_NOTE,
     )
 
 
@@ -64,7 +78,13 @@ def test_time_doubling(validate, tmp_path):
     tot1 = _total(tmp_path, "t1", time_s=1)
     tot2 = _total(tmp_path, "t2", time_s=2)
 
-    validate("time_doubling", float(tot2.sum() / tot1.sum()), expected=2.0, rel=1e-5)
+    validate(
+        "time_doubling",
+        float(tot2.sum() / tot1.sum()),
+        expected=2.0,
+        rel=1e-5,
+        note=PADDING_NOTE,
+    )
 
 
 def test_source_magnitude_does_not_change_counts(validate, tmp_path):
@@ -76,6 +96,7 @@ def test_source_magnitude_does_not_change_counts(validate, tmp_path):
         float(np.max(np.abs(scaled - base))),
         expected=0.0,
         abs_tol=0.0,
+        note=PADDING_NOTE,
     )
 
 
@@ -91,5 +112,5 @@ def test_histories_do_not_change_counts(validate, tmp_path):
         float(abs(1 - t9 / np.mean([t7, t8]))),
         upper=bound,
         smoke=True,
-        note=f"d0={d0:.4g}",
+        note=f"d0={d0:.4g}; {PADDING_NOTE}",
     )

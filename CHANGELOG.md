@@ -235,8 +235,8 @@ satisfied requirement).
   routine, `simind_mpi` writes only the primary process's projections (12 of 24
   views with two processes), so loading failed. With replicate MPI (no split) and a
   fixed `RR` switch, every process repeated the same histories and the result was
-  bin-for-bin the serial run. Leave `RR` unset for replicate MPI: SIMIND then seeds
-  each process differently.
+  bin-for-bin the serial run. Leave `RR` unset for replicate MPI: `simind_mpi` then
+  seeds process `r` (from 0) as `RR = r + 1`.
 
 ### Known limitations
 - The optional SIRF/CIL scatter and residual correction workflows ship with the
