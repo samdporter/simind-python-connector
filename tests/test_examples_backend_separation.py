@@ -40,11 +40,14 @@ def test_core_examples_do_not_import_optional_backends(name: str):
 @pytest.mark.parametrize(
     "name,backend",
     [
-        ("07A_stir_adaptor_osem.py", "stir"),
-        ("07B_sirf_adaptor_osem.py", "sirf"),
-        ("07C_pytomography_adaptor_osem.py", "pytomography"),
+        ("plot_07a_stir_adaptor_osem.py", "stir"),
+        ("plot_07b_sirf_adaptor_osem.py", "sirf"),
+        ("plot_07c_pytomography_adaptor_osem.py", "pytomography"),
+        ("plot_08a_stir_adaptor_from_dicom.py", "stir"),
+        ("plot_08b_sirf_adaptor_from_dicom.py", "sirf"),
+        ("plot_08c_pytomography_adaptor_from_dicom.py", "pytomography"),
     ],
 )
 @pytest.mark.unit
 def test_adaptor_examples_import_only_their_backend(name: str, backend: str):
-    assert gallery.example_backend(ROOT / "examples" / name) == backend
+    assert gallery.example_backend(ROOT / "examples" / "backends" / name) == backend
