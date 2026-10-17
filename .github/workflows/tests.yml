@@ -35,6 +35,8 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      - name: Check gallery outputs are current
+        run: python scripts/check_gallery_current.py
       - name: Run CI-friendly tests
         run: |
           python -m pytest -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not ci_skip" --cov=simind_python_connector --cov-report=xml
