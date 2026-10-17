@@ -7,6 +7,7 @@ services:
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: python
+      SIMIND_VERSION: ${SIMIND_VERSION:-8}
       SIMIND_ROOT: /workspace/simind
       SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
       SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}
@@ -25,6 +26,7 @@ services:
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: stir
+      SIMIND_VERSION: ${SIMIND_VERSION:-8}
       SIMIND_ROOT: /workspace/simind
       SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
       SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}
@@ -43,6 +45,7 @@ services:
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: sirf
+      SIMIND_VERSION: ${SIMIND_VERSION:-8}
       SIMIND_ROOT: /workspace/simind
       SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
       SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}
@@ -61,6 +64,7 @@ services:
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: pytomography
+      SIMIND_VERSION: ${SIMIND_VERSION:-8}
       SIMIND_ROOT: /workspace/simind
       SIMIND_BIN: ${SIMIND_BIN:-/workspace/simind/simind}
       SIMIND_MPI_BIN: ${SIMIND_MPI_BIN:-/workspace/simind/simind_mpi}

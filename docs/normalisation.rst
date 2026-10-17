@@ -28,9 +28,11 @@ Explicit values are used exactly as given; the connector does **not**
 auto-migrate scales written for releases whose ``MAX_SOURCE`` was 500. To keep
 an old explicit scale's budget, pass ``old_scale * DEFAULT_QUANTIZATION_SCALE``.
 
-Scaling the source up, or raising ``NN``, runs more histories. That gives better
-statistics and a longer run, but does **not** give more counts in the
-projections.
+Increasing ``quantization_scale`` or ``NN`` runs more histories, improving
+statistics without setting the projection count scale. Multiplying the NumPy
+source by a constant leaves the exported map unchanged because its maximum is
+normalised. Coarse integer rounding can also distort relative voxel weights;
+check region ratios before using a low quantisation budget quantitatively.
 
 Route 1: the activity is known
 ------------------------------
@@ -62,8 +64,7 @@ factor to every output of the same run.
      - ``reference``
      - ``mask``
    * - Analytic projector available (e.g. SIRF/STIR)
-     - geometric primary: PENETRATE ``geom_coll_primary``; SCATTWIN ``pri_wN``
-       for low-energy isotopes
+     - geometric primary: PENETRATE ``geom_coll_primary``
      - linear forward projection of the same (masked) image
      - optional: forward-projected body mask, thresholded at a fraction of its
        maximum
@@ -100,6 +101,8 @@ Against measured data:
     )
     scaled = {key: value.projection * factor for key, value in outputs.items()}
 
-For high-energy isotopes (Lu-177, Y-90, I-131), SCATTWIN ``pri`` includes
-septal penetration and collimator scatter, which analytic projectors do not
-model. Use PENETRATE ``geom_coll_primary`` for those.
+SCATTWIN ``pri`` excludes phantom scatter but can include septal penetration,
+collimator scatter and detector effects. It is a different physical component
+from PENETRATE ``geom_coll_primary``, even when those extra contributions are
+small. An uncalibrated analytic projection can check geometry and define a
+relative scale; it does not independently establish detector sensitivity.

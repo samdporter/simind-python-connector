@@ -5,6 +5,7 @@ Backend-agnostic SIMIND connector returning NumPy projection outputs.
 from __future__ import annotations
 
 import contextlib
+import copy
 import logging
 import math
 import numbers
@@ -50,7 +51,10 @@ from simind_python_connector.utils.interfile import (
     ProjectionGeometry,
     load_interfile_array,
 )
-from simind_python_connector.utils.simind_utils import create_window_file
+from simind_python_connector.utils.simind_utils import (
+    create_window_file,
+    validate_energy_window_prefix,
+)
 
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
@@ -188,8 +192,17 @@ class SimindPythonConnector(BaseConnector):
         output_dir: PathLike,
         output_prefix: str = "output",
         quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
+        simind_version: Optional[int] = None,
     ) -> None:
         self.logger = logging.getLogger(__name__)
+        version_value = (
+            os.environ.get("SIMIND_VERSION", "8")
+            if simind_version is None
+            else simind_version
+        )
+        if version_value not in (8, 9, "8", "9"):
+            raise ValueError("simind_version must be 8 or 9")
+        self.simind_version = int(version_value)
         self._validate_output_prefix(output_prefix)
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -221,7 +234,7 @@ class SimindPythonConnector(BaseConnector):
         self._outputs: Optional[dict[str, ProjectionResult]] = None
         self._window_file_path: Optional[Path] = None
         self._mpi: Optional[tuple[int, bool]] = None
-        self._derived_keys: set[str] = set()
+        self._derived_keys: dict[str, str] = {}
         self._acquisition: Optional[ProjectionGeometry] = None
         self._acquisition_radii_cm: Optional[list[float]] = None
         self._phantom_extent_mm: Optional[tuple[float, float]] = None
@@ -720,6 +733,7 @@ class SimindPythonConnector(BaseConnector):
     ) -> None:
         """Write a SIMIND window file for this connector run."""
         self._validate_output_prefix(self.output_prefix)
+        validate_energy_window_prefix(self.output_prefix)
         window_path = self.output_dir / f"{self.output_prefix}.win"
         create_window_file(
             lower_bounds,
@@ -738,29 +752,35 @@ class SimindPythonConnector(BaseConnector):
         """Validate the effective switch set and orbit without writing files.
 
         Builds the same persistent+runtime switch set run() uses (operator
-        values override persistent ones and None removes them), adds the
-        automatic CA=1 for the SCATTWIN routine and serialises it through the
-        executor, so an illegal switch is rejected before phantom inputs, an
-        acquisition orbit or a config are written. Returns the validated
-        holder for run().
+        values override persistent ones and None removes them) and serialises
+        it through the executor, so an illegal switch is rejected before
+        phantom inputs, an acquisition orbit or a config are written.
 
         write_paths are the files an adaptor is about to write for this run;
         a supplied orbit that is one of them, or the config destination, is
         rejected dereferenced so a real input is never overwritten by staging.
         """
+        if self._window_file_path is not None:
+            try:
+                validate_energy_window_prefix(self.output_prefix)
+            except ValueError as exc:
+                raise ValueError(
+                    f"{exc}; call set_energy_windows() again after changing "
+                    "output_prefix"
+                ) from exc
+            expected_window_path = self.output_dir / f"{self.output_prefix}.win"
+            if self._window_file_path != expected_window_path:
+                raise ValueError(
+                    "output_prefix changed after set_energy_windows(); call "
+                    "set_energy_windows() again before running"
+                )
+
         run_switches_holder = RuntimeSwitches()
         for key, value in self.runtime_switches.switches.items():
             run_switches_holder.set_switch(key, value)
         if runtime_operator is not None:
             for key, value in runtime_operator.switches.items():
                 run_switches_holder.set_switch(key, value)
-
-        # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin routine);
-        # primary is then tot - sca.
-        if self._config_scoring_routine() is ScoringRoutine.SCATTWIN and (
-            "CA" not in run_switches_holder.switches
-        ):
-            run_switches_holder.set_switch("CA", 1)
 
         self.executor._serialize_switches(run_switches_holder.switches)
 
@@ -792,7 +812,10 @@ class SimindPythonConnector(BaseConnector):
                 )
 
     def run(
-        self, runtime_operator: Optional[RuntimeOperator] = None
+        self,
+        runtime_operator: Optional[RuntimeOperator] = None,
+        *,
+        timeout: Optional[float] = None,
     ) -> dict[str, ProjectionResult]:
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
@@ -804,6 +827,26 @@ class SimindPythonConnector(BaseConnector):
         self._validate_output_prefix(self.output_prefix)
         self._config_scoring_routine()
         run_switches_holder = self._validate_runtime_operator(runtime_operator)
+
+        v9_voxel_offsets = None
+        if self.simind_version == 9 and self._phantom_mode == "voxel":
+            di = run_switches_holder.switches.get("DI", 0)
+            density_direction = self.config.get_value(32)
+            orientation = run_switches_holder.switches.get("OR")
+            if di != 0 or density_direction != 0 or orientation is not None:
+                raise ValueError(
+                    "v9 voxel centring requires DI=0, Index32=0 and default OR"
+                )
+            source_pixel_cm = float(
+                run_switches_holder.switches.get("PX", self.config.get_value(31))
+            )
+            density_pixel_cm = float(self.config.get_value(31))
+            v9_voxel_offsets = (
+                (17, source_pixel_cm),
+                (18, -source_pixel_cm),
+                (36, density_pixel_cm),
+                (37, -density_pixel_cm),
+            )
 
         if self._phantom_mode is None:
             self.logger.warning(
@@ -876,14 +919,18 @@ class SimindPythonConnector(BaseConnector):
 
         window_file = self._window_file_for_run(run_switches_holder.switches)
 
-        # Outputs are read from SPECT Interfile headers (.h00), which SIMIND
-        # writes only with Flag 5 (SPECT) and Flag 14 (Interfile) set. A
-        # configuration-defined phantom never goes through configure_phantom,
-        # so set them for every run.
+        # Configuration-defined phantoms also need Interfile SPECT outputs.
         self.config.set_flag(5, True)
         self.config.set_flag(14, True)
+
+        run_config = self.config
+        if v9_voxel_offsets is not None:
+            run_config = copy.deepcopy(self.config)
+            for index, offset in v9_voxel_offsets:
+                run_config.set_value(index, run_config.get_value(index) + offset)
+
         config_path = self.output_dir / self.output_prefix
-        self.config.save_file(config_path)
+        run_config.save_file(config_path)
 
         self._clear_previous_outputs(window_file)
         self.executor.run_simulation(
@@ -891,6 +938,7 @@ class SimindPythonConnector(BaseConnector):
             orbit_file,
             run_switches_holder.switches,
             cwd=self.output_dir,
+            timeout=timeout,
             **mpi_kwargs,
         )
 
@@ -982,10 +1030,14 @@ class SimindPythonConnector(BaseConnector):
             )
             if not stem_ok:
                 continue
-            if path.suffix in self._OUTPUT_SUFFIXES or (
-                path.suffix.startswith(".b")
-                and path.suffix[2:].isdigit()
-                and path.stem == self.output_prefix
+            if (
+                path.suffix in self._OUTPUT_SUFFIXES
+                or re.fullmatch(r"\.h\d{2}", path.suffix)
+                or (
+                    path.suffix.startswith(".b")
+                    and path.suffix[2:].isdigit()
+                    and path.stem == self.output_prefix
+                )
             ):
                 path.unlink()
 
@@ -1065,10 +1117,12 @@ class SimindPythonConnector(BaseConnector):
         return hs_files
 
     def _derive_primary_headers(
-        self, header_files: list[Path], window_file: Optional[Path]
+        self,
+        header_files: list[Path],
+        window_file: Optional[Path],
     ) -> list[Path]:
-        """Write pri_wN = tot_wN - sca_wN for order-0 windows."""
-        self._derived_keys = set()
+        """Derive the missing order-0 scatter/primary image from available pairs."""
+        self._derived_keys = {}
         if window_file is None or not window_file.is_file():
             return []
         orders = self._read_window_orders(window_file)
@@ -1084,7 +1138,9 @@ class SimindPythonConnector(BaseConnector):
                 continue
             sca_header = tot_header.with_name(f"{self.output_prefix}_sca_w{window}.hs")
             pri_header = tot_header.with_name(f"{self.output_prefix}_pri_w{window}.hs")
-            if pri_header.name in names or sca_header.name not in names:
+            derive_pri = pri_header.name not in names and sca_header.name in names
+            derive_sca = sca_header.name not in names and pri_header.name in names
+            if not (derive_pri or derive_sca):
                 continue
             try:
                 total = load_interfile_array(tot_header).array
@@ -1092,28 +1148,34 @@ class SimindPythonConnector(BaseConnector):
                 raise SimulationError(
                     f"Could not load SIMIND output {tot_header}: {exc}"
                 ) from exc
+            component_header = sca_header if derive_pri else pri_header
             try:
-                scatter = load_interfile_array(sca_header).array
+                component = load_interfile_array(component_header).array
             except Exception as exc:
                 raise SimulationError(
-                    f"Could not load SIMIND output {sca_header}: {exc}"
+                    f"Could not load SIMIND output {component_header}: {exc}"
                 ) from exc
-            if total.shape != scatter.shape:
+            if total.shape != component.shape:
                 raise SimulationError(
-                    f"Could not derive primary from {tot_header} and {sca_header}: "
-                    f"shape mismatch ({total.shape} vs {scatter.shape})"
+                    f"Could not derive an order-0 component from {tot_header} and "
+                    f"{component_header}: shape mismatch ({total.shape} vs "
+                    f"{component.shape})"
                 )
-            pri_data = pri_header.with_suffix(".a00")
-            (total - scatter).astype("<f4").tofile(pri_data)
+            target_header = pri_header if derive_pri else sca_header
+            target_data = target_header.with_suffix(".a00")
+            (total - component).astype("<f4").tofile(target_data)
             header = InterfileHeader.from_file(tot_header)
-            header.set("!name of data file", pri_data.name)
+            header.set("!name of data file", target_data.name)
             header.set("!number format", "float")
             header.set("!number of bytes per pixel", 4)
             header.set("imagedata byte order", "LITTLEENDIAN")
             header.set("!data offset in bytes", 0)
-            header.write(pri_header)
-            derived.append(pri_header)
-        self._derived_keys = {self._extract_output_key(path) for path in derived}
+            header.write(target_header)
+            derived.append(target_header)
+            names.add(target_header.name)
+            self._derived_keys[self._extract_output_key(target_header)] = (
+                "tot - sca" if derive_pri else "tot - pri"
+            )
         return derived
 
     def _load_projection_outputs(
@@ -1135,7 +1197,7 @@ class SimindPythonConnector(BaseConnector):
                 header_path=interfile.header_path,
                 data_path=interfile.data_path,
                 metadata=(
-                    {**interfile.metadata, "derived": "tot - sca"}
+                    {**interfile.metadata, "derived": self._derived_keys[key]}
                     if key in self._derived_keys
                     else interfile.metadata
                 ),

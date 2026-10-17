@@ -419,13 +419,27 @@ def load_interfile_array(header_path: PathLike) -> InterfileArray:
     expected_elements = int(np.prod(shape))
 
     offset_raw = values.get("data offset in bytes", values.get("data_offset_in_bytes"))
-    offset = int(float(offset_raw)) if offset_raw else 0
+    try:
+        offset_value = float(offset_raw) if offset_raw else 0.0
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"Invalid Interfile data offset: {offset_raw!r}") from exc
+    if not np.isfinite(offset_value) or not offset_value.is_integer():
+        raise ValueError(
+            f"Interfile data offset must be a finite integer, got {offset_raw!r}"
+        )
+    offset = int(offset_value)
     if offset < 0:
         raise ValueError(f"Negative data offset in Interfile header: {offset}")
     if offset % dtype.itemsize != 0:
         raise ValueError(
             f"Data offset {offset} is not aligned to a {dtype.itemsize}-byte "
             "pixel boundary"
+        )
+    payload_bytes = data_path.stat().st_size - offset
+    if payload_bytes % dtype.itemsize:
+        raise ValueError(
+            f"Interfile data file {data_path} has a trailing partial pixel "
+            f"({payload_bytes % dtype.itemsize} byte(s))"
         )
 
     flat = np.fromfile(data_path, dtype=dtype, offset=offset)

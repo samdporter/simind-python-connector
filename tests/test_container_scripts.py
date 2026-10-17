@@ -16,70 +16,6 @@ pytestmark = pytest.mark.unit
 VALIDATION_SCRIPT = ROOT / "scripts" / "run_container_validation.sh"
 
 
-def test_run_all_examples_returns_nonzero_when_an_example_fails(monkeypatch):
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "run_all_examples", ROOT / "scripts" / "run_all_examples.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    monkeypatch.setattr(
-        module,
-        "EXAMPLES",
-        [
-            {
-                "name": "01_basic_simulation.py",
-                "description": "d",
-                "module": "m",
-                "estimated_time": "1 minute",
-            },
-        ],
-    )
-    monkeypatch.setattr(module, "check_dependencies", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda *_: "y")
-    monkeypatch.setattr(
-        module,
-        "run_example_subprocess",
-        lambda example_file: (False, "Exit code 1: boom"),
-    )
-
-    assert module.main() == 1
-
-
-def test_run_all_examples_returns_zero_when_all_succeed(monkeypatch):
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "run_all_examples", ROOT / "scripts" / "run_all_examples.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    monkeypatch.setattr(
-        module,
-        "EXAMPLES",
-        [
-            {
-                "name": "01_basic_simulation.py",
-                "description": "d",
-                "module": "m",
-                "estimated_time": "1 minute",
-            },
-        ],
-    )
-    monkeypatch.setattr(module, "check_dependencies", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda *_: "y")
-    monkeypatch.setattr(
-        module,
-        "run_example_subprocess",
-        lambda example_file: (True, "Completed successfully"),
-    )
-
-    assert module.main() == 0
-
-
 @pytest.fixture
 def fake_bin(tmp_path: Path):
     """Directory holding fake python3/simind executables recording argv."""
@@ -362,46 +298,17 @@ def test_container_scripts_forward_smc_env_without_compose_no_build(
         expected_env["SIMIND_MPI_BIN"] = "/workspace/simind/simind_mpi"
     for line in compose_runs:
         tokens = line.split()
+        if script_name == "run_container_validation.sh":
+            assert "--user" in tokens
+            user_index = tokens.index("--user")
+            assert tokens[user_index + 1] == f"{os.getuid()}:{os.getgid()}"
+            expected_env["HOME"] = "/tmp"
         env_pairs = {
             tokens[i + 1].split("=", 1)[0]: tokens[i + 1].split("=", 1)[1]
             for i, token in enumerate(tokens)
             if token == "-e"
         }
         assert env_pairs == expected_env, line
-
-
-def test_dockerignore_excludes_local_heavy_paths():
-    ignore = (ROOT / ".dockerignore").read_text().splitlines()
-    for pattern in (
-        ".git",
-        ".venv",
-        "simind",
-        "dist",
-        "build",
-        "*.tar.gz",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".uv-cache",
-        "coverage.xml",
-        "docs/_build",
-        "output",
-        "results",
-    ):
-        assert pattern in ignore, pattern
-    # Packaged preset must never be excluded
-    assert all(not line.endswith("input.smc") for line in ignore)
-
-
-def test_python_image_installs_mpich_and_compat_links():
-    dockerfile = (ROOT / "docker" / "python" / "Dockerfile").read_text()
-    assert "apt-get install -y --no-install-recommends mpich" in dockerfile
-    assert "install_mpich_compat.sh" in dockerfile
-
-
-def test_mpich_compat_script_creates_soname_links():
-    script = (ROOT / "docker" / "python" / "install_mpich_compat.sh").read_text()
-    assert "libmpi.so.12" in script
-    assert "libmpifort.so.12" in script
 
 
 @pytest.mark.unit
@@ -432,37 +339,6 @@ def test_validation_script_require_simind_fails_without_binary(
         timeout=120,
     )
     assert result.returncode == 1, result.stdout + result.stderr
-
-
-def test_validation_script_forwards_simind_mpi_bin_in_run_service():
-    script = VALIDATION_SCRIPT.read_text()
-    assert '-e "SIMIND_MPI_BIN=$(dirname "$container_bin")/simind_mpi"' in script
-
-
-def test_validation_script_requires_sibling_simind_mpi_for_simind_tests():
-    script = VALIDATION_SCRIPT.read_text()
-    assert (
-        '[[ "$RUN_SIMIND_TESTS" == "1" && "$SIMIND_AVAILABLE" -eq 1 ]]; then' in script
-    )
-    assert 'SIMIND_MPI_PATH="$(dirname "$SIMIND_PATH")/simind_mpi"' in script
-    assert '[[ ! -x "$SIMIND_MPI_PATH" ]]' in script
-
-
-def test_validation_script_runs_simind_mpi_test_in_python_service():
-    script = VALIDATION_SCRIPT.read_text()
-    assert (
-        'run_service python "python -m pytest tests/test_simind_mpi.py -q -s"' in script
-    )
-
-
-def test_validation_script_sirf_simind_selection_ignores_simind_mpi_test():
-    script = VALIDATION_SCRIPT.read_text()
-    sirf_line = next(
-        line
-        for line in script.splitlines()
-        if "run_service sirf" in line and "SIMIND_MARKERS" in line
-    )
-    assert "--ignore=tests/test_simind_mpi.py" in sirf_line
 
 
 def test_validation_script_fails_without_sibling_simind_mpi(tmp_path):

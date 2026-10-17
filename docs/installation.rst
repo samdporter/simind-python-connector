@@ -6,7 +6,7 @@ Installation
 Prerequisites
 -------------
 
-- Python 3.9+
+- Python 3.10+
 - A separate SIMIND installation for running simulations. SIMIND is not
   distributed with this package or installed by pip.
 - Optional backend libraries depending on workflow:
@@ -91,21 +91,31 @@ If needed, make the binary executable:
 Local Runtime Environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For direct local runs, ensure the SIMIND executable is available as ``simind``
-on ``PATH``. If your SIMIND installation needs ``SMC_DIR``, set it to the
-SIMIND data directory:
+For direct local runs, pair the SIMIND executable with the ``smc_dir`` data
+from the same release. Set ``SIMIND_BIN`` to select the executable explicitly;
+otherwise the connector searches for ``simind`` on ``PATH``. Set
+``SMC_DIR`` to that release's data directory, with a trailing slash:
 
 .. code-block:: bash
 
-    export PATH="/path/to/simind/bin:$PATH"
+    export SIMIND_BIN="/path/to/simind/simind"
     export SMC_DIR="/path/to/simind/smc_dir/"
+    export PATH="/path/to/simind:$PATH"
+    export SIMIND_VERSION=9
+
+Set ``SIMIND_VERSION`` to ``8`` or ``9`` to match the executable. The default
+is ``8``; ``simind_version=9`` on a connector or adaptor overrides the
+environment. This explicit selection accounts for the different voxel-map
+origins. It does not replace selecting the matching executable and data.
 
 When working from this repository with the layout above, those commands become:
 
 .. code-block:: bash
 
+    export SIMIND_BIN="$PWD/simind/simind"
     export PATH="$PWD/simind:$PATH"
     export SMC_DIR="$PWD/simind/smc_dir/"
+    export SIMIND_VERSION=8
 
 Docker Behavior
 ~~~~~~~~~~~~~~~

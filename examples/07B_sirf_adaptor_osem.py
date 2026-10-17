@@ -15,12 +15,12 @@ Unit note:
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import sirf.STIR as sirf
+from _python_connector_helpers import require_simind
 
 from simind_python_connector import SirfSimindAdaptor, configs
 from simind_python_connector.builders import STIRSPECTImageDataBuilder
@@ -143,11 +143,7 @@ def _save_summary_plot(
 
 
 def main() -> None:
-    if shutil.which("simind") is None:
-        raise RuntimeError(
-            "SIMIND executable not found in PATH. "
-            "Follow the official SIMIND installation instructions first."
-        )
+    require_simind()
 
     output_dir = Path("output/sirf_adaptor_osem")
     output_dir.mkdir(parents=True, exist_ok=True)

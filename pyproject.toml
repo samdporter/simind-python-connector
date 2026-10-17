@@ -47,6 +47,8 @@ dev = [
     "myst-parser",
     "pre-commit",
     "build",
+    "setuptools>=77.0.3",
+    "wheel",
     "twine",
 ]
 examples = [

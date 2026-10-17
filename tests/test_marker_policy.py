@@ -1,6 +1,4 @@
-"""Policy checks for dependency markers across the test suite."""
-
-from __future__ import annotations
+"""Require every test to declare its suite or dependency marker."""
 
 import ast
 from pathlib import Path
@@ -9,9 +7,8 @@ import pytest
 
 
 pytestmark = pytest.mark.unit
-
 ROOT = Path(__file__).resolve().parent
-ALLOWED_MARKERS = {
+ALLOWED = {
     "unit",
     "integration",
     "ci_skip",
@@ -24,73 +21,45 @@ ALLOWED_MARKERS = {
 }
 
 
-def _has_supported_module_marker(source: str, tree: ast.Module) -> bool:
-    for node in tree.body:
-        if isinstance(node, ast.Assign):
-            has_pytestmark_target = any(
+def _marked(node: ast.AST) -> bool:
+    return any(
+        isinstance(child, ast.Attribute) and child.attr in ALLOWED
+        for child in ast.walk(node)
+    )
+
+
+def test_all_tests_have_dependency_or_category_marker():
+    missing = []
+    for path in sorted(ROOT.rglob("test_*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        module_marked = any(
+            isinstance(node, ast.Assign)
+            and any(
                 isinstance(target, ast.Name) and target.id == "pytestmark"
                 for target in node.targets
             )
-            if not has_pytestmark_target:
-                continue
-            segment = ast.get_source_segment(source, node) or ""
-            if any(marker in segment for marker in ALLOWED_MARKERS):
-                return True
-    return False
-
-
-def _has_supported_function_marker(source: str, node: ast.FunctionDef) -> bool:
-    for decorator in node.decorator_list:
-        segment = ast.get_source_segment(source, decorator) or ""
-        if "pytest.mark" in segment and any(
-            marker in segment for marker in ALLOWED_MARKERS
-        ):
-            return True
-    return False
-
-
-def _class_has_supported_marker(source: str, node: ast.ClassDef) -> bool:
-    for decorator in node.decorator_list:
-        segment = ast.get_source_segment(source, decorator) or ""
-        if "pytest.mark" in segment and any(
-            marker in segment for marker in ALLOWED_MARKERS
-        ):
-            return True
-    return False
-
-
-def test_all_tests_have_dependency_or_category_marker() -> None:
-    missing: list[str] = []
-
-    for path in sorted(ROOT.rglob("test_*.py")):
-        source = path.read_text()
-        tree = ast.parse(source)
-        module_marked = _has_supported_module_marker(source, tree)
-
+            and _marked(node.value)
+            for node in tree.body
+        )
         for node in tree.body:
-            if isinstance(node, ast.FunctionDef):
-                if not node.name.startswith("test_"):
-                    continue
-                if module_marked or _has_supported_function_marker(source, node):
-                    continue
-                missing.append(f"{path.name}:{node.name}")
-            elif isinstance(node, ast.ClassDef):
-                class_marked = _class_has_supported_marker(source, node)
+            if isinstance(
+                node, (ast.FunctionDef, ast.AsyncFunctionDef)
+            ) and node.name.startswith("test_"):
+                if not module_marked and not _marked_decorators(node):
+                    missing.append(f"{path.name}:{node.name}")
+            if isinstance(node, ast.ClassDef):
+                class_marked = _marked_decorators(node)
                 for child in node.body:
-                    if not isinstance(child, ast.FunctionDef):
-                        continue
-                    if not child.name.startswith("test_"):
-                        continue
                     if (
-                        module_marked
-                        or class_marked
-                        or (_has_supported_function_marker(source, child))
+                        isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and child.name.startswith("test_")
+                        and not module_marked
+                        and not class_marked
+                        and not _marked_decorators(child)
                     ):
-                        continue
-                    missing.append(f"{path.name}:{node.name}.{child.name}")
+                        missing.append(f"{path.name}:{node.name}.{child.name}")
+    assert not missing, "Tests without a recognized marker: " + ", ".join(missing)
 
-    assert not missing, (
-        "Every test must have a dependency/category marker via function "
-        "decorator, class decorator, or module-level pytestmark. Missing:\n- "
-        + "\n- ".join(missing)
-    )
+
+def _marked_decorators(node: ast.AST) -> bool:
+    return any(_marked(decorator) for decorator in getattr(node, "decorator_list", ()))

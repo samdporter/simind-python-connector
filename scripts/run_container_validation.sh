@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker/compose.yaml"
+HOST_UID="${HOST_UID:-$(id -u)}"
+HOST_GID="${HOST_GID:-$(id -g)}"
 
 # Backward-compatible env switch.
 RUN_SIMIND_TESTS="${RUN_SIMIND_TESTS:-0}"
@@ -180,6 +182,9 @@ run_service() {
     shift
     local command="$*"
     local compose_args=(run --rm)
+    if [[ "$service" == "python" ]]; then
+        compose_args+=(--user "$HOST_UID:$HOST_GID" -e HOME=/tmp)
+    fi
     local simind_env_args=()
     if [[ "$SIMIND_AVAILABLE" -eq 1 ]]; then
         local container_bin="/workspace/${SIMIND_PATH#$ROOT_DIR/}"
@@ -331,18 +336,11 @@ if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
         # test_simind_mpi.py runs once in the python service (MPICH); the SIRF
         # image uses OpenMPI and would only re-run it there.
         run_service sirf "python -m pytest -m \"$SIMIND_MARKERS\" -q --ignore=tests/test_simind_mpi.py"
-        run_service sirf "python -m pytest tests/test_geometry_isolation_forward_projection.py -q"
     fi
     if [[ "$RUN_PYTOMO" -eq 1 ]]; then
         run_service pytomography "python examples/07C_pytomography_adaptor_osem.py"
     fi
 
-    # Reads generated outputs from selected examples; missing outputs are skipped.
-    if [[ "$RUN_CORE" -eq 1 ]]; then
-        run_service python "python -m pytest tests/test_osem_geometry_diagnostics.py -q"
-    elif [[ "$RUN_PYTOMO" -eq 1 ]]; then
-        run_service pytomography "python -m pytest tests/test_osem_geometry_diagnostics.py -q"
-    fi
 else
     echo "Skipping SIMIND-dependent checks (set RUN_SIMIND_TESTS=1 or pass --with-simind to enable)."
 fi

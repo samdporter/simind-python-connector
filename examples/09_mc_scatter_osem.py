@@ -14,7 +14,6 @@ Tiny on purpose: 32^3 voxels, 30 views, NN = 1. Needs SIRF and SIMIND.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 from _mc_scatter_common import (
@@ -27,6 +26,7 @@ from _mc_scatter_common import (
     simulate_measured,
     template,
 )
+from _python_connector_helpers import require_simind
 
 from simind_python_connector.recon import AdditiveUpdater, UpdateSchedule
 from simind_python_connector.recon.osem import run_osem_with_corrections
@@ -38,8 +38,7 @@ NUM_UPDATES = 3
 
 
 def main() -> None:
-    if shutil.which("simind") is None:
-        raise RuntimeError("SIMIND executable not found in PATH.")
+    require_simind()
     output_dir = Path("output/mc_scatter_osem")
     output_dir.mkdir(parents=True, exist_ok=True)
 

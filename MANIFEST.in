@@ -5,6 +5,7 @@ recursive-include simind_python_connector/data *.json
 recursive-include simind_python_connector/configs *.smc *.yaml
 recursive-include docs *.rst *.py
 include docs/spectub_cache_interference.md
+include docs/simind_validation.md
 include docs/_static/.gitkeep
 recursive-include tests *.py
 recursive-include examples *.py

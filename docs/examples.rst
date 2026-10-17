@@ -1,155 +1,55 @@
-.. _examples:
-
 Examples
 ========
 
-For cross-backend axis and orientation details, see :doc:`geometry`.
+Follow :doc:`tutorial` for the recommended order, prerequisites, smoke-run
+settings, and what to inspect. Each script is a runnable entry point from the
+repository root. The optional backend is imported only by examples that use
+it.
 
-See the following examples for comprehensive use:
+Core Python examples
+--------------------
 
-1. **Basic Simulation** - ``examples/01_basic_simulation.py``
-   
-   Run a basic SIMIND simulation with NumPy voxel input and NumPy projection output.
-   Uses Tc-99m settings (``FI=tc99m``) with an ``ma-lehr`` collimator and a
-   126-154 keV photopeak window.
+Examples 01–06 run without STIR, SIRF, or PyTomography:
 
-2. **Runtime-Switch Comparison** - ``examples/02_runtime_switch_comparison.py``
-   
-   Compare projection outputs under different SIMIND runtime switch settings.
+- ``01_basic_simulation.py`` runs a small Tc-99m voxel simulation with the
+  SCATTWIN with ``CA=0`` and saves the total projection.
+- ``02_runtime_switch_comparison.py`` compares runtime switch settings.
+- ``03_multi_window.py`` builds a triple-energy-window scatter estimate.
+- ``04_custom_config.py`` creates and exports edited configurations.
+- ``05_scattwin_vs_penetrate_comparison.py`` compares scoring routines. It
+  requests raw SCATTWIN components with ``CA=2``; see :doc:`simind_validation`
+  for checked engine compatibility.
+- ``06_schneider_density_conversion.py`` demonstrates HU-to-density
+  conversion.
+- ``12_phantoms.py`` uses phantomgen's known-activity NEMA/IEC phantom when
+  available, otherwise SIMIND's built-in multiple-inserts phantom.
+- ``13_nema_reconstruction.py --backend stir|sirf`` simulates and reconstructs
+  the same known-activity phantom with the selected backend.
 
-3. **Multi-Energy Windows** - ``examples/03_multi_window.py``
-   
-   TEW (Triple Energy Window) scatter-estimation demonstration using NumPy projections.
-   Uses Lu-177 settings (``FI=lu177``) with TEW windows 166-187, 187-229, 229-250 keV.
-
-4. **Custom Configurations** - ``examples/04_custom_config.py``
-   
-   Create and use custom YAML configuration files for specialized setups.
-
-5. **Scoring Routine Comparison** - ``examples/05_scattwin_vs_penetrate_comparison.py``
-   
-   Compare SCATTWIN and PENETRATE Monte Carlo scoring routines using the Python Connector.
-
-6. **Schneider Density Conversion** - ``examples/06_schneider_density_conversion.py``
-
-   Demonstrate advanced HU-to-density conversion using the Schneider2000 model.
-
-   Features:
-
-   - Compare bilinear vs Schneider conversion methods
-   - Visualize density differences across tissue types
-   - Create simulated CT phantom with multiple tissue types
-   - Demonstrate tissue information lookup functionality
-
-7A. **STIR Adaptor OSEM** - ``examples/07A_stir_adaptor_osem.py``
-
-   Simulate with the STIR adaptor and run STIR OSEM reconstruction in one Python workflow.
-   Uses ``configs/Example.yaml`` plus Y-90 runtime switches (``FI`` and ``CC``).
-
-7B. **SIRF Adaptor OSEM** - ``examples/07B_sirf_adaptor_osem.py``
-
-   Simulate with the SIRF adaptor and run SIRF OSEM reconstruction in one Python workflow.
-   Uses ``configs/Example.yaml`` plus Y-90 runtime switches (``FI`` and ``CC``).
-
-7C. **PyTomography Adaptor OSEM** - ``examples/07C_pytomography_adaptor_osem.py``
-
-   Simulate with the PyTomography adaptor and run PyTomography OSEM in one Python workflow.
-   Uses ``configs/Example.yaml`` plus Y-90 runtime switches (``FI`` and ``CC``).
-
-8A. **STIR Adaptor from DICOM** - ``examples/08A_stir_adaptor_from_dicom.py``
-
-   Build a STIR adaptor workflow from DICOM-derived scanner/input data.
-
-8B. **SIRF Adaptor from DICOM** - ``examples/08B_sirf_adaptor_from_dicom.py``
-
-   Build a SIRF adaptor workflow from DICOM-derived scanner/input data.
-
-8C. **PyTomography Adaptor from DICOM** - ``examples/08C_pytomography_adaptor_from_dicom.py``
-
-   Build a PyTomography adaptor workflow from DICOM-derived scanner/input data.
-
-9. **MC Scatter with SIRF OSEM** - ``examples/09_mc_scatter_osem.py``
-
-   Simulate "measured" data with SIMIND in a template geometry, then reconstruct
-   it with OSEM with and without a SIMIND scatter estimate that is refreshed every
-   2 epochs. Needs SIRF and SIMIND. See :doc:`reconstruction`.
-
-10. **MC Scatter with CIL** - ``examples/10_mc_scatter_cil.py``
-
-    The same data, reconstructed with CIL's ISTA and a ``CorrectionCallback``.
-    Needs SIRF, CIL and SIMIND.
-
-11. **Residual Correction** - ``examples/11_residual_correction.py``
-
-    Fu & Qi residual correction with SIMIND as the accurate forward model,
-    compared with the fast model alone and with a SIMIND scatter estimate.
-    Needs SIRF and SIMIND. See :doc:`reconstruction`.
-
-12. **Phantoms** - ``examples/12_phantoms.py``
-
-    Simulate phantomgen's NEMA/IEC body phantom with its known activity, or SIMIND's
-    multiple-inserts phantom when phantomgen is not installed. See :doc:`phantoms`.
-
-Running Examples
+Backend examples
 ----------------
 
-Each example can be run individually:
+- ``07A_stir_adaptor_osem.py`` uses STIR.
+- ``07B_sirf_adaptor_osem.py`` uses SIRF.
+- ``07C_pytomography_adaptor_osem.py`` uses PyTomography.
+- ``08A_stir_adaptor_from_dicom.py`` and ``08B_sirf_adaptor_from_dicom.py``
+  read a projection DICOM; ``08C_pytomography_adaptor_from_dicom.py`` uses
+  PyTomography. Pass a DICOM path on the command line.
+- ``09_mc_scatter_osem.py`` and ``11_residual_correction.py`` use SIRF and
+  SIMIND; ``10_mc_scatter_cil.py`` also requires CIL.
+
+Run an example from the repository root, for example:
 
 .. code-block:: bash
 
     python examples/01_basic_simulation.py
-    python examples/02_runtime_switch_comparison.py
-    python examples/03_multi_window.py
-    python examples/04_custom_config.py
-    python examples/05_scattwin_vs_penetrate_comparison.py
-    python examples/06_schneider_density_conversion.py
-    python examples/07A_stir_adaptor_osem.py
-    python examples/07B_sirf_adaptor_osem.py
-    python examples/07C_pytomography_adaptor_osem.py
-    python examples/08A_stir_adaptor_from_dicom.py
-    python examples/08B_sirf_adaptor_from_dicom.py
-    python examples/08C_pytomography_adaptor_from_dicom.py
-    python examples/09_mc_scatter_osem.py
-    python examples/10_mc_scatter_cil.py
-    python examples/11_residual_correction.py
     python examples/12_phantoms.py
+    python examples/13_nema_reconstruction.py --backend sirf
+    python examples/07B_sirf_adaptor_osem.py
+    python examples/08A_stir_adaptor_from_dicom.py /path/to/projection.dcm
 
-Or run all core Python connector examples sequentially:
-
-.. code-block:: bash
-
-    cd scripts/
-    python run_all_examples.py
-
-Or run one backend-specific adaptor example inside each isolated Docker image:
-
-.. code-block:: bash
-
-    bash scripts/run_container_examples.sh
-
-Output Files
-------------
-
-Each example creates output in its own directory under ``output/``:
-
-- ``output/basic_simulation/`` - Basic simulation results
-- ``output/runtime_switch_comparison/`` - Runtime-switch comparison results
-- ``output/schneider_density/`` - Density conversion plots and data
-- ``output/multi_window/`` - TEW correction results
-- ``output/custom_configs/`` - Configuration examples
-- ``output/routine_comparison/`` - Scoring routine comparison
-- ``output/stir_adaptor_osem/`` - STIR adaptor simulation + STIR OSEM reconstruction
-- ``output/sirf_adaptor_osem/`` - SIRF adaptor simulation + SIRF OSEM reconstruction
-- ``output/pytomography_adaptor_osem/`` - PyTomography adaptor simulation + PyTomography OSEM reconstruction
-- ``output/dicom_projection_objects/stir/`` - STIR adaptor setup from DICOM-derived inputs
-- ``output/dicom_projection_objects/sirf/`` - SIRF adaptor setup from DICOM-derived inputs
-- ``output/dicom_projection_objects/pytomography/`` - PyTomography adaptor setup from DICOM-derived inputs
-- ``output/mc_scatter_osem/`` - SIMIND scatter in SIRF OSEM
-- ``output/mc_scatter_cil/`` - SIMIND scatter in CIL ISTA
-- ``output/residual_correction/`` - Residual correction with SIMIND
-- ``output/phantoms/`` - Phantom simulations
-
-Each OSEM example also writes a summary plot with:
-- input source slice
-- one projection view
-- reconstructed image slice
+Core examples need Python dependencies and a working SIMIND installation when
+they simulate. Backend examples need that backend installed too. The
+DICOM-driven examples need a compatible measured projection DICOM. Lower
+``quantization_scale``, fewer views, or a mostly-zero source map can shorten a
+smoke run; quantitative runs need appropriate statistics and calibration.

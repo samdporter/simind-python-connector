@@ -7,10 +7,12 @@ simind-python-connector Documentation
 
    intro
    installation
+   tutorial
    usage
    normalisation
    geometry
    phantoms
+   simind_validation
    backends
    examples
    api

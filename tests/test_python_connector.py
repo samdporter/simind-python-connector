@@ -13,6 +13,7 @@ import pytest
 import simind_python_connector.connectors.python_connector as connector_mod
 from simind_python_connector.configs import get
 from simind_python_connector.connectors import RuntimeOperator, SimindPythonConnector
+from simind_python_connector.core.config import SimulationConfig
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
     MAX_SOURCE,
@@ -308,7 +309,7 @@ def test_python_connector_runtime_operator_switches_are_one_shot(tmp_path: Path)
     captured_switches: list[dict] = []
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         captured_switches.append(dict(runtime_switches or {}))
 
@@ -334,7 +335,7 @@ def test_python_connector_passes_output_dir_as_cwd(tmp_path: Path):
     seen_cwd: list[object] = []
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         seen_cwd.append(cwd)
 
@@ -386,10 +387,12 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
         orbit_file=None,
         runtime_switches=None,
         cwd=None,
+        **kwargs,
     ) -> None:
         captured["output_prefix"] = output_prefix
         captured["orbit_file"] = orbit_file
         captured["runtime_switches"] = dict(runtime_switches or {})
+        captured.update(kwargs)
 
         projection = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
         data_path = tmp_path / f"{output_prefix}_tot_w1.a00"
@@ -415,13 +418,14 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
     connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
     connector.config.set_flag(5, False)
     connector.config.set_flag(14, False)
-    outputs = connector.run(RuntimeOperator(switches={"NN": 2, "RR": 12345}))
+    outputs = connector.run(RuntimeOperator(switches={"NN": 2, "RR": 12345}), timeout=5)
 
     # SPECT Interfile headers are needed to read the outputs.
     assert connector.config.get_flag(5)
     assert connector.config.get_flag(14)
     assert captured["output_prefix"] == "case01"
-    assert captured["runtime_switches"] == {"NN": 2, "RR": 12345, "CA": 1}
+    assert captured["runtime_switches"] == {"NN": 2, "RR": 12345}
+    assert captured["timeout"] == 5
 
     assert "tot_w1" in outputs
     result = outputs["tot_w1"]
@@ -430,6 +434,130 @@ def test_python_connector_run_returns_numpy_outputs(tmp_path: Path):
     assert result.projection.shape == (2, 3, 4)
     expected_sum = float(np.arange(24, dtype=np.float32).sum())
     assert float(result.projection.sum()) == expected_sum
+
+
+@pytest.mark.unit
+def test_simind_version_uses_env_default_and_explicit_value_wins(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("SIMIND_VERSION", "9")
+    env_connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path / "env"
+    )
+    explicit_connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path / "explicit",
+        simind_version=8,
+    )
+    assert env_connector.simind_version == 9
+    assert explicit_connector.simind_version == 8
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("version", [7, 8.5, True, "10"])
+def test_simind_version_rejects_unsupported_values(tmp_path: Path, version):
+    with pytest.raises(ValueError, match="simind_version must be 8 or 9"):
+        SimindPythonConnector(
+            config_source=get("AnyScan.yaml"),
+            output_dir=tmp_path,
+            simind_version=version,
+        )
+
+
+@pytest.mark.unit
+def test_v9_voxel_center_offsets_apply_only_to_saved_config_and_do_not_accumulate(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        simind_version=9,
+    )
+    connector.add_config_value(17, 0.1)
+    connector.add_config_value(18, 0.2)
+    connector.add_config_value(36, 0.3)
+    connector.add_config_value(37, -0.2)
+    connector.configure_voxel_phantom(
+        np.ones((4, 4, 4), dtype=np.float32),
+        np.zeros((4, 4, 4), dtype=np.float32),
+        voxel_size_mm=4.42,
+    )
+    connector.add_runtime_switch("PX", 0.5)
+    connector.config.set_flag(5, False)
+    connector.config.set_flag(14, False)
+    source_bytes = (tmp_path / "case01_src.smi").read_bytes()
+    captured = []
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
+    ):
+        saved = SimulationConfig(Path(cwd) / f"{output_prefix}.smc")
+        saved.import_smc(saved.filepath)
+        captured.append(
+            (
+                *(saved.get_value(i) for i in (17, 18, 36, 37)),
+                saved.get_flag(5),
+                saved.get_flag(14),
+            )
+        )
+
+    connector.executor.run_simulation = fake_run_simulation
+    connector._ensure_interfile_headers = lambda: []
+    connector._load_projection_outputs = lambda _: {}
+    connector.run()
+    connector.run()
+
+    expected = (0.6, -0.3, 0.742, -0.642, True, True)
+    assert [item[:4] for item in captured] == [
+        pytest.approx(expected[:4]),
+        pytest.approx(expected[:4]),
+    ]
+    assert [item[4:] for item in captured] == [(True, True), (True, True)]
+    assert tuple(connector.get_config().get_value(i) for i in (17, 18, 36, 37)) == (
+        0.1,
+        0.2,
+        0.3,
+        -0.2,
+    )
+    assert (tmp_path / "case01_src.smi").read_bytes() == source_bytes
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("orientation", ["DI", "density", "OR"])
+def test_v9_voxel_centering_rejects_unsupported_map_orientations(
+    tmp_path: Path, orientation: str
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        simind_version=9,
+    )
+    connector.configure_voxel_phantom(
+        np.ones((4, 4, 4), dtype=np.float32),
+        np.zeros((4, 4, 4), dtype=np.float32),
+        voxel_size_mm=4.42,
+    )
+    if orientation == "DI":
+        connector.runtime_switches.set_switch("DI", 1)
+    elif orientation == "density":
+        connector.add_config_value(32, 1)
+    else:
+        connector.runtime_switches.set_switch("OR", 2)
+    stale_output = tmp_path / "output_tot_w1.a00"
+    stale_output.write_text("stale")
+    called = False
+
+    def fake_run_simulation(*args, **kwargs):
+        nonlocal called
+        called = True
+
+    connector.executor.run_simulation = fake_run_simulation
+    with pytest.raises(ValueError, match="v9 voxel centring requires DI=0"):
+        connector.run()
+    assert not called
+    assert stale_output.read_text() == "stale"
+    assert not (tmp_path / "output.smc").exists()
 
 
 @pytest.mark.unit
@@ -448,6 +576,8 @@ def test_python_connector_penetrate_uses_bxx_component_headers(
         orbit_file=None,
         runtime_switches=None,
         cwd=None,
+        timeout=None,
+        **kwargs,
     ) -> None:
         (tmp_path / f"{output_prefix}.h00").write_text(
             "\n".join(["!INTERFILE :=", "!END OF INTERFILE :="])
@@ -648,6 +778,22 @@ def test_python_connector_set_energy_windows_writes_window_file(tmp_path: Path):
 
 
 @pytest.mark.unit
+def test_energy_window_filename_prefix_limit_is_15_characters(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="a" * 15,
+    )
+    connector.set_energy_windows([126], [154], [0])
+    existing = tmp_path / ("b" * 16 + ".win")
+    existing.write_bytes(b"existing")
+    connector.output_prefix = "b" * 16
+    with pytest.raises(ValueError, match="15 characters"):
+        connector.set_energy_windows([126], [154], [0])
+    assert existing.read_bytes() == b"existing"
+
+
+@pytest.mark.unit
 def test_python_connector_cleanup_preserves_window_file_it_wrote(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"),
@@ -806,7 +952,7 @@ def test_python_connector_passes_mpi_settings_to_executor(tmp_path: Path):
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
     connector.run()
 
-    assert captured == {"mpi_processes": 4, "split_projections": True}
+    assert captured == {"mpi_processes": 4, "split_projections": True, "timeout": None}
 
 
 @pytest.mark.unit
@@ -965,7 +1111,7 @@ def test_python_connector_raises_on_unparseable_output(tmp_path: Path):
     )
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         _write_projection(tmp_path, "case01_tot_w1", (2, 3, 4), (2, 3, 4))
         _write_projection(tmp_path, "case01_air_w1", (4, 4), (4, 4, 4))
@@ -989,7 +1135,7 @@ def test_python_connector_copies_orbit_file_to_lower_case_name(tmp_path: Path):
     captured = {}
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         captured["orbit_file"] = orbit_file
 
@@ -1007,7 +1153,7 @@ def _record_orbit_executor_run(connector: SimindPythonConnector) -> dict:
     captured: dict[str, object] = {}
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         captured["orbit_file"] = orbit_file
 
@@ -1486,7 +1632,7 @@ def test_python_connector_removes_stale_result_files(tmp_path: Path):
     seen = {}
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         seen["files"] = sorted(path.name for path in tmp_path.iterdir())
 
@@ -1530,7 +1676,7 @@ def test_python_connector_derives_primary_from_total_and_scatter(tmp_path: Path)
     scatter = np.ones((2, 3, 4), dtype=np.float32)
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         _write_named_projection(tmp_path, "case01_tot_w1", total)
         _write_named_projection(tmp_path, "case01_sca_w1", scatter)
@@ -1544,6 +1690,28 @@ def test_python_connector_derives_primary_from_total_and_scatter(tmp_path: Path)
 
 
 @pytest.mark.unit
+def test_python_connector_derives_scatter_from_total_and_primary(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+    total = np.full((2, 3, 4), 10.0, dtype=np.float32)
+    primary = np.full((2, 3, 4), 6.0, dtype=np.float32)
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
+    ):
+        _write_named_projection(tmp_path, "case01_tot_w1", total)
+        _write_named_projection(tmp_path, "case01_pri_w1", primary)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    outputs = connector.run()
+
+    assert np.array_equal(outputs["sca_w1"].projection, total - primary)
+    assert outputs["sca_w1"].metadata["derived"] == "tot - pri"
+
+
+@pytest.mark.unit
 def test_python_connector_keeps_user_ca_and_simind_primary(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
@@ -1553,7 +1721,7 @@ def test_python_connector_keeps_user_ca_and_simind_primary(tmp_path: Path):
     captured = {}
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         captured["switches"] = dict(runtime_switches)
         _write_named_projection(tmp_path, "case01_tot_w1", primary + 1)
@@ -1579,7 +1747,7 @@ def test_python_connector_derives_primary_only_for_order_zero_windows(
     scatter = np.full((2, 3, 4), 1.0, dtype=np.float32)
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         for window in (1, 2):
             _write_named_projection(tmp_path, f"case01_tot_w{window}", total)
@@ -1599,13 +1767,13 @@ def test_python_connector_derives_from_fw_window_orders(tmp_path: Path):
         config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
     )
     connector.set_energy_windows([126.0], [154.0], [0])
-    connector.add_runtime_switch("FW", "case01_custom")
-    (tmp_path / "case01_custom.win").write_text("126.0,154.0,0\n92.0,124.0,0\n")
+    connector.add_runtime_switch("FW", "windowprefix1234")
+    (tmp_path / "windowprefix1234.win").write_text("126.0,154.0,0\n92.0,124.0,0\n")
     total = np.full((2, 3, 4), 10.0, dtype=np.float32)
     scatter = np.full((2, 3, 4), 1.0, dtype=np.float32)
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         for window in (1, 2):
             _write_named_projection(tmp_path, f"case01_tot_w{window}", total)
@@ -1630,7 +1798,7 @@ def test_python_connector_skips_pri_for_nonzero_order_window(tmp_path: Path):
     scatter = np.full((2, 3, 4), 1.0, dtype=np.float32)
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         for window in (1, 2):
             _write_named_projection(tmp_path, f"case01_tot_w{window}", total)
@@ -1656,7 +1824,7 @@ def test_python_connector_cleanup_protects_fw_window_file(tmp_path: Path):
     seen = {}
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         seen["files"] = sorted(path.name for path in tmp_path.iterdir())
 
@@ -1776,7 +1944,7 @@ def test_configure_acquisition_writes_orbit_file_and_run_uses_it(tmp_path: Path)
     captured = []
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         captured.append(orbit_file)
 
@@ -1817,7 +1985,7 @@ def test_index_12_edit_does_not_clear_a_stored_non_circular_orbit(tmp_path: Path
     captured = []
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         captured.append((connector.get_config().get_value(12), orbit_file))
 
@@ -1903,9 +2071,7 @@ def test_replacing_a_non_circular_acquisition_with_a_circular_one_clears_the_orb
     assert connector.get_config().get_value(12) == pytest.approx(25.0)
     captured = []
     connector.executor.run_simulation = (  # type: ignore[assignment]
-        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
-            captured.append(orbit_file)
-        )
+        lambda *args, **kwargs: captured.append(args[1])
     )
     connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
@@ -2899,16 +3065,14 @@ def test_python_connector_valid_runtime_value_overrides_invalid_persistent_switc
     connector.add_runtime_switch("FI", "bad name")
     captured: list[dict] = []
     connector.executor.run_simulation = (  # type: ignore[assignment]
-        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
-            captured.append(dict(runtime_switches or {}))
-        )
+        lambda *args, **kwargs: captured.append(dict(args[2] or {}))
     )
     connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
 
     connector.run(RuntimeOperator(switches={"FI": "good.inp"}))
 
-    assert captured == [{"FI": "good.inp", "CA": 1}]
+    assert captured == [{"FI": "good.inp"}]
     assert connector.runtime_switches.switches == {"FI": "bad name"}
 
 
@@ -2924,16 +3088,14 @@ def test_python_connector_none_removal_of_invalid_persistent_switch_succeeds(
     connector.add_runtime_switch("FI", "bad name")
     captured: list[dict] = []
     connector.executor.run_simulation = (  # type: ignore[assignment]
-        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
-            captured.append(dict(runtime_switches or {}))
-        )
+        lambda *args, **kwargs: captured.append(dict(args[2] or {}))
     )
     connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
 
     connector.run(RuntimeOperator(switches={"FI": None}))
 
-    assert captured == [{"CA": 1}]
+    assert captured == [{}]
     assert connector.runtime_switches.switches == {"FI": "bad name"}
 
 
@@ -2949,18 +3111,16 @@ def test_python_connector_bare_switch_stays_bare_and_persistent_state_unchanged(
     connector.add_runtime_switch("HO", True)
     captured: list[dict] = []
     connector.executor.run_simulation = (  # type: ignore[assignment]
-        lambda output_prefix, orbit_file=None, runtime_switches=None, cwd=None: (
-            captured.append(dict(runtime_switches or {}))
-        )
+        lambda *args, **kwargs: captured.append(dict(args[2] or {}))
     )
     connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
     connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
 
     connector.run(RuntimeOperator(switches={"NN": 3}))
 
-    assert captured == [{"HO": True, "NN": 3, "CA": 1}]
+    assert captured == [{"HO": True, "NN": 3}]
     token = connector.executor._serialize_switches(captured[0])
-    assert token == "/HO/NN:3/CA:1"
+    assert token == "/HO/NN:3"
     assert ":True" not in token
     assert connector.runtime_switches.switches == {"HO": True}
 

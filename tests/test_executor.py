@@ -1067,6 +1067,22 @@ def test_executor_accepts_prefix_at_length_cap(
     assert calls[0][0][1] == prefix
 
 
+@pytest.mark.unit
+def test_executor_forwards_timeout(monkeypatch: pytest.MonkeyPatch):
+    calls = _capture_run(monkeypatch)
+    SimindExecutor().run_simulation("case01", timeout=5)
+    assert calls[0][1]["timeout"] == 5
+
+
+@pytest.mark.unit
+def test_executor_timeout_stops_a_sleeping_process(tmp_path: Path):
+    script = _write_script(tmp_path, "import time\ntime.sleep(30)\n")
+    with pytest.raises(SimulationError, match="timed out after 0.2 seconds"):
+        SimindExecutor(executable=script).run_simulation(
+            "case01", cwd=tmp_path, timeout=0.2
+        )
+
+
 def test_executor_rejects_prefix_over_length_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

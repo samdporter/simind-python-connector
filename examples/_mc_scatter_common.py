@@ -159,7 +159,9 @@ def fast_model_factory(mu_image: sirf.ImageData):
     def make_model():
         matrix = sirf.SPECTUBMatrix()
         matrix.set_attenuation_image(mu_image)
-        matrix.set_keep_all_views_in_cache(True)
+        # Separately set-up SPECTUB models share this cache in STIR 6.4;
+        # fast and accurate models can otherwise return mixed cached views.
+        matrix.set_keep_all_views_in_cache(False)
         matrix.set_resolution_model(0.0, 0.0, False)
         return sirf.AcquisitionModelUsingMatrix(matrix)
 

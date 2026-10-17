@@ -159,7 +159,7 @@ class LibraryPhantom(Enum):
 
 @dataclass(frozen=True, eq=False)
 class VoxelPhantom:
-    activity_mbq: np.ndarray  # (z, y, x), MBq per voxel
+    activity_mbq: np.ndarray  # (z, y, x), MBq per voxel; summed for Index 25
     density_g_cm3: np.ndarray  # (z, y, x), water-equivalent density
     voxel_size_mm: tuple[float, float, float]  # (z, y, x)
     masks: dict[str, np.ndarray] = field(default_factory=dict)  # name -> uint8 mask
@@ -289,7 +289,7 @@ def voxelise(
     voxel_size_mm: tuple[float, float, float],
     supersample: int = 1,
 ) -> tuple[np.ndarray, Optional[np.ndarray]]:
-    """Return (activity, attenuator fraction) on a centred grid in (z, y, x) order.
+    """Return (source weights, attenuator fraction) on a centred (z, y, x) grid.
 
     Voxel [k, j, i] has its centre at SIMIND coordinates (cm), from the
     manual's voxel-map orientation::
@@ -299,8 +299,12 @@ def voxelise(
 
     The source is moved by source_shift_cm. A voxel holds the fraction of its
     supersample**3 sub-voxel centres inside the shape, times the concentration
-    (1 for plain sources). A point source is the single nearest voxel. The
-    attenuator fraction is None without an attenuator.
+    (1 for plain sources). These values are source weights, not calibrated
+    MBq per voxel. For negative multiple-insert concentrations the SIMIND input
+    means absolute MBq/cc; voxelise preserves that concentration magnitude and
+    does not convert it to voxel activity. Use VoxelPhantom for a quantitative
+    MBq/voxel map. A point source is the single nearest voxel. The attenuator
+    fraction is None without an attenuator.
     """
     nz, ny, nx = (int(n) for n in shape_zyx)
     dz, dy, dx = (float(v) / 10.0 for v in voxel_size_mm)

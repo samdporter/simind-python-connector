@@ -24,7 +24,6 @@ alongside the reconstruction metrics.
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 
 from _mc_scatter_common import (
@@ -39,6 +38,7 @@ from _mc_scatter_common import (
     simulate_measured,
     template,
 )
+from _python_connector_helpers import require_simind
 
 from simind_python_connector.recon import (
     AdditiveUpdater,
@@ -78,8 +78,7 @@ class LoggedResidualCorrection(ResidualCorrection):
 
 
 def main() -> None:
-    if shutil.which("simind") is None:
-        raise RuntimeError("SIMIND executable not found in PATH.")
+    require_simind()
     output_dir = Path("output/residual_correction")
     output_dir.mkdir(parents=True, exist_ok=True)
 

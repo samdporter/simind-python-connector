@@ -8,12 +8,12 @@ reconstruction path.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from _python_connector_helpers import require_simind
 from pytomography import algorithms, likelihoods
 from pytomography.io.SPECT import simind as pytomo_simind
 from pytomography.projectors.SPECT import SPECTSystemMatrix
@@ -108,11 +108,7 @@ def _build_system_matrix(
 
 
 def main() -> None:
-    if shutil.which("simind") is None:
-        raise RuntimeError(
-            "SIMIND executable not found in PATH. "
-            "Follow the official SIMIND installation instructions first."
-        )
+    require_simind()
 
     output_dir = Path("output/pytomography_adaptor_osem")
     output_dir.mkdir(parents=True, exist_ok=True)

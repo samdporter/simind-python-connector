@@ -4,14 +4,14 @@ orphan: true
 
 # SPECTUB all-views-cache interference
 
-This page documents a known limitation of the SIMIND-corrected reconstruction
-path shipped in **2.0.1**. It records what was observed, how it can be
-reproduced, and the remedies that were considered but **not applied**. It is a
-historical record, not a claim about every backend version.
+This page records a SPECTUB cache interference observed in the SIMIND-corrected
+reconstruction path shipped in **2.0.1**, and the cache setting now used by the
+repository's shared Monte Carlo example models. The evidence is specific to the
+backend versions listed below.
 
 ## Status and impact
 
-- **Known limitation, shipped in 2.0.1, not fixed.**
+- **Observed in 2.0.1; cache disabled in the shared Monte Carlo example model.**
 - When two separately set-up SPECTUB acquisition models are used together
   (for example a `fast` model and an `accurate` model) and all-views caching is
   left enabled, the models can interfere through SPECTUB's shared all-views
@@ -38,6 +38,22 @@ the environment:
 | SIMIND | V8.0 |
 
 They were not re-run for this page.
+
+### Focused OSEM-path reproduction
+
+The issue was also reproduced with the small SIRF reconstruction fixture by
+capturing each `ResidualCorrection` estimate during OSEM and comparing it with
+a fresh `background + accurate.direct(x) - fast.direct(x)` at the same image.
+With all-views caching on, the first refresh differed in **26,119 bins by more
+than 1e-5**, with a maximum absolute difference of **0.0222821**. The next
+refresh differed by at most **1.55e-6**. With caching off, both refreshes
+differed by at most **1.55e-6**, consistent with floating-point roundoff.
+
+The repository now disables all-views caching in
+`examples/_mc_scatter_common.py`'s shared SPECTUB model factory. This covers
+the fast model used alongside separately set-up accurate models in the Monte
+Carlo correction examples. The SIRF reconstruction test fixture uses the same
+setting and checks the residual against a fresh recomputation.
 
 ### Direct isolation (cache ON versus cache OFF)
 
@@ -113,20 +129,13 @@ A third identical run confirmed SIMIND-side reproducibility:
    The generated `.h00` header carries a study date/time and is expected to
    differ between runs even when every raw input and output is identical.
 
-## Potential fixes — not applied
+## Other remedies considered
 
-None of the following was implemented or shipped; they are recorded for a
-future, separately approved change.
-
-- **Disable all-views caching in the affected owned model factories.** The
-  smallest change would sit around the reconstruction model factories that
-  create the interleaved SPECTUB models.
 - **Establish cache isolation or reset across all participating models.** A
   mechanism that resets or partitions the all-views cache so that independently
   set-up models cannot observe each other's cached views.
 - **Investigate an upstream cache-lifecycle correction.** Determine whether
   SIRF or STIR should isolate this state per model and, if so, correct it
   upstream rather than in this package.
-- **Constructing a fresh OSEM model is not demonstrated sufficient.** That
-  pattern already exists in the current code while other models remain live, so
-  it has not been shown to remove the interference.
+- Constructing a fresh OSEM model alone did not prevent interference while
+  other SPECTUB models remained live.

@@ -29,11 +29,12 @@ def main() -> None:
     output_dir = Path("output/basic_simulation")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    output_prefix = "basic_case01"
     connector = SimindPythonConnector(
         config_source=configs.get("Example.yaml"),
         output_dir=output_dir,
-        output_prefix="basic_case01",
-        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
+        output_prefix=output_prefix,
+        quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
     )
 
     source, mu_map = build_small_phantom_zyx()
@@ -44,36 +45,22 @@ def main() -> None:
         scoring_routine=1,
     )
     connector.add_config_value(1, 140.0)
-    connector.add_config_value(19, 2)
-    connector.add_config_value(53, 0)
     connector.set_energy_windows([126.0], [154.0], [0])
+    connector.add_runtime_switch("CA", 0)
     add_standard_runtime(connector, photon_multiplier=1, seed=12345, nuclide="tc99m")
 
     outputs = connector.run()
     total = outputs["tot_w1"].projection
-    scatter = outputs.get("sca_w1", outputs["tot_w1"]).projection
-    primary = np.clip(total - scatter, a_min=0.0, a_max=None)
-
     np.save(output_dir / "total.npy", total)
-    np.save(output_dir / "scatter.npy", scatter)
-    np.save(output_dir / "primary.npy", primary)
 
     source_slice = source[source.shape[0] // 2, :, :]
     total_view0 = projection_view0(total)
-    scatter_view0 = projection_view0(scatter)
-    primary_view0 = projection_view0(primary)
-    proj_vmin = float(min(total_view0.min(), scatter_view0.min(), primary_view0.min()))
-    proj_vmax = float(max(total_view0.max(), scatter_view0.max(), primary_view0.max()))
 
-    fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
     axes[0].imshow(source_slice, cmap="viridis")
     axes[0].set_title("Input source")
-    axes[1].imshow(total_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+    axes[1].imshow(total_view0, cmap="magma")
     axes[1].set_title("Total (view 0)")
-    axes[2].imshow(scatter_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[2].set_title("Scatter (view 0)")
-    axes[3].imshow(primary_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[3].set_title("Primary (view 0)")
     for ax in axes:
         ax.axis("off")
     plt.tight_layout()
@@ -85,8 +72,6 @@ def main() -> None:
     print(f"Source file: {source_path}")
     print(f"Density file: {density_path}")
     print(f"Total counts: {float(total.sum()):.3f}")
-    print(f"Scatter counts: {float(scatter.sum()):.3f}")
-    print(f"Primary counts: {float(primary.sum()):.3f}")
     print(f"Summary plot: {plot_path}")
 
 

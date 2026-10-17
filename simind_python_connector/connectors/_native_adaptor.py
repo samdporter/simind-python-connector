@@ -59,6 +59,7 @@ class _NativeSimindAdaptor(BaseConnector):
         scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
         mu_map_type: str = "attenuation",
         mu_map_energy_kev: Optional[float] = None,
+        simind_version: Optional[int] = None,
     ) -> None:
         self._require_backend()
         # bool satisfies isinstance(..., int) and would silently become a code.
@@ -71,6 +72,7 @@ class _NativeSimindAdaptor(BaseConnector):
             output_dir=output_dir,
             output_prefix=output_prefix,
             quantization_scale=quantization_scale,
+            simind_version=simind_version,
         )
         self._scoring_routine = (
             ScoringRoutine(scoring_routine)
@@ -270,7 +272,12 @@ class _NativeSimindAdaptor(BaseConnector):
             return (output_dir / f"{prefix}.inp",)
         return ()
 
-    def run(self, runtime_operator: Optional[RuntimeOperator] = None) -> dict[str, Any]:
+    def run(
+        self,
+        runtime_operator: Optional[RuntimeOperator] = None,
+        *,
+        timeout: Optional[float] = None,
+    ) -> dict[str, Any]:
         # Drop cached outputs before validation so a failed rerun can never
         # expose results from a previous successful run.
         self._outputs = None
@@ -312,7 +319,9 @@ class _NativeSimindAdaptor(BaseConnector):
             config.get_value(index) != value
             for index, value in self._template_values.items()
         )
-        raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
+        raw_outputs = self.python_connector.run(
+            runtime_operator=runtime_operator, timeout=timeout
+        )
         if template_overridden:
             self.python_connector.logger.warning(
                 "Projection settings were changed after set_template; the outputs "
@@ -413,7 +422,17 @@ class _NativeSimindAdaptor(BaseConnector):
 
         source_sizes = np.asarray(self._voxel_sizes_mm(self._source), dtype=float)
         mu_sizes = np.asarray(self._voxel_sizes_mm(self._mu_map), dtype=float)
-        if not np.allclose(source_sizes, mu_sizes, atol=1e-3):
+        for name, sizes in (("source", source_sizes), ("mu_map", mu_sizes)):
+            if (
+                sizes.shape != (3,)
+                or not np.isfinite(sizes).all()
+                or (sizes <= 0).any()
+            ):
+                raise ValueError(
+                    f"{name} voxel sizes must be three finite positive values, "
+                    f"got {tuple(sizes)} mm"
+                )
+        if not np.allclose(source_sizes, mu_sizes, atol=1e-3, rtol=0):
             raise ValueError(
                 f"source and mu_map voxel sizes differ: {tuple(source_sizes)} "
                 f"vs {tuple(mu_sizes)} mm"
@@ -427,3 +446,26 @@ class _NativeSimindAdaptor(BaseConnector):
                 f"source and mu_map origins differ: {tuple(source_origin)} vs "
                 f"{tuple(mu_origin)} mm"
             )
+
+        source_direction = self._direction_matrix(self._source)
+        mu_direction = self._direction_matrix(self._mu_map)
+        if (
+            source_direction is not None
+            and mu_direction is not None
+            and not np.allclose(source_direction, mu_direction, atol=1e-6, rtol=0)
+        ):
+            raise ValueError("source and mu_map direction matrices differ")
+
+    @staticmethod
+    def _direction_matrix(image: Any) -> Optional[np.ndarray]:
+        geometry_getter = getattr(image, "get_geometrical_info", None)
+        if geometry_getter is None:
+            return None
+        geometry = geometry_getter()
+        matrix_getter = getattr(geometry, "get_direction_matrix", None)
+        if matrix_getter is None:
+            return None
+        matrix = np.asarray(matrix_getter(), dtype=float)
+        if not np.isfinite(matrix).all():
+            raise ValueError("image direction matrix must contain finite values")
+        return matrix

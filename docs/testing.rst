@@ -117,9 +117,9 @@ the official SIMIND site and manual:
 
 The container suite includes ``tests/test_container_library_isolation.py``,
 which asserts that each container can import only its target backend library.
-When SIMIND mode is enabled, it also runs geometry-isolation diagnostics:
-``tests/test_geometry_isolation_forward_projection.py`` and
-``tests/test_osem_geometry_diagnostics.py``.
+With SIMIND enabled, ``tests/test_measured_geometry_simind.py`` checks known
+positions, rotation directions, non-circular orbits and anisotropic spacing
+against SPECTUB. These cases generate their own inputs.
 
 Alternative CI Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -159,7 +159,8 @@ SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
 
 * ``tests/test_integration.py`` for full workflow checks.
 * ``tests/test_container_library_isolation.py`` for backend container import isolation.
-* ``tests/test_geometry_isolation_forward_projection.py`` and ``tests/test_osem_geometry_diagnostics.py`` for backend geometry diagnostics.
+* ``tests/test_measured_geometry_simind.py`` for controlled geometry comparisons.
+* ``tests/recon/test_residual_sirf.py`` for interleaved-model cache isolation.
 
 A3 Measured-Geometry Validation Profiles
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

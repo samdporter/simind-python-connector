@@ -55,7 +55,7 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
     monkeypatch.setattr(
         connector.python_connector,
         "run",
-        lambda runtime_operator=None: {"tot_w1": fake_result},
+        lambda runtime_operator=None, timeout=None: {"tot_w1": fake_result},
     )
 
     outputs = connector.run()
@@ -152,7 +152,7 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
         ),
     }
 
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         captured["runtime_operator"] = runtime_operator
         return raw_outputs
 
@@ -398,7 +398,7 @@ def _make_wired_connector(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
         connector.python_connector,
         "run",
-        lambda runtime_operator=None: raw_outputs,
+        lambda runtime_operator=None, timeout=None: raw_outputs,
     )
     return connector
 
@@ -543,7 +543,7 @@ def test_pytomography_adaptor_accepts_valid_runtime_operator(
 ) -> None:
     adaptor = _make_preflight_adaptor(tmp_path)
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
 
     outputs = adaptor.run(runtime_operator=RuntimeOperator(switches={"RR": 12345}))
@@ -632,7 +632,7 @@ def test_pytomography_adaptor_accepts_external_orbit_with_an_input_like_basename
     external = outside / "case01_src.smi"
     external.write_bytes(b"external-orbit")
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
 
     outputs = adaptor.run(runtime_operator=RuntimeOperator(orbit_file=external))

@@ -40,6 +40,8 @@ def _run_case(
         voxel_size_mm=4.0,
         scoring_routine=scoring_routine,
     )
+    if scoring_routine == 1:
+        connector.add_runtime_switch("CA", 2)
     connector.add_config_value(1, 140.0)
     # Use full detector-hit acceptance for both SCATTWIN and PENETRATE in this
     # comparison example.
@@ -401,9 +403,9 @@ def main() -> None:
     )
     pen_outputs = _run_case(pen_dir, "pen_case01", source, mu_map, scoring_routine=4)
 
-    scatt_total = scatt_outputs.get("tot_w1", scatt_outputs[sorted(scatt_outputs)[0]])
-    scatt_scatter = scatt_outputs.get("sca_w1", np.zeros_like(scatt_total))
-    scatt_primary = np.clip(scatt_total - scatt_scatter, a_min=0.0, a_max=None)
+    scatt_total = scatt_outputs["tot_w1"]
+    scatt_scatter = scatt_outputs["sca_w1"]
+    scatt_primary = scatt_outputs["pri_w1"]
     scatt_primary_sum = float(scatt_primary.sum())
     scatt_scatter_sum = float(scatt_scatter.sum())
 

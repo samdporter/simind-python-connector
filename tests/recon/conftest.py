@@ -45,7 +45,7 @@ def sirf_scene(tmp_path_factory):
 
     def make_model():
         matrix = sirf.SPECTUBMatrix()
-        matrix.set_keep_all_views_in_cache(True)
+        matrix.set_keep_all_views_in_cache(False)
         matrix.set_resolution_model(0.0, 0.0, False)
         return sirf.AcquisitionModelUsingMatrix(matrix)
 
@@ -107,7 +107,7 @@ def psf_scene(tmp_path_factory):
 
     def make_fast():
         matrix = sirf.SPECTUBMatrix()
-        matrix.set_keep_all_views_in_cache(True)
+        matrix.set_keep_all_views_in_cache(False)
         matrix.set_resolution_model(0.0, 0.0, False)
         return sirf.AcquisitionModelUsingMatrix(matrix)
 

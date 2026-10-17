@@ -370,7 +370,7 @@ def test_run_removes_stale_aligned_density_files(tmp_path):
     seen = {}
 
     def fake_run_simulation(
-        output_prefix, orbit_file=None, runtime_switches=None, cwd=None
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
     ):
         seen["files"] = sorted(path.name for path in tmp_path.iterdir())
 

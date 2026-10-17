@@ -14,10 +14,14 @@ Install phantomgen with:
 from __future__ import annotations
 
 import math
+import os
 import shutil
 from pathlib import Path
 
+import numpy as np
+
 from simind_python_connector import SimindPythonConnector, configs
+from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 from simind_python_connector.phantoms import (
     AnalyticPhantom,
     HorizontalCylinder,
@@ -25,6 +29,11 @@ from simind_python_connector.phantoms import (
     MultipleInserts,
     nema_iec_phantom,
 )
+
+
+def require_simind() -> None:
+    if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
+        raise RuntimeError("SIMIND executable not found ($SIMIND_BIN or PATH).")
 
 
 def nema_phantom_or_none():
@@ -50,11 +59,14 @@ def jaszczak_like() -> AnalyticPhantom:
 
 
 def main() -> None:
-    if shutil.which("simind") is None:
-        raise RuntimeError("SIMIND executable not found in PATH.")
+    require_simind()
     output_dir = Path("output/phantoms")
+    output_dir.mkdir(parents=True, exist_ok=True)
     connector = SimindPythonConnector(
-        configs.get("Example.yaml"), output_dir, "phantom"
+        configs.get("Example.yaml"),
+        output_dir,
+        "phantom",
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
     connector.set_energy_windows([126], [154], [0])
     connector.add_runtime_switch("CC", "ma-lehr")
@@ -74,11 +86,15 @@ def main() -> None:
         connector.add_config_value(76, nx)
         connector.add_config_value(77, nz)
         connector.configure_phantom(phantom, time_per_projection_s=10.0)
+        np.save(output_dir / "activity_mbq_per_voxel.npy", phantom.activity_mbq)
+        np.save(output_dir / "density_g_cm3.npy", phantom.density_g_cm3)
         for name, mask in sorted(phantom.masks.items()):
+            np.save(output_dir / f"mask_{name}.npy", mask)
             print(f"{name:12s} {phantom.activity_mbq[mask > 0].sum():9.3f} MBq")
 
     projection = connector.run()["tot_w1"].projection
     print(f"projections {projection.shape}, total counts {projection.sum():.4g}")
+    print(f"Output directory: {output_dir}")
 
 
 if __name__ == "__main__":

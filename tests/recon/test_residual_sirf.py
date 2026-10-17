@@ -85,3 +85,45 @@ def test_residual_correction_rejects_a_fast_model_with_an_additive_term(psf_scen
     correction = ResidualCorrection(scene.accurate.direct, model, scene.background)
     with pytest.raises(Exception, match="not linear"):
         correction.estimate(scene.x_true)
+
+
+def test_interleaved_spectub_residual_matches_fresh_projection(psf_scene):
+    """The shared cache-off model factory keeps OSEM residuals consistent."""
+    scene = psf_scene
+    from examples._mc_scatter_common import fast_model_factory
+    from simind_python_connector.recon.corrections import ResidualCorrection
+    from simind_python_connector.recon.osem import run_osem_with_corrections
+    from simind_python_connector.recon.updates import AdditiveUpdater, UpdateSchedule
+
+    mu_image = scene.x_true.get_uniform_copy(0.0)
+    make_fast = fast_model_factory(mu_image)
+    fast = make_fast()
+    accurate = scene.make_accurate()
+    fast.set_up(scene.measured, scene.x_true)
+    accurate.set_up(scene.measured, scene.x_true)
+
+    correction = ResidualCorrection(accurate.direct, fast, scene.background)
+    residual = correction.estimate
+    deltas = []
+
+    def estimate_and_compare(image):
+        additive = residual(image)
+        fresh = scene.background + accurate.direct(image) - fast.direct(image)
+        delta = np.abs(additive.as_array() - fresh.as_array())
+        deltas.append(float(delta.max()))
+        return additive
+
+    correction.estimate = estimate_and_compare
+    updater = AdditiveUpdater(correction, UpdateSchedule(every=2), scene.background)
+    run_osem_with_corrections(
+        scene.measured,
+        make_fast,
+        scene.x_true.get_uniform_copy(1.0),
+        updater,
+        num_subsets=1,
+        subiterations_per_update=2,
+        num_updates=2,
+    )
+
+    assert len(deltas) == 2
+    assert all(delta < 2e-6 for delta in deltas)

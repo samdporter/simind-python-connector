@@ -61,6 +61,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         scoring_routine: Optional[Union[ScoringRoutine, int]] = None,
         mu_map_type: str = "attenuation",
         mu_map_energy_kev: Optional[float] = None,
+        simind_version: Optional[int] = None,
     ) -> None:
         if torch is None:
             raise ImportError(
@@ -79,6 +80,7 @@ class PyTomographySimindAdaptor(BaseConnector):
             output_dir=output_dir,
             output_prefix=output_prefix,
             quantization_scale=quantization_scale,
+            simind_version=simind_version,
         )
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_prefix = output_prefix
@@ -138,7 +140,10 @@ class PyTomographySimindAdaptor(BaseConnector):
         self.python_connector.set_activity(activity_mbq, time_per_projection_s)
 
     def run(
-        self, runtime_operator: Optional[RuntimeOperator] = None
+        self,
+        runtime_operator: Optional[RuntimeOperator] = None,
+        *,
+        timeout: Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
         # Clear all output caches up front so failed reruns cannot leak
         # results from a previous successful run.
@@ -173,7 +178,9 @@ class PyTomographySimindAdaptor(BaseConnector):
         )
         self.python_connector.set_energy_windows(*self._energy_windows)
 
-        raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
+        raw_outputs = self.python_connector.run(
+            runtime_operator=runtime_operator, timeout=timeout
+        )
         outputs: dict[str, torch.Tensor] = {}
         metadata: dict[str, Mapping[str, str]] = {}
         header_paths: dict[str, Path] = {}

@@ -28,14 +28,14 @@ def poisson_nll(measured: Any, mean: Any) -> float:
 def effective_objective(measured: Any, correction: Any, floor: float = 1e-5) -> float:
     """The accurate model's data term at the image of the last update.
 
-    The mean is floored the same way AdditiveUpdater floors the installed
-    additive term; without it a zero bin with measured counts would return
-    +inf. A rising trend across updates, beyond Monte Carlo noise, means the
-    update interval or the damping needs changing.
+    This diagnostic evaluates ``last_accurate + base_additive``. ``floor``
+    floors that reference mean only to keep zero-mean bins with counts finite;
+    it is independent of the floor and damping used by an AdditiveUpdater.
+    It does not measure the objective optimized by the fast model between
+    updates. A rising trend beyond Monte Carlo noise suggests changing the
+    update interval or damping.
     """
     if correction.last_accurate is None:
         raise ValueError("effective_objective is available after the first estimate")
-    mean = (correction.last_accurate + correction.base_additive).maximum(
-        getattr(correction, "floor", floor)
-    )
+    mean = (correction.last_accurate + correction.base_additive).maximum(floor)
     return poisson_nll(measured, mean)

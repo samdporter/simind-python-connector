@@ -46,10 +46,17 @@ pytestmark = pytest.mark.unit
 class _SirfLikeImage:
     """Stand-in for sirf.STIR.ImageData; sizes and offset are in (z, y, x)."""
 
-    def __init__(self, array, voxel_sizes=(4.0, 4.0, 4.0), origin=(0.0, 0.0, 0.0)):
+    def __init__(
+        self,
+        array,
+        voxel_sizes=(4.0, 4.0, 4.0),
+        origin=(0.0, 0.0, 0.0),
+        direction=None,
+    ):
         self.array = np.asarray(array)
         self._voxel_sizes = voxel_sizes
         self._origin = origin
+        self._direction = np.eye(3) if direction is None else np.asarray(direction)
 
     def as_array(self):
         return self.array
@@ -58,10 +65,15 @@ class _SirfLikeImage:
         return self._voxel_sizes
 
     def get_geometrical_info(self):
-        return SimpleNamespace(get_offset=lambda: self._origin)
+        return SimpleNamespace(
+            get_offset=lambda: self._origin,
+            get_direction_matrix=lambda: self._direction,
+        )
 
     def clone(self):
-        return _SirfLikeImage(self.array.copy(), self._voxel_sizes, self._origin)
+        return _SirfLikeImage(
+            self.array.copy(), self._voxel_sizes, self._origin, self._direction
+        )
 
     def fill(self, values):
         self.array = np.asarray(values, dtype=np.float32).reshape(self.array.shape)
@@ -205,7 +217,7 @@ def test_adaptor_run_forwards_expected_connector_inputs(
             mu_map_energy_kev=mu_map_energy_kev,
         )
 
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         captured["runtime_operator"] = runtime_operator
         return {"tot_w1": SimpleNamespace(header_path=tmp_path / "case01_tot_w1.hs")}
 
@@ -273,7 +285,7 @@ def test_adaptor_clears_cached_outputs_on_failed_rerun(
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
     adaptor._outputs = {"stale": object()}  # type: ignore[assignment]
 
-    def failing_run(runtime_operator=None):
+    def failing_run(runtime_operator=None, timeout=None):
         raise RuntimeError("simulated failure")
 
     adaptor.python_connector.run = failing_run  # type: ignore[method-assign]
@@ -312,7 +324,7 @@ def test_adaptor_passes_anisotropic_voxel_sizes(
         lambda **kwargs: captured.update(kwargs),
     )
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
     adaptor.run()
     assert captured["voxel_size_mm"] == (8.0, 4.0, 4.0)
@@ -344,7 +356,7 @@ def test_adaptor_origin_tolerance_is_one_micron(
         adaptor.python_connector, "configure_voxel_phantom", lambda **kwargs: None
     )
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
     if matches:
         adaptor.run()
@@ -362,6 +374,30 @@ def test_adaptor_rejects_mu_map_with_different_spacing(
     adaptor.set_source(image_cls(np.zeros((2, 3, 4)), (4.0, 4.0, 4.0)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), (3.0, 3.0, 3.0)))
     with pytest.raises(ValueError, match="voxel sizes differ"):
+        adaptor.run()
+
+
+@pytest.mark.parametrize("bad_size", [0.0, float("nan"), float("inf")])
+@pytest.mark.parametrize("cls, patch, image_cls", _CASES)
+def test_adaptor_rejects_nonpositive_or_nonfinite_voxel_sizes(
+    cls, patch, image_cls, tmp_path, monkeypatch, bad_size
+):
+    patch(monkeypatch)
+    adaptor = _make_adaptor(cls, tmp_path)
+    adaptor.set_source(image_cls(np.zeros((2, 3, 4)), (bad_size, 4.0, 4.0)))
+    adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4)), (4.0, 4.0, 4.0)))
+    with pytest.raises(ValueError, match="finite positive"):
+        adaptor.run()
+
+
+def test_sirf_adaptor_rejects_different_direction_matrices(tmp_path, monkeypatch):
+    _patch_sirf_backend(monkeypatch)
+    adaptor = _make_adaptor(SirfSimindAdaptor, tmp_path)
+    adaptor.set_source(_SirfLikeImage(np.zeros((2, 3, 4))))
+    adaptor.set_mu_map(
+        _SirfLikeImage(np.zeros((2, 3, 4)), direction=np.diag([1.0, -1.0, -1.0]))
+    )
+    with pytest.raises(ValueError, match="direction matrices differ"):
         adaptor.run()
 
 
@@ -428,7 +464,7 @@ def _fake_simind_run(adaptor, tmp_path, monkeypatch, direction="CW"):
     simind_header = _write_header(tmp_path / "case01_tot_w1.hs", direction)
     projection = np.arange(24, dtype=np.float32).reshape(3, 2, 4)
 
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         return {
             "tot_w1": ProjectionResult(
                 projection=projection,
@@ -450,7 +486,7 @@ def _record_projection_settings(adaptor, image_cls, tmp_path, monkeypatch):
     simind_header = _write_header(tmp_path / "case01_tot_w1.hs")
     recorded = []
 
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         config = adaptor.python_connector.get_config()
         recorded.append(tuple(config.get_value(index) for index in (28, 76, 77)))
         return {
@@ -754,7 +790,7 @@ def test_adaptor_with_template_reports_every_mismatch(
     monkeypatch.setattr(
         adaptor.python_connector,
         "run",
-        lambda runtime_operator=None: {
+        lambda runtime_operator=None, timeout=None: {
             "tot_w1": ProjectionResult(
                 projection=projection,
                 header_path=raw_header,
@@ -798,7 +834,7 @@ def test_set_phantom_runs_configure_phantom(
         lambda **kwargs: pytest.fail("configure_voxel_phantom must not be called"),
     )
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
 
     adaptor.run()
@@ -822,7 +858,7 @@ def test_adaptor_propagates_the_voxel_scoring_routine(
 
     # Only the run is stubbed; configure_phantom/configure_voxel_phantom run
     # for real, so Index 84 and the maps are written by the connector itself.
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         observed["index_84"] = adaptor.get_config().get_value(84)
         return {
             "tot_w1": ProjectionResult(
@@ -918,7 +954,7 @@ def test_ground_truth_of_a_library_phantom_needs_its_own_run(
         adaptor.python_connector, "configure_phantom", lambda p, **k: None
     )
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
     built = {}
     monkeypatch.setattr(
@@ -950,7 +986,7 @@ def test_adaptor_keeps_the_config_scoring_routine_by_default(
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
     observed = {}
 
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         observed["index_84"] = adaptor.get_config().get_value(84)
         return {}
 
@@ -1025,7 +1061,7 @@ def _record_scoring_routine_at_execution(adaptor, monkeypatch) -> list[ScoringRo
     """Stub the external execution and record Index 84 as SIMIND would read it."""
     executed: list[ScoringRoutine] = []
 
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         config = adaptor.get_config()
         executed.append(ScoringRoutine(int(float(config.get_value(84)))))
         return {}
@@ -1268,7 +1304,7 @@ def test_adaptor_accepts_valid_runtime_operator(
     adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
 
     outputs = adaptor.run(runtime_operator=RuntimeOperator(switches={"RR": 12345}))
@@ -1415,7 +1451,7 @@ def test_adaptor_accepts_external_orbit_with_an_input_like_basename(
     adaptor.set_source(image_cls(np.ones((2, 3, 4), dtype=np.float32)))
     adaptor.set_mu_map(image_cls(np.zeros((2, 3, 4), dtype=np.float32)))
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
 
     outputs = adaptor.run(runtime_operator=RuntimeOperator(orbit_file=external))

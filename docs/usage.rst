@@ -9,9 +9,18 @@ Quick Start
 Use ``SimindPythonConnector`` when you want direct Python control of SIMIND
 inputs/outputs without any reconstruction-package dependency.
 
-The Python package does not bundle SIMIND. Before calling ``run()``, make sure
-the SIMIND executable is available as ``simind`` on ``PATH``; see
-:doc:`installation`.
+The Python package does not bundle SIMIND. Pair the executable and ``smc_dir``
+from the same release. The executor uses ``SIMIND_BIN`` when set and otherwise
+searches ``PATH``; see :doc:`installation`.
+
+Set ``SIMIND_VERSION=9`` when using SIMIND v9, or pass ``simind_version=9`` to
+the connector/adaptor constructor. The default is v8; an explicit constructor
+value takes precedence over the environment. V9 voxel maps need origin
+compensation for SIMIND's different map centring; this is applied to a copy of
+the run configuration and leaves the input arrays unchanged. The supported
+compensation currently requires the default source/density orientations
+(``DI=0``, Index 32 = 0, and no ``OR`` override). Other map orientations fail
+before SIMIND starts.
 
 .. code-block:: python
 
@@ -30,6 +39,7 @@ the SIMIND executable is available as ``simind`` on ``PATH``; see
         output_dir="output/basic",
         output_prefix="case01",
         quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
+        simind_version=9,
     )
 
     connector.configure_voxel_phantom(
@@ -112,6 +122,9 @@ Only the scoring routines DUMMY (0), SCATTWIN (1) and PENETRATE (4) are
 supported by the Interfile connector. LIST_MODE (2) and FORCED_COLLIMATION (3)
 write outputs the connector cannot read, so they are rejected at preflight;
 they remain available through lower-level use of the package.
+
+``set_energy_windows`` writes a SCATTWIN window file. DUMMY and PENETRATE use
+the global energy thresholds in Indexes 20 (upper) and 21 (lower) instead.
 
 A literal 1x1x1 voxel phantom is rejected (SIMIND does not support it), so pad
 the source and mu map to at least two voxels in one dimension. A non-zero
