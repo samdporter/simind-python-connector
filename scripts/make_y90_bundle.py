@@ -3,9 +3,10 @@
 
 Usage: python scripts/make_y90_bundle.py SOURCE_DIR OUT_DIR
 
-Writes OUT_DIR/y90_phantom.zip (de-identified DICOM copies, the other phantom
-files and a README) and OUT_DIR/zenodo_metadata.json (a draft to complete
-before upload). The source files are never modified. Prints the archive sha256.
+Writes OUT_DIR/y90_phantom.zip (de-identified DICOM copies without private
+tags, the other phantom files and a README) and OUT_DIR/zenodo_metadata.json
+(a draft to complete before upload). The source files are never modified. Prints
+the archive sha256.
 """
 
 import argparse
@@ -37,7 +38,8 @@ README_INTRO = """# Y-90 phantom data
 Real SPECT/CT acquisition of a liver phantom with a hot sphere, used by the
 tutorials of simind-python-connector. The DICOM files are de-identified: the
 institution, station, operator, physician and device serial number tags are
-blank. The patient name is the phantom name.
+blank and vendor private tags are removed. The patient name is the phantom
+name.
 
 Files: `peak.dcm` (projections), `peak.hs` and `peak.s` (Interfile projections),
 `umap_zoomed.hv` and `umap_zoomed.v` (attenuation map), `ctac/` (CT slices).
@@ -53,6 +55,10 @@ def _deidentified(path, counts):
         if keyword in ds:
             ds[keyword].value = ""
             counts[keyword] += 1
+    counts["private elements"] += sum(
+        element.tag.is_private for element in ds.iterall()
+    )
+    ds.remove_private_tags()
     buffer = io.BytesIO()
     ds.save_as(buffer)
     return buffer.getvalue()
@@ -71,7 +77,7 @@ def main(argv=None):
     parser.add_argument("out_dir", type=pathlib.Path)
     args = parser.parse_args(argv)
 
-    counts = dict.fromkeys(IDENTIFYING_TAGS, 0)
+    counts = dict.fromkeys((*IDENTIFYING_TAGS, "private elements"), 0)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     archive = args.out_dir / "y90_phantom.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
@@ -96,7 +102,7 @@ def main(argv=None):
     }
     (args.out_dir / "zenodo_metadata.json").write_text(json.dumps(metadata, indent=2))
 
-    print("De-identified tags (files changed per tag):")
+    print("De-identified tags (files changed per tag; private elements removed):")
     for keyword, count in counts.items():
         print(f"  {keyword}: {count}")
     print(f"sha256 {hashlib.sha256(archive.read_bytes()).hexdigest()}")

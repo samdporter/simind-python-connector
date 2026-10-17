@@ -27,6 +27,8 @@ def _write_dicom(path):
     ds.PatientName = "Phantom"
     ds.InstitutionName = "X"
     ds.StationName = "Y"
+    ds.add_new(0x00090010, "LO", "VENDOR")
+    ds.add_new(0x00091001, "LO", "secret")
     path.parent.mkdir(parents=True, exist_ok=True)
     ds.save_as(path)
 
@@ -66,11 +68,15 @@ def test_bundle_contents_and_deidentification(tmp_path, capsys, peak_in):
             assert ds.InstitutionName == ""
             assert ds.StationName == ""
             assert ds.PatientName == "Phantom"
+            assert not any(element.tag.is_private for element in ds.iterall())
         assert "136.1 kBq/g" in bundle.read("README.md").decode()
-    assert pydicom.dcmread(source / peak_in / "peak.dcm").InstitutionName == "X"
+    original = pydicom.dcmread(source / peak_in / "peak.dcm")
+    assert original.InstitutionName == "X"
+    assert original[0x00091001].value == "secret"
 
     printed = capsys.readouterr().out
     assert hashlib.sha256(archive.read_bytes()).hexdigest() in printed
     assert "InstitutionName: 3" in printed
+    assert "private elements: 6" in printed
     metadata = json.loads((out / "zenodo_metadata.json").read_text())
     assert metadata["license"] == "cc-by-4.0"
