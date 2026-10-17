@@ -127,7 +127,7 @@ sphinx_gallery_conf = {
         execution_pattern(Path("../examples").resolve(), backend) if backend else r"^$"
     ),
     "plot_gallery": "True" if backend else "False",
-    "ignore_pattern": r"^_[^/]*\.py$",
+    "ignore_pattern": r"^(?!plot_)[^/]*\.py$",
     "within_subsection_order": "FileNameSortKey",
     "subsection_order": ExplicitOrder(
         ["../examples/getting_started", "../examples/backends"]

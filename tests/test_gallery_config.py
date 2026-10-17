@@ -42,19 +42,20 @@ def test_two_backends_are_rejected(tmp_path):
 
 
 @pytest.mark.unit
-def test_helpers_and_root_scripts_are_not_gallery_examples(tmp_path):
+def test_only_plot_files_in_sections_are_gallery_examples(tmp_path):
     examples = tmp_path / "examples"
     _write(examples / "a.py", "")
     _write(examples / "s" / "_h.py", "")
-    example = _write(examples / "s" / "01_x.py", "")
+    _write(examples / "s" / "01_x.py", "")
+    example = _write(examples / "s" / "plot_01_x.py", "")
     assert gallery.gallery_examples(examples) == [example]
 
 
 @pytest.mark.unit
 def test_execution_pattern_matches_only_that_backend(tmp_path):
     examples = tmp_path / "examples"
-    python_example = _write(examples / "one" / "01_a.py", "import numpy\n")
-    sirf_example = _write(examples / "two" / "02_b.py", "import sirf\n")
+    python_example = _write(examples / "one" / "plot_01_a.py", "import numpy\n")
+    sirf_example = _write(examples / "two" / "plot_02_b.py", "import sirf\n")
     pattern = gallery.execution_pattern(examples, "sirf")
     assert re.search(pattern, str(sirf_example))
     assert not re.search(pattern, str(python_example))
@@ -65,8 +66,8 @@ def test_execution_pattern_matches_only_that_backend(tmp_path):
 def test_stale_examples_detects_edited_sources(tmp_path):
     examples = tmp_path / "examples"
     built = tmp_path / "built"
-    edited = _write(examples / "s" / "01_edited.py", "x = 1\n")
-    kept = _write(examples / "s" / "02_kept.py", "y = 1\n")
+    edited = _write(examples / "s" / "plot_01_edited.py", "x = 1\n")
+    kept = _write(examples / "s" / "plot_02_kept.py", "y = 1\n")
     for path in (edited, kept):
         _write(built / "s" / f"{path.name}.md5", get_md5sum(path, mode="t"))
     edited.write_text("x = 2\n")

@@ -35,9 +35,7 @@ def example_backend(path: Path) -> str:
 
 
 def gallery_examples(examples_dir: Path) -> list[Path]:
-    return sorted(
-        path for path in examples_dir.glob("*/*.py") if not path.name.startswith("_")
-    )
+    return sorted(examples_dir.glob("*/plot_*.py"))
 
 
 def execution_pattern(examples_dir: Path, backend: str) -> str:
