@@ -23,7 +23,7 @@ def _run(tmp_path: Path, routine: ScoringRoutine, ca: int | None = None):
     return connector, connector.run()
 
 
-def _parses(connector, outputs) -> bool:
+def _parse_problem(connector, outputs) -> str:
     rows = int(connector.get_config().get_value(77))
     cols = int(connector.get_config().get_value(76))
     views = int(connector.get_config().get_value(29))
@@ -32,12 +32,12 @@ def _parses(connector, outputs) -> bool:
             read_header(result.header_path)
             array = load_interfile_array(result.header_path).array
             if array.shape != (views, rows, cols):
-                return False
+                return f"{result.header_path.name}: shape {array.shape}"
             if array.dtype != np.float32 or not np.isfinite(array).all():
-                return False
-    except Exception:
-        return False
-    return True
+                return f"{result.header_path.name}: {array.dtype}, non-finite"
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return ""
 
 
 @pytest.mark.parametrize(
@@ -51,12 +51,14 @@ def _parses(connector, outputs) -> bool:
 )
 def test_outputs_parse(validate, tmp_path, case, routine, ca):
     connector, outputs = _run(tmp_path, routine, ca)
+    problem = _parse_problem(connector, outputs)
 
     validate(
         f"outputs_parse_{case}",
-        float(_parses(connector, outputs)),
+        float(not problem),
         expected=1.0,
         abs_tol=0,
+        note=problem,
     )
 
 

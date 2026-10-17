@@ -12,7 +12,7 @@ from tests.test_release_regressions_simind import GRID, VOXEL_MM, _connector
 pytestmark = [pytest.mark.validation, pytest.mark.requires_simind]
 
 PAIR_VIEWS = 8
-PAIR_NN = 100
+PAIR_NN = 400
 
 
 def _centroid(projection: np.ndarray, axis: int) -> np.ndarray:
@@ -26,6 +26,7 @@ def _centroid(projection: np.ndarray, axis: int) -> np.ndarray:
 
 def _point_projection(tmp_path, prefix: str, voxel: tuple[int, int, int]):
     connector = _connector(tmp_path, prefix)
+    # configure_voxel_phantom overrides Index 26; NN scales the histories
     connector.add_runtime_switch("NN", PAIR_NN)
     connector.add_config_value(29, PAIR_VIEWS)
     source = np.zeros((GRID, GRID, GRID), np.float32)
