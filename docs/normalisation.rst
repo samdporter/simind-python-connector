@@ -106,3 +106,46 @@ collimator scatter and detector effects. It is a different physical component
 from PENETRATE ``geom_coll_primary``, even when those extra contributions are
 small. An uncalibrated analytic projection can check geometry and define a
 relative scale; it does not independently establish detector sensitivity.
+
+.. _scaling-scatter-to-measured-data:
+
+Scaling a scatter estimate to measured data
+-------------------------------------------
+
+Dewaraja et al. scale the SIMIND scatter estimate to the measured projections,
+either pixel by pixel,
+
+.. math::
+
+    s_i = s^{\mathrm{SIM}}_i \, \frac{Y_i}{Y^{\mathrm{SIM}}_i},
+
+or with one global factor,
+
+.. math::
+
+    s_i = b \, s^{\mathrm{SIM}}_i, \qquad b = \frac{\sum_i Y_i}{\sum_i Y^{\mathrm{SIM}}_i},
+
+where :math:`Y` is the measured projection and :math:`Y^{\mathrm{SIM}}` the
+simulated all-interactions projection. The global factor is a normaliser:
+
+.. code-block:: python
+
+    from simind_python_connector.recon import SimindProjector, measured_normaliser
+
+    projector = SimindProjector(..., normalise=measured_normaliser(measured))
+
+The pixel-wise scaling is done by the correction:
+
+.. code-block:: python
+
+    from simind_python_connector.recon import ScatterCorrection
+
+    correction = ScatterCorrection(
+        projector, measured=measured, smoothing_fwhm_bins=3.0, smooth_across_views=True
+    )
+
+Dewaraja Y.K. et al., "Improved quantitative 90Y bremsstrahlung SPECT/CT
+reconstruction with Monte Carlo scatter modeling", Med Phys 44(12):6364-6376,
+2017, doi:10.1002/mp.12597. The authors found the pixel-wise scaling better in
+their simulations. It multiplies the measured noise into the scatter estimate,
+hence the smoothing.

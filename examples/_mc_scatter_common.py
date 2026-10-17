@@ -178,12 +178,14 @@ def scatter_updater(
     stop_at=None,
     **adaptor_settings,
 ):
-    """SIMIND scatter scaled to the fast model (A2 route 2), from a zero start."""
+    """SIMIND scatter scaled to the fast model with the trimmed ratio of sums (route 2),
+    from a zero start.
+    """
     projector = SimindProjector(
         simind_adaptor(output_dir / "estimate", "estimate", **adaptor_settings),
         template_data,
         mu_image,
-        normalise=reference_normaliser(full_model),
+        normalise=reference_normaliser(full_model, method="trimmed"),
         seed=100,
     )
     return AdditiveUpdater(

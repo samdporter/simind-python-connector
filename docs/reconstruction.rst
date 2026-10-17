@@ -57,7 +57,8 @@ Why it is built this way
   use PENETRATE for high-energy isotopes.
 - SIMIND's output does not follow the image magnitude (the source map is
   always scaled to the same number of photon histories), so every update is
-  rescaled: by matching ``b02`` to ``A x`` (``reference_normaliser``, see
+  rescaled: by matching ``b02`` to ``A x``
+  (``reference_normaliser(full_model, method="trimmed")``, see
   :doc:`normalisation`), or by giving SIMIND the activity when ``x`` is in
   known activity units.
 
@@ -102,7 +103,8 @@ SIRF OSEM
     from simind_python_connector.recon.osem import run_osem_with_corrections
 
     projector = SimindProjector(adaptor, measured, mu_map,
-                                normalise=reference_normaliser(full_model), seed=1)
+                                normalise=reference_normaliser(full_model, method="trimmed"),
+                                seed=1)
     updater = AdditiveUpdater(ScatterCorrection(projector), UpdateSchedule(every=10),
                               initial_additive=measured.get_uniform_copy(0))
     image = run_osem_with_corrections(measured, make_model, initial, updater,
@@ -110,7 +112,9 @@ SIRF OSEM
                                       num_updates=3)
 
 ``full_model`` is the full-data linear model (no additive term), set up with
-the measured data and kept separate for reference normalisation.
+the measured data and kept separate for reference normalisation. To scale the
+scatter estimate to the measured data instead, see
+:ref:`scaling-scatter-to-measured-data`.
 ``make_model`` is a zero-argument factory returning a fresh, configured,
 not-yet-set-up acquisition model on every call, with independent model-owned
 state and the same linear operator settings. For a matrix-based model,
