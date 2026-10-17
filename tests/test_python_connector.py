@@ -934,6 +934,72 @@ def test_python_connector_split_mpi_reports_huge_count_without_digit_limit(
 
 
 @pytest.mark.unit
+def test_python_connector_split_mpi_rejects_penetrate(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(29, 24)
+    connector.add_config_value(84, ScoringRoutine.PENETRATE.value)
+    connector.set_mpi(2, split_projections=True)
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="PENETRATE"):
+        connector.run()
+
+    assert launched == []
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("via_operator", [False, True])
+def test_python_connector_replicate_mpi_rejects_fixed_rr(
+    tmp_path: Path, via_operator: bool
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    operator = None
+    if via_operator:
+        operator = RuntimeOperator(switches={"RR": 12345})
+    else:
+        connector.add_runtime_switch("RR", 12345)
+    connector.set_mpi(2)
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="RR"):
+        connector.run(operator)
+
+    assert launched == []
+    assert not (tmp_path / "case01.smc").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("processes, split", [(1, False), (2, True)])
+def test_python_connector_mpi_allows_fixed_rr_without_replicas(
+    tmp_path: Path, processes: int, split: bool
+):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(29, 24)
+    connector.add_runtime_switch("RR", 12345)
+    connector.set_mpi(processes, split_projections=split)
+    launched: list[object] = []
+
+    def fake_run_simulation(*args, **kwargs):
+        launched.append(True)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run()
+
+    assert launched == [True]
+
+
+@pytest.mark.unit
 def test_python_connector_passes_mpi_settings_to_executor(tmp_path: Path):
     connector = SimindPythonConnector(
         config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"

@@ -6,7 +6,6 @@ from simind_python_connector.configs import get
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
     ScoringRoutine,
-    SimulationError,
 )
 
 
@@ -21,7 +20,7 @@ def _run(
     processes: int | None = None,
     split: bool = False,
     scoring_routine: ScoringRoutine | None = None,
-    seed: int = 12345,
+    seed: int | None = 12345,
     ca: int | None = None,
 ):
     connector = SimindPythonConnector(
@@ -41,7 +40,8 @@ def _run(
     connector.set_energy_windows([126], [154], [0])
     connector.add_runtime_switch("FI", "tc99m")
     connector.add_runtime_switch("CC", "ma-lehr")
-    connector.add_runtime_switch("RR", seed)
+    if seed is not None:
+        connector.add_runtime_switch("RR", seed)
     if ca is not None:
         connector.add_runtime_switch("CA", ca)
     connector.add_config_value(29, VIEWS)
@@ -55,8 +55,9 @@ def _total(outputs, key: str = "tot_w1") -> float:
 
 
 def test_serial_vs_replicate(validate, tmp_path):
-    serial = _total(_run(tmp_path, "serial"))
-    replicate = _total(_run(tmp_path, "replicate", 2))
+    """Replicate MPI cannot take RR, so both runs use SIMIND's default seed."""
+    serial = _total(_run(tmp_path, "serial", seed=None))
+    replicate = _total(_run(tmp_path, "replicate", 2, seed=None))
 
     validate(
         "serial_vs_replicate", replicate / serial, expected=1.0, rel=0.05, smoke=True
@@ -70,44 +71,37 @@ def test_serial_vs_split(validate, tmp_path):
     validate("serial_vs_split", split / serial, expected=1.0, rel=0.05, smoke=True)
 
 
-def test_penetrate_split_complete(validate, tmp_path):
-    serial = _run(tmp_path, "pserial", scoring_routine=ScoringRoutine.PENETRATE)
+def test_penetrate_split_refused(validate, tmp_path):
+    """simind_mpi /MP writes only the primary process's PENETRATE projections
+    (12 of 24 views with 2 processes on v8 and v9), so the connector refuses
+    the combination; the refusal is the expected behaviour."""
     try:
-        split = _run(tmp_path, "psplit", 2, True, ScoringRoutine.PENETRATE)
-    except SimulationError as error:
-        complete, total_ratio, note = 0.0, 0.0, str(error)[-300:]
+        _run(tmp_path, "psplit", 2, True, ScoringRoutine.PENETRATE)
+    except ValueError as error:
+        refused, note = float("PENETRATE" in str(error)), str(error)
     else:
-        views = split["all_interactions"].projection.sum(axis=(1, 2))
-        complete = float(np.mean(views > 0))
-        total_ratio = _total(split, "all_interactions") / _total(
-            serial, "all_interactions"
-        )
-        note = ""
+        refused, note = 0.0, "run was not refused"
 
+    validate("penetrate_split_refused", refused, expected=1.0, abs_tol=0, note=note)
+
+
+def test_replicate_fixed_rr_refused(validate, tmp_path):
+    """With a fixed RR every simind_mpi process repeats the same histories and
+    the result is bin-for-bin the serial run, so the connector refuses it."""
     try:
-        validate(
-            "penetrate_split_complete",
-            complete,
-            expected=1.0,
-            abs_tol=0,
-            smoke=True,
-            note=note,
-        )
-    finally:
-        validate(
-            "penetrate_split_total",
-            total_ratio,
-            expected=1.0,
-            rel=0.05,
-            smoke=True,
-            note=note,
-        )
+        _run(tmp_path, "rrfixed", 2)
+    except ValueError as error:
+        refused, note = float("RR" in str(error)), str(error)
+    else:
+        refused, note = 0.0, "run was not refused"
+
+    validate("replicate_fixed_rr_refused", refused, expected=1.0, abs_tol=0, note=note)
 
 
 def test_replicate_adds_statistics(validate, tmp_path):
-    """A failure means the replicate ranks repeat identical histories, so MPI
-    replicate adds no statistics over a serial run with the same seed."""
-    kwargs = {"scoring_routine": ScoringRoutine.SCATTWIN, "ca": 0}
+    """Without RR, SIMIND seeds each MPI process differently, so a replicate
+    run must differ from the serial run that uses the same (.num) seed."""
+    kwargs = {"scoring_routine": ScoringRoutine.SCATTWIN, "ca": 0, "seed": None}
     serial = _run(tmp_path, "rserial", **kwargs)["tot_w1"].projection
     replicate = _run(tmp_path, "rrep", 2, **kwargs)["tot_w1"].projection
     populated = serial > 0

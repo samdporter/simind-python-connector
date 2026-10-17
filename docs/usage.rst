@@ -93,6 +93,17 @@ integers, integral reals and ASCII digit strings for the process count and
 raises ``SimulationError`` for anything else before launch. ``NN`` must be an
 integer >= 1.
 
+By default every process simulates all projections and SIMIND sums them, the
+same as one process with ``processes`` times more histories. Each process then
+needs its own random numbers: SIMIND seeds the processes differently only when
+no ``RR`` switch is given, so ``run()`` refuses a fixed ``RR`` with more than
+one replicate process (every process would repeat the same histories and the
+result would equal the serial run). ``split_projections=True`` (``/MP``)
+shares the projections out instead; Index 29 must be a multiple of
+``processes``, a fixed ``RR`` is allowed, and the PENETRATE scoring routine is
+refused because ``simind_mpi`` writes only the primary process's PENETRATE
+projections.
+
 .. code-block:: python
 
     connector.set_mpi(4)

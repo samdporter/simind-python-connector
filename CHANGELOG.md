@@ -230,6 +230,13 @@ satisfied requirement).
   back to the legacy standalone `stirextra` only when `stir.extra` is genuinely
   absent; a broken dependency inside `stir.extra` propagates instead of being
   masked by the legacy module.
+- MPI runs that could not be loaded or added no statistics are refused before
+  launch. With `set_mpi(n, split_projections=True)` and the PENETRATE scoring
+  routine, `simind_mpi` writes only the primary process's projections (12 of 24
+  views with two processes), so loading failed. With replicate MPI (no split) and a
+  fixed `RR` switch, every process repeated the same histories and the result was
+  bin-for-bin the serial run. Leave `RR` unset for replicate MPI: SIMIND then seeds
+  each process differently.
 
 ### Known limitations
 - The optional SIRF/CIL scatter and residual correction workflows ship with the

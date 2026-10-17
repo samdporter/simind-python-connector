@@ -303,9 +303,12 @@ class SimindPythonConnector(BaseConnector):
         """Run SIMIND under MPI (mpirun + simind_mpi), or turn MPI off with None.
 
         By default every MPI process simulates all projections and SIMIND
-        sums the results. With split_projections=True, /MP shares the
-        projections out; the number of projections (Index 29) must then be
-        a multiple of processes.
+        sums the results; run() then refuses a fixed RR switch, which would
+        make every process repeat the same histories. With
+        split_projections=True, /MP shares the projections out; the number of
+        projections (Index 29) must then be a multiple of processes, and the
+        PENETRATE scoring routine is refused because simind_mpi writes only
+        the primary process's PENETRATE projections.
         """
         if processes is None:
             if split_projections:
@@ -875,6 +878,22 @@ class SimindPythonConnector(BaseConnector):
                         f"({num_projections}) to be a multiple of the MPI "
                         f"processes ({processes})"
                     )
+                # simind_mpi /MP gathers SCATTWIN images, but PENETRATE writes
+                # only the primary process's share of the projections.
+                if self._is_penetrate_routine():
+                    raise ValueError(
+                        "split_projections does not work with the PENETRATE "
+                        "scoring routine: simind_mpi writes only the primary "
+                        "process's projections"
+                    )
+            elif processes > 1 and "RR" in run_switches_holder.switches:
+                # Every process seeds from the same RR, so all of them repeat
+                # the same histories and the summed result equals a serial run.
+                raise ValueError(
+                    "A fixed RR seed gives every MPI process the same histories, "
+                    "so replicate MPI adds no statistics; remove RR (SIMIND then "
+                    "seeds each process differently) or use split_projections"
+                )
             mpi_kwargs = {"mpi_processes": processes, "split_projections": split}
 
         # The effective switches are validated and serialised above, before an
