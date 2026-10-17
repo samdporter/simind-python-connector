@@ -24,7 +24,6 @@ _VALUE_TAKING_SWITCHES = [
     "C6",
     "CC",
     "DF",
-    "DP",
     "ES",
     "FD",
     "FI",
@@ -44,7 +43,6 @@ _VALUE_TAKING_SWITCHES = [
     "M3",
     "M4",
     "OR",
-    "OU",
     "PR",
     "PX",
     "SF",
@@ -93,8 +91,6 @@ def test_nn_rejects_everything_else(value):
     [
         ("CA", 1),
         ("FW", "windows"),
-        ("OU", 11),
-        ("DP", 0.5),
         ("BG", 1.0),
         ("HO", True),
         ("CO", True),
@@ -106,6 +102,14 @@ def test_switches_from_the_manual_are_recognised(key, value):
     switches = RuntimeSwitches()
     switches.set_switch(key, value)
     assert switches.switches[key] == value
+
+
+@pytest.mark.parametrize(
+    "key, routine", [("OU", "list-mode"), ("DP", "forced-collimation")]
+)
+def test_switches_of_unsupported_scoring_routines_are_refused(key, routine):
+    with pytest.raises(ValueError, match=routine):
+        RuntimeSwitches().set_switch(key, 1)
 
 
 def test_mp_switch_points_to_set_mpi():

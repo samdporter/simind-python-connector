@@ -1240,7 +1240,23 @@ _SWITCHES_WITHOUT_VALUE = frozenset(
 )
 
 
+_SWITCHES_OF_UNSUPPORTED_ROUTINES = {
+    "OU": "list-mode",
+    "DP": "forced-collimation",
+}
+
+
+def _reject_switch_of_unsupported_routine(switch: str) -> None:
+    routine = _SWITCHES_OF_UNSUPPORTED_ROUTINES.get(switch)
+    if routine is not None:
+        raise ValueError(
+            f"{switch} only has an effect with the {routine} scoring routine, "
+            "which this connector does not run"
+        )
+
+
 def _validate_switch_value(switch: str, value) -> None:
+    _reject_switch_of_unsupported_routine(switch)
     if switch == "NN" and not (_is_integer(value) and value >= 1):
         raise ValueError(
             "NN must be an integer >= 1 (SIMIND cuts off the simulation "
@@ -1266,7 +1282,6 @@ class RuntimeSwitches:
             "CA": "Scattwin output files (0: tot; 1: air, tot, sca; 2: air, tot, pri)",
             "CC": "Collimator code",
             "DF": "Density file segment",
-            "DP": "Distance between planes for forced collimation",
             "ES": "Energy offset",
             "FE": "Energy resolution file",
             "FW": "Window file name",
@@ -1279,7 +1294,6 @@ class RuntimeSwitches:
             "LO": "Photon histories before printout",
             "LF": "Linear sampling of polar angle for photon direction",
             "OR": "Change orientation of the density map",
-            "OU": "List-mode output format",
             "PR": "Start simulation at projection number",
             "PU": "Shift of the source in pixel units",
             "QF": "Quit simulation if earlier result file exists",
@@ -1364,6 +1378,7 @@ class RuntimeSwitches:
             raise ValueError(
                 "MP is not set as a switch: use set_mpi() to run SIMIND with MPI"
             )
+        _reject_switch_of_unsupported_routine(identifier)
         switch = self._resolve(identifier)
         if value is None:
             self.switches.pop(switch, None)

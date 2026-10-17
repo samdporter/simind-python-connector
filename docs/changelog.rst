@@ -44,7 +44,7 @@ Added
   ``utils.simind_utils.validate_energy_windows``.
 - Anisotropic voxels: ``voxel_size_mm`` may be ``(z, y, x)`` with square
   in-plane voxels.
-- Runtime switches from the SIMIND 8 manual: ``CA``, ``FW``, ``OU``, ``DP``,
+- Runtime switches from the SIMIND 8 manual: ``CA``, ``FW``,
   ``BG``, ``HO``, ``CO``, ``X1``-``X6``.
 - Optional ``simind_python_connector.recon`` subpackage: a SIMIND-simulated
   additive term in SIRF and CIL reconstructions, refreshed at chosen intervals
@@ -136,6 +136,10 @@ Removed
 Fixed
 ~~~~~
 
+- ``OU`` (list-mode format) and ``DP`` (forced-collimation plane spacing) are
+  rejected with a ``ValueError``: they only act with the list-mode and
+  forced-collimation scoring routines, which the connector refuses to run, so
+  they could never take effect.
 - ``STIRSPECTAcquisitionDataBuilder.update_header_from_dicom`` mirrored the bin
   (column) axis of the DICOM projections, so STIR and SIRF data built from DICOM
   disagreed with the vendor Interfile export and with PyTomography. Rows,
