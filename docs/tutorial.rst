@@ -35,7 +35,7 @@ its own data directory. Start with the core NumPy example:
 
 .. code-block:: bash
 
-    python examples/01_basic_simulation.py
+    python examples/getting_started/plot_01_basic_simulation.py
 
 It uses a small voxel phantom, one energy window, few projections, and
 ``NN=1``. Inspect the saved source, density, and total projection under
@@ -149,15 +149,17 @@ approximation, and the non-zero positivity floor can affect low-count regions.
 Measured projections and DICOM calibration
 ------------------------------------------
 
-Examples 08A and 08B read projection geometry from a measured NM DICOM file:
+Examples 08A, 08B and 08C read projection geometry from the Y-90 NM DICOM
+dataset (``SIMIND_CONNECTOR_Y90_DATA``, or fetched on first use):
 
 .. code-block:: bash
 
-    python examples/08A_stir_adaptor_from_dicom.py /path/to/projection.dcm
-    python examples/08B_sirf_adaptor_from_dicom.py /path/to/projection.dcm
-    python examples/08C_pytomography_adaptor_from_dicom.py /path/to/projection.dcm
+    python examples/backends/plot_08a_stir_adaptor_from_dicom.py
+    python examples/backends/plot_08b_sirf_adaptor_from_dicom.py
+    python examples/backends/plot_08c_pytomography_adaptor_from_dicom.py
 
-The scripts build STIR or SIRF acquisition data and print the projection shape.
+The scripts build STIR, SIRF or PyTomography projection objects and plot the
+projection.
 Compare the DICOM-derived geometry with the simulated header before use. A
 DICOM geometry match does not calibrate absolute sensitivity. For a calibrated
 comparison, document the activity, acquisition time, decay reference, energy

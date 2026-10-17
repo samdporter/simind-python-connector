@@ -55,7 +55,7 @@ print(outputs["tot_w1"].projection.shape)
 Run a complete core simulation example from a source checkout:
 
 ```bash
-python examples/01_basic_simulation.py
+python examples/getting_started/plot_01_basic_simulation.py
 ```
 
 The core connector does not require STIR, SIRF, or PyTomography. Install only
@@ -65,10 +65,10 @@ phantomgen package; the install command is in the tutorial.
 
 ## Example map
 
-- `examples/01`–`06`: core NumPy simulations, windows, configurations, scoring,
+- `examples/getting_started/plot_01`–`plot_06`: core NumPy simulations, windows, configurations, scoring,
   and density conversion.
-- `examples/07A` / `07B` / `07C`: STIR / SIRF / PyTomography adaptors.
-- `examples/08A` / `08B` / `08C`: DICOM setup for STIR / SIRF / PyTomography.
+- `examples/backends/plot_07a` / `07b` / `07c`: STIR / SIRF / PyTomography adaptors.
+- `examples/backends/plot_08a` / `08b` / `08c`: DICOM setup for STIR / SIRF / PyTomography.
 - `examples/09`–`11`: SIRF scatter and residual correction, plus CIL in `10`.
 - `examples/12`: phantomgen NEMA/IEC with known activity, with SIMIND's
   multiple-inserts phantom as a geometry-only fallback.

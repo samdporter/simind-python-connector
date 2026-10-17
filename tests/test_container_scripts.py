@@ -134,7 +134,7 @@ def test_only_mc_scatter_runs_09_and_10_and_builds_only_sirf(examples_runner):
     runs = compose_run_lines(argv_log)
     assert any("examples/09_mc_scatter_osem.py" in line for line in runs), runs
     assert any("examples/10_mc_scatter_cil.py" in line for line in runs), runs
-    assert not any("07B_sirf_adaptor_osem" in line for line in runs), runs
+    assert not any("plot_07b_sirf_adaptor_osem" in line for line in runs), runs
 
 
 def test_only_sirf_with_only_mc_scatter_runs_all_three_sirf_examples(
@@ -148,13 +148,13 @@ def test_only_sirf_with_only_mc_scatter_runs_all_three_sirf_examples(
     assert build_services(argv_log) == ["sirf"]
     runs = compose_run_lines(argv_log)
     for example in (
-        "examples/07B_sirf_adaptor_osem.py",
+        "examples/backends/plot_07b_sirf_adaptor_osem.py",
         "examples/09_mc_scatter_osem.py",
         "examples/10_mc_scatter_cil.py",
     ):
         assert any(example in line for line in runs), (example, runs)
-    assert not any("07A_stir_adaptor_osem" in line for line in runs), runs
-    assert not any("07C_pytomography_adaptor_osem" in line for line in runs), runs
+    assert not any("plot_07a_stir_adaptor_osem" in line for line in runs), runs
+    assert not any("plot_07c_pytomography_adaptor_osem" in line for line in runs), runs
 
 
 def test_default_selection_includes_mc_scatter_examples(examples_runner):

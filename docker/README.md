@@ -21,9 +21,9 @@ docker compose -f docker/compose.yaml run --rm stir
 Run the dedicated connector + OSEM examples directly:
 
 ```bash
-docker compose -f docker/compose.yaml run --rm stir python examples/07A_stir_adaptor_osem.py
-docker compose -f docker/compose.yaml run --rm sirf python examples/07B_sirf_adaptor_osem.py
-docker compose -f docker/compose.yaml run --rm pytomography python examples/07C_pytomography_adaptor_osem.py
+docker compose -f docker/compose.yaml run --rm stir python examples/backends/plot_07a_stir_adaptor_osem.py
+docker compose -f docker/compose.yaml run --rm sirf python examples/backends/plot_07b_sirf_adaptor_osem.py
+docker compose -f docker/compose.yaml run --rm pytomography python examples/backends/plot_07c_pytomography_adaptor_osem.py
 ```
 
 Run the containerized test matrix:

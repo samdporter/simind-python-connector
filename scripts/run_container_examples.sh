@@ -272,25 +272,25 @@ echo "[2/2] Running selected examples..."
 
 if [[ "$RUN_CORE" -eq 1 ]]; then
     if [[ "$SIMIND_AVAILABLE" -eq 1 ]]; then
-        run_service python "python examples/01_basic_simulation.py"
-        run_service python "python examples/02_runtime_switch_comparison.py"
-        run_service python "python examples/03_multi_window.py"
-        run_service python "python examples/05_scattwin_vs_penetrate_comparison.py"
+        run_service python "python examples/getting_started/plot_01_basic_simulation.py"
+        run_service python "python examples/getting_started/plot_02_runtime_switch_comparison.py"
+        run_service python "python examples/getting_started/plot_03_multi_window.py"
+        run_service python "python examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py"
     else
         echo
         echo "[python] Skipping 01/02/03/05 (SIMIND not found at '$SIMIND_PATH')."
     fi
 
-    run_service python "python examples/04_custom_config.py"
-    run_service python "python examples/06_schneider_density_conversion.py"
+    run_service python "python examples/getting_started/plot_04_custom_config.py"
+    run_service python "python examples/getting_started/plot_06_schneider_density_conversion.py"
 fi
 
 if [[ "$RUN_STIR" -eq 1 ]]; then
-    run_service stir "python examples/07A_stir_adaptor_osem.py"
+    run_service stir "python examples/backends/plot_07a_stir_adaptor_osem.py"
 fi
 
 if [[ "$RUN_SIRF" -eq 1 ]]; then
-    run_service sirf "python examples/07B_sirf_adaptor_osem.py"
+    run_service sirf "python examples/backends/plot_07b_sirf_adaptor_osem.py"
 fi
 
 if [[ "$RUN_MC_SCATTER" -eq 1 ]]; then
@@ -299,7 +299,7 @@ if [[ "$RUN_MC_SCATTER" -eq 1 ]]; then
 fi
 
 if [[ "$RUN_PYTOMO" -eq 1 ]]; then
-    run_service pytomography "python examples/07C_pytomography_adaptor_osem.py"
+    run_service pytomography "python examples/backends/plot_07c_pytomography_adaptor_osem.py"
 fi
 
 echo

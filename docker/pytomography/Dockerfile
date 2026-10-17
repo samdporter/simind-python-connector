@@ -32,4 +32,4 @@ for module in ("torch", "pytomography", "pytest", "phantomgen", "pooch", "sphinx
 print("PyTomography modules available")
 PY
 
-CMD ["python", "examples/07C_pytomography_adaptor_osem.py"]
+CMD ["python", "examples/backends/plot_07c_pytomography_adaptor_osem.py"]

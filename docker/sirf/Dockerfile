@@ -29,4 +29,4 @@ for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner", "phanto
 print("SIRF Python modules available")
 PY
 
-CMD ["python", "examples/07B_sirf_adaptor_osem.py"]
+CMD ["python", "examples/backends/plot_07b_sirf_adaptor_osem.py"]

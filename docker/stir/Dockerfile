@@ -34,4 +34,4 @@ _import_stir_extra()
 print("STIR Python modules available")
 PY
 
-CMD ["python", "examples/07A_stir_adaptor_osem.py"]
+CMD ["python", "examples/backends/plot_07a_stir_adaptor_osem.py"]

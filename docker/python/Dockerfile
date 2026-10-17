@@ -37,4 +37,4 @@ for module in ("numpy", "matplotlib", "pytest", "phantomgen", "pooch", "sphinx_g
 print("Core Python modules available")
 PY
 
-CMD ["python", "examples/06_schneider_density_conversion.py"]
+CMD ["python", "examples/getting_started/plot_06_schneider_density_conversion.py"]
