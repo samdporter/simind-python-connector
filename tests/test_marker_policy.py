@@ -18,6 +18,8 @@ ALLOWED = {
     "requires_pytomography",
     "requires_cil",
     "requires_phantomgen",
+    "validation",
+    "macos_v9",
 }
 
 
