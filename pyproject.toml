@@ -107,7 +107,7 @@ markers = [
     "requires_cil: tests that require CIL",
     "requires_phantomgen: tests that require phantomgen",
     "validation: SIMIND feature validation with recorded numbers (slow)",
-    "macos_v9: validation that needs the native macOS SIMIND v9 binary",
+    "macos_v9: validation that also runs against the native macOS SIMIND v9 binary",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

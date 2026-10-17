@@ -7,6 +7,7 @@ Xn p.40.
 """
 
 import os
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -14,11 +15,13 @@ import pytest
 
 from simind_python_connector import SimindPythonConnector
 from simind_python_connector.configs import get
+from simind_python_connector.core.config import RuntimeSwitches
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
     ScoringRoutine,
     SimulationError,
 )
+from tests import test_release_regressions_simind as regressions
 
 
 pytestmark = [pytest.mark.validation, pytest.mark.requires_simind]
@@ -34,10 +37,6 @@ V9_LINUX_REPORT = (
     ".superpowers/sdd/2026-10-17-p3-feature-validation/v9-path-crash-report.md"
 )
 TWO_WINDOWS = "126.0,154.0,0\n92.0,125.0,0\n"
-
-LIST_MODE_RECORD_BYTES = {0: 27, 11: 16}
-# <3h h d: three positions and an energy as int16, the photon weight as float64
-OU11_RECORD = np.dtype([("position", "<i2", 3), ("energy", "<i2"), ("weight", "<f8")])
 
 
 def _connector(
@@ -107,20 +106,15 @@ def run_scattwin(engine, not_run):
 @pytest.mark.macos_v9
 @pytest.mark.parametrize("ca", [0, 1, 2])
 def test_ca_raw_files(validate, run_scattwin, engine, tmp_path, ca):
-    """Manual: CA selects the SCATTWIN files written (v8 p.27-28, v9 p.27)."""
+    """Manual: CA selects the SCATTWIN files written (v8 p.27-28, v9 p.27).
+
+    The expected sets come from observed runs: the v8 manual lists air, tot and
+    pri for CA=2 but the engine also writes sca; the v9 CA=2 set is the one the
+    native macOS build and a completing Linux build write.
+    """
     case = f"ca_raw_files_{ca}"
     connector = _connector(tmp_path, "ca")
     connector.add_runtime_switch("CA", ca)
-
-    if engine.label == "v9-linux" and ca == 2:
-        try:
-            connector.run(timeout=600)
-            components = sorted(_raw_components(tmp_path, "ca", ".a00"))
-            raised, note = 0.0, f"completed without abort; .a00 {components}"
-        except SimulationError:
-            raised, note = 1.0, "engine abort surfaced"
-        validate(case, raised, expected=1.0, abs_tol=0, note=note)
-        return
 
     outputs = run_scattwin(connector, case)
     derived = {
@@ -206,78 +200,20 @@ def test_fw_sixteen_character_name(validate, run_scattwin, tmp_path):
     )
 
 
-def _refused(validate, case, exc, **tolerance):
-    validate(
-        case,
-        float("nan"),
-        note=f"connector raised {type(exc).__name__}: {exc}",
-        **tolerance,
-    )
-
-
-def _list_mode_file(directory: Path, ou: int) -> Path:
-    connector = _connector(directory, f"ou{ou}", ScoringRoutine.LIST_MODE)
-    connector.add_runtime_switch("OU", ou)
-    connector.run(timeout=600)
-    return directory / f"ou{ou}.lmf"
-
-
-@pytest.mark.parametrize("ou", [0, 11])
-def test_ou_list_mode_record_size(validate, tmp_path, ou):
-    """Manual: list-mode record layout per OU (v8 p.29, v9 p.29-30)."""
-    case = f"ou_list_mode_record_size_{ou}"
+@pytest.mark.macos_v9
+@pytest.mark.parametrize("switch", ["OU", "DP"])
+def test_switch_of_unsupported_routine_is_refused(validate, switch):
+    """OU (list-mode format, v8 p.29-30, v9 p.29-30) and DP (forced-collimation
+    plane spacing, v8 p.30, v9 p.30) only act with the list-mode and
+    forced-collimation scoring routines, which the connector does not run, so
+    the switches are refused before SIMIND is started."""
     try:
-        lmf = _list_mode_file(tmp_path, ou)
-    except (ValueError, FileNotFoundError, SimulationError) as exc:
-        _refused(validate, case, exc, expected=0, abs_tol=0)
-        return
+        RuntimeSwitches().set_switch(switch, 1)
+        refused = 0.0
+    except ValueError:
+        refused = 1.0
 
-    validate(
-        case,
-        float(lmf.stat().st_size % LIST_MODE_RECORD_BYTES[ou]),
-        expected=0,
-        abs_tol=0,
-    )
-
-
-def test_ou11_projection_markers(validate, tmp_path):
-    """Manual: a negative weight marks the first record of a projection."""
-    case = "ou11_projection_markers"
-    try:
-        lmf = _list_mode_file(tmp_path, 11)
-    except (ValueError, FileNotFoundError, SimulationError) as exc:
-        _refused(validate, case, exc, expected=4, abs_tol=0)
-        return
-
-    records = np.fromfile(lmf, OU11_RECORD)
-    validate(case, float((records["weight"] < 0).sum()), expected=4, abs_tol=0)
-
-
-def _forced_collimation_total(directory: Path, prefix: str, dp: float, seed: int):
-    connector = _connector(
-        directory, prefix, ScoringRoutine.FORCED_COLLIMATION, seed=seed
-    )
-    connector.add_runtime_switch("DP", dp)
-    outputs = connector.run(timeout=600)
-    return sum(float(result.projection.sum()) for result in outputs.values())
-
-
-def test_dp_forced_collimation(validate, tmp_path):
-    """Manual: DP is the plane spacing, the total is independent of it."""
-    try:
-        total_1 = _forced_collimation_total(tmp_path, "dp10", 1.0, 7)
-        total_05 = _forced_collimation_total(tmp_path, "dp05", 0.5, 8)
-    except (ValueError, FileNotFoundError, SimulationError) as exc:
-        _refused(validate, "dp_forced_collimation", exc, expected=1.0, rel=0.05)
-        return
-
-    validate(
-        "dp_forced_collimation",
-        total_05 / total_1,
-        expected=1.0,
-        rel=0.05,
-        smoke=True,
-    )
+    validate(f"{switch.lower()}_refused", refused, expected=1.0, abs_tol=0)
 
 
 def _penetrate_outputs(directory: Path, prefix: str, **kwargs) -> dict[str, np.ndarray]:
@@ -369,29 +305,47 @@ def test_default_cross_section_is_identity(
 
 
 @pytest.mark.macos_v9
-def test_v9_linux_scattwin_defect(validate, not_run, engine, tmp_path):
-    """Records the characterised v9 Linux SCATTWIN abort (heap corruption)."""
+def test_v9_linux_scattwin_defect(validate, not_run, engine):
+    """Records the characterised v9 Linux SCATTWIN abort (heap corruption).
+
+    The abort depends on the working-directory length and the source content;
+    this is the crash report's case: 16^3 uniform body, three random voxels, a
+    20-character working directory.
+    """
     case = "v9_linux_scattwin_defect"
     if engine.label != "v9-linux":
         not_run(case, "the SCATTWIN heap corruption is specific to the v9 Linux build")
-    connector = _connector(
-        tmp_path,
-        "defect",
-        source_voxels=((14, 16, 16), (16, 16, 16), (18, 16, 16)),
-    )
-    connector.add_runtime_switch("CA", 0)
+    directory = Path("/tmp/v9defect_ab12cd")
+    directory.mkdir(exist_ok=True)
     try:
-        connector.run(timeout=600)
-        completed = 1.0
-    except SimulationError:
-        completed = 0.0
+        connector = regressions._connector(
+            directory, "defect", scoring_routine=ScoringRoutine.SCATTWIN
+        )
+        grid = regressions.GRID
+        source = np.zeros((grid,) * 3, np.float32)
+        source.flat[np.random.default_rng(3).choice(grid**3, 3, replace=False)] = 1
+        connector.configure_voxel_phantom(
+            source,
+            np.full(source.shape, 0.15, np.float32),
+            regressions.VOXEL_MM,
+            scoring_routine=ScoringRoutine.SCATTWIN,
+        )
+        connector.add_runtime_switch("CA", 0)
+        connector.set_activity(10, 1)
+        try:
+            connector.run(timeout=600)
+            completed = 1.0
+        except SimulationError:
+            completed = 0.0
+    finally:
+        shutil.rmtree(directory)
 
     validate(
         case,
         completed,
         expected=1.0,
         abs_tol=0,
-        note=f"see {V9_LINUX_REPORT}",
+        note=f"working directory length {len(str(directory))}; see {V9_LINUX_REPORT}",
     )
 
 

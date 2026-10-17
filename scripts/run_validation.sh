@@ -3,7 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker/compose.yaml"
-MACOS_V9_DIR="$ROOT_DIR/tmp/simind_macos_v90"
+MACOS_V9_SOURCE="${SIMIND_MACOS_V9_DIR:-/Users/samd-work/Projects/simind-python-connector/tmp/simind_macos_v90}"
+# SIMIND rejects an SMC_DIR of 100 characters or more, so it is reached through a short link
+MACOS_V9_DIR="${SIMIND_MACOS_V9_LINK:-/tmp/simind-v9-macos}"
 OUT_DIR="$ROOT_DIR/output/validation"
 
 ENGINE=""
@@ -84,6 +86,7 @@ collect_status() {
 }
 
 if [[ "$ENGINE" == v9-macos ]]; then
+    [[ -e "$MACOS_V9_DIR" ]] || ln -s "$MACOS_V9_SOURCE" "$MACOS_V9_DIR"
     SIMIND_VALIDATION_ENGINE=v9-darwin \
     SIMIND_VALIDATION_OUT="$OUT_DIR" \
     SIMIND_VERSION=9 \
@@ -122,7 +125,7 @@ run_in_docker() {
         "$service" bash -lc "export PATH=$SIMIND_DIR:\$PATH; python -m pytest -m '$marker' ${TARGETS[*]}" || collect_status $?
 }
 
-run_in_docker python "validation and not requires_sirf and not macos_v9"
-run_in_docker sirf "validation and requires_sirf and not macos_v9" -e SIMIND_A3_FULL_VALIDATION=1
+run_in_docker python "validation and not requires_sirf"
+run_in_docker sirf "validation and requires_sirf" -e SIMIND_A3_FULL_VALIDATION=1
 
 exit "$STATUS"
