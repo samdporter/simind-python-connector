@@ -127,7 +127,7 @@ print(f"Projection sum: {projection.sum():.3f}")
 # ``set_resolution_model`` with the collimator's sigma, or PyTomography's
 # ``SPECTPSFTransform``) needs about 20 updates and is not used here. All
 # three 07 examples run OSEM with 4 subsets and 8 subiterations (2 full
-# iterations), so the three backends agree.
+# iterations), so the three backends use the same settings.
 #
 # The total projection is reconstructed twice. The second reconstruction has
 # SIMIND's own scatter estimate for this run as a fixed additive term, floored
@@ -185,9 +185,9 @@ recon_scatter.write_to_file(str(output_dir / "stir_osem_recon_scatter.hv"))
 # ----------------------
 # Hot-to-background ratio of the mean reconstructed values in the hot sphere
 # and in the body away from it, against the true ratio. In this small phantom
-# scatter is only the printed fraction of the window, so a fixed additive
-# term lowers the absolute level by about that much but barely changes the
-# ratio: SIMIND's scatter is smooth and follows the body.
+# scatter is a small share of the counts in the window (the printed fraction),
+# so a fixed additive term lowers the absolute level by about that share but
+# barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
 source_arr = get_array(source_image)
 proj_arr = get_array(projection)
