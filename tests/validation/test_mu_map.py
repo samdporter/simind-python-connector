@@ -71,31 +71,29 @@ def test_attenuation_and_density_inputs_agree(validate, tmp_path):
 
 
 def test_hu_input_uses_schneider(validate, tmp_path):
-    """The HU path is the Schneider et al. 2000 (Phys. Med. Biol. 45:459)
-    conversion, not the bilinear water/bone model.
+    """The HU path is the Schneider et al. 2000 (Phys. Med. Biol. 45:459,
+    doi:10.1088/0031-9155/45/2/314) conversion, not the bilinear water/bone model.
 
-    The expected densities are read by hand from the packaged table
-    simind_python_connector/data/Schneider2000.json, not computed by the
-    connector: 0 HU lies in the 1011.17 mg/cm3 segment (-22 to 8 HU) and
-    1000 HU is the boundary of the 1579.14 and 1638.38 mg/cm3 segments, so
-    their mean. They were not checked against the paper itself, so this case
-    is a regression pin on the packaged table.
+    The reference is the piecewise-linear calibration OpenGATE distributes as
+    opengate/data/Schneider2000DensitiesTable.txt: (-98 HU, 0.93), (14, 1.03),
+    (23, 1.031), (100, 1.1199), (101, 1.0762), (1600, 1.9642) g/cm3. Linear
+    interpolation gives 1.01745 at 0 HU and 1.60876 at 1000 HU.
     """
     written = _written_density(
         tmp_path, "hu", _bone_region_maps(0.0, BONE_HU), "hu"
     ).astype(float)
     water_g_cm3, bone_g_cm3 = written[0] / 1000, written[-1] / 1000
+    expected_water = 0.93 + (1.03 - 0.93) * (0 + 98) / (14 + 98)
+    expected_bone = 1.0762 + (1.9642 - 1.0762) * (1000 - 101) / (1600 - 101)
 
     validate(
         "hu_input_uses_schneider",
-        float(
-            max(abs(water_g_cm3 - 1.01117), abs(bone_g_cm3 - (1.57914 + 1.63838) / 2))
-        ),
+        float(max(abs(water_g_cm3 - expected_water), abs(bone_g_cm3 - expected_bone))),
         expected=0,
         abs_tol=0.01,
-        note=f"HU 0 -> {water_g_cm3:.3f}, HU 1000 -> {bone_g_cm3:.3f} g/cm3; "
-        "regression pin on the packaged Schneider2000.json, not verified "
-        "against the paper",
+        note=f"HU 0 -> {water_g_cm3:.3f} (reference {expected_water:.5f}), "
+        f"HU 1000 -> {bone_g_cm3:.3f} (reference {expected_bone:.5f}) g/cm3; "
+        "reference: OpenGATE Schneider2000DensitiesTable.txt",
     )
 
 
