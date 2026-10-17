@@ -46,7 +46,7 @@ fi
 
 case "$SIMIND_VERSION" in
     8) SIMIND_DIR=/workspace/simind ;;
-    9) SIMIND_DIR=/workspace/tmp/engines/v9/simind ;;
+    9) SIMIND_DIR=/workspace/tmp/engines/v9 ;;
     *) echo "--simind-version must be 8 or 9" >&2; exit 2 ;;
 esac
 

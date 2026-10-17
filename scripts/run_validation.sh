@@ -73,7 +73,15 @@ elif [[ -f "$RECORD_FILE" ]]; then
     done
 fi
 
+PYTHON="${PYTHON:-$ROOT_DIR/../../../.venv/bin/python}"
 STATUS=0
+
+# pytest exits 5 when nothing was selected, which is not a failure here
+collect_status() {
+    if [[ "$1" -ne 5 ]]; then
+        STATUS=1
+    fi
+}
 
 if [[ "$ENGINE" == v9-macos ]]; then
     SIMIND_VALIDATION_ENGINE=v9-darwin \
@@ -82,7 +90,8 @@ if [[ "$ENGINE" == v9-macos ]]; then
     SIMIND_BIN="$MACOS_V9_DIR/simind" \
     SMC_DIR="$MACOS_V9_DIR/smc_dir/" \
     PATH="$MACOS_V9_DIR:$PATH" \
-        python -m pytest -m "validation and macos_v9" "${TARGETS[@]}" || STATUS=1
+    PYTHONPATH="$ROOT_DIR" \
+        "$PYTHON" -m pytest -m "validation and macos_v9" "${TARGETS[@]}" || collect_status $?
     exit "$STATUS"
 fi
 
@@ -99,7 +108,7 @@ run_in_docker() {
         user_args=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
     fi
     DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
-        "${user_args[@]}" \
+        ${user_args[@]+"${user_args[@]}"} \
         -e SIMIND_VALIDATION_ENGINE="$ENGINE-linux" \
         -e SIMIND_VALIDATION_OUT=/workspace/output/validation \
         -e SIMIND_VERSION="$SIMIND_VERSION" \
@@ -110,7 +119,7 @@ run_in_docker() {
         -e SIMIND_DATA_DIR="$SIMIND_DIR/smc_dir/" \
         -e SMC_DIR="$SIMIND_DIR/smc_dir/" \
         "$@" \
-        "$service" bash -lc "export PATH=$SIMIND_DIR:\$PATH; python -m pytest -m '$marker' ${TARGETS[*]}" || STATUS=1
+        "$service" bash -lc "export PATH=$SIMIND_DIR:\$PATH; python -m pytest -m '$marker' ${TARGETS[*]}" || collect_status $?
 }
 
 run_in_docker python "validation and not requires_sirf and not macos_v9"

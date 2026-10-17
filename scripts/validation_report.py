@@ -23,12 +23,14 @@ def _load(out_dir: Path) -> tuple[list[str], dict]:
             case["smoke"] = case["smoke"] or record.get("smoke", False)
             if record.get("expected") is not None:
                 case["expected"] = f"{record['expected']:.4g}"
-            elif record.get("lower") is not None or record.get("upper") is not None:
+            else:
                 lower, upper = record.get("lower"), record.get("upper")
-                case["expected"] = (
-                    f"{'' if lower is None else format(lower, '.4g')}–"
-                    f"{'' if upper is None else format(upper, '.4g')}"
-                )
+                if upper is None:
+                    case["expected"] = f"≥ {lower:.4g}"
+                elif lower is None:
+                    case["expected"] = f"≤ {upper:.4g}"
+                else:
+                    case["expected"] = f"{lower:.4g}–{upper:.4g}"
     return engines, features
 
 
