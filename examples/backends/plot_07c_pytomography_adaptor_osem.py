@@ -23,10 +23,7 @@ import torch
 from pytomography import algorithms, likelihoods
 from pytomography.io.SPECT import simind as pytomo_simind
 from pytomography.projectors.SPECT import SPECTSystemMatrix
-from pytomography.transforms.SPECT import (
-    SPECTAttenuationTransform,
-    SPECTPSFTransform,
-)
+from pytomography.transforms.SPECT import SPECTAttenuationTransform
 
 from simind_python_connector import PyTomographySimindAdaptor, configs
 from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
@@ -78,7 +75,7 @@ adaptor = PyTomographySimindAdaptor(
     output_prefix="pytomo_case01",
     photon_multiplier=1,
     voxel_size_mm=4.0,
-    quantization_scale=0.03 * DEFAULT_QUANTIZATION_SCALE,
+    quantization_scale=0.04 * DEFAULT_QUANTIZATION_SCALE,
 )
 adaptor.set_source(source_tensor)
 adaptor.set_mu_map(mu_tensor)
@@ -106,22 +103,20 @@ print(f"Projection sum: {float(projection_tensor.sum()):.3f}")
 # %%
 # Reconstruct with OSEM
 # ---------------------
-# The system matrix combines attenuation and the collimator PSF read from the
-# SIMIND header of the total window (ma-megp: sigma 1.72 mm at the collimator
-# face, slope 0.031, a 3-D blur close to the one 07A and 07B pass to SPECTUB).
-# OSEM runs 5 iterations of 4 subsets, the same 20 subiterations as 07A and
-# 07B: resolution modelling converges more slowly, so more updates are used
-# than without it.
+# The system matrix is the attenuation map alone. PSF modelling is left out to
+# keep the example quick, so the reconstruction keeps the collimator blur that
+# SIMIND simulated, and the three 07 examples agree. Modelling the PSF
+# (``SPECTPSFTransform``, or SPECTUB ``set_resolution_model(1.72, 0.029, True)``
+# for this collimator) needs about 20 updates and is not used here. OSEM runs
+# 2 iterations of 4 subsets, the same 8 subiterations as 07A and 07B.
 
 total_h00_path = adaptor.get_output_header_path("tot_w1")
 object_meta, proj_meta = pytomo_simind.get_metadata(str(total_h00_path))
-psf_meta = pytomo_simind.get_psfmeta_from_header(str(total_h00_path))
 system_matrix = SPECTSystemMatrix(
     obj2obj_transforms=[
         SPECTAttenuationTransform(
             attenuation_map=mu_tensor.to(dtype=torch.float32).contiguous()
         ),
-        SPECTPSFTransform(psf_meta=psf_meta),
     ],
     proj2proj_transforms=[],
     object_meta=object_meta,
@@ -131,7 +126,7 @@ likelihood = likelihoods.PoissonLogLikelihood(
     system_matrix=system_matrix,
     projections=projection_tensor,
 )
-reconstruction = algorithms.OSEM(likelihood=likelihood)(5, n_subsets=4)
+reconstruction = algorithms.OSEM(likelihood=likelihood)(2, n_subsets=4)
 
 np.save(
     output_dir / "pytomo_total_tensor.npy", projection_tensor.detach().cpu().numpy()

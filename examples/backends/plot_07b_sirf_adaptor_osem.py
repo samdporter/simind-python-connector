@@ -92,7 +92,7 @@ adaptor = SirfSimindAdaptor(
     output_dir=str(output_dir),
     output_prefix="sirf_case01",
     photon_multiplier=1,
-    quantization_scale=0.03 * DEFAULT_QUANTIZATION_SCALE,
+    quantization_scale=0.04 * DEFAULT_QUANTIZATION_SCALE,
 )
 adaptor.set_source(source_image)
 adaptor.set_mu_map(mu_image)
@@ -117,22 +117,20 @@ print(f"Projection sum: {projection.sum():.3f}")
 # %%
 # Reconstruct with OSEM
 # ---------------------
-# The system model is SPECTUB with the attenuation map and the collimator
-# resolution model. Its parameters, a sigma of 1.72 mm at the collimator face
-# (sqrt(0.106^2 + 0.136^2) cm) growing by 0.029 mm per mm of distance, are
-# the best fit to the collimator-detector response that SIMIND simulates for
-# ma-megp (a Gaussian sigma of about 1.57 mm + 0.0277 mm per mm). SIMIND blurs
-# in 3-D, so the model blurs along the axial direction too. Example 07C models
-# the same response with ``SPECTPSFTransform``. All three 07 examples run OSEM
-# with 4 subsets and 20 subiterations (5 full iterations): resolution
-# modelling converges more slowly, so more updates are used than without it.
+# The system model is SPECTUB with the attenuation map. PSF modelling is left
+# out to keep the example quick, so the reconstruction keeps the collimator
+# blur that SIMIND simulated, and the three 07 examples agree. Modelling the
+# PSF (``set_resolution_model(1.72, 0.029, True)`` for this collimator, or
+# PyTomography's ``SPECTPSFTransform``) needs about 20 updates and is not used
+# here. All three 07 examples run OSEM with 4 subsets and 8 subiterations
+# (2 full iterations).
 
 reconstruction = source_image.get_uniform_copy(1.0)
 
 acq_matrix = sirf.SPECTUBMatrix()
 acq_matrix.set_attenuation_image(mu_image)
 acq_matrix.set_keep_all_views_in_cache(True)
-acq_matrix.set_resolution_model(1.72, 0.029, True)
+acq_matrix.set_resolution_model(0.0, 0.0, False)
 acq_model = sirf.AcquisitionModelUsingMatrix(acq_matrix)
 
 objective = sirf.make_Poisson_loglikelihood(projection)
@@ -142,7 +140,7 @@ objective.set_num_subsets(4)
 recon = sirf.OSMAPOSLReconstructor()
 recon.set_objective_function(objective)
 recon.set_num_subsets(4)
-recon.set_num_subiterations(20)
+recon.set_num_subiterations(8)
 recon.set_input(projection)
 recon.set_up(reconstruction)
 recon.reconstruct(reconstruction)
