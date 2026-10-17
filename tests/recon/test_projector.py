@@ -4,6 +4,7 @@ import pytest
 from simind_python_connector.recon import projector as projector_mod
 from simind_python_connector.recon.projector import (
     SimindProjector,
+    measured_normaliser,
     reference_normaliser,
 )
 from tests.recon.fakes import FakeAdaptor, FakeData
@@ -151,3 +152,42 @@ def test_reference_normaliser_defaults_to_the_ratio_of_sums():
     normalise = reference_normaliser(_FastModel())
     outputs = {"geom_coll_primary": FakeData(np.full((1, 2, 2), 2.0))}
     assert normalise(outputs, FakeData(np.ones((1, 2, 2)))) == pytest.approx(3.0)
+
+
+def test_measured_normaliser_scales_the_simind_total_to_the_measured_data(monkeypatch):
+    captured = {}
+
+    def fake_scale(component, reference, **kwargs):
+        captured.update(component=component, reference=reference, kwargs=kwargs)
+        return 1.5
+
+    monkeypatch.setattr(projector_mod, "scale_to_reference", fake_scale)
+    measured = FakeData(np.full((1, 2, 2), 9.0))
+    normalise = measured_normaliser(
+        measured, component="tot_w1", method="trimmed", mask="mask", trim_fraction=0.2
+    )
+    outputs = {
+        "tot_w1": FakeData(np.full((1, 2, 2), 3.0)),
+        "sca_w1": FakeData(np.zeros((1, 2, 2))),
+    }
+
+    assert normalise(outputs, FakeData(np.ones((1, 2, 2)))) == 1.5
+    np.testing.assert_array_equal(captured["component"], np.full((1, 2, 2), 3.0))
+    np.testing.assert_array_equal(captured["reference"], np.full((1, 2, 2), 9.0))
+    assert captured["kwargs"] == {
+        "method": "trimmed",
+        "mask": "mask",
+        "trim_fraction": 0.2,
+    }
+
+
+def test_measured_normaliser_defaults_to_all_interactions_and_the_ratio_of_sums():
+    normalise = measured_normaliser(FakeData(np.full((1, 2, 2), 6.0)))
+    outputs = {"all_interactions": FakeData(np.full((1, 2, 2), 2.0))}
+    assert normalise(outputs, None) == pytest.approx(3.0)
+
+
+def test_measured_normaliser_names_a_missing_component():
+    normalise = measured_normaliser(FakeData(np.ones((1, 2, 2))))
+    with pytest.raises(KeyError, match="all_interactions"):
+        normalise({"tot_w1": FakeData(np.ones((1, 2, 2)))}, None)
