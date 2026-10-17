@@ -3,7 +3,8 @@ SCATTWIN vs PENETRATE comparison
 ================================
 
 This example compares the SCATTWIN and PENETRATE scoring routines of SIMIND on
-the same phantom using the pure Python connector.
+the same phantom using the pure Python connector. It is a quick low-history
+run, so the component counts are noisy.
 """
 
 # %%
@@ -67,7 +68,7 @@ def run_case(
         config_source=configs.get("Example.yaml"),
         output_dir=case_dir,
         output_prefix=prefix,
-        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
+        quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
     )
     connector.configure_voxel_phantom(
         source=source,

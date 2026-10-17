@@ -3,7 +3,8 @@ Runtime-switch comparison
 =========================
 
 This example runs two SIMIND cases with different runtime switch settings and
-compares the resulting projection view.
+compares the resulting projection view. It is a quick low-history run, so the
+seed-to-seed noise is large.
 """
 
 # %%
@@ -65,7 +66,7 @@ def run_case(case_dir: Path, prefix: str, seed: int) -> np.ndarray:
         config_source=configs.get("Example.yaml"),
         output_dir=case_dir,
         output_prefix=prefix,
-        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
+        quantization_scale=0.005 * DEFAULT_QUANTIZATION_SCALE,
     )
     connector.configure_voxel_phantom(
         source=source,
