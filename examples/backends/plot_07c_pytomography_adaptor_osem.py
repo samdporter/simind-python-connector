@@ -67,7 +67,7 @@ mu_tensor = torch.from_numpy(mu_map)
 # --------
 # ``PyTomographySimindAdaptor`` takes the tensors directly. The projections
 # are requested on the reconstruction grid: 32 x 32 bins of 4 mm (Index 28 is
-# in cm), with a single 75-225 keV window for Y-90 bremsstrahlung. SCATTWIN
+# in cm), with a single 126-154 keV window for Tc-99m. SCATTWIN
 # writes the total projection and, separately, the scatter in that window
 # (switch ``CA`` 2 asks for the split).
 
@@ -77,14 +77,14 @@ adaptor = PyTomographySimindAdaptor(
     output_prefix="pytomo_case01",
     photon_multiplier=1,
     voxel_size_mm=4.0,
-    quantization_scale=0.09 * DEFAULT_QUANTIZATION_SCALE,
+    quantization_scale=0.105 * DEFAULT_QUANTIZATION_SCALE,
 )
 adaptor.set_source(source_tensor)
 adaptor.set_mu_map(mu_tensor)
-adaptor.set_energy_windows([75], [225], [0])
-adaptor.add_runtime_switch("FI", "y90_tissue")
+adaptor.set_energy_windows([126], [154], [0])
+adaptor.add_runtime_switch("FI", "tc99m")
 adaptor.add_runtime_switch("CA", 2)
-adaptor.add_runtime_switch("CC", "ma-megp")
+adaptor.add_runtime_switch("CC", "ma-lehr")
 adaptor.add_runtime_switch("NN", 1)
 adaptor.add_runtime_switch("RR", 12345)
 adaptor.add_config_value(1, 140.0)
@@ -111,8 +111,8 @@ print(f"Scatter sum: {float(scatter_tensor.sum()):.3f}")
 # The system matrix is the attenuation map alone. PSF modelling is left out to
 # keep the example quick, so the reconstruction keeps the collimator blur that
 # SIMIND simulated, and the three 07 examples agree. Modelling the PSF
-# (``SPECTPSFTransform``, or SPECTUB ``set_resolution_model(1.72, 0.029, True)``
-# for this collimator) needs about 20 updates and is not used here. OSEM runs
+# (``SPECTPSFTransform``, or SPECTUB ``set_resolution_model`` with the
+# collimator's sigma) needs about 20 updates and is not used here. OSEM runs
 # 2 iterations of 4 subsets, the same 8 subiterations as 07A and 07B.
 #
 # The total projection is reconstructed twice. The second reconstruction has

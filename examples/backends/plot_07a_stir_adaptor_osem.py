@@ -86,7 +86,7 @@ mu_image = read_stir_image(mu_map, output_dir / "stir_mu")
 # --------
 # ``StirSimindAdaptor`` takes the STIR images directly. The projections are
 # requested on the reconstruction grid: 32 x 32 bins of 4 mm (Index 28 is in
-# cm), with a single 75-225 keV window for Y-90 bremsstrahlung. SCATTWIN
+# cm), with a single 126-154 keV window for Tc-99m. SCATTWIN
 # writes the total projection and, separately, the scatter in that window
 # (switch ``CA`` 2 asks for the split).
 
@@ -95,14 +95,14 @@ adaptor = StirSimindAdaptor(
     output_dir=str(output_dir),
     output_prefix="stir_case01",
     photon_multiplier=1,
-    quantization_scale=0.09 * DEFAULT_QUANTIZATION_SCALE,
+    quantization_scale=0.105 * DEFAULT_QUANTIZATION_SCALE,
 )
 adaptor.set_source(source_image)
 adaptor.set_mu_map(mu_image)
-adaptor.set_energy_windows([75], [225], [0])
-adaptor.add_runtime_switch("FI", "y90_tissue")
+adaptor.set_energy_windows([126], [154], [0])
+adaptor.add_runtime_switch("FI", "tc99m")
 adaptor.add_runtime_switch("CA", 2)
-adaptor.add_runtime_switch("CC", "ma-megp")
+adaptor.add_runtime_switch("CC", "ma-lehr")
 adaptor.add_runtime_switch("NN", 1)
 adaptor.add_runtime_switch("RR", 12345)
 adaptor.add_config_value(1, 140.0)
@@ -125,7 +125,7 @@ print(f"Scatter sum: {scatter.sum():.3f}")
 # The system model is SPECTUB with the attenuation map. PSF modelling is left
 # out to keep the example quick, so the reconstruction keeps the collimator
 # blur that SIMIND simulated, and the three 07 examples agree. Modelling the
-# PSF (``set_resolution_model(1.72, 0.029, True)`` for this collimator, or
+# PSF (SPECTUB ``set_resolution_model`` with the collimator's sigma, or
 # PyTomography's ``SPECTPSFTransform``) needs about 20 updates and is not used
 # here. All three 07 examples run OSEM with 4 subsets and 8 subiterations
 # (2 full iterations).
