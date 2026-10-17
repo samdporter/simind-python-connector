@@ -108,8 +108,10 @@ print(f"Projection sum: {float(projection_tensor.sum()):.3f}")
 # ---------------------
 # The system matrix combines attenuation and the collimator PSF read from the
 # SIMIND header of the total window (ma-megp: sigma 1.72 mm at the collimator
-# face, slope 0.031, the values 07A and 07B pass to SPECTUB). OSEM runs 2
-# iterations of 4 subsets, the same 8 subiterations as 07A and 07B.
+# face, slope 0.031, a 3-D blur close to the one 07A and 07B pass to SPECTUB).
+# OSEM runs 5 iterations of 4 subsets, the same 20 subiterations as 07A and
+# 07B: resolution modelling converges more slowly, so more updates are used
+# than without it.
 
 total_h00_path = adaptor.get_output_header_path("tot_w1")
 object_meta, proj_meta = pytomo_simind.get_metadata(str(total_h00_path))
@@ -129,7 +131,7 @@ likelihood = likelihoods.PoissonLogLikelihood(
     system_matrix=system_matrix,
     projections=projection_tensor,
 )
-reconstruction = algorithms.OSEM(likelihood=likelihood)(2, n_subsets=4)
+reconstruction = algorithms.OSEM(likelihood=likelihood)(5, n_subsets=4)
 
 np.save(
     output_dir / "pytomo_total_tensor.npy", projection_tensor.detach().cpu().numpy()
