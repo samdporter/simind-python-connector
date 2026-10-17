@@ -144,6 +144,10 @@ The pixel-wise scaling is done by the correction:
         projector, measured=measured, smoothing_fwhm_bins=3.0, smooth_across_views=True
     )
 
+The ``projector`` still needs a normaliser, since ``SimindProjector`` requires
+one; the scale cancels in the pixel-wise ratio. With SCATTWIN, :math:`Y^{\mathrm{SIM}}`
+is the ``tot_wN`` output, so pass ``component="tot_wN"`` to ``measured_normaliser``.
+
 Dewaraja Y.K. et al., "Improved quantitative 90Y bremsstrahlung SPECT/CT
 reconstruction with Monte Carlo scatter modeling", Med Phys 44(12):6364-6376,
 2017, doi:10.1002/mp.12597. The authors found the pixel-wise scaling better in

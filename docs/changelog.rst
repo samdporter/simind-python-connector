@@ -51,6 +51,9 @@ Added
   (``UpdateSchedule``, ``AdditiveUpdater``, ``UpdateRecord``,
   ``SimindProjector``, ``reference_normaliser``, ``ScatterCorrection``,
   ``recon.cil`` helpers and ``recon.osem.run_osem_with_corrections``).
+  ``measured_normaliser`` and ``ScatterCorrection(measured=...,
+  smooth_across_views=...)`` give Dewaraja et al. (2017) global and
+  pixel-wise scaling of the SIMIND scatter estimate to measured data.
 - Residual correction (Fu & Qi): ``recon.ResidualCorrection`` with SIMIND
   (``recon.SimindComponent``) or a SIRF model as the accurate forward model,
   and the diagnostics ``recon.poisson_nll`` and ``recon.effective_objective``.

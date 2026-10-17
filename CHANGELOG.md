@@ -45,7 +45,7 @@ satisfied requirement).
   - `UpdateSchedule`, `AdditiveUpdater` (damped, floored) and `UpdateRecord`.
   - `SimindProjector` and `reference_normaliser`.
   - `ScatterCorrection` (PENETRATE b01 − b02, or SCATTWIN scatter).
-  - `recon.measured_normaliser` and `ScatterCorrection(measured=..., smooth_across_views=...)`:
+  - `measured_normaliser` and `ScatterCorrection(measured=..., smooth_across_views=...)`:
     Dewaraja et al. (2017) global and pixel-wise scaling of the SIMIND scatter estimate to
     measured data.
   - `recon.cil`: `build_subset_objectives`, `set_subset_additive`,

@@ -96,6 +96,13 @@ def test_pixelwise_scatter_uses_the_scattwin_window_total():
     np.testing.assert_allclose(scatter.estimate("image").as_array(), [[[3.0]]])
 
 
+def test_pixelwise_scatter_names_a_missing_scattwin_total():
+    projector = _Projector({"sca_w1": FakeData([[[1.0]]])}, ScoringRoutine.SCATTWIN)
+    correction = ScatterCorrection(projector, measured=FakeData([[[12.0]]]))
+    with pytest.raises(KeyError, match="tot_w1"):
+        correction.estimate("image")
+
+
 def test_pixelwise_scatter_is_zero_where_the_simind_total_is_not_positive():
     projector = _Projector(
         _penetrate([[[0.0, 2.0, 4.0]]], [[[0.0, 3.0, 2.0]]]), ScoringRoutine.PENETRATE

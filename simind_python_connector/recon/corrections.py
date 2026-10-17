@@ -57,7 +57,9 @@ class ScatterCorrection:
             scatter = total - outputs[PenetrateOutputType.GEOM_COLL_PRIMARY_ATT.slug]
         else:
             scatter = outputs[f"sca_w{self.window}"]
-            total = outputs.get(f"tot_w{self.window}")
+            total = (
+                outputs[f"tot_w{self.window}"] if self.measured is not None else None
+            )
         if self.measured is not None:
             scatter = self._scale_to_measured(scatter, total)
         if self.smoothing_fwhm_bins is not None:
