@@ -3,7 +3,8 @@ Multi-window simulation
 =======================
 
 This example runs a multi-window (TEW-style) simulation of Lu-177 with the
-pure Python connector and builds a triple-energy-window scatter correction.
+pure Python connector and builds a triple-energy-window scatter correction. It
+is a quick low-history run, so the projections are noisy.
 """
 
 # %%
@@ -60,7 +61,7 @@ connector = SimindPythonConnector(
     config_source=configs.get("Example.yaml"),
     output_dir=output_dir,
     output_prefix="tew_case01",
-    quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
+    quantization_scale=0.02 * DEFAULT_QUANTIZATION_SCALE,
 )
 connector.configure_voxel_phantom(
     source=source,

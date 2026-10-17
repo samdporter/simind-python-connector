@@ -38,7 +38,10 @@ output_dir.mkdir(parents=True, exist_ok=True)
 # %%
 # Build the phantom
 # -----------------
-# A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
+# A cylindrical attenuating body on a 32 x 32 x 32 grid (z, y, x) with the
+# activity confined to a hot sphere inside it. Zero voxels emit no histories,
+# so all of the history budget goes to the sphere. The run is also reduced to
+# one view of 16 x 16 pixels (8.8 mm), so that the few histories fill the image.
 
 dims = (32, 32, 32)
 z, y, x = np.indices(dims)
@@ -47,7 +50,6 @@ body = ((x - 16) ** 2 + (y - 16) ** 2 <= 10**2) & (np.abs(z - 16) <= 8)
 hot = (x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 <= 4**2
 
 source = np.zeros(dims, dtype=np.float32)
-source[body] = 0.8
 source[hot] = 2.0
 
 mu_map = np.zeros_like(source)
@@ -68,7 +70,7 @@ def run_case(
         config_source=configs.get("Example.yaml"),
         output_dir=case_dir,
         output_prefix=prefix,
-        quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
+        quantization_scale=DEFAULT_QUANTIZATION_SCALE,
     )
     connector.configure_voxel_phantom(
         source=source,
@@ -82,6 +84,10 @@ def run_case(
     # Use full detector-hit acceptance for both SCATTWIN and PENETRATE in this
     # comparison example.
     connector.add_config_value(19, -90)
+    connector.add_config_value(28, 0.88)
+    connector.add_config_value(29, 1)
+    connector.add_config_value(76, 16)
+    connector.add_config_value(77, 16)
     connector.add_config_value(53, 1)
     connector.set_energy_windows([75.0], [225.0], [0])
     connector.add_runtime_switch("FI", "y90_tissue")

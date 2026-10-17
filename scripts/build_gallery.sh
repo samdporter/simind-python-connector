@@ -12,7 +12,7 @@ usage() {
 Usage: bash scripts/build_gallery.sh [--backend B]... [--simind-version 8|9]
 
 Builds the gallery once per backend in its container, executing only that
-backend's examples, then checks that every example has current outputs.
+backend's examples, then checks that every example of the built backends has current outputs.
 Backends: python, stir, sirf, pytomography (default: all, in that order).
 USAGE
 }
@@ -76,4 +76,4 @@ done
 
 DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
     --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    python bash -lc "python scripts/check_gallery_current.py"
+    python bash -lc "python scripts/check_gallery_current.py ${BACKENDS[*]/#/--backend }"

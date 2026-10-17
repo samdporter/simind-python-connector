@@ -75,6 +75,17 @@ def test_stale_examples_detects_edited_sources(tmp_path):
 
 
 @pytest.mark.unit
+def test_stale_examples_only_checks_requested_backends(tmp_path):
+    examples = tmp_path / "examples"
+    python_example = _write(examples / "s" / "plot_01_core.py", "x = 1\n")
+    stir_example = _write(examples / "s" / "plot_02_stir.py", "import stir\n")
+    built = tmp_path / "built"
+    assert gallery.stale_examples(examples, built, ("python",)) == [python_example]
+    assert gallery.stale_examples(examples, built, ("stir",)) == [stir_example]
+    assert gallery.stale_examples(examples, built) == [python_example, stir_example]
+
+
+@pytest.mark.unit
 def test_every_real_gallery_example_has_one_backend():
     for path in gallery.gallery_examples(ROOT / "examples"):
         backend = gallery.example_backend(path)

@@ -3,7 +3,8 @@ Basic simulation
 ================
 
 This example runs SIMIND with voxelized NumPy inputs and reads projections
-back as NumPy arrays via ``SimindPythonConnector``.
+back as NumPy arrays via ``SimindPythonConnector``. It is a quick low-history
+run, so the projection is noisy.
 """
 
 # %%

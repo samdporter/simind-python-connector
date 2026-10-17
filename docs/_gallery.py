@@ -52,9 +52,13 @@ def execution_pattern(examples_dir: Path, backend: str) -> str:
     return f"/examples/({names})$"
 
 
-def stale_examples(examples_dir: Path, gallery_dir: Path) -> list[Path]:
+def stale_examples(
+    examples_dir: Path, gallery_dir: Path, backends: tuple[str, ...] = BACKENDS
+) -> list[Path]:
     stale = []
     for path in gallery_examples(examples_dir):
+        if example_backend(path) not in backends:
+            continue
         md5_file = gallery_dir / path.parent.name / f"{path.name}.md5"
         if not md5_file.exists() or md5_file.read_text() != get_md5sum(path, mode="t"):
             stale.append(path)
