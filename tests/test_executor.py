@@ -621,6 +621,16 @@ def test_executor_replays_captured_diagnostics(
     assert "simind stderr" in captured.err
 
 
+def test_executor_replay_drops_nul_bytes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="\0\nbanner\n")
+
+    SimindExecutor().run_simulation("case01")
+
+    assert capsys.readouterr().out == "\nbanner\n"
+
+
 def test_executor_invalid_utf8_does_not_hide_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

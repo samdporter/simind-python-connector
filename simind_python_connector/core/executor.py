@@ -197,7 +197,8 @@ class SimindExecutor:
         stdout_text = stdout_file.read()
         stderr_file.seek(0)
         stderr_text = stderr_file.read()
-        sys.stdout.write(stdout_text)
+        # SIMIND's banner starts with a NUL byte, which breaks text consumers
+        sys.stdout.write(stdout_text.replace("\0", ""))
         sys.stderr.write(stderr_text)
         return stdout_text, stderr_text
 
