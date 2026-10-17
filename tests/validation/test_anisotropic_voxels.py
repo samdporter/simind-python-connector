@@ -64,7 +64,7 @@ def _row_centroid(projection: np.ndarray) -> float:
 @pytest.fixture(scope="module")
 def point_rows(tmp_path_factory) -> dict[int, float]:
     rows = {}
-    for k in (4, 12, 20):
+    for k in (4, 12, 19, 20):
         source = np.zeros((SLICES, IN_PLANE, IN_PLANE), np.float32)
         source[k, IN_PLANE // 2, IN_PLANE // 2] = 1.0
         directory = tmp_path_factory.mktemp(f"k{k}")
@@ -84,11 +84,13 @@ def test_axial_point_spacing(validate, point_rows, first, second):
 
 
 def test_axial_point_centring(validate, point_rows):
+    """Slice 4 and slice 19 are mirror images about the slice centre 11.5, so
+    their row centroids sum to ROWS - 1."""
     validate(
         "axial_point_centring",
-        abs(point_rows[4] + point_rows[20] - (ROWS - 1)),
+        abs(point_rows[4] + point_rows[19] - (ROWS - 1)),
         upper=0.25,
-        note=f"row centroids {point_rows[4]:.3f}, {point_rows[20]:.3f}",
+        note=f"row centroids {point_rows[4]:.3f}, {point_rows[19]:.3f}",
     )
 
 

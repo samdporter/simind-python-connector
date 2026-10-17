@@ -45,32 +45,57 @@ def _written_density(tmp_path, prefix: str, mu_map: np.ndarray, mu_map_type: str
     return np.fromfile(density_path, np.uint16).astype(np.int32)
 
 
-def test_mu_map_types_write_the_same_density_map(validate, tmp_path):
-    bone_region = np.zeros((32, 32, 32), bool)
-    bone_region[:, :, 16:] = True
-    maps = {
-        "attenuation": np.where(bone_region, MU_BONE_PER_CM, MU_WATER_PER_CM),
-        "density": np.where(bone_region, BONE_DENSITY, 1.0),
-        "hu": np.where(bone_region, BONE_HU, 0.0),
-    }
-    written = {
-        mu_map_type: _written_density(
-            tmp_path, mu_map_type, mu_map.astype(np.float32), mu_map_type
-        )
-        for mu_map_type, mu_map in maps.items()
-    }
+def _bone_region_maps(water_value: float, bone_value: float) -> np.ndarray:
+    mu_map = np.full((32, 32, 32), water_value, np.float32)
+    mu_map[:, :, 16:] = bone_value
+    return mu_map
+
+
+def test_attenuation_and_density_inputs_agree(validate, tmp_path):
+    from_attenuation = _written_density(
+        tmp_path,
+        "attn",
+        _bone_region_maps(MU_WATER_PER_CM, MU_BONE_PER_CM),
+        "attenuation",
+    )
+    from_density = _written_density(
+        tmp_path, "dens", _bone_region_maps(1.0, BONE_DENSITY), "density"
+    )
 
     validate(
-        "mu_map_types_write_the_same_density_map",
-        float(
-            max(
-                np.max(np.abs(written["attenuation"] - written["density"])),
-                np.max(np.abs(written["hu"] - written["density"])),
-                np.max(np.abs(written["attenuation"] - written["hu"])),
-            )
-        ),
+        "attenuation_and_density_inputs_agree",
+        float(np.max(np.abs(from_attenuation - from_density))),
         expected=0,
         abs_tol=1,
+    )
+
+
+def test_hu_input_uses_schneider(validate, tmp_path):
+    """The HU path is the Schneider et al. 2000 (Phys. Med. Biol. 45:459)
+    conversion, not the bilinear water/bone model.
+
+    The expected densities are read by hand from the packaged table
+    simind_python_connector/data/Schneider2000.json, not computed by the
+    connector: 0 HU lies in the 1011.17 mg/cm3 segment (-22 to 8 HU) and
+    1000 HU is the boundary of the 1579.14 and 1638.38 mg/cm3 segments, so
+    their mean. They were not checked against the paper itself, so this case
+    is a regression pin on the packaged table.
+    """
+    written = _written_density(
+        tmp_path, "hu", _bone_region_maps(0.0, BONE_HU), "hu"
+    ).astype(float)
+    water_g_cm3, bone_g_cm3 = written[0] / 1000, written[-1] / 1000
+
+    validate(
+        "hu_input_uses_schneider",
+        float(
+            max(abs(water_g_cm3 - 1.01117), abs(bone_g_cm3 - (1.57914 + 1.63838) / 2))
+        ),
+        expected=0,
+        abs_tol=0.01,
+        note=f"HU 0 -> {water_g_cm3:.3f}, HU 1000 -> {bone_g_cm3:.3f} g/cm3; "
+        "regression pin on the packaged Schneider2000.json, not verified "
+        "against the paper",
     )
 
 
@@ -107,14 +132,26 @@ def air_primary_sum(tmp_path_factory) -> float:
 
 
 @pytest.mark.parametrize(
-    "case, density, mu_per_cm, rel",
+    "case, density, mu_per_cm, rel, bias_note",
     [
-        ("water_transmission", 1.0, MU_WATER_PER_CM, 0.025),
-        ("bone_transmission", BONE_DENSITY, MU_BONE_PER_CM, 0.04),
+        (
+            "water_transmission",
+            1.0,
+            MU_WATER_PER_CM,
+            0.025,
+            "measured is 1.0-1.6% above Beer-Lambert",
+        ),
+        (
+            "bone_transmission",
+            BONE_DENSITY,
+            MU_BONE_PER_CM,
+            0.04,
+            "measured is 3.6-3.9% above Beer-Lambert",
+        ),
     ],
 )
 def test_beer_lambert_transmission(
-    validate, tmp_path, air_primary_sum, case, density, mu_per_cm, rel
+    validate, tmp_path, air_primary_sum, case, density, mu_per_cm, rel, bias_note
 ):
     attenuated = _primary_sum(tmp_path, case[:5], density)
 
@@ -123,5 +160,9 @@ def test_beer_lambert_transmission(
         attenuated / air_primary_sum,
         expected=float(np.exp(-mu_per_cm * PATH_LENGTH_CM)),
         rel=rel,
-        note=f"histories raised: quantization_scale 1.0 and NN {TRANSMISSION_NN}",
+        note=(
+            f"histories raised: quantization_scale 1.0 and NN {TRANSMISSION_NN}; "
+            f"{bias_note}, systematic at high statistics (NN 100 and 300 agree), "
+            "likely SIMIND's cross-sections vs the connector's attenuation table"
+        ),
     )
