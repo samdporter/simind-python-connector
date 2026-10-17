@@ -44,6 +44,7 @@ dev = [
     "sphinx",
     "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
+    "sphinx-gallery>=0.22",
     "myst-parser",
     "pre-commit",
     "build",
@@ -53,6 +54,7 @@ dev = [
 ]
 examples = [
     "matplotlib>=3.0.0",
+    "pooch>=1.8",
 ]
 recon = [
     "scipy",

@@ -21,9 +21,10 @@ COPY --chown=1000:100 . /workspace
 
 RUN python -m pip install --upgrade pip \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
+    && pip install "phantomgen @ git+https://github.com/varzakis/phantomgen@d9196118d5caef3f1bd2c27e5732bc03b48aed2a" \
     && python - <<'PY'
 import importlib
-for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner"):
+for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner", "phantomgen", "pooch", "sphinx_gallery"):
     importlib.import_module(module)
 print("SIRF Python modules available")
 PY

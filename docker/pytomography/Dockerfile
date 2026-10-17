@@ -24,9 +24,10 @@ RUN python -m pip install --upgrade pip \
     && pip install pytomography --no-deps \
     && pip install fft-conv-pytorch kornia pydicom rt-utils torchrbf uproot \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
+    && pip install "phantomgen @ git+https://github.com/varzakis/phantomgen@d9196118d5caef3f1bd2c27e5732bc03b48aed2a" \
     && python - <<'PY'
 import importlib
-for module in ("torch", "pytomography", "pytest"):
+for module in ("torch", "pytomography", "pytest", "phantomgen", "pooch", "sphinx_gallery"):
     importlib.import_module(module)
 print("PyTomography modules available")
 PY

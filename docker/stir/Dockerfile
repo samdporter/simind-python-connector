@@ -21,9 +21,13 @@ COPY --chown=1000:100 . /workspace
 
 RUN python -m pip install --upgrade pip \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
+    && pip install "phantomgen @ git+https://github.com/varzakis/phantomgen@d9196118d5caef3f1bd2c27e5732bc03b48aed2a" \
     && python - <<'PY'
 import stir  # noqa: F401
 import pytest  # noqa: F401
+import phantomgen  # noqa: F401
+import pooch  # noqa: F401
+import sphinx_gallery  # noqa: F401
 from simind_python_connector.utils import _import_stir_extra
 
 _import_stir_extra()

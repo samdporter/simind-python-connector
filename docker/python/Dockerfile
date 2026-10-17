@@ -16,7 +16,7 @@ ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${PATH}
 # MPICH runtime for SIMIND's MPI binary; the compat script exposes the library
 # names that binary was built against. See docker/python/install_mpich_compat.sh.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends mpich \
+    && apt-get install -y --no-install-recommends git mpich \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/python/install_mpich_compat.sh /usr/local/bin/install_mpich_compat.sh
@@ -29,9 +29,10 @@ COPY . /workspace
 
 RUN python -m pip install --upgrade pip \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
+    && pip install "phantomgen @ git+https://github.com/varzakis/phantomgen@d9196118d5caef3f1bd2c27e5732bc03b48aed2a" \
     && python - <<'PY'
 import importlib
-for module in ("numpy", "matplotlib", "pytest"):
+for module in ("numpy", "matplotlib", "pytest", "phantomgen", "pooch", "sphinx_gallery"):
     importlib.import_module(module)
 print("Core Python modules available")
 PY
