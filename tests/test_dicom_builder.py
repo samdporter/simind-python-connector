@@ -99,6 +99,20 @@ def test_single_frame_dicom_populates_header_and_pixels(tmp_path: Path):
     assert np.array_equal(builder.pixel_array, expected)
 
 
+def test_multiframe_pixels_keep_frame_row_column_order(tmp_path: Path):
+    dicom_path = _make_dicom(tmp_path / "order.dcm", frames=3)
+
+    builder = _new_builder()
+    builder.update_header_from_dicom(str(dicom_path))
+
+    pixel = np.arange(3 * 4 * 5, dtype=np.uint16).reshape(3, 4, 5)
+    assert builder.pixel_array.shape == (1, 4, 3, 5)
+    for frame in range(3):
+        for row in range(4):
+            for col in range(5):
+                assert builder.pixel_array[0, row, frame, col] == pixel[frame, row, col]
+
+
 def test_start_angle_is_rounded_to_whole_degrees(tmp_path: Path):
     dicom_path = _make_dicom(tmp_path / "angle.dcm", frames=4, start_angle=359.999997)
 
