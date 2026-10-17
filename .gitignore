@@ -183,3 +183,6 @@ package-lock.json
 package.json
 bin/
 docs/sg_execution_times.rst
+
+# Gallery examples write beside the repo, not into the sphinx-gallery source tree
+examples/**/output/

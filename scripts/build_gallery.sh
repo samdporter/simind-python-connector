@@ -63,6 +63,7 @@ for backend in "${BACKENDS[@]}"; do
     DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
         "${user_args[@]}" \
         -e SIMIND_GALLERY_BACKEND="$backend" \
+        -e SIMIND_EXAMPLES_OUTPUT=/workspace/output \
         -e SIMIND_CONNECTOR_Y90_DATA=/workspace/tmp/y90_data \
         -e SIMIND_VERSION="$SIMIND_VERSION" \
         -e SIMIND_ROOT="$SIMIND_DIR" \
@@ -73,4 +74,6 @@ for backend in "${BACKENDS[@]}"; do
         "$backend" bash -lc "python -m sphinx -b html docs docs/_build/html"
 done
 
-python3 "$ROOT_DIR/scripts/check_gallery_current.py"
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
+    --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    python bash -lc "python scripts/check_gallery_current.py"

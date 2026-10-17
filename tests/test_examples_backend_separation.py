@@ -31,7 +31,10 @@ spec.loader.exec_module(gallery)
     ],
 )
 def test_core_examples_do_not_import_optional_backends(name: str):
-    assert gallery.example_backend(ROOT / "examples" / name) == "python"
+    assert (
+        gallery.example_backend(ROOT / "examples" / "getting_started" / f"plot_{name}")
+        == "python"
+    )
 
 
 @pytest.mark.parametrize(

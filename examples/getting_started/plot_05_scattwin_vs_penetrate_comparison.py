@@ -1,36 +1,71 @@
-#!/usr/bin/env python
 """
-SCATTWIN vs PENETRATE comparison using the pure Python connector.
+SCATTWIN vs PENETRATE comparison
+================================
+
+This example compares the SCATTWIN and PENETRATE scoring routines of SIMIND on
+the same phantom using the pure Python connector.
 """
 
-from __future__ import annotations
+# %%
+# Setup
+# -----
+# Check that SIMIND is installed and choose where the outputs are written.
 
+import os
+import shutil
 from pathlib import Path
 
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
-from _python_connector_helpers import (
-    add_standard_runtime,
-    build_small_phantom_zyx,
-    projection_view0,
-    require_simind,
-)
 
 from simind_python_connector import SimindPythonConnector, configs
 from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
 
 
-def _run_case(
-    output_dir: Path,
-    prefix: str,
-    source: np.ndarray,
-    mu_map: np.ndarray,
-    scoring_routine: int,
+if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
+    raise RuntimeError(
+        "SIMIND executable not found ($SIMIND_BIN or simind on PATH). "
+        "Install SIMIND before running this example."
+    )
+
+output_dir = (
+    Path(os.environ.get("SIMIND_EXAMPLES_OUTPUT", "output")) / "routine_comparison"
+)
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# %%
+# Build the phantom
+# -----------------
+# A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
+
+dims = (32, 32, 32)
+z, y, x = np.indices(dims)
+
+body = ((x - 16) ** 2 + (y - 16) ** 2 <= 10**2) & (np.abs(z - 16) <= 8)
+hot = (x - 22) ** 2 + (y - 16) ** 2 + (z - 16) ** 2 <= 4**2
+
+source = np.zeros(dims, dtype=np.float32)
+source[body] = 0.8
+source[hot] = 2.0
+
+mu_map = np.zeros_like(source)
+mu_map[body] = 0.15
+
+
+# %%
+# Define one simulation case
+# --------------------------
+# Both cases use the same phantom and settings; only the scoring routine
+# differs (1 is SCATTWIN, 4 is PENETRATE).
+
+
+def run_case(
+    case_dir: Path, prefix: str, scoring_routine: int
 ) -> dict[str, np.ndarray]:
     connector = SimindPythonConnector(
         config_source=configs.get("Example.yaml"),
-        output_dir=output_dir,
+        output_dir=case_dir,
         output_prefix=prefix,
         quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
     )
@@ -48,27 +83,99 @@ def _run_case(
     connector.add_config_value(19, -90)
     connector.add_config_value(53, 1)
     connector.set_energy_windows([75.0], [225.0], [0])
-    add_standard_runtime(connector, photon_multiplier=1, seed=12345)
+    connector.add_runtime_switch("FI", "y90_tissue")
+    connector.add_runtime_switch("CC", "ma-megp")
+    connector.add_runtime_switch("NN", 1)
+    connector.add_runtime_switch("RR", 12345)
 
     results = connector.run()
     return {key: value.projection for key, value in results.items()}
 
 
-def _pick_penetrate_preview(outputs: dict[str, np.ndarray]) -> tuple[str, np.ndarray]:
-    preferred = (
-        "all_interactions_w1",
-        "all_interactions",
-        "tot_w1",
-        "b01",
-    )
-    for key in preferred:
-        if key in outputs:
-            return key, outputs[key]
-    first_key = sorted(outputs.keys())[0]
-    return first_key, outputs[first_key]
+# %%
+# Run both routines
+# -----------------
+
+scatt_dir = output_dir / "scattwin"
+pen_dir = output_dir / "penetrate"
+scatt_dir.mkdir(parents=True, exist_ok=True)
+pen_dir.mkdir(parents=True, exist_ok=True)
+
+scatt_outputs = run_case(scatt_dir, "scatt_case01", scoring_routine=1)
+pen_outputs = run_case(pen_dir, "pen_case01", scoring_routine=4)
+
+scatt_total = scatt_outputs["tot_w1"]
+scatt_scatter = scatt_outputs["sca_w1"]
+scatt_primary = scatt_outputs["pri_w1"]
+scatt_primary_sum = float(scatt_primary.sum())
+scatt_scatter_sum = float(scatt_scatter.sum())
+
+# %%
+# Pick a PENETRATE projection to preview
+# --------------------------------------
+# PENETRATE writes many component projections. The preview is the first of a
+# preferred list that is present, falling back to the first key alphabetically.
+
+preferred = ("all_interactions_w1", "all_interactions", "tot_w1", "b01")
+pen_key = next((key for key in preferred if key in pen_outputs), None)
+if pen_key is None:
+    pen_key = sorted(pen_outputs)[0]
+pen_preview = pen_outputs[pen_key]
+
+np.save(output_dir / "scatt_total.npy", scatt_total)
+np.save(output_dir / "scatt_scatter.npy", scatt_scatter)
+np.save(output_dir / "scatt_primary.npy", scatt_primary)
+np.save(output_dir / f"penetrate_{pen_key}.npy", pen_preview)
+
+with open(output_dir / "penetrate_components.txt", "w", encoding="utf-8") as handle:
+    for key in sorted(pen_outputs):
+        handle.write(f"{key}\t{float(pen_outputs[key].sum()):.6f}\n")
+
+print(f"SCATTWIN total counts: {float(scatt_total.sum()):.3f}")
+print(f"SCATTWIN scatter counts: {float(scatt_scatter.sum()):.3f}")
+print(f"SCATTWIN primary counts: {float(scatt_primary.sum()):.3f}")
+print(f"PENETRATE preview key: {pen_key}")
+print(f"PENETRATE preview counts: {float(pen_preview.sum()):.3f}")
+
+# %%
+# Compare the projections
+# -----------------------
+# All projection panels share one colour scale.
 
 
-def _save_total_bar_comparison(
+def view0(projection: np.ndarray) -> np.ndarray:
+    return projection[0, :, 0, :] if projection.ndim == 4 else projection[0, :, :]
+
+
+scatt_total_view0 = view0(scatt_total)
+scatt_primary_view0 = view0(scatt_primary)
+pen_preview_view0 = view0(pen_preview)
+views = [scatt_total_view0, scatt_primary_view0, pen_preview_view0]
+proj_vmin = float(min(v.min() for v in views))
+proj_vmax = float(max(v.max() for v in views))
+
+fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+axes[0].imshow(source[source.shape[0] // 2, :, :], cmap="viridis")
+axes[0].set_title("Input source")
+axes[1].imshow(scatt_total_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+axes[1].set_title("SCATTWIN total")
+axes[2].imshow(scatt_primary_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+axes[2].set_title("SCATTWIN primary")
+axes[3].imshow(pen_preview_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+axes[3].set_title(f"PENETRATE {pen_key}")
+for ax in axes:
+    ax.axis("off")
+fig.tight_layout()
+fig.savefig(output_dir / "routine_comparison.png", dpi=140)
+
+# %%
+# Define the component bar plots
+# ------------------------------
+# Both plots stack the PENETRATE components (primary in green, scattered in
+# red) next to the SCATTWIN primary and scatter counts.
+
+
+def save_total_bar_comparison(
     scatt_primary_sum: float,
     scatt_scatter_sum: float,
     pen_outputs: dict[str, np.ndarray],
@@ -196,12 +303,11 @@ def _save_total_bar_comparison(
     ax.ticklabel_format(style="scientific", axis="y", scilimits=(0, 0))
     ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8)
 
-    plt.tight_layout()
+    fig.tight_layout()
     fig.savefig(output_path, dpi=140)
-    plt.close(fig)
 
 
-def _save_penetrate_count_bars(
+def save_penetrate_count_bars(
     scatt_total: np.ndarray,
     scatt_scatter: np.ndarray,
     scatt_primary: np.ndarray,
@@ -380,97 +486,33 @@ def _save_penetrate_count_bars(
     ax2.ticklabel_format(style="scientific", axis="y", scilimits=(0, 0))
     ax2.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=8)
 
-    plt.tight_layout()
+    fig.tight_layout()
     fig.savefig(output_path, dpi=140)
-    plt.close(fig)
 
 
-def main() -> None:
-    require_simind()
+# %%
+# Component counts
+# ----------------
+# SCATTWIN counts on the left, the stacked PENETRATE components on the right.
 
-    output_dir = Path("output/routine_comparison")
-    output_dir.mkdir(parents=True, exist_ok=True)
+save_penetrate_count_bars(
+    scatt_total,
+    scatt_scatter,
+    scatt_primary,
+    pen_outputs,
+    output_dir / "routine_component_counts.png",
+)
 
-    source, mu_map = build_small_phantom_zyx()
+# %%
+# Totals side by side
+# -------------------
+# The two stacked bars should agree in total if both routines score the same
+# detector hits.
 
-    scatt_dir = output_dir / "scattwin"
-    pen_dir = output_dir / "penetrate"
-    scatt_dir.mkdir(parents=True, exist_ok=True)
-    pen_dir.mkdir(parents=True, exist_ok=True)
-
-    scatt_outputs = _run_case(
-        scatt_dir, "scatt_case01", source, mu_map, scoring_routine=1
-    )
-    pen_outputs = _run_case(pen_dir, "pen_case01", source, mu_map, scoring_routine=4)
-
-    scatt_total = scatt_outputs["tot_w1"]
-    scatt_scatter = scatt_outputs["sca_w1"]
-    scatt_primary = scatt_outputs["pri_w1"]
-    scatt_primary_sum = float(scatt_primary.sum())
-    scatt_scatter_sum = float(scatt_scatter.sum())
-
-    pen_key, pen_preview = _pick_penetrate_preview(pen_outputs)
-
-    np.save(output_dir / "scatt_total.npy", scatt_total)
-    np.save(output_dir / "scatt_scatter.npy", scatt_scatter)
-    np.save(output_dir / "scatt_primary.npy", scatt_primary)
-    np.save(output_dir / f"penetrate_{pen_key}.npy", pen_preview)
-
-    with open(output_dir / "penetrate_components.txt", "w", encoding="utf-8") as handle:
-        for key in sorted(pen_outputs):
-            handle.write(f"{key}\t{float(pen_outputs[key].sum()):.6f}\n")
-
-    fig, axes = plt.subplots(1, 4, figsize=(14, 4))
-    axes[0].imshow(source[source.shape[0] // 2, :, :], cmap="viridis")
-    axes[0].set_title("Input source")
-    scatt_total_view0 = projection_view0(scatt_total)
-    scatt_primary_view0 = projection_view0(scatt_primary)
-    pen_preview_view0 = projection_view0(pen_preview)
-    proj_vmin = float(
-        min(scatt_total_view0.min(), scatt_primary_view0.min(), pen_preview_view0.min())
-    )
-    proj_vmax = float(
-        max(scatt_total_view0.max(), scatt_primary_view0.max(), pen_preview_view0.max())
-    )
-    axes[1].imshow(scatt_total_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[1].set_title("SCATTWIN total")
-    axes[2].imshow(scatt_primary_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[2].set_title("SCATTWIN primary")
-    axes[3].imshow(pen_preview_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[3].set_title(f"PENETRATE {pen_key}")
-    for ax in axes:
-        ax.axis("off")
-    plt.tight_layout()
-    plot_path = output_dir / "routine_comparison.png"
-    fig.savefig(plot_path, dpi=140)
-    plt.close(fig)
-
-    count_plot_path = output_dir / "routine_component_counts.png"
-    _save_penetrate_count_bars(
-        scatt_total,
-        scatt_scatter,
-        scatt_primary,
-        pen_outputs,
-        count_plot_path,
-    )
-    total_compare_path = output_dir / "routine_total_comparison.png"
-    _save_total_bar_comparison(
-        scatt_primary_sum,
-        scatt_scatter_sum,
-        pen_outputs,
-        total_compare_path,
-    )
-
-    print(f"Output directory: {output_dir}")
-    print(f"SCATTWIN total counts: {float(scatt_total.sum()):.3f}")
-    print(f"SCATTWIN scatter counts: {float(scatt_scatter.sum()):.3f}")
-    print(f"SCATTWIN primary counts: {float(scatt_primary.sum()):.3f}")
-    print(f"PENETRATE preview key: {pen_key}")
-    print(f"PENETRATE preview counts: {float(pen_preview.sum()):.3f}")
-    print(f"Summary plot: {plot_path}")
-    print(f"Count-bar plot: {count_plot_path}")
-    print(f"Total-compare plot: {total_compare_path}")
-
-
-if __name__ == "__main__":
-    main()
+save_total_bar_comparison(
+    scatt_primary_sum,
+    scatt_scatter_sum,
+    pen_outputs,
+    output_dir / "routine_total_comparison.png",
+)
+plt.show()
