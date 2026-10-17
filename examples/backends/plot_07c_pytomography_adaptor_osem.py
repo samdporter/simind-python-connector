@@ -143,8 +143,7 @@ print(f"Reconstruction sum: {float(reconstruction.sum()):.3f}")
 # Central slice of the input source, the first projection view and the
 # central slice of the OSEM reconstruction. Object tensors are (x, y, z) and
 # projections are [view, radial, axial], so all are transposed to put y or axial
-# on the rows. The projection is drawn with ``origin="lower"`` so the axial
-# direction points up, as in 07A and 07B.
+# on the rows. Axial index 0 is on the top row, as in 07A and 07B.
 
 source_arr = source_tensor.detach().cpu().numpy()
 proj_arr = projection_tensor.detach().cpu().numpy()
@@ -153,7 +152,7 @@ recon_arr = reconstruction.detach().cpu().numpy()
 fig, axes = plt.subplots(1, 3, figsize=(12, 4))
 axes[0].imshow(source_arr[:, :, source_arr.shape[2] // 2].T, cmap="viridis")
 axes[0].set_title("Input source")
-axes[1].imshow(proj_arr[0].T, cmap="magma", origin="lower")
+axes[1].imshow(proj_arr[0].T, cmap="magma")
 axes[1].set_title("Projection (view 0)")
 axes[2].imshow(recon_arr[:, :, recon_arr.shape[2] // 2].T, cmap="viridis")
 axes[2].set_title("OSEM reconstruction")
