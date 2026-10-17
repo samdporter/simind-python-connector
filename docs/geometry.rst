@@ -179,4 +179,5 @@ phantoms and v8 voxel maps do not receive these offsets.
 
 Mu-maps can be given as attenuation (``mu_map_type="attenuation"``, cm^-1 at
 ``mu_map_energy_kev``, which defaults to ``abs(Index 1)``), density
-(``"density"``, g/cm^3) or CT Hounsfield units (``"hu"``).
+(``"density"``, g/cm^3) or CT Hounsfield units (``"hu"``, converted to density
+with the Schneider2000 model of ``hu_to_density_schneider``).

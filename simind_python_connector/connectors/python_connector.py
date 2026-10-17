@@ -388,7 +388,8 @@ class SimindPythonConnector(BaseConnector):
             scoring_routine: Optional override for Index 84; None keeps the
                 configuration value.
             mu_map_type: "attenuation" (cm^-1 at mu_map_energy_kev), "density"
-                (g/cm^3) or "hu" (CT Hounsfield units, Schneider conversion).
+                (g/cm^3) or "hu" (CT Hounsfield units, converted to density with
+                the Schneider2000 model).
             mu_map_energy_kev: Energy the attenuation map is defined at;
                 defaults to abs(Index 1).
 
