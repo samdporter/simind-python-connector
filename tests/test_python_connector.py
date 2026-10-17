@@ -976,6 +976,29 @@ def test_python_connector_replicate_mpi_rejects_fixed_rr(
 
 
 @pytest.mark.unit
+def test_python_connector_replicate_mpi_runs_when_operator_clears_rr(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_runtime_switch("RR", 12345)
+    connector.set_mpi(2)
+    captured = {}
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
+    ):
+        captured.update(runtime_switches=runtime_switches, **kwargs)
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    connector._ensure_interfile_headers = lambda: []  # type: ignore[method-assign]
+    connector._load_projection_outputs = lambda headers: {}  # type: ignore[method-assign]
+    connector.run(RuntimeOperator(switches={"RR": None}))
+
+    assert "RR" not in captured["runtime_switches"]
+    assert captured["mpi_processes"] == 2
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize("processes, split", [(1, False), (2, True)])
 def test_python_connector_mpi_allows_fixed_rr_without_replicas(
     tmp_path: Path, processes: int, split: bool
