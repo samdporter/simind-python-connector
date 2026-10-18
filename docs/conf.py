@@ -130,7 +130,13 @@ sphinx_gallery_conf = {
     "ignore_pattern": r"^(?!plot_)[^/]*\.py$",
     "within_subsection_order": "FileNameSortKey",
     "subsection_order": ExplicitOrder(
-        ["../examples/getting_started", "../examples/backends"]
+        [
+            "../examples/getting_started",
+            "../examples/backends",
+            "../examples/phantoms",
+            "../examples/mc_scatter",
+            "../examples/cil",
+        ]
     ),
     "abort_on_example_error": True,
     "remove_config_comments": True,
