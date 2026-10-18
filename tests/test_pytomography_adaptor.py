@@ -323,7 +323,6 @@ def test_pytomography_penetrate_smoke_reconstructs_off_centre_source(
     weights = recon.sum(dim=2)
     x, y = torch.meshgrid(torch.arange(16.0), torch.arange(16.0), indexing="ij")
     centre = ((weights * x).sum() / weights.sum(), (weights * y).sum() / weights.sum())
-    print(f"PENETRATE smoke test: source (11.5, 3.5), recon {centre}")
     assert centre[0].item() == pytest.approx(11.5, abs=1.0)
     assert centre[1].item() == pytest.approx(3.5, abs=1.0)
 

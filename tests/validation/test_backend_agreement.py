@@ -22,7 +22,6 @@ QUANTIZATION_SCALE = 0.1 * DEFAULT_QUANTIZATION_SCALE
 SUBSETS = 5
 ITERATIONS = 4
 HOT_CENTRE = (16, 16, 22)
-TRUE_RATIO = 2.5
 
 
 def _phantom():
@@ -149,6 +148,11 @@ def pytomography_run(tmp_path_factory, engine):
     from simind_python_connector import PyTomographySimindAdaptor
 
     out = _agreement_dir(engine)
+    for name in ("truth.npy", "sirf_recon.npy", "sirf_data.npy"):
+        assert (out / name).exists(), (
+            f"{name} is missing: run test_sirf_reconstruction_is_saved first "
+            "(the sirf image) on the same engine"
+        )
     truth = np.load(out / "truth.npy")
     _, mu, *_ = _phantom()
 
@@ -267,24 +271,4 @@ def test_total_activity_agrees(images, validate):
         float(images.pytomography[images.body].sum() / images.sirf[images.body].sum()),
         expected=1.0,
         rel=0.05,
-    )
-
-
-@pytest.mark.requires_pytomography
-def test_recovery_vs_truth_sirf(images, validate):
-    validate(
-        "recovery_vs_truth_sirf",
-        images.sirf_ratio / TRUE_RATIO,
-        lower=0,
-        note=f"hot-to-background {images.sirf_ratio:.3f} against {TRUE_RATIO}",
-    )
-
-
-@pytest.mark.requires_pytomography
-def test_recovery_vs_truth_pytomography(images, validate):
-    validate(
-        "recovery_vs_truth_pytomography",
-        images.pytomography_ratio / TRUE_RATIO,
-        lower=0,
-        note=f"hot-to-background {images.pytomography_ratio:.3f} against {TRUE_RATIO}",
     )

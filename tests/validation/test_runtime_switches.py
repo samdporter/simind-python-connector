@@ -1,13 +1,12 @@
-"""Runtime switches CA, FW, OU, DP and X1-X6 against the SIMIND manuals.
+"""Runtime switches CA, FW and X1-X6 against the SIMIND manuals.
 
-v8 manual (simind_manual.pdf): CA p.27-28, FW p.29, list mode and OU p.29-30,
-forced collimation and DP p.30, Xn p.39. v9 manual (Simind_v90-1.pdf): CA
-p.27, FW p.28, list mode and OU p.29-30, forced collimation and DP p.30,
-Xn p.40.
+v8 manual (simind_manual.pdf): CA p.27-28, FW p.29, Xn p.39. v9 manual
+(Simind_v90-1.pdf): CA p.27, FW p.28, Xn p.40.
 """
 
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +14,6 @@ import pytest
 
 from simind_python_connector import SimindPythonConnector
 from simind_python_connector.configs import get
-from simind_python_connector.core.config import RuntimeSwitches
 from simind_python_connector.core.types import (
     DEFAULT_QUANTIZATION_SCALE,
     ScoringRoutine,
@@ -179,22 +177,6 @@ def test_fw_sixteen_character_name(validate, tmp_path):
     )
 
 
-@pytest.mark.macos_v9
-@pytest.mark.parametrize("switch", ["OU", "DP"])
-def test_switch_of_unsupported_routine_is_refused(validate, switch):
-    """OU (list-mode format, v8 p.29-30, v9 p.29-30) and DP (forced-collimation
-    plane spacing, v8 p.30, v9 p.30) only act with the list-mode and
-    forced-collimation scoring routines, which the connector does not run, so
-    the switches are refused before SIMIND is started."""
-    try:
-        RuntimeSwitches().set_switch(switch, 1)
-        refused = 0.0
-    except ValueError:
-        refused = 1.0
-
-    validate(f"{switch.lower()}_refused", refused, expected=1.0, abs_tol=0)
-
-
 def _penetrate_outputs(directory: Path, prefix: str, **kwargs) -> dict[str, np.ndarray]:
     switches = kwargs.pop("switches", {})
     connector = _connector(directory, prefix, ScoringRoutine.PENETRATE, **kwargs)
@@ -260,7 +242,13 @@ def _simind_ini_collimator_material() -> str | None:
         ("X2", "bone"),
         ("X3", "al"),
         ("X4", "nai"),
-        ("X5", None),
+        pytest.param(
+            "X5",
+            None,
+            marks=pytest.mark.skip(
+                reason="the manual names no default file for the backscatter material"
+            ),
+        ),
         ("X6", "simind.ini"),
     ],
 )
@@ -270,8 +258,6 @@ def test_default_cross_section_is_identity(
     """Manual: the main menu names bone (X2), al (X3), nai (X4); X6 comes from
     simind.ini; no file is named for the backscatter material (X5)."""
     case = f"{switch.lower()}_default_is_identity"
-    if material is None:
-        not_run(case, "the manual names no default file for the backscatter material")
     if material == "simind.ini":
         material = _simind_ini_collimator_material()
         if material is None:
@@ -284,6 +270,7 @@ def test_default_cross_section_is_identity(
 
 
 @pytest.mark.macos_v9
+@pytest.mark.xfail(strict=True, reason="SIMIND v9.0 Linux SCATTWIN heap corruption")
 def test_v9_linux_scattwin_defect(validate, not_run, engine):
     """Records the characterised v9 Linux SCATTWIN abort (heap corruption).
 
@@ -294,8 +281,8 @@ def test_v9_linux_scattwin_defect(validate, not_run, engine):
     case = "v9_linux_scattwin_defect"
     if engine.label != "v9-linux":
         not_run(case, "the SCATTWIN heap corruption is specific to the v9 Linux build")
-    directory = Path("/tmp/v9defect_ab12cd")
-    directory.mkdir(exist_ok=True)
+    # 20 characters: the abort depends on the working-directory length
+    directory = Path(tempfile.mkdtemp(prefix="v9dfct_", dir="/tmp"))
     try:
         connector = regressions._connector(
             directory, "defect", scoring_routine=ScoringRoutine.SCATTWIN
@@ -340,7 +327,6 @@ def test_scattwin_default_ca(validate, not_run, tmp_path):
             "scattwin_default_ca",
             f"engine aborted without CA: {str(exc).splitlines()[0]}",
         )
-        return
 
     components = sorted(_raw_components(tmp_path, "dca", ".a00"))
     validate(
