@@ -140,7 +140,7 @@ def test_3_cardiac_with_and_without_a_defect(tmp_path):
 
 @pytest.mark.parametrize("library", list(LibraryPhantom))
 def test_4_library_phantoms_run_and_write_their_density(tmp_path, library):
-    prefix = library.name.lower()
+    prefix = "library"
     connector = _connector(tmp_path, prefix, num_projections=8)
     connector.configure_phantom(library)
     outputs = connector.run()
