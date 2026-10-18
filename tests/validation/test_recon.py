@@ -260,12 +260,43 @@ def test_damping_combines_exactly(setup, estimates, validate):
     )
 
 
-def test_scatter_correction_removes_the_scatter_fraction(setup, validate):
+@pytest.fixture(scope="module")
+def scatter_loop(setup):
+    """OSEM without and with the SIMIND scatter, from the same uniform start.
+
+    The settings are those that let the loop converge at the module's 0.1x
+    histories (osem-scatter-debug-report.md): unsmoothed, about half of the
+    spiky estimate lies in bins above the data, which OSEM cannot remove;
+    the trimmed normaliser drops bins where the sparse MC primary is zero
+    and so scales low; undamped refreshes from a zero start oscillate
+    (1.29x, then 0.64x the true scatter). Each refresh also records the
+    trimmed / sum scale ratio on that iterate.
+    """
     from simind_python_connector.recon.osem import run_osem_with_corrections
 
     initial = setup.true_image.get_uniform_copy(setup.true_image.as_array().mean())
     zero = setup.measured.get_uniform_copy(0)
-    num_updates = 2
+    num_updates = 4
+    trimmed_to_sum = []
+
+    def normalise(outputs, image):
+        primary = outputs["geom_coll_primary"].as_array()
+        reference = setup.full_model.direct(image).as_array()
+        scale = scale_to_reference(primary, reference, method="sum")
+        trimmed = scale_to_reference(primary, reference, method="trimmed")
+        trimmed_to_sum.append(trimmed / scale)
+        return scale
+
+    projector = SimindProjector(
+        _adaptor(setup.root, "osem"),
+        setup.template,
+        setup.mu_image,
+        normalise=normalise,
+        seed=300,
+    )
+    correction = ScatterCorrection(
+        projector, smoothing_fwhm_bins=3.0, smooth_across_views=True
+    )
 
     def osem(updater, subiterations_per_update, updates):
         return run_osem_with_corrections(
@@ -284,20 +315,35 @@ def test_scatter_correction_removes_the_scatter_fraction(setup, validate):
         0,
     )
     with_scatter = osem(
-        AdditiveUpdater(
-            ScatterCorrection(_projector(setup, "osem", seed=300)),
-            UpdateSchedule(every=SUBSETS),
-            zero,
-        ),
+        AdditiveUpdater(correction, UpdateSchedule(every=SUBSETS), zero, 0.5),
         SUBSETS,
         num_updates,
     )
+    return SimpleNamespace(
+        without=without, with_scatter=with_scatter, trimmed_to_sum=trimmed_to_sum
+    )
+
+
+def test_scatter_correction_removes_the_scatter_fraction(setup, scatter_loop, validate):
+    without = scatter_loop.without.sum()
     validate(
         "scatter_correction_removes_the_scatter_fraction",
-        float((without.sum() - with_scatter.sum()) / without.sum()),
+        float((without - scatter_loop.with_scatter.sum()) / without),
         expected=float(setup.scatter_fraction),
         abs_tol=0.05,
         smoke=True,
+    )
+
+
+def test_trimmed_scale_bias_low_histories(scatter_loop, validate):
+    validate(
+        "trimmed_scale_bias_low_histories",
+        float(np.mean(scatter_loop.trimmed_to_sum)),
+        expected=1.0,
+        rel=0.10,
+        smoke=True,
+        note="trimmed drops bins where the MC primary is zero, so on sparse "
+        "low-history runs (0.1x, OSEM iterates) it scales low",
     )
 
 
