@@ -9,7 +9,7 @@ suite for each engine (see the validation results at the end).
 - **Interfile parsing:** non-finite or fractional byte offsets and payloads ending in a partial pixel; complete extra/short pixels are also rejected.
 - **v9 PENETRATE headers:** SIMIND v9 PENETRATE `.hNN` headers are converted alongside their matching `.bNN` payloads. SIMIND v8's shared `.h00` template remains supported. Unknown component 20 is exposed as `b20` without assigning it an inferred physical label.
 - **Version selection and centring:** `simind_version=8|9` is available on core/native/PyTomography constructors; `SIMIND_VERSION` supplies the default when omitted, and v8 is the fallback. SIMIND v9's manual records its image-map origin correction. Matching v8/v9 runs used byte-identical source and density arrays, while the `.res` center changed from I/J=9 to 9.5 for a 16³ map. Analytic point-source probes established the corresponding transverse source shift and density-map origin offsets. The connector applies the measured shifts only to a copied v9 voxel-run `.smc`: source Indexes 17/18 use effective `PX`, density Indexes 36/37 use Index 31. It rejects non-default `DI`, density Index 32, or `OR` orientations because those correction mappings have not been validated.
-- **Measured-geometry smoke:** the four 16³/eight-view geometry cases (clockwise, counter-clockwise, non-circular, anisotropic) are recorded in the `measured_geometry` table below. All are low-history smoke results.
+- **Measured-geometry smoke:** the four 16³/eight-view geometry cases (clockwise, counter-clockwise, non-circular, anisotropic) are recorded in the `measured_geometry` table below. Profile: smoke (16³ voxels, 8 views, 10 photon histories per voxel, `quantization_scale` 0.02×default). Each case must reach a correlation above 0.5 with its reference and a centre gap of at most 1 pixel; the full-profile gate (64³, 60 views, 500 histories per voxel, correlation above 0.9) has not been run.
 - **MPI normalization:** serial, two-rank replicate and two-rank split totals are compared per build in the `mpi` table below. These are per-build normalization checks, not a cross-version accuracy comparison.
 - **Smoke evidence:** which raw files each SCATTWIN `/CA` value writes is recorded in the `runtime_switches` table below (`ca_raw_files_*`). The v8 manual lists `air`, `tot` and `pri` for `/CA:2`, but the engine also writes `sca`. The native macOS ARM64 v9.0 build completes `/CA:2` and returns `ai2/air/pri/sca/tot`.
 - **SIMIND v9.0 Linux SCATTWIN defect:** the v9.0 Linux Intel build's SCATTWIN routine either aborts with heap corruption or exits normally with silently corrupted projections (scrambled per-view bin and axial centroids, correlation 0.07-0.42 with the v8 reference). Which happens depends on the number of views, the matrix size, the source content and the working-directory length, so there is no safe setting. v8 Linux, the macOS ARM v9 build and v9 Linux PENETRATE are correct. For SCATTWIN use SIMIND v8 or the macOS v9 build. The validation suite records v9-linux SCATTWIN cases that check projection data as not run.
@@ -150,7 +150,7 @@ suite for each engine (see the validation results at the end).
 | nema_hot_sphere_activity_22mm | 1 | pass 0.998 | — | pass 0.998 | no |
 | nema_hot_sphere_activity_28mm | 1 | pass 1 | — | pass 1 | no |
 | nema_hot_sphere_activity_37mm | 1 | pass 1 | — | pass 1 | no |
-| nema_background_mu_is_water | 1 | pass 1 | — | pass 1 | no |
+| nema_background_density_is_water | 1 | pass 1 | — | pass 1 | no |
 
 ### recon
 
@@ -172,7 +172,7 @@ suite for each engine (see the validation results at the end).
 | ca_raw_files_0 | 1 | pass 1 | pass 1 | not run | no |
 | ca_raw_files_1 | 1 | pass 1 | pass 1 | not run | no |
 | ca_raw_files_2 | 1 | pass 1 | pass 1 | not run | no |
-| ca1_derived_primary | 0.7–1 | pass 0.807 | not run | not run | no |
+| ca1_derived_primary | 0 | pass 0 | not run | not run | no |
 | fw_two_windows | 0.05–1 | pass 0.678 | pass 0.6 | not run | yes |
 | fw_sixteen_character_name | 2 | pass 2 | pass 2 | not run | no |
 | x1_default_is_identity | 0 | pass 0 | — | pass 0 | no |
