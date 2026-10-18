@@ -17,13 +17,15 @@ from simind_python_connector.phantoms import (
     MultipleInserts,
     VerticalCylinder,
     nema_iec_phantom,
+    voxelise,
 )
 from simind_python_connector.utils.interfile import read_simind_density_image
 from tests.test_phantoms_simind import (
+    _N,
+    _VOXEL,
     _WATER,
     _compare,
     _connector,
-    _voxel_projection,
 )
 
 
@@ -45,6 +47,32 @@ INSERT_MODES = {
     "cold": {"background": 1.0, "mode": "cold"},
 }
 HOT_SPHERE_DIAMETERS_MM = (17, 22, 28, 37)
+VIEWS = 16
+# shorter than the example's 10 cm: source histories scale with the container volume
+CONTAINER_HALF_LENGTH_CM = 3.0
+ANALYTIC_HISTORIES = 0.25
+VOXEL_QUANTIZATION_SCALE = 0.03
+# a uniform source needs no quantisation levels; histories scale with voxel count
+COLD_VOXEL_QUANTIZATION_SCALE = 0.002
+
+
+def _analytic_connector(tmp_path, prefix):
+    connector = _connector(tmp_path, prefix, num_projections=VIEWS)
+    connector.add_config_value(26, ANALYTIC_HISTORIES)
+    return connector
+
+
+def _voxel_projection(
+    tmp_path, prefix, phantom, quantization_scale=VOXEL_QUANTIZATION_SCALE
+):
+    activity, attenuator = voxelise(phantom, (_N, _N, _N), (_VOXEL,) * 3, supersample=2)
+    connector = _connector(tmp_path, prefix, num_projections=VIEWS)
+    connector.quantization_scale = quantization_scale
+    connector.get_config().set_flag(11, True)
+    connector.configure_voxel_phantom(
+        activity, attenuator, (_VOXEL,) * 3, mu_map_type="density"
+    )
+    return connector.run()["tot_w1"].projection
 
 
 @pytest.fixture
@@ -86,7 +114,7 @@ def test_analytic_vs_voxel_shape(validate, v9_linux_guard, tmp_path, shape):
     case = f"analytic_vs_voxel_{shape}"
     phantom = AnalyticPhantom(SHAPES[shape], _WATER, source_shift_cm=SOURCE_SHIFT_CM)
     with v9_linux_guard(case):
-        connector = _connector(tmp_path, "analytic")
+        connector = _analytic_connector(tmp_path, "analytic")
         connector.configure_phantom(phantom)
         analytic = connector.run()["tot_w1"].projection
         voxel = _voxel_projection(tmp_path, "voxel", phantom)
@@ -95,7 +123,7 @@ def test_analytic_vs_voxel_shape(validate, v9_linux_guard, tmp_path, shape):
 
 
 def _jaszczak_like(**insert_mode) -> AnalyticPhantom:
-    water = HorizontalCylinder(10.0, (10.0, 10.0))
+    water = HorizontalCylinder(CONTAINER_HALF_LENGTH_CM, (10.0, 10.0))
     inserts = tuple(
         Insert(
             (r, r, r),
@@ -113,10 +141,17 @@ def test_inserts_mode(validate, v9_linux_guard, tmp_path, mode):
     case = f"inserts_{mode}"
     phantom = _jaszczak_like(**INSERT_MODES[mode])
     with v9_linux_guard(case):
-        connector = _connector(tmp_path, "inserts")
+        connector = _analytic_connector(tmp_path, "inserts")
         connector.configure_phantom(phantom)
         analytic = connector.run()["tot_w1"].projection
-        voxel = _voxel_projection(tmp_path, "inserts_voxel", phantom)
+        voxel = _voxel_projection(
+            tmp_path,
+            "inserts_voxel",
+            phantom,
+            COLD_VOXEL_QUANTIZATION_SCALE
+            if mode == "cold"
+            else VOXEL_QUANTIZATION_SCALE,
+        )
 
     checks = _projection_checks(case, *_compare(case, analytic, voxel))
     checks.append(
@@ -131,35 +166,49 @@ def test_inserts_mode(validate, v9_linux_guard, tmp_path, mode):
 
 @pytest.mark.macos_v9
 def test_cardiac_defect_lowers_counts(validate, v9_linux_guard, tmp_path):
+    """Fractional drop in the pixels the defect empties, net of a no-op defect.
+
+    SIMIND histories are fixed, so a defect redistributes counts: the projections
+    are normalised to equal totals and the region is where the healthy view-sum
+    exceeds the defect one. That region is chosen from the data, so noise alone
+    gives a positive drop; the same measure for a defect with activity ratio 1
+    (which changes nothing but the random stream) is subtracted.
+
+    The defect footprint is not projected geometrically: voxelise does not
+    support CardiacSource, SIMIND's cardiac rotation conventions are not
+    documented, and activity ratios above 1 behave as 1 (so no defect-only run).
+    """
+
     def projection(prefix, defect):
-        connector = _connector(tmp_path, prefix)
+        connector = _analytic_connector(tmp_path, prefix)
         heart = CardiacSource((4.0, 4.0, 4.0), defect=defect)
         connector.configure_phantom(AnalyticPhantom(heart, _WATER))
-        return connector.run()["tot_w1"].projection
+        return connector.run()["tot_w1"].projection.sum(axis=0)
+
+    def defect_at(activity_ratio):
+        return CardiacDefect(
+            location_deg=0.0, angular_size_deg=45.0, activity_ratio=activity_ratio
+        )
+
+    def drop_in_emptied_pixels(healthy, other):
+        healthy, other = healthy / healthy.sum(), other / other.sum()
+        emptied = healthy > other
+        return (healthy[emptied].sum() - other[emptied].sum()) / healthy[emptied].sum()
 
     case = "cardiac_defect_lowers_counts"
     with v9_linux_guard(case):
         healthy = projection("heart", None)
-        defect = projection(
-            "defect",
-            CardiacDefect(location_deg=0.0, angular_size_deg=45.0, activity_ratio=0.0),
-        )
+        defect = projection("defect", defect_at(0.0))
+        no_op_defect = projection("no_op", defect_at(1.0))
 
-    healthy, defect = healthy.sum(axis=0), defect.sum(axis=0)
-    healthy, defect = healthy / healthy.sum(), defect / defect.sum()
-    defect_region = healthy > defect
     validate(
         case,
         float(
-            (healthy[defect_region].sum() - defect[defect_region].sum())
-            / healthy[defect_region].sum()
+            drop_in_emptied_pixels(healthy, defect)
+            - drop_in_emptied_pixels(healthy, no_op_defect)
         ),
         lower=0.01,
         smoke=True,
-        note=(
-            "histories are fixed, so the projections are normalised to equal totals; "
-            "region: pixels where the healthy view-sum exceeds the defect one"
-        ),
     )
 
 

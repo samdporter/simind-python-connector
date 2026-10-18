@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker/compose.yaml"
 MACOS_V9_SOURCE="${SIMIND_MACOS_V9_DIR:-/Users/samd-work/Projects/simind-python-connector/tmp/simind_macos_v90}"
+# the macOS v9 install ships no phantom.zub; the library phantoms take it from the v9 Linux tree
+LIBRARY_TABLE_ROOT="${SIMIND_MACOS_V9_TABLE_ROOT:-$ROOT_DIR/tmp/engines/v9}"
 # SIMIND rejects an SMC_DIR of 100 characters or more, so it is reached through a short link
 MACOS_V9_DIR="${SIMIND_MACOS_V9_LINK:-/tmp/simind-v9-macos}"
 OUT_DIR="$ROOT_DIR/output/validation"
@@ -90,6 +92,7 @@ if [[ "$ENGINE" == v9-macos ]]; then
     SIMIND_VALIDATION_ENGINE=v9-darwin \
     SIMIND_VALIDATION_OUT="$OUT_DIR" \
     SIMIND_VERSION=9 \
+    SIMIND_ROOT="$LIBRARY_TABLE_ROOT" \
     SIMIND_BIN="$MACOS_V9_DIR/simind" \
     SMC_DIR="$MACOS_V9_DIR/smc_dir/" \
     PATH="$MACOS_V9_DIR:$PATH" \
