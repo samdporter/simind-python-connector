@@ -58,6 +58,15 @@ Returned projections
      are read the same way. Without PyTomography installed the adaptor builds
      the same layout from the core array.
 
+Reconstructing with STIR or SIRF SPECTUB
+----------------------------------------
+
+STIR's ``SPECTUB`` projector, up to at least STIR 6.4, mirrors x relative to
+the attenuation map (`UCL/STIR#452 <https://github.com/UCL/STIR/issues/452>`_).
+Until this is fixed upstream, flip the mu map along x (the last axis of a
+``(z, y, x)`` array) before passing it to ``set_attenuation_image``. The
+examples do this. Once STIR fixes the issue, remove the flip.
+
 Replacing Removed Helpers
 -------------------------
 
