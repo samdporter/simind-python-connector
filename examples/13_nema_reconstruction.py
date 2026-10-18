@@ -48,6 +48,8 @@ def _reconstruct(backend: str, projection_path: Path, mu_path: Path):
         projection = sirf.AcquisitionData(str(projection_path))
         mu = sirf.ImageData(str(mu_path))
         initial = sirf.ImageData(str(mu_path)).get_uniform_copy(1.0)
+        # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+        mu.fill(mu.as_array()[..., ::-1])
         matrix = sirf.SPECTUBMatrix()
         matrix.set_attenuation_image(mu)
         model = sirf.AcquisitionModelUsingMatrix(matrix)
@@ -72,10 +74,14 @@ def _reconstruct(backend: str, projection_path: Path, mu_path: Path):
     else:
         import stir
 
+        from simind_python_connector.utils import get_array
+
         projection = stir.ProjData.read_from_file(str(projection_path))
         mu = stir.FloatVoxelsOnCartesianGrid.read_from_file(str(mu_path))
         initial = mu.get_empty_copy()
         initial.fill(1.0)
+        # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+        mu.fill(get_array(mu)[..., ::-1].flat)
         matrix = stir.ProjMatrixByBinSPECTUB()
         matrix.set_attenuation_image_sptr(mu)
         pair = stir.ProjectorByBinPairUsingProjMatrixByBin()
@@ -91,7 +97,6 @@ def _reconstruct(backend: str, projection_path: Path, mu_path: Path):
         recon.set_disable_output(True)
         recon.set_up(initial)
         recon.reconstruct(initial)
-        from simind_python_connector.utils import get_array
 
         recon_path = Path("output/nema_reconstruction") / "stir_recon.hv"
         initial.write_to_file(str(recon_path))

@@ -88,9 +88,11 @@ class _Setup:
         self.root = root
         self.template = _template(root)
         body, _ = _masks()
-        self.mu = _image(np.where(body, 0.15, 0.0))
+        mu = np.where(body, 0.15, 0.0)
+        self.mu = _image(mu)
         matrix = sirf.SPECTUBMatrix()
-        matrix.set_attenuation_image(self.mu)
+        # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+        matrix.set_attenuation_image(_image(mu[..., ::-1]))
         matrix.set_keep_all_views_in_cache(False)
         matrix.set_resolution_model(0.0, 0.0, False)
         self.fast_model = sirf.AcquisitionModelUsingMatrix(matrix)

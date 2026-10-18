@@ -79,6 +79,8 @@ def read_sirf_image(array: np.ndarray, base: Path) -> sirf.ImageData:
 
 source_image = read_sirf_image(source, output_dir / "sirf_source")
 mu_image = read_sirf_image(mu_map, output_dir / "sirf_mu")
+# STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+spectub_mu_image = read_sirf_image(mu_map[..., ::-1], output_dir / "sirf_spectub_mu")
 
 # %%
 # Simulate
@@ -138,7 +140,7 @@ def reconstruct(additive_term=None):
     reconstruction = source_image.get_uniform_copy(1.0)
 
     acq_matrix = sirf.SPECTUBMatrix()
-    acq_matrix.set_attenuation_image(mu_image)
+    acq_matrix.set_attenuation_image(spectub_mu_image)
     acq_matrix.set_keep_all_views_in_cache(True)
     acq_matrix.set_resolution_model(0.0, 0.0, False)
     acq_model = sirf.AcquisitionModelUsingMatrix(acq_matrix)

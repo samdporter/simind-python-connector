@@ -156,9 +156,13 @@ def fast_model_factory(mu_image: sirf.ImageData):
     """SPECTUB with attenuation and no PSF;
     it omits the collimator and detector blur that SIMIND's b02 includes."""
 
+    # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+    spectub_mu_image = mu_image.clone()
+    spectub_mu_image.fill(mu_image.as_array()[..., ::-1])
+
     def make_model():
         matrix = sirf.SPECTUBMatrix()
-        matrix.set_attenuation_image(mu_image)
+        matrix.set_attenuation_image(spectub_mu_image)
         # Separately set-up SPECTUB models share this cache in STIR 6.4;
         # fast and accurate models can otherwise return mixed cached views.
         matrix.set_keep_all_views_in_cache(False)

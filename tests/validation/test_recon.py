@@ -126,10 +126,12 @@ def setup(tmp_path_factory):
     template = _template(root)
     activity, mu = _phantom()
     mu_image = _image(mu)
+    # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+    spectub_mu_image = _image(mu[..., ::-1])
 
     def make_model():
         matrix = sirf.SPECTUBMatrix()
-        matrix.set_attenuation_image(mu_image)
+        matrix.set_attenuation_image(spectub_mu_image)
         matrix.set_keep_all_views_in_cache(False)
         matrix.set_resolution_model(0.0, 0.0, False)
         return sirf.AcquisitionModelUsingMatrix(matrix)

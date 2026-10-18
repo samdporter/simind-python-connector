@@ -114,7 +114,8 @@ def test_sirf_reconstruction_is_saved(tmp_path, engine):
     data = adaptor.run()["all_interactions"]
 
     matrix = sirf.SPECTUBMatrix()
-    matrix.set_attenuation_image(mu_image)
+    # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+    matrix.set_attenuation_image(image(mu[..., ::-1]))
     matrix.set_keep_all_views_in_cache(True)
     matrix.set_resolution_model(0.0, 0.0, False)
     acq_model = sirf.AcquisitionModelUsingMatrix(matrix)
