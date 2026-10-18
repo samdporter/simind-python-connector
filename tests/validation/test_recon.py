@@ -184,6 +184,8 @@ def estimates(setup):
 
 
 def test_route2_scatter_matches_route1_sum(setup, estimates, validate):
+    """to_data divides by the same trimmed scale, so this validates the
+    scatter/primary ratio and chain consistency, not absolute scale."""
     validate(
         "route2_scatter_matches_route1_sum",
         float(estimates[0].sum() / setup.true_scatter.sum()),
@@ -221,7 +223,18 @@ def test_route2_scatter_matches_route1_shape(setup, validate):
     )
 
 
-def test_refreshes_follow_the_schedule(setup, estimates, validate):
+def test_update_schedule_is_due(validate):
+    schedule = UpdateSchedule(every=2, stop_at=6)
+    due = [i for i in range(1, 7) if schedule.is_due(i)]
+    validate(
+        "update_schedule_is_due",
+        1.0 if due == [2, 4] else 0.0,
+        expected=1.0,
+        abs_tol=0,
+    )
+
+
+def test_osem_refreshes_at_update_boundaries(setup, estimates, validate):
     zero = setup.measured.get_uniform_copy(0)
     updater = AdditiveUpdater(
         _Replay(estimates), UpdateSchedule(every=2, stop_at=6), zero
@@ -238,7 +251,7 @@ def test_refreshes_follow_the_schedule(setup, estimates, validate):
         num_updates=2,
     )
     validate(
-        "refreshes_follow_the_schedule",
+        "osem_refreshes_at_update_boundaries",
         1.0 if [r.iteration for r in updater.history] == [2, 4] else 0.0,
         expected=1.0,
         abs_tol=0,
@@ -265,12 +278,12 @@ def scatter_loop(setup):
     """OSEM without and with the SIMIND scatter, from the same uniform start.
 
     The settings are those that let the loop converge at the module's 0.1x
-    histories (osem-scatter-debug-report.md): unsmoothed, about half of the
-    spiky estimate lies in bins above the data, which OSEM cannot remove;
-    the trimmed normaliser drops bins where the sparse MC primary is zero
-    and so scales low; undamped refreshes from a zero start oscillate
-    (1.29x, then 0.64x the true scatter). Each refresh also records the
-    trimmed / sum scale ratio on that iterate.
+    histories: unsmoothed, about half of the spiky estimate lies in bins
+    above the data, which OSEM cannot remove; the trimmed normaliser scales
+    low on the sparse MC primary; undamped refreshes from a zero start
+    oscillate (1.29x, then 0.64x the true scatter). Each refresh also records,
+    on that iterate, the trimmed / sum scale ratio, the same ratio without
+    end trimming, and the reference fraction in bins where the primary is 0.
     """
     from simind_python_connector.recon.osem import run_osem_with_corrections
 
@@ -278,13 +291,20 @@ def scatter_loop(setup):
     zero = setup.measured.get_uniform_copy(0)
     num_updates = 4
     trimmed_to_sum = []
+    untrimmed_to_sum = []
+    reference_at_zero = []
 
     def normalise(outputs, image):
         primary = outputs["geom_coll_primary"].as_array()
         reference = setup.full_model.direct(image).as_array()
         scale = scale_to_reference(primary, reference, method="sum")
         trimmed = scale_to_reference(primary, reference, method="trimmed")
+        untrimmed = scale_to_reference(
+            primary, reference, method="trimmed", trim_fraction=0.0
+        )
         trimmed_to_sum.append(trimmed / scale)
+        untrimmed_to_sum.append(untrimmed / scale)
+        reference_at_zero.append(reference[primary == 0].sum() / reference.sum())
         return scale
 
     projector = SimindProjector(
@@ -320,7 +340,11 @@ def scatter_loop(setup):
         num_updates,
     )
     return SimpleNamespace(
-        without=without, with_scatter=with_scatter, trimmed_to_sum=trimmed_to_sum
+        without=without,
+        with_scatter=with_scatter,
+        trimmed_to_sum=trimmed_to_sum,
+        untrimmed_to_sum=untrimmed_to_sum,
+        reference_at_zero=reference_at_zero,
     )
 
 
@@ -336,26 +360,38 @@ def test_scatter_correction_removes_the_scatter_fraction(setup, scatter_loop, va
 
 
 def test_trimmed_scale_bias_low_histories(scatter_loop, validate):
+    def rounded(values):
+        return [round(float(v), 3) for v in values]
+
     validate(
         "trimmed_scale_bias_low_histories",
         float(np.mean(scatter_loop.trimmed_to_sum)),
         expected=1.0,
         rel=0.10,
         smoke=True,
-        note="trimmed drops bins where the MC primary is zero, so on sparse "
-        "low-history runs (0.1x, OSEM iterates) it scales low",
+        note=(
+            f"per refresh trimmed/sum {rounded(scatter_loop.trimmed_to_sum)}; "
+            "trim_fraction=0 / sum "
+            f"{rounded(scatter_loop.untrimmed_to_sum)}; reference fraction "
+            "in bins where the MC primary is 0 "
+            f"{rounded(scatter_loop.reference_at_zero)}. Without end trimming "
+            "the ratio is about 1 minus that fraction, so the bias comes from "
+            "excluding bins where the sparse MC primary is 0; the 10% end "
+            "trimming raises it slightly"
+        ),
     )
 
 
 def test_residual_identity(setup, validate):
     projector = _projector(setup, "residual", seed=200)
+    base_additive = setup.measured.get_uniform_copy(2.5)
     correction = ResidualCorrection(
         SimindComponent(projector, "all_interactions"),
         setup.full_model,
-        setup.measured.get_uniform_copy(0),
+        base_additive,
     )
     x = setup.true_image
-    rebuilt = correction.estimate(x) + setup.full_model.direct(x)
+    rebuilt = correction.estimate(x) + setup.full_model.direct(x) - base_additive
     accurate = projector.last_outputs["all_interactions"].as_array()
     difference = np.abs(rebuilt.as_array() - accurate).max()
     validate(
