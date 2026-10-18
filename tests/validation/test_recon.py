@@ -293,6 +293,7 @@ def scatter_loop(setup):
     trimmed_to_sum = []
     untrimmed_to_sum = []
     reference_at_zero = []
+    iterates = []
 
     def normalise(outputs, image):
         primary = outputs["geom_coll_primary"].as_array()
@@ -305,6 +306,7 @@ def scatter_loop(setup):
         trimmed_to_sum.append(trimmed / scale)
         untrimmed_to_sum.append(untrimmed / scale)
         reference_at_zero.append(reference[primary == 0].sum() / reference.sum())
+        iterates.append(image)
         return scale
 
     projector = SimindProjector(
@@ -345,6 +347,7 @@ def scatter_loop(setup):
         trimmed_to_sum=trimmed_to_sum,
         untrimmed_to_sum=untrimmed_to_sum,
         reference_at_zero=reference_at_zero,
+        iterates=iterates,
     )
 
 
@@ -379,6 +382,80 @@ def test_trimmed_scale_bias_low_histories(scatter_loop, validate):
             "excluding bins where the sparse MC primary is 0; the 10% end "
             "trimming raises it slightly"
         ),
+    )
+
+
+SWEEP_MULTIPLIERS = (1, 4, 16, 64)
+SWEEP_SEEDS = (500, 501)
+SWEEP_TRUTH_SEEDS = (900, 901)
+
+
+@pytest.fixture(scope="module")
+def history_sweep(setup, scatter_loop):
+    """Trimmed and sum scales / true scale for one OSEM iterate, by history level.
+
+    The iterate is the image at the scatter loop's 2nd refresh, reused at every
+    level so only the SIMIND histories change. The true scale is the ratio of
+    expected totals, sum(A x) / E[sum(b02)], with E[sum(b02)] the mean over two
+    extra runs at the highest level whose seeds no method sees.
+    """
+    image = scatter_loop.iterates[1]
+    reference = setup.full_model.direct(image).as_array()
+
+    def primary(multiplier, seed):
+        adaptor = _adaptor(
+            setup.root,
+            f"sweep_{multiplier}x_{seed}",
+            multiplier * QUANTIZATION_SCALE,
+        )
+        adaptor.set_template(setup.template)
+        adaptor.set_mu_map(setup.mu_image)
+        adaptor.set_source(image)
+        adaptor.add_runtime_switch("RR", seed)
+        return adaptor.run()["geom_coll_primary"].as_array()
+
+    top = SWEEP_MULTIPLIERS[-1]
+    true_scale = reference.sum() / np.mean(
+        [primary(top, seed).sum() for seed in SWEEP_TRUTH_SEEDS]
+    )
+    ratios = {}
+    for multiplier in SWEEP_MULTIPLIERS:
+        runs = [primary(multiplier, seed) for seed in SWEEP_SEEDS]
+        for method in ("trimmed", "sum"):
+            ratios[method, multiplier] = [
+                scale_to_reference(run, reference, method=method) / true_scale
+                for run in runs
+            ]
+    return ratios
+
+
+def test_normaliser_history_sweep(history_sweep, validate):
+    for (method, multiplier), ratios in history_sweep.items():
+        validate(
+            f"normaliser_history_sweep_{method}_{multiplier}x",
+            float(np.mean(ratios)),
+            lower=0,
+            smoke=True,
+            note=(
+                f"scale / true scale at {multiplier}x the module's 0.1x histories, "
+                f"seeds {list(SWEEP_SEEDS)}: {[round(float(r), 3) for r in ratios]}"
+            ),
+        )
+
+
+def test_normalisers_agree_at_high_histories(history_sweep, validate):
+    top = SWEEP_MULTIPLIERS[-1]
+    means = {
+        method: float(np.mean(history_sweep[method, top]))
+        for method in ("trimmed", "sum")
+    }
+    validate(
+        "normalisers_agree_at_high_histories",
+        max(means.values(), key=lambda value: abs(value - 1)),
+        expected=1.0,
+        rel=0.05,
+        smoke=True,
+        note=f"the method farthest from 1 at {top}x; means {means}",
     )
 
 
