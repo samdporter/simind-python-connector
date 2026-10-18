@@ -48,6 +48,11 @@ INSERT_MODES = {
 }
 HOT_SPHERE_DIAMETERS_MM = (17, 22, 28, 37)
 WATER_MU_511_KEV_PER_CM = 0.0960
+INSERT_TOTAL_NOTE = (
+    "background and cold modes show a 1-2 % analytic deficit, cause not "
+    "established (candidates: voxelise supersample=2 partial volume at 4 mm; "
+    "SIMIND analytic vs voxel sampling)"
+)
 VIEWS = 16
 # shorter than the example's 10 cm: source histories scale with the container volume
 CONTAINER_HALF_LENGTH_CM = 6.0
@@ -159,7 +164,12 @@ def test_inserts_mode(validate, v9_linux_guard, tmp_path, mode):
         (
             f"{case}_total_ratio",
             analytic.sum() / voxel.sum(),
-            {"expected": 1.0, "rel": 0.05, "smoke": True},
+            {
+                "expected": 1.0,
+                "rel": 0.05,
+                "smoke": True,
+                "note": INSERT_TOTAL_NOTE,
+            },
         )
     )
     _validate_all(validate, checks)
@@ -204,18 +214,17 @@ def test_cardiac_defect_lowers_counts(validate, v9_linux_guard, tmp_path):
         healthy = projection("heart", None)
         defect = projection("defect", defect_at(0.0))
         no_op_defects = [
-            projection("no_op", defect_at(1.0)),
+            projection("no_op", defect_at(1.0), seed=7),
             projection("no_op_reseeded", defect_at(1.0), seed=8),
         ]
 
+    nulls = [drop_in_emptied_pixels(healthy, p) for p in no_op_defects]
     validate(
         case,
-        float(
-            drop_in_emptied_pixels(healthy, defect)
-            - np.mean([drop_in_emptied_pixels(healthy, p) for p in no_op_defects])
-        ),
+        float(drop_in_emptied_pixels(healthy, defect) - np.mean(nulls)),
         lower=0.01,
         smoke=True,
+        note=f"null drops for RR 7 and 8: {nulls[0]:.4f}, {nulls[1]:.4f}",
     )
 
 
@@ -308,7 +317,7 @@ def test_nema_background_mu_is_water(validate):
         nema_dict=phantomgen.pet_nema_dict,
     )
     validate(
-        "nema_background_mu_is_water_511kev",
+        "nema_background_mu_is_water",
         float(np.median(mu[masks["background"] > 0]) / WATER_MU_511_KEV_PER_CM),
         expected=1.0,
         rel=0.02,
