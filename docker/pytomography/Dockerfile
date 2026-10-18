@@ -15,6 +15,18 @@ ENV PYTHONPATH=/workspace/docker/import_guard:${SIRF_INSTALL_PATH}/python
 ENV LD_LIBRARY_PATH=/opt/conda/lib:${SIRF_INSTALL_PATH}/lib:${SIRF_INSTALL_PATH}/lib64:${LD_LIBRARY_PATH}
 ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${SIRF_INSTALL_PATH}/bin:${PATH}
 
+# MPICH runtime and launcher for SIMIND's MPI binary; the compat script exposes
+# the library names that binary was built against and selects MPICH's mpirun.
+# See docker/python/install_mpich_compat.sh.
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends mpich \
+    && rm -rf /var/lib/apt/lists/*
+COPY docker/python/install_mpich_compat.sh /usr/local/bin/install_mpich_compat.sh
+RUN chmod +x /usr/local/bin/install_mpich_compat.sh \
+    && install_mpich_compat.sh
+USER 1000
+
 WORKDIR /workspace
 
 COPY --chown=1000:100 . /workspace

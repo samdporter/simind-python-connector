@@ -118,6 +118,9 @@ Changed
   at it and ``docs/requirements.txt`` is gone. The sdist excludes local-only
   material (``AGENTS.md``, ``CLAUDE.md``, ``opencode.jsonc``,
   ``simind_manual.pdf``, ``simind/`` and generated docs).
+- The SIRF, STIR and PyTomography container images now ship MPICH and use its
+  ``mpirun``, so ``set_mpi`` runs ``simind_mpi`` there as it does in the
+  python image.
 - The python container image's MPICH provisioning (``mpirun`` plus the SONAME
   compat links) is asserted by the container-script tests, so rebuilding the
   image cannot silently drop the MPI runtime the MPI tests need.
