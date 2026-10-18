@@ -64,6 +64,11 @@ else
 fi
 
 if [[ "$ENGINE" == v9-macos ]]; then
+    if [[ -z "$MACOS_V9_SOURCE" || -z "$LIBRARY_TABLE_ROOT" ]]; then
+        echo "v9-macos needs SIMIND_MACOS_V9_DIR (the macOS v9 install) and" \
+            "SIMIND_MACOS_V9_TABLE_ROOT (a v9 Linux tree for phantom.zub)" >&2
+        exit 2
+    fi
     RECORD_FILE="$OUT_DIR/v9-darwin.jsonl"
 else
     RECORD_FILE="$OUT_DIR/$ENGINE-linux.jsonl"
@@ -95,11 +100,6 @@ collect_status() {
 }
 
 if [[ "$ENGINE" == v9-macos ]]; then
-    if [[ -z "$MACOS_V9_SOURCE" || -z "$LIBRARY_TABLE_ROOT" ]]; then
-        echo "v9-macos needs SIMIND_MACOS_V9_DIR (the macOS v9 install) and" \
-            "SIMIND_MACOS_V9_TABLE_ROOT (a v9 Linux tree for phantom.zub)" >&2
-        exit 2
-    fi
     ln -sfn "$MACOS_V9_SOURCE" "$MACOS_V9_DIR"
     SIMIND_VALIDATION_ENGINE=v9-darwin \
     SIMIND_VALIDATION_OUT="$OUT_DIR" \
