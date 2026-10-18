@@ -2208,6 +2208,15 @@
    "name": "ABC.set_mpi"
   }
  ],
+ "estimated_fraction": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
  "expected": [
   {
    "is_class": false,
@@ -3135,6 +3144,15 @@
    "name": "PurePath.mkdir"
   }
  ],
+ "outputs": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
+  }
+ ],
  "plt.show": [
   {
    "is_class": false,
@@ -3249,15 +3267,6 @@
    "name": "int"
   }
  ],
- "record.scale": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "float"
-  }
- ],
  "record.seconds": [
   {
    "is_class": false,
@@ -3338,15 +3347,6 @@
    "module": "simind_python_connector.recon.osem",
    "module_short": "simind_python_connector.recon.osem",
    "name": "run_osem_with_corrections"
-  }
- ],
- "scatter_fraction": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "float32"
   }
  ],
  "scores": [
@@ -3532,6 +3532,96 @@
    "module": "builtins",
    "module_short": "builtins",
    "name": "function"
+  }
+ ],
+ "true_fraction": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "true_scatter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData"
+  }
+ ],
+ "true_scatter.sum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.sum"
   }
  ],
  "truth_array": [

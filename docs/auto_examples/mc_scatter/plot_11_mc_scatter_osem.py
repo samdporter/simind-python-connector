@@ -13,10 +13,8 @@ projection.
 
 .. warning::
    This example takes about ten minutes, nearly all of it in the SIMIND runs:
-   the simulation of the data and one scatter estimate per update. With a
-   collimator, only a tiny fraction of the simulated photons reach the
-   detector, and too few histories give speckled projections. Every run uses 8
-   MPI processes.
+   the simulation of the data and one scatter estimate per update. Every run
+   uses 8 MPI processes.
 
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
@@ -166,7 +164,8 @@ adaptor.add_runtime_switch("CC", "ma-lehr")
 adaptor.set_mpi(8)
 adaptor.add_config_value(1, 140.0)
 adaptor.set_activity(TOTAL_MBQ, TIME_PER_VIEW_S)
-expected = adaptor.run()["all_interactions"]
+outputs = adaptor.run()
+expected = outputs["all_interactions"]
 
 rng = np.random.default_rng(12345)
 measured = expected.clone()
@@ -225,13 +224,12 @@ uncorrected = run_osem_with_corrections(
 # comes out on the scale of the data. ``ScatterCorrection`` smooths the
 # estimate over 3 bins, across views as well, because a raw Monte Carlo estimate
 # is too noisy to subtract. The additive term starts at zero and is refreshed
-# after each pass of 12 subiterations. The image of the first update has not
-# been corrected, so it explains scatter counts as primary and the scatter
-# estimate comes out too high. Scatter is more than half of the counts here, so
-# applying each estimate in full would make the next one overshoot too low.
-# ``damping=0.5`` averages successive estimates and settles the term instead.
-# ``seed=None`` leaves the ``RR`` switch
-# unset, so the 8 MPI processes use their fixed seeds.
+# after each pass of 12 subiterations, averaging successive estimates
+# (``damping=0.5``). The image at the first update is not corrected for
+# scatter, so the first estimate is too high.
+#
+# ``seed=None`` leaves the ``RR`` switch unset, so the 8 MPI processes use
+# their fixed seeds.
 
 full_model = make_acq_model()
 full_model.set_up(measured, activity_image)
@@ -273,22 +271,33 @@ corrected = run_osem_with_corrections(
 # %%
 # Scatter updates
 # ---------------
-# For each update: the factor that scaled SIMIND's primary to the fast model,
-# the scatter sum, and the time of the SIMIND run. The scatter sum is compared
-# with the measured counts.
+# For each update, the sum of the additive term and the time of the SIMIND run.
+# The data simulation also gives the true scatter: all interactions minus the
+# geometric primary, the same quantity that is estimated.
 
 for record in updater.history:
     print(
-        f"update at iteration {record.iteration}: scale {record.scale:.4g}, "
+        f"update at iteration {record.iteration}: "
         f"scatter sum {record.additive_sum:.4g}, {record.seconds:.0f} s"
     )
-scatter_fraction = updater.current.sum() / measured.sum()
-print(f"Estimated scatter fraction of the measured counts: {scatter_fraction:.0%}")
+true_scatter = expected - outputs["geom_coll_primary"]
+print(f"True scatter sum: {true_scatter.sum():.4g}")
+true_fraction = true_scatter.sum() / measured.sum()
+estimated_fraction = updater.current.sum() / measured.sum()
+print(
+    f"Scatter fraction of the measured counts: true {true_fraction:.0%}, "
+    f"estimated {estimated_fraction:.0%}"
+)
 
 central_view = measured.as_array()[0].shape[1] // 2
-fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
+fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
 for ax, (title, data) in zip(
-    axes, (("Measured", measured), ("Estimated scatter", updater.current))
+    axes,
+    (
+        ("Measured", measured),
+        ("True scatter", true_scatter),
+        ("Estimated scatter", updater.current),
+    ),
 ):
     ax.imshow(data.as_array()[0][:, central_view, :], cmap="magma")
     ax.set_title(f"{title}, view {central_view}")

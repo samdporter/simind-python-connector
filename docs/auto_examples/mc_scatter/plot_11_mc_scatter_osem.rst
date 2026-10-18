@@ -32,21 +32,19 @@ projection.
 
 .. warning::
    This example takes about ten minutes, nearly all of it in the SIMIND runs:
-   the simulation of the data and one scatter estimate per update. With a
-   collimator, only a tiny fraction of the simulated photons reach the
-   detector, and too few histories give speckled projections. Every run uses 8
-   MPI processes.
+   the simulation of the data and one scatter estimate per update. Every run
+   uses 8 MPI processes.
 
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 26-29
+.. GENERATED FROM PYTHON SOURCE LINES 24-27
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 29-73
+.. GENERATED FROM PYTHON SOURCE LINES 27-71
 
 .. code-block:: Python
 
@@ -101,7 +99,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 74-80
+.. GENERATED FROM PYTHON SOURCE LINES 72-78
 
 NEMA/IEC phantom
 ----------------
@@ -110,7 +108,7 @@ Its two smallest spheres, 10 and 13 mm, are cold; the four hot spheres are
 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 the density times the attenuation coefficient of water at 140 keV.
 
-.. GENERATED FROM PYTHON SOURCE LINES 80-120
+.. GENERATED FROM PYTHON SOURCE LINES 78-118
 
 .. code-block:: Python
 
@@ -166,7 +164,7 @@ the density times the attenuation coefficient of water at 140 keV.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 121-126
+.. GENERATED FROM PYTHON SOURCE LINES 119-124
 
 Template
 --------
@@ -174,7 +172,7 @@ The template sets the projection geometry: 48 x 48 bins of 7 mm, 60 views
 over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 reconstruction take their geometry from it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-142
+.. GENERATED FROM PYTHON SOURCE LINES 124-140
 
 .. code-block:: Python
 
@@ -201,7 +199,7 @@ reconstruction take their geometry from it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 143-150
+.. GENERATED FROM PYTHON SOURCE LINES 141-148
 
 "Measured" data
 ---------------
@@ -211,7 +209,7 @@ projections come out in counts (Index 25). The 8 MPI processes each simulate
 all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
 Poisson noise from a seeded generator is added to the simulated counts.
 
-.. GENERATED FROM PYTHON SOURCE LINES 150-186
+.. GENERATED FROM PYTHON SOURCE LINES 148-185
 
 .. code-block:: Python
 
@@ -234,7 +232,8 @@ Poisson noise from a seeded generator is added to the simulated counts.
     adaptor.set_mpi(8)
     adaptor.add_config_value(1, 140.0)
     adaptor.set_activity(TOTAL_MBQ, TIME_PER_VIEW_S)
-    expected = adaptor.run()["all_interactions"]
+    outputs = adaptor.run()
+    expected = outputs["all_interactions"]
 
     rng = np.random.default_rng(12345)
     measured = expected.clone()
@@ -369,8 +368,8 @@ Poisson noise from a seeded generator is added to the simulated counts.
      Sensitivity Cps/MBq: 56.7328        
      Sensitivity Cpm/uCi: 125.9469       
                                                                               
-     Simulation started.: 2026:10:18 21:17:16
-     Simulation stopped.: 2026:10:18 21:20:03
+     Simulation started.: 2026:10:18 21:39:31
+     Simulation stopped.: 2026:10:18 21:42:18
      Elapsed time.......: 0 h, 2 m and 47 s
      DetectorHits.......: 3446           
      DetectorHits/CPUsec: 164            
@@ -390,7 +389,7 @@ Poisson noise from a seeded generator is added to the simulated counts.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 187-194
+.. GENERATED FROM PYTHON SOURCE LINES 186-193
 
 OSEM without scatter correction
 -------------------------------
@@ -400,7 +399,7 @@ no collimator blur and no scatter. OSEM runs with 6 subsets of 10 views each.
 them; with a zero additive term and no updates it is plain OSEM. Both
 reconstructions use 48 subiterations, 8 full iterations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 194-219
+.. GENERATED FROM PYTHON SOURCE LINES 193-218
 
 .. code-block:: Python
 
@@ -436,7 +435,7 @@ reconstructions use 48 subiterations, 8 full iterations.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 220-235
+.. GENERATED FROM PYTHON SOURCE LINES 219-233
 
 OSEM with SIMIND scatter
 ------------------------
@@ -446,15 +445,14 @@ the fast model's forward projection of the same image, so that the scatter
 comes out on the scale of the data. ``ScatterCorrection`` smooths the
 estimate over 3 bins, across views as well, because a raw Monte Carlo estimate
 is too noisy to subtract. The additive term starts at zero and is refreshed
-after each pass of 12 subiterations. The image of the first update has not
-been corrected, so it explains scatter counts as primary and the scatter
-estimate comes out too high. Scatter is more than half of the counts here, so
-applying each estimate in full would make the next one overshoot too low.
-``damping=0.5`` averages successive estimates and settles the term instead.
-``seed=None`` leaves the ``RR`` switch
-unset, so the 8 MPI processes use their fixed seeds.
+after each pass of 12 subiterations, averaging successive estimates
+(``damping=0.5``). The image at the first update is not corrected for
+scatter, so the first estimate is too high.
 
-.. GENERATED FROM PYTHON SOURCE LINES 235-273
+``seed=None`` leaves the ``RR`` switch unset, so the 8 MPI processes use
+their fixed seeds.
+
+.. GENERATED FROM PYTHON SOURCE LINES 233-271
 
 .. code-block:: Python
 
@@ -610,11 +608,11 @@ unset, so the 8 MPI processes use their fixed seeds.
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:18 21:20:14
-     Simulation stopped.: 2026:10:18 21:23:46
+     Simulation started.: 2026:10:18 21:42:29
+     Simulation stopped.: 2026:10:18 21:46:01
      Elapsed time.......: 0 h, 3 m and 32 s
      DetectorHits.......: 4479           
-     DetectorHits/CPUsec: 168            
+     DetectorHits/CPUsec: 169            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -732,11 +730,11 @@ unset, so the 8 MPI processes use their fixed seeds.
      Sensitivity Cps/MBq: 56.6186        
      Sensitivity Cpm/uCi: 125.6934       
                                                                               
-     Simulation started.: 2026:10:18 21:23:51
-     Simulation stopped.: 2026:10:18 21:25:20
-     Elapsed time.......: 0 h, 1 m and 29 s
+     Simulation started.: 2026:10:18 21:46:06
+     Simulation stopped.: 2026:10:18 21:47:36
+     Elapsed time.......: 0 h, 1 m and 30 s
      DetectorHits.......: 1659           
-     DetectorHits/CPUsec: 147            
+     DetectorHits/CPUsec: 145            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -854,8 +852,8 @@ unset, so the 8 MPI processes use their fixed seeds.
      Sensitivity Cps/MBq: 57.0218        
      Sensitivity Cpm/uCi: 126.5883       
                                                                               
-     Simulation started.: 2026:10:18 21:25:25
-     Simulation stopped.: 2026:10:18 21:26:33
+     Simulation started.: 2026:10:18 21:47:41
+     Simulation stopped.: 2026:10:18 21:48:49
      Elapsed time.......: 0 h, 1 m and 8 s
      DetectorHits.......: 1186           
      DetectorHits/CPUsec: 137            
@@ -874,31 +872,42 @@ unset, so the 8 MPI processes use their fixed seeds.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 274-279
+.. GENERATED FROM PYTHON SOURCE LINES 272-277
 
 Scatter updates
 ---------------
-For each update: the factor that scaled SIMIND's primary to the fast model,
-the scatter sum, and the time of the SIMIND run. The scatter sum is compared
-with the measured counts.
+For each update, the sum of the additive term and the time of the SIMIND run.
+The data simulation also gives the true scatter: all interactions minus the
+geometric primary, the same quantity that is estimated.
 
-.. GENERATED FROM PYTHON SOURCE LINES 279-298
+.. GENERATED FROM PYTHON SOURCE LINES 277-307
 
 .. code-block:: Python
 
 
     for record in updater.history:
         print(
-            f"update at iteration {record.iteration}: scale {record.scale:.4g}, "
+            f"update at iteration {record.iteration}: "
             f"scatter sum {record.additive_sum:.4g}, {record.seconds:.0f} s"
         )
-    scatter_fraction = updater.current.sum() / measured.sum()
-    print(f"Estimated scatter fraction of the measured counts: {scatter_fraction:.0%}")
+    true_scatter = expected - outputs["geom_coll_primary"]
+    print(f"True scatter sum: {true_scatter.sum():.4g}")
+    true_fraction = true_scatter.sum() / measured.sum()
+    estimated_fraction = updater.current.sum() / measured.sum()
+    print(
+        f"Scatter fraction of the measured counts: true {true_fraction:.0%}, "
+        f"estimated {estimated_fraction:.0%}"
+    )
 
     central_view = measured.as_array()[0].shape[1] // 2
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
     for ax, (title, data) in zip(
-        axes, (("Measured", measured), ("Estimated scatter", updater.current))
+        axes,
+        (
+            ("Measured", measured),
+            ("True scatter", true_scatter),
+            ("Estimated scatter", updater.current),
+        ),
     ):
         ax.imshow(data.as_array()[0][:, central_view, :], cmap="magma")
         ax.set_title(f"{title}, view {central_view}")
@@ -909,7 +918,7 @@ with the measured counts.
 
 
 .. image-sg:: /auto_examples/mc_scatter/images/sphx_glr_plot_11_mc_scatter_osem_003.png
-   :alt: Measured, view 30, Estimated scatter, view 30
+   :alt: Measured, view 30, True scatter, view 30, Estimated scatter, view 30
    :srcset: /auto_examples/mc_scatter/images/sphx_glr_plot_11_mc_scatter_osem_003.png
    :class: sphx-glr-single-img
 
@@ -918,22 +927,23 @@ with the measured counts.
 
  .. code-block:: none
 
-    update at iteration 12: scale 2932, scatter sum 3.035e+06, 215 s
-    update at iteration 24: scale 686.5, scatter sum 2.211e+06, 92 s
-    update at iteration 36: scale 1232, scatter sum 2.387e+06, 70 s
-    Estimated scatter fraction of the measured counts: 63%
+    update at iteration 12: scatter sum 3.035e+06, 214 s
+    update at iteration 24: scatter sum 2.211e+06, 93 s
+    update at iteration 36: scatter sum 2.387e+06, 71 s
+    True scatter sum: 2.327e+06
+    Scatter fraction of the measured counts: true 61%, estimated 63%
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 299-303
+.. GENERATED FROM PYTHON SOURCE LINES 308-312
 
 Reconstructions
 ---------------
 Both images are shown relative to their mean in the background mask, so the
 arbitrary scale of the reconstructions does not matter.
 
-.. GENERATED FROM PYTHON SOURCE LINES 303-325
+.. GENERATED FROM PYTHON SOURCE LINES 312-334
 
 .. code-block:: Python
 
@@ -971,7 +981,7 @@ arbitrary scale of the reconstructions does not matter.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 326-333
+.. GENERATED FROM PYTHON SOURCE LINES 335-342
 
 Contrast recovery
 -----------------
@@ -981,7 +991,7 @@ masks include voxels on the sphere edge, which hold less activity, so even
 the truth scores below 1; its score is the ceiling for the reconstruction.
 The 10 and 13 mm spheres are cold and are not scored.
 
-.. GENERATED FROM PYTHON SOURCE LINES 333-362
+.. GENERATED FROM PYTHON SOURCE LINES 342-371
 
 .. code-block:: Python
 
@@ -1034,7 +1044,7 @@ The 10 and 13 mm spheres are cold and are not scored.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 363-365
+.. GENERATED FROM PYTHON SOURCE LINES 372-374
 
 Scatter correction raises the recovery of all four hot spheres, but it stays
 below the truth's own score.
@@ -1042,7 +1052,7 @@ below the truth's own score.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (9 minutes 23.200 seconds)
+   **Total running time of the script:** (9 minutes 24.563 seconds)
 
 
 .. _sphx_glr_download_auto_examples_mc_scatter_plot_11_mc_scatter_osem.py:

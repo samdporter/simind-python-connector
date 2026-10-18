@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**09:23.200** total execution time for 1 file **from auto_examples/mc_scatter**:
+**09:24.563** total execution time for 1 file **from auto_examples/mc_scatter**:
 
 .. container::
 
@@ -33,5 +33,5 @@ Computation times
      - Time
      - Mem (MB)
    * - :ref:`sphx_glr_auto_examples_mc_scatter_plot_11_mc_scatter_osem.py` (``plot_11_mc_scatter_osem.py``)
-     - 09:23.200
+     - 09:24.563
      - 0.0
