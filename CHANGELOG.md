@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Docs and examples 09-11 now rescale SIMIND inside the reconstruction loop with
+  the ratio of sums (`reference_normaliser(full_model)`) and smooth the scatter
+  estimate. At quick history counts the trimmed ratio scales low, because it
+  drops bins where SIMIND's primary is zero.
+
 ## [2.0.1] - Unreleased
 
 The supported successor to 1.1.1 and the replacement for the withdrawn 2.0.0 and

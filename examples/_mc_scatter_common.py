@@ -178,18 +178,22 @@ def scatter_updater(
     stop_at=None,
     **adaptor_settings,
 ):
-    """SIMIND scatter scaled to the fast model with the trimmed ratio of sums (route 2),
-    from a zero start.
+    """SIMIND scatter scaled to the fast model with the ratio of sums (route 2),
+    smoothed over 3 bins including the view axis, from a zero start.
+
+    At quick history counts the SIMIND primary is zero in many bins, which
+    biases the trimmed ratio low; the plain sum is unbiased, and smoothing
+    keeps the spiky estimate from exceeding the data bin by bin.
     """
     projector = SimindProjector(
         simind_adaptor(output_dir / "estimate", "estimate", **adaptor_settings),
         template_data,
         mu_image,
-        normalise=reference_normaliser(full_model, method="trimmed"),
+        normalise=reference_normaliser(full_model),
         seed=100,
     )
     return AdditiveUpdater(
-        ScatterCorrection(projector),
+        ScatterCorrection(projector, smoothing_fwhm_bins=3.0, smooth_across_views=True),
         UpdateSchedule(every=every, stop_at=stop_at),
         measured.get_uniform_copy(0),
     )

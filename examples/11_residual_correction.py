@@ -126,7 +126,7 @@ def main() -> None:
         simind_adaptor(output_dir / "accurate", "accurate", **LU177_LIKE),
         template_data,
         mu_image,
-        normalise=reference_normaliser(full_model, method="trimmed"),
+        normalise=reference_normaliser(full_model),
         seed=SEED_BASE + 100,
     )
     residual = LoggedResidualCorrection(

@@ -58,9 +58,24 @@ Why it is built this way
 - SIMIND's output does not follow the image magnitude (the source map is
   always scaled to the same number of photon histories), so every update is
   rescaled: by matching ``b02`` to ``A x``
-  (``reference_normaliser(full_model, method="trimmed")``, see
+  (``reference_normaliser(full_model)``, the ratio of sums, see
   :doc:`normalisation`), or by giving SIMIND the activity when ``x`` is in
   known activity units.
+- At quick history counts, use the ratio of sums and smooth the estimate
+  (``ScatterCorrection(..., smoothing_fwhm_bins=3.0,
+  smooth_across_views=True)`` for a 360° orbit). The trimmed ratio only
+  keeps bins where SIMIND's primary is non-zero, so it drops reference
+  counts but no SIMIND counts and scales low by about the reference share in
+  those bins (0.52-0.55 of the true scale on a 32³ OSEM iterate at a tenth
+  of the default quantization). Unsmoothed, much of the spiky estimate lies
+  in bins above the data, which OSEM cannot remove, and an undamped first
+  refresh from a zero start overshoots; ``damping=0.5`` helps.
+- With more histories the trimmed ratio's bias shrinks but does not vanish:
+  on the same iterate it reached 0.90-0.92 at 4x, 0.97 at 16x and 0.96 at
+  64x those histories (the fast model has no collimator blur, so trimming
+  bins by ratio is not shape-neutral), while the ratio of sums stayed within
+  1 % at every level. Keep trimmed for references with outlier bins at high
+  histories.
 
 CIL acquisition storage
 -----------------------
@@ -103,10 +118,13 @@ SIRF OSEM
     from simind_python_connector.recon.osem import run_osem_with_corrections
 
     projector = SimindProjector(adaptor, measured, mu_map,
-                                normalise=reference_normaliser(full_model, method="trimmed"),
+                                normalise=reference_normaliser(full_model),
                                 seed=1)
-    updater = AdditiveUpdater(ScatterCorrection(projector), UpdateSchedule(every=10),
-                              initial_additive=measured.get_uniform_copy(0))
+    correction = ScatterCorrection(projector, smoothing_fwhm_bins=3.0,
+                                   smooth_across_views=True)
+    updater = AdditiveUpdater(correction, UpdateSchedule(every=10),
+                              initial_additive=measured.get_uniform_copy(0),
+                              damping=0.5)
     image = run_osem_with_corrections(measured, make_model, initial, updater,
                                       num_subsets=5, subiterations_per_update=10,
                                       num_updates=3)
