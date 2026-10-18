@@ -96,9 +96,9 @@ integer >= 1.
 By default every process simulates all projections and SIMIND sums them, the
 same as one process with ``processes`` times more histories. Each process then
 needs its own random numbers. Without an ``RR`` switch, ``simind_mpi`` seeds
-process ``r`` (counting from 0) exactly as ``RR = r + 1`` (checked on v8 and v9: a two-process
-run is the mean of the serial runs with ``RR`` 1 and 2), so do not combine
-replicate output with serial runs that use those small ``RR`` values. With a
+process ``r`` (counting from 0) exactly as ``RR = r + 1`` (checked on v8: a
+two-process run is the mean of the serial runs with ``RR`` 1 and 2), so do not
+combine replicate output with serial runs that use those small ``RR`` values. With a
 fixed ``RR`` every process would repeat the same histories and the result
 would equal the serial run, so ``run()`` refuses a fixed ``RR`` with more than
 one replicate process. ``split_projections=True`` (``/MP``) shares the

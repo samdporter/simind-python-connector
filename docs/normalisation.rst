@@ -90,12 +90,11 @@ With an analytic projector as the reference:
 each end, which makes it robust against outlier bins. It also keeps only bins
 where the component is non-zero, so with few photon histories, where SIMIND's
 primary is zero in many bins, it drops reference counts but no SIMIND counts
-and scales low by about the reference share in those bins. On a 32³ OSEM
-iterate at a tenth of the default quantization it gave 0.52-0.55 of the true
-scale, against 0.96 at 64 times those histories; the ratio of sums stayed
-within 1 % at every level for the 2-seed means (single seeds within 2 %). Use ``method="sum"`` at quick history counts
-(including inside a reconstruction loop, see :doc:`reconstruction`) and keep
-trimmed for references with outlier bins at high histories.
+and scales low: 0.55 (SIMIND v8) and 0.51 (v9) of the true scale on a 32³ OSEM
+iterate at a tenth of the default quantization, 0.96 at 64 times those
+histories. Use ``method="sum"`` at quick history counts (including inside a
+reconstruction loop, see :doc:`reconstruction`) and keep trimmed for
+references with outlier bins at high histories.
 
 Against measured data:
 
