@@ -19,7 +19,9 @@ pytestmark = [
     pytest.mark.requires_sirf,
 ]
 
-assert PROFILE.name == "smoke", "unset SIMIND_A3_FULL_VALIDATION"
+assert PROFILE.name == "smoke", (
+    "run at the A3 smoke profile; unset SIMIND_A3_FULL_VALIDATION"
+)
 NOTE = "A3 smoke profile; full profile ~20 h/case under amd64 emulation"
 
 
