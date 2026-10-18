@@ -47,11 +47,12 @@ INSERT_MODES = {
     "cold": {"background": 1.0, "mode": "cold"},
 }
 HOT_SPHERE_DIAMETERS_MM = (17, 22, 28, 37)
+WATER_MU_511_KEV_PER_CM = 0.0960
 VIEWS = 16
 # shorter than the example's 10 cm: source histories scale with the container volume
-CONTAINER_HALF_LENGTH_CM = 3.0
+CONTAINER_HALF_LENGTH_CM = 6.0
 ANALYTIC_HISTORIES = 0.25
-VOXEL_QUANTIZATION_SCALE = 0.03
+VOXEL_QUANTIZATION_SCALE = 0.01
 # a uniform source needs no quantisation levels; histories scale with voxel count
 COLD_VOXEL_QUANTIZATION_SCALE = 0.002
 
@@ -172,15 +173,18 @@ def test_cardiac_defect_lowers_counts(validate, v9_linux_guard, tmp_path):
     are normalised to equal totals and the region is where the healthy view-sum
     exceeds the defect one. That region is chosen from the data, so noise alone
     gives a positive drop; the same measure for a defect with activity ratio 1
-    (which changes nothing but the random stream) is subtracted.
+    (which changes nothing but the random stream), averaged over two seeds, is
+    subtracted.
 
     The defect footprint is not projected geometrically: voxelise does not
     support CardiacSource, SIMIND's cardiac rotation conventions are not
     documented, and activity ratios above 1 behave as 1 (so no defect-only run).
     """
 
-    def projection(prefix, defect):
+    def projection(prefix, defect, seed=None):
         connector = _analytic_connector(tmp_path, prefix)
+        if seed is not None:
+            connector.add_runtime_switch("RR", seed)
         heart = CardiacSource((4.0, 4.0, 4.0), defect=defect)
         connector.configure_phantom(AnalyticPhantom(heart, _WATER))
         return connector.run()["tot_w1"].projection.sum(axis=0)
@@ -199,13 +203,16 @@ def test_cardiac_defect_lowers_counts(validate, v9_linux_guard, tmp_path):
     with v9_linux_guard(case):
         healthy = projection("heart", None)
         defect = projection("defect", defect_at(0.0))
-        no_op_defect = projection("no_op", defect_at(1.0))
+        no_op_defects = [
+            projection("no_op", defect_at(1.0)),
+            projection("no_op_reseeded", defect_at(1.0), seed=8),
+        ]
 
     validate(
         case,
         float(
             drop_in_emptied_pixels(healthy, defect)
-            - drop_in_emptied_pixels(healthy, no_op_defect)
+            - np.mean([drop_in_emptied_pixels(healthy, p) for p in no_op_defects])
         ),
         lower=0.01,
         smoke=True,
@@ -285,12 +292,25 @@ def test_nema_hot_sphere_activity(validate, nema, diameter_mm):
 
 
 @pytest.mark.requires_phantomgen
-def test_nema_background_density_is_water(validate, nema):
-    phantom, _ = nema
+def test_nema_background_mu_is_water(validate):
+    """phantomgen states mu in cm^-1 but not the energy it was defined at.
 
+    0.096 cm^-1 is water (1 g/cm^3) at 511 keV: NIST XCOM gives mu/rho of
+    0.0969 cm^2/g at 500 keV and 0.0896 at 600 keV, which interpolate to
+    0.0960 at 511 keV. The energy is inferred from the value, so this pins
+    phantomgen's number to that reading rather than validating a stated energy.
+    """
+    import phantomgen
+
+    _, mu, masks = phantomgen.create_nema(
+        matrix_size=(96,) * 3,
+        voxel_size_mm=(4.0,) * 3,
+        nema_dict=phantomgen.pet_nema_dict,
+    )
     validate(
-        "nema_background_density_is_water",
-        float(np.median(phantom.density_g_cm3[phantom.masks["background"] > 0])),
+        "nema_background_mu_is_water_511kev",
+        float(np.median(mu[masks["background"] > 0]) / WATER_MU_511_KEV_PER_CM),
         expected=1.0,
-        abs_tol=1e-6,
+        rel=0.02,
+        note="regression pin: phantomgen states no mu energy; 511 keV inferred",
     )
