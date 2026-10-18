@@ -44,7 +44,6 @@ INSERT_MODES = {
     "cold": {"background": 1.0, "mode": "cold"},
 }
 HOT_SPHERE_DIAMETERS_MM = (17, 22, 28, 37)
-WATER_MU_511_KEV_PER_CM = 0.0960
 INSERT_TOTAL_NOTE = (
     "background and cold modes show a 1-2 % analytic deficit, cause not "
     "established (candidates: voxelise supersample=2 partial volume at 4 mm; "
@@ -282,25 +281,13 @@ def test_nema_hot_sphere_activity(validate, nema, diameter_mm):
 
 
 @pytest.mark.requires_phantomgen
-def test_nema_background_mu_is_water(validate):
-    """phantomgen states mu in cm^-1 but not the energy it was defined at.
+def test_nema_background_density_is_water(validate, nema):
+    phantom, _ = nema
+    background = phantom.masks["background"] > 0
 
-    0.096 cm^-1 is water (1 g/cm^3) at 511 keV: NIST XCOM gives mu/rho of
-    0.0969 cm^2/g at 500 keV and 0.0896 at 600 keV, which interpolate to
-    0.0960 at 511 keV. The energy is inferred from the value, so this pins
-    phantomgen's number to that reading rather than validating a stated energy.
-    """
-    import phantomgen
-
-    _, mu, masks = phantomgen.create_nema(
-        matrix_size=(96,) * 3,
-        voxel_size_mm=(4.0,) * 3,
-        nema_dict=phantomgen.pet_nema_dict,
-    )
     validate(
-        "nema_background_mu_is_water",
-        float(np.median(mu[masks["background"] > 0]) / WATER_MU_511_KEV_PER_CM),
+        "nema_background_density_is_water",
+        float(np.median(phantom.density_g_cm3[background])),
         expected=1.0,
-        rel=0.02,
-        note="regression pin: phantomgen states no mu energy; 511 keV inferred",
+        rel=1e-6,
     )

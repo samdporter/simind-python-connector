@@ -130,12 +130,13 @@ def test_ca1_derived_primary(validate, not_run, engine, tmp_path):
     if "pri_w1" not in outputs:
         not_run("ca1_derived_primary", "the connector does not derive pri_w1")
 
+    expected = outputs["tot_w1"].projection - outputs["sca_w1"].projection
     validate(
         "ca1_derived_primary",
-        float(outputs["pri_w1"].projection.sum() / outputs["tot_w1"].projection.sum()),
-        lower=0.7,
-        upper=1,
-        note="primary fraction of the total in the window",
+        float(np.abs(outputs["pri_w1"].projection - expected).max()),
+        expected=0.0,
+        abs_tol=1e-6 * float(np.abs(expected).max()),
+        note="derived pri_w1 minus (tot_w1 - sca_w1), largest voxel difference",
     )
 
 
