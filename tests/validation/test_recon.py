@@ -36,6 +36,9 @@ VOXEL_MM = 4.42
 VIEWS = 30
 RADIUS_MM = 200
 QUANTIZATION_SCALE = 0.1 * DEFAULT_QUANTIZATION_SCALE
+# At 0.1x the per-bin MC noise of both scatter maps caps their correlation near
+# 0.47; at 3.2x the noise-limited ceiling is about 0.95.
+SHAPE_QUANTIZATION_SCALE = 3.2 * DEFAULT_QUANTIZATION_SCALE
 HOT_OFFSET = 5
 SUBSETS = 6
 
@@ -83,12 +86,12 @@ def _template(path):
     ).build(output_path=path / "template")
 
 
-def _adaptor(root, name):
+def _adaptor(root, name, quantization_scale=QUANTIZATION_SCALE):
     adaptor = SirfSimindAdaptor(
         configs.get("Example.yaml"),
         str(root / name),
         name,
-        quantization_scale=QUANTIZATION_SCALE,
+        quantization_scale=quantization_scale,
         scoring_routine=ScoringRoutine.PENETRATE,
     )
     adaptor.add_runtime_switch("CC", "ma-lehr")
@@ -103,6 +106,16 @@ class _Replay:
 
     def estimate(self, image):
         return next(self.estimates)
+
+
+def _route1(root, name, template, mu_image, quantization_scale=QUANTIZATION_SCALE):
+    route1 = _adaptor(root, name, quantization_scale)
+    route1.set_template(template)
+    route1.set_source(_image(_phantom()[0]))
+    route1.set_mu_map(mu_image)
+    route1.set_activity(100.0, 10.0)
+    route1.add_runtime_switch("RR", 1)
+    return route1.run()
 
 
 @pytest.fixture(scope="module")
@@ -121,13 +134,7 @@ def setup(tmp_path_factory):
         matrix.set_resolution_model(0.0, 0.0, False)
         return sirf.AcquisitionModelUsingMatrix(matrix)
 
-    route1 = _adaptor(root, "measured")
-    route1.set_template(template)
-    route1.set_source(_image(activity))
-    route1.set_mu_map(mu_image)
-    route1.set_activity(100.0, 10.0)
-    route1.add_runtime_switch("RR", 1)
-    outputs = route1.run()
+    outputs = _route1(root, "measured", template, mu_image)
     expected = outputs["all_interactions"]
     primary = outputs["geom_coll_primary"].as_array()
     true_scatter = expected.as_array() - primary
@@ -160,9 +167,9 @@ def setup(tmp_path_factory):
     )
 
 
-def _projector(setup, name, seed):
+def _projector(setup, name, seed, quantization_scale=QUANTIZATION_SCALE):
     return SimindProjector(
-        _adaptor(setup.root, name),
+        _adaptor(setup.root, name, quantization_scale),
         setup.template,
         setup.mu_image,
         normalise=reference_normaliser(setup.full_model, method="trimmed"),
@@ -186,13 +193,26 @@ def test_route2_scatter_matches_route1_sum(setup, estimates, validate):
     )
 
 
-def test_route2_scatter_matches_route1_shape(setup, estimates, validate):
+def test_route2_scatter_matches_route1_shape(setup, validate):
+    outputs = _route1(
+        setup.root,
+        "shape_measured",
+        setup.template,
+        setup.mu_image,
+        SHAPE_QUANTIZATION_SCALE,
+    )
+    true_scatter = (
+        outputs["all_interactions"].as_array() - outputs["geom_coll_primary"].as_array()
+    )
+    estimate = ScatterCorrection(
+        _projector(setup, "shape_estimate", 100, SHAPE_QUANTIZATION_SCALE)
+    ).estimate(setup.true_image)
     sigma = 3 / (2 * np.sqrt(2 * np.log(2)))
-    array = estimates[0].as_array().astype(np.float64)
+    array = estimate.as_array().astype(np.float64)
     sigmas = [0.0] * array.ndim
     sigmas[-3] = sigmas[-1] = sigma
     smoothed = gaussian_filter(array, sigmas)
-    correlation = np.corrcoef(smoothed.ravel(), setup.true_scatter.ravel())[0, 1]
+    correlation = np.corrcoef(smoothed.ravel(), true_scatter.ravel())[0, 1]
     validate(
         "route2_scatter_matches_route1_shape",
         float(correlation),
