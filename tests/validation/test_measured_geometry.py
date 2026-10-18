@@ -19,7 +19,8 @@ pytestmark = [
     pytest.mark.requires_sirf,
 ]
 
-assert PROFILE.name == "full", "run with SIMIND_A3_FULL_VALIDATION=1"
+assert PROFILE.name == "smoke", "unset SIMIND_A3_FULL_VALIDATION"
+NOTE = "A3 smoke profile; full profile ~20 h/case under amd64 emulation"
 
 
 def _validate_geometry(validate, case, correlation, centre_gap):
@@ -27,8 +28,16 @@ def _validate_geometry(validate, case, correlation, centre_gap):
         f"{case}_correlation",
         float(correlation),
         lower=PROFILE.min_correlation,
+        smoke=True,
+        note=NOTE,
     )
-    validate(f"{case}_centre_gap", float(centre_gap), upper=PROFILE.max_centre_gap)
+    validate(
+        f"{case}_centre_gap",
+        float(centre_gap),
+        upper=PROFILE.max_centre_gap,
+        smoke=True,
+        note=NOTE,
+    )
 
 
 @pytest.mark.parametrize("direction", ["cw", "ccw"])

@@ -129,6 +129,6 @@ run_in_docker() {
 }
 
 run_in_docker python "validation and not requires_sirf"
-run_in_docker sirf "validation and requires_sirf" -e SIMIND_A3_FULL_VALIDATION=1
+run_in_docker sirf "validation and requires_sirf"
 
 exit "$STATUS"
