@@ -397,7 +397,10 @@ def history_sweep(setup, scatter_loop):
     The iterate is the image at the scatter loop's 2nd refresh, reused at every
     level so only the SIMIND histories change. The true scale is the ratio of
     expected totals, sum(A x) / E[sum(b02)], with E[sum(b02)] the mean over two
-    extra runs at the highest level whose seeds no method sees.
+    extra runs at the highest level whose seeds no method sees. The sum
+    method estimates that same quantity, so its highest-level row agrees by
+    construction and shows only seed noise; the informative rows are the
+    lower levels.
     """
     image = scatter_loop.iterates[1]
     reference = setup.full_model.direct(image).as_array()
@@ -455,7 +458,10 @@ def test_normalisers_agree_at_high_histories(history_sweep, validate):
         expected=1.0,
         rel=0.05,
         smoke=True,
-        note=f"the method farthest from 1 at {top}x; means {means}",
+        note=(
+            f"the method farthest from 1 at {top}x (trimmed, about 0.96, on v8 "
+            f"and v9); sum agrees there by construction; means {means}"
+        ),
     )
 
 

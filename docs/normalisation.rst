@@ -93,7 +93,7 @@ primary is zero in many bins, it drops reference counts but no SIMIND counts
 and scales low by about the reference share in those bins. On a 32³ OSEM
 iterate at a tenth of the default quantization it gave 0.52-0.55 of the true
 scale, against 0.96 at 64 times those histories; the ratio of sums stayed
-within 1 % at every level. Use ``method="sum"`` at quick history counts
+within 1 % at every level for the 2-seed means (single seeds within 2 %). Use ``method="sum"`` at quick history counts
 (including inside a reconstruction loop, see :doc:`reconstruction`) and keep
 trimmed for references with outlier bins at high histories.
 

@@ -67,14 +67,17 @@ Why it is built this way
   keeps bins where SIMIND's primary is non-zero, so it drops reference
   counts but no SIMIND counts and scales low by about the reference share in
   those bins (0.52-0.55 of the true scale on a 32³ OSEM iterate at a tenth
-  of the default quantization). Unsmoothed, much of the spiky estimate lies
-  in bins above the data, which OSEM cannot remove, and an undamped first
-  refresh from a zero start overshoots; ``damping=0.5`` helps.
+  of the default quantization). In that set-up, 34-66 % of the unsmoothed
+  estimate lay in bins above the data, which OSEM cannot remove, and
+  undamped refreshes from a zero start oscillated (1.29x, then 0.64x the true
+  scatter); smoothing and ``damping=0.5`` brought the additive term to the
+  true scatter within 4 refreshes.
 - With more histories the trimmed ratio's bias shrinks but does not vanish:
   on the same iterate it reached 0.90-0.92 at 4x, 0.97 at 16x and 0.96 at
-  64x those histories (the fast model has no collimator blur, so trimming
-  bins by ratio is not shape-neutral), while the ratio of sums stayed within
-  1 % at every level. Keep trimmed for references with outlier bins at high
+  64x those histories (likely because the fast model has no collimator blur,
+  so trimming bins by ratio is not shape-neutral; not established), while
+  the ratio of sums stayed within 1 % at every level for the 2-seed means
+  (single seeds within 2 %). Keep trimmed for references with outlier bins at high
   histories.
 
 CIL acquisition storage

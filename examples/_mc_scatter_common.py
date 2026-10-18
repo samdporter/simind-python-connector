@@ -181,9 +181,8 @@ def scatter_updater(
     """SIMIND scatter scaled to the fast model with the ratio of sums (route 2),
     smoothed over 3 bins including the view axis, from a zero start.
 
-    At quick history counts the SIMIND primary is zero in many bins, which
-    biases the trimmed ratio low; the plain sum is unbiased, and smoothing
-    keeps the spiky estimate from exceeding the data bin by bin.
+    At quick history counts the trimmed ratio scales low and the raw estimate
+    is too spiky for OSEM to subtract.
     """
     projector = SimindProjector(
         simind_adaptor(output_dir / "estimate", "estimate", **adaptor_settings),

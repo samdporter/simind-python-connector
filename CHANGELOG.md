@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Docs and examples 09-11 now rescale SIMIND inside the reconstruction loop with
-  the ratio of sums (`reference_normaliser(full_model)`) and smooth the scatter
-  estimate. At quick history counts the trimmed ratio scales low, because it
-  drops bins where SIMIND's primary is zero.
-
 ## [2.0.1] - Unreleased
 
 The supported successor to 1.1.1 and the replacement for the withdrawn 2.0.0 and
@@ -69,6 +63,10 @@ satisfied requirement).
   tutorials, from `SIMIND_CONNECTOR_Y90_DATA` or a pooch download once published.
 
 ### Changed
+- Docs and examples 09-11 now rescale SIMIND inside the reconstruction loop with
+  the ratio of sums (`reference_normaliser(full_model)`) and smooth the scatter
+  estimate. At quick history counts the trimmed ratio scales low, because it
+  drops bins where SIMIND's primary is zero.
 - Examples 01-08 moved to `examples/getting_started/` and `examples/backends/` as
   `plot_*` sphinx-gallery files, with their rendered outputs in the documentation.
   Examples 08A/08B/08C no longer take a DICOM argument; they read the Y-90 dataset

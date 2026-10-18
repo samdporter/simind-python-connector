@@ -68,6 +68,10 @@ Added
 Changed
 ~~~~~~~
 
+- Docs and examples 09-11 now rescale SIMIND inside the reconstruction loop
+  with the ratio of sums (``reference_normaliser(full_model)``) and smooth the
+  scatter estimate. At quick history counts the trimmed ratio scales low,
+  because it drops bins where SIMIND's primary is zero.
 - Examples 01-08 moved to ``examples/getting_started/`` and
   ``examples/backends/`` as ``plot_*`` sphinx-gallery files, with their rendered
   outputs in the documentation. Examples 08A/08B/08C no longer take a DICOM
