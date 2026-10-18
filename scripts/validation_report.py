@@ -21,6 +21,8 @@ def _load(out_dir: Path) -> tuple[list[str], dict]:
             )
             case["engines"][path.stem] = record
             case["smoke"] = case["smoke"] or record.get("smoke", False)
+            if record["status"] != "run":
+                continue
             if record.get("expected") is not None:
                 case["expected"] = f"{record['expected']:.4g}"
             else:
