@@ -20,7 +20,11 @@ from simind_python_connector.recon import (
     UpdateSchedule,
     reference_normaliser,
 )
-from simind_python_connector.recon.cil import (
+
+
+pytest.importorskip("cil")
+
+from simind_python_connector.recon.cil import (  # noqa: E402
     CorrectionCallback,
     build_subset_objectives,
     refresh_stochastic_state,
