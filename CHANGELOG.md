@@ -245,6 +245,12 @@ satisfied requirement).
   fixed `RR` switch, every process repeated the same histories and the result was
   bin-for-bin the serial run. Leave `RR` unset for replicate MPI: `simind_mpi` then
   seeds process `r` (from 0) as `RR = r + 1`.
+- `PyTomographySimindAdaptor.get_output_header_path` returned the converted STIR
+  `.hs` header for PENETRATE components and derived `pri_wN`/`sca_wN` outputs. Its
+  start angle is SIMIND's + 180 degrees, and PyTomography's SIMIND reader takes it as
+  SIMIND's, so reconstructions came out rotated 180 degrees about z. These outputs
+  now get a `{prefix}_{key}.h00` copy of SIMIND's own header (v8 `{prefix}.h00`, v9
+  `{prefix}.hNN`; `tot_wN` for derived outputs) naming the output's data file.
 
 ### Known limitations
 - The optional SIRF/CIL scatter and residual correction workflows ship with the

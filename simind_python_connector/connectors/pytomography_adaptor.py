@@ -9,6 +9,7 @@ and returns torch tensors for projection outputs.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Union
 
@@ -17,6 +18,7 @@ import numpy as np
 from simind_python_connector.connectors.base import BaseConnector
 from simind_python_connector.connectors.python_connector import (
     ConfigSource,
+    ProjectionResult,
     RuntimeOperator,
     SimindPythonConnector,
 )
@@ -25,6 +27,7 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     ValidationError,
 )
+from simind_python_connector.utils.interfile import InterfileHeader
 from simind_python_connector.utils.simind_utils import validate_energy_windows
 
 
@@ -187,6 +190,12 @@ class PyTomographySimindAdaptor(BaseConnector):
 
         for key, value in raw_outputs.items():
             header_path = self.output_dir / f"{self.output_prefix}_{key}.h00"
+            if not header_path.exists():
+                template = self._simind_header_template(key, value)
+                if template is not None:
+                    header = InterfileHeader.from_file(template)
+                    header.set("!name of data file", Path(value.data_path).name)
+                    header.write(header_path)
             if pytomo_simind is not None and header_path.exists():
                 projection = pytomo_simind.get_projections(str(header_path)).to(
                     dtype=torch.float32
@@ -255,6 +264,24 @@ class PyTomographySimindAdaptor(BaseConnector):
             available = ", ".join(sorted(outputs))
             raise KeyError(f"Output {key!r} not available. Available: {available}")
         return outputs[key]
+
+    def _simind_header_template(
+        self, key: str, value: ProjectionResult
+    ) -> Optional[Path]:
+        """SIMIND's own header for an output SIMIND wrote no ``{prefix}_{key}.h00`` for.
+
+        The converted ``.hs`` carries STIR's start angle (SIMIND's + 180), which
+        PyTomography's reader would take as SIMIND's.
+        """
+        data_path = Path(value.data_path)
+        if "derived" in value.metadata:
+            window = key.rsplit("_", 1)[1]
+            return self.output_dir / f"{self.output_prefix}_tot_{window}.h00"
+        if re.fullmatch(r"\.b\d{2}", data_path.suffix):
+            # PENETRATE: v9 writes a .hNN per component, v8 one shared .h00.
+            numbered = data_path.with_suffix(f".h{data_path.suffix[2:]}")
+            return numbered if numbered.is_file() else data_path.with_suffix(".h00")
+        return None
 
     def _validate_inputs(self) -> None:
         if self._source is None or self._mu_map is None:

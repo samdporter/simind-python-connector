@@ -17,9 +17,19 @@ At-a-Glance Axis Conventions
 - PyTomography SIMIND projections from ``pytomography.io.SPECT.simind`` are
   ``(theta, r, z)``, which is ``(view, bin, axial)``.
 - ``PyTomographySimindAdaptor`` uses that same ``(view, bin, axial)`` layout
-  even on its fallback path (outputs without a per-key ``.h00``, such as
-  PENETRATE): the core ``(view, axial, bin)`` array is transposed and its axial
-  direction reversed to match the reader.
+  even on its fallback path (without PyTomography installed): the core
+  ``(view, axial, bin)`` array is transposed and its axial direction reversed
+  to match the reader.
+- ``PyTomographySimindAdaptor.get_output_header_path`` is always a SIMIND
+  header (start angle in SIMIND's convention), which is what
+  ``pytomography.io.SPECT.simind.get_metadata`` expects. SIMIND writes no
+  per-key ``.h00`` for PENETRATE components or derived ``pri_wN``/``sca_wN``,
+  so the adaptor writes ``{prefix}_{key}.h00`` from SIMIND's own header (v8
+  ``{prefix}.h00``, v9 ``{prefix}.hNN``, ``tot_wN`` for derived outputs). Do not
+  give PyTomography the converted ``.hs`` headers: their start angle is STIR's,
+  SIMIND's + 180 degrees, and the reconstruction comes out rotated 180 degrees
+  about z. ``get_output_metadata`` is read from the ``.hs`` and so also reports
+  STIR's start angle.
 - PyTomography DICOM projections (``pytomography.io.SPECT.dicom.get_projections``)
   are also ``(theta, r, z)``, but the views are sorted by PyTomography's
   detector angle, ``(gantry angle + 180) mod 360``, and ``z`` runs from the
