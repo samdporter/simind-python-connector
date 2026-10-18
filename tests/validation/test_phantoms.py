@@ -101,7 +101,7 @@ def _projection_checks(case, correlation, centre_gap):
 @pytest.mark.scattwin_data
 @pytest.mark.parametrize("shape", list(SHAPES))
 def test_analytic_vs_voxel_shape(validate, tmp_path, shape):
-    case = f"analytic_vs_voxel_{shape}"
+    case = f"analytic_vs_voxel_shape_{shape}"
     phantom = AnalyticPhantom(SHAPES[shape], _WATER, source_shift_cm=SOURCE_SHIFT_CM)
     connector = _analytic_connector(tmp_path, "analytic")
     connector.configure_phantom(phantom)
@@ -128,7 +128,7 @@ def _jaszczak_like(**insert_mode) -> AnalyticPhantom:
 @pytest.mark.scattwin_data
 @pytest.mark.parametrize("mode", list(INSERT_MODES))
 def test_inserts_mode(validate, tmp_path, mode):
-    case = f"inserts_{mode}"
+    case = f"inserts_mode_{mode}"
     phantom = _jaszczak_like(**INSERT_MODES[mode])
     connector = _analytic_connector(tmp_path, "inserts")
     connector.configure_phantom(phantom)
@@ -211,9 +211,9 @@ def test_cardiac_defect_lowers_counts(validate, tmp_path):
 
 @pytest.mark.macos_v9
 @pytest.mark.scattwin_data
-@pytest.mark.parametrize("library", list(LibraryPhantom))
+@pytest.mark.parametrize("library", list(LibraryPhantom), ids=lambda p: p.name)
 def test_library_phantom(validate, tmp_path, library):
-    case = f"library_{library.name.lower()}"
+    case = f"library_phantom_{library.name}"
     prefix = "library"
     connector = _connector(tmp_path, prefix, num_projections=8)
     connector.configure_phantom(library)

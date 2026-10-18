@@ -128,7 +128,7 @@ def pytest_runtest_setup(item):
             _output_dir() / f"{engine.label}.jsonl",
             engine,
             _feature(item),
-            item.name.removeprefix("test_"),
+            item.name.removeprefix("test_").replace("[", "_").rstrip("]"),
             "v9 Linux SCATTWIN engine defect: silently corrupted projections",
         )
 

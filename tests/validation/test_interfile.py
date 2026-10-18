@@ -41,30 +41,30 @@ def _parse_problem(connector, outputs) -> str:
 
 
 @pytest.mark.parametrize(
-    "case, routine, ca",
+    "routine, ca",
     [
-        ("dummy", ScoringRoutine.DUMMY, None),
+        pytest.param(ScoringRoutine.DUMMY, None, id="dummy"),
         pytest.param(
-            "scattwin_ca0",
             ScoringRoutine.SCATTWIN,
             0,
+            id="scattwin_ca0",
             marks=pytest.mark.scattwin_data,
         ),
         pytest.param(
-            "scattwin_ca1",
             ScoringRoutine.SCATTWIN,
             1,
+            id="scattwin_ca1",
             marks=pytest.mark.scattwin_data,
         ),
-        ("penetrate", ScoringRoutine.PENETRATE, None),
+        pytest.param(ScoringRoutine.PENETRATE, None, id="penetrate"),
     ],
 )
-def test_outputs_parse(validate, tmp_path, case, routine, ca):
+def test_outputs_parse(validate, request, tmp_path, routine, ca):
     connector, outputs = _run(tmp_path, routine, ca)
     problem = _parse_problem(connector, outputs)
 
     validate(
-        f"outputs_parse_{case}",
+        f"outputs_parse_{request.node.callspec.id}",
         float(not problem),
         expected=1.0,
         abs_tol=0,
