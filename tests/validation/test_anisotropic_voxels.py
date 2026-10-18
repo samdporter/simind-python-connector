@@ -26,7 +26,6 @@ def _projection(
     tmp_path,
     prefix: str,
     source: np.ndarray,
-    density: float,
     quantization_scale: float = 1.0,
     nn: int = POINT_NN,
 ):
@@ -41,7 +40,7 @@ def _projection(
     connector.add_config_value(77, ROWS)
     connector.configure_voxel_phantom(
         source,
-        np.full(source.shape, density, np.float32),
+        np.zeros(source.shape, np.float32),
         (SLICE_MM, PIXEL_MM, PIXEL_MM),
         scoring_routine=ScoringRoutine.PENETRATE,
         mu_map_type="density",
@@ -68,7 +67,7 @@ def point_rows(tmp_path_factory) -> dict[int, float]:
         source = np.zeros((SLICES, IN_PLANE, IN_PLANE), np.float32)
         source[k, IN_PLANE // 2, IN_PLANE // 2] = 1.0
         directory = tmp_path_factory.mktemp(f"k{k}")
-        rows[k] = _row_centroid(_projection(directory, f"k{k}", source, 0.0))
+        rows[k] = _row_centroid(_projection(directory, f"k{k}", source))
     return rows
 
 
@@ -99,9 +98,7 @@ def test_axial_extent(validate, tmp_path):
     offset = np.indices((IN_PLANE, IN_PLANE)) - (IN_PLANE - 1) / 2
     in_cylinder = (offset**2).sum(axis=0) <= (CYLINDER_RADIUS_MM / PIXEL_MM) ** 2
     source[:, in_cylinder] = 1.0
-    projection = _projection(
-        tmp_path, "cyl", source, 0.0, DEFAULT_QUANTIZATION_SCALE, nn=1
-    )
+    projection = _projection(tmp_path, "cyl", source, DEFAULT_QUANTIZATION_SCALE, nn=1)
     profile = _row_profile(projection)
 
     validate(

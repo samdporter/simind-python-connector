@@ -75,7 +75,7 @@ def test_hu_input_uses_schneider(validate, tmp_path):
     doi:10.1088/0031-9155/45/2/314) conversion, not the bilinear water/bone model.
 
     The reference is the piecewise-linear calibration OpenGATE distributes as
-    opengate/data/Schneider2000DensitiesTable.txt: (-98 HU, 0.93), (14, 1.03),
+    opengate/data/Schneider2000DensitiesTable.txt: (-97 HU, 0.930486), (14, 1.03),
     (23, 1.031), (100, 1.1199), (101, 1.0762), (1600, 1.9642) g/cm3. Linear
     interpolation gives 1.01745 at 0 HU and 1.60876 at 1000 HU.
     """
@@ -83,7 +83,7 @@ def test_hu_input_uses_schneider(validate, tmp_path):
         tmp_path, "hu", _bone_region_maps(0.0, BONE_HU), "hu"
     ).astype(float)
     water_g_cm3, bone_g_cm3 = written[0] / 1000, written[-1] / 1000
-    expected_water = 0.93 + (1.03 - 0.93) * (0 + 98) / (14 + 98)
+    expected_water = 0.930486 + (1.03 - 0.930486) * (0 + 97) / (14 + 97)
     expected_bone = 1.0762 + (1.9642 - 1.0762) * (1000 - 101) / (1600 - 101)
 
     validate(
@@ -151,6 +151,8 @@ def air_primary_sum(tmp_path_factory) -> float:
 def test_beer_lambert_transmission(
     validate, tmp_path, air_primary_sum, case, density, mu_per_cm, rel, bias_note
 ):
+    """The expected mu is the connector's own attenuation table, so this is a
+    consistency check between SIMIND's transmission and that table."""
     attenuated = _primary_sum(tmp_path, case[:5], density)
 
     validate(
@@ -161,6 +163,6 @@ def test_beer_lambert_transmission(
         note=(
             f"histories raised: quantization_scale 1.0 and NN {TRANSMISSION_NN}; "
             f"{bias_note}, systematic at high statistics (NN 100 and 300 agree), "
-            "likely SIMIND's cross-sections vs the connector's attenuation table"
+            "cause not established"
         ),
     )

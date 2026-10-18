@@ -20,9 +20,10 @@ At-a-Glance Axis Conventions
   even on its fallback path (without PyTomography installed): the core
   ``(view, axial, bin)`` array is transposed and its axial direction reversed
   to match the reader.
-- ``PyTomographySimindAdaptor.get_output_header_path`` is always a SIMIND
-  header (start angle in SIMIND's convention), which is what
-  ``pytomography.io.SPECT.simind.get_metadata`` expects. SIMIND writes no
+- ``PyTomographySimindAdaptor.get_output_header_path`` is a SIMIND header
+  (start angle in SIMIND's convention) when PyTomography is installed, which is
+  what ``pytomography.io.SPECT.simind.get_metadata`` expects. Without
+  PyTomography it is the converted ``.hs``. SIMIND writes no
   per-key ``.h00`` for PENETRATE components or derived ``pri_wN``/``sca_wN``,
   so the adaptor writes ``{prefix}_{key}.h00`` from SIMIND's own header (v8
   ``{prefix}.h00``, v9 ``{prefix}.hNN``, ``tot_wN`` for derived outputs). Do not
