@@ -63,6 +63,11 @@ satisfied requirement).
   tutorials, from `SIMIND_CONNECTOR_Y90_DATA` or a pooch download once published.
 
 ### Changed
+- `run()` warns (`RuntimeWarning`) before launching SIMIND v9.0 on Linux with
+  the SCATTWIN routine. That build can abort with heap corruption or exit
+  normally with silently corrupted projections, depending on the views, the
+  matrix size and the working-directory length. Use v8, the macOS v9 build or
+  PENETRATE.
 - Docs and examples 09-11 now rescale SIMIND inside the reconstruction loop with
   the ratio of sums (`reference_normaliser(full_model)`) and smooth the scatter
   estimate. At quick history counts the trimmed ratio scales low, because it

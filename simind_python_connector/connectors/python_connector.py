@@ -10,8 +10,10 @@ import logging
 import math
 import numbers
 import os
+import platform
 import re
 import shutil
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -829,8 +831,21 @@ class SimindPythonConnector(BaseConnector):
         # orbit, saving the config or clearing stale outputs when the run cannot
         # be supported or the prefix is no longer safe.
         self._validate_output_prefix(self.output_prefix)
-        self._config_scoring_routine()
+        routine = self._config_scoring_routine()
         run_switches_holder = self._validate_runtime_operator(runtime_operator)
+
+        if (
+            routine is ScoringRoutine.SCATTWIN
+            and self.simind_version == 9
+            and platform.system() == "Linux"
+        ):
+            warnings.warn(
+                "SIMIND v9.0 on Linux can abort in SCATTWIN or silently return "
+                "corrupted projections. Use SIMIND v8, the macOS v9 build or "
+                "the PENETRATE scoring routine.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         v9_voxel_offsets = None
         if self.simind_version == 9 and self._phantom_mode == "voxel":

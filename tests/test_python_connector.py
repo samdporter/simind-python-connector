@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import tempfile
+import warnings
 from decimal import Decimal
 from fractions import Fraction
 from pathlib import Path
@@ -3311,3 +3312,71 @@ def test_python_connector_set_energy_windows_rejects_too_many_windows(tmp_path: 
         )
 
     assert not (tmp_path / "case01.win").exists()
+
+
+class _LaunchReached(Exception):
+    pass
+
+
+def _warnings_before_launch(
+    monkeypatch,
+    tmp_path: Path,
+    *,
+    system: str,
+    version: int,
+    routine: ScoringRoutine,
+) -> list[warnings.WarningMessage]:
+    monkeypatch.setattr(connector_mod.platform, "system", lambda: system)
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+        simind_version=version,
+    )
+    connector.add_config_value(84, routine.value)
+
+    def fake_run_simulation(*args, **kwargs):
+        raise _LaunchReached
+
+    connector.executor.run_simulation = fake_run_simulation  # type: ignore[assignment]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with pytest.raises(_LaunchReached):
+            connector.run()
+    return caught
+
+
+@pytest.mark.unit
+def test_python_connector_warns_about_v9_linux_scattwin(monkeypatch, tmp_path: Path):
+    caught = _warnings_before_launch(
+        monkeypatch,
+        tmp_path,
+        system="Linux",
+        version=9,
+        routine=ScoringRoutine.SCATTWIN,
+    )
+
+    defect = [w for w in caught if issubclass(w.category, RuntimeWarning)]
+    assert len(defect) == 1
+    assert "SCATTWIN" in str(defect[0].message)
+    assert "PENETRATE" in str(defect[0].message)
+    assert defect[0].filename == __file__
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("system", "version", "routine"),
+    [
+        ("Linux", 8, ScoringRoutine.SCATTWIN),
+        ("Linux", 9, ScoringRoutine.PENETRATE),
+        ("Darwin", 9, ScoringRoutine.SCATTWIN),
+    ],
+)
+def test_python_connector_does_not_warn_outside_v9_linux_scattwin(
+    monkeypatch, tmp_path: Path, system: str, version: int, routine: ScoringRoutine
+):
+    caught = _warnings_before_launch(
+        monkeypatch, tmp_path, system=system, version=version, routine=routine
+    )
+
+    assert not [w for w in caught if issubclass(w.category, RuntimeWarning)]

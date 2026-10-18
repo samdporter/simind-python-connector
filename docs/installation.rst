@@ -108,6 +108,14 @@ is ``8``; ``simind_version=9`` on a connector or adaptor overrides the
 environment. This explicit selection accounts for the different voxel-map
 origins. It does not replace selecting the matching executable and data.
 
+.. warning::
+
+   The SIMIND v9.0 Linux Intel build has a SCATTWIN defect: it can abort with
+   heap corruption or exit normally with silently corrupted projections. For
+   SCATTWIN simulations use SIMIND v8 or the macOS v9 build; the PENETRATE
+   routine is unaffected. The connector emits a ``RuntimeWarning`` when asked to
+   run SCATTWIN with v9 on Linux. See :doc:`simind_validation`.
+
 When working from this repository with the layout above, those commands become:
 
 .. code-block:: bash

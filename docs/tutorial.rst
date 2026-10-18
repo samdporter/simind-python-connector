@@ -28,6 +28,9 @@ Set ``SIMIND_VERSION=8`` for v8. The default is 8. In Python, pass
 override the environment. Version selection also controls voxel-map origin
 handling; using the wrong value can displace the source and attenuation map.
 
+For SCATTWIN, use v8 or the macOS v9 build: the v9.0 Linux build can abort or
+silently return corrupted projections (see :doc:`simind_validation`).
+
 SIMIND releases may differ in their data files and output components. Check
 your local release manual and the observations in :doc:`simind_validation`
 before relying on a particular component name. Keep each binary paired with
