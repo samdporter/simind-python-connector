@@ -32,9 +32,6 @@ VOXEL_MM = 4.0
 SEED = 7
 WATER_SPHERE_RADIUS_MM = 60.0
 
-V9_LINUX_REPORT = (
-    ".superpowers/sdd/2026-10-17-p3-feature-validation/v9-path-crash-report.md"
-)
 TWO_WINDOWS = "126.0,154.0,0\n92.0,125.0,0\n"
 
 
@@ -90,7 +87,7 @@ def _expected_raw_components(engine, ca: int) -> set[str]:
 
 
 @pytest.mark.macos_v9
-@pytest.mark.scattwin_data("ca_raw_files_{ca}")
+@pytest.mark.scattwin_data
 @pytest.mark.parametrize("ca", [0, 1, 2])
 def test_ca_raw_files(validate, engine, tmp_path, ca):
     """Manual: CA selects the SCATTWIN files written (v8 p.27-28, v9 p.27).
@@ -138,7 +135,7 @@ def test_ca1_derived_primary(validate, not_run, engine, tmp_path):
     validate(
         "ca1_derived_primary",
         float(outputs["pri_w1"].projection.sum() / outputs["tot_w1"].projection.sum()),
-        lower=0.5,
+        lower=0.7,
         upper=1,
         note="primary fraction of the total in the window",
     )
@@ -327,7 +324,7 @@ def test_v9_linux_scattwin_defect(validate, not_run, engine):
         completed,
         expected=1.0,
         abs_tol=0,
-        note=f"working directory length {len(str(directory))}; see {V9_LINUX_REPORT}",
+        note=f"working directory length {len(str(directory))}",
     )
 
 
