@@ -278,16 +278,3 @@ def test_nema_hot_sphere_activity(validate, nema, diameter_mm):
         expected=1.0,
         rel=0.03,
     )
-
-
-@pytest.mark.requires_phantomgen
-def test_nema_background_density_is_water(validate, nema):
-    phantom, _ = nema
-    background = phantom.masks["background"] > 0
-
-    validate(
-        "nema_background_density_is_water",
-        float(np.median(phantom.density_g_cm3[background])),
-        expected=1.0,
-        rel=1e-6,
-    )

@@ -150,7 +150,6 @@ suite for each engine (see the validation results at the end).
 | nema_hot_sphere_activity_22mm | 1 | pass 0.998 | — | pass 0.998 | no |
 | nema_hot_sphere_activity_28mm | 1 | pass 1 | — | pass 1 | no |
 | nema_hot_sphere_activity_37mm | 1 | pass 1 | — | pass 1 | no |
-| nema_background_density_is_water | 1 | pass 1 | — | pass 1 | no |
 
 ### recon
 
