@@ -87,8 +87,7 @@ def record_result(
     )
 
 
-@pytest.fixture(scope="session")
-def engine() -> Engine:
+def _engine() -> Engine:
     version = int(os.environ.get("SIMIND_VERSION") or 8)
     label = os.environ.get("SIMIND_VALIDATION_ENGINE") or (
         f"v{version}-{platform.system().lower()}"
@@ -96,8 +95,57 @@ def engine() -> Engine:
     return Engine(label, version)
 
 
+@pytest.fixture(scope="session")
+def engine() -> Engine:
+    return _engine()
+
+
 def _feature(request) -> str:
     return request.module.__name__.rsplit(".", 1)[-1].removeprefix("test_")
+
+
+def _record_not_run(path: Path, engine: Engine, feature: str, case: str, reason: str):
+    _append(
+        path,
+        {
+            "feature": feature,
+            "case": case,
+            "engine": engine.label,
+            "simind_version": engine.version,
+            "note": reason,
+            "status": "not run",
+            "timestamp": _timestamp(),
+        },
+    )
+    pytest.skip(reason)
+
+
+V9_LINUX_SCATTWIN_DEFECT = (
+    "v9 Linux SCATTWIN engine defect: aborts or silently corrupts projections"
+)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):
+    """Record scattwin_data tests as not run on v9 Linux before any fixture runs.
+
+    The marker's optional argument names the case (default: the test name
+    without "test_"); it is formatted with the test's parameters and "id".
+    """
+    marker = item.get_closest_marker("scattwin_data")
+    engine = _engine()
+    if marker is None or engine.label != "v9-linux":
+        return
+    callspec = getattr(item, "callspec", None)
+    params = {} if callspec is None else {"id": callspec.id, **callspec.params}
+    case = marker.args[0] if marker.args else item.originalname.removeprefix("test_")
+    _record_not_run(
+        _output_dir() / f"{engine.label}.jsonl",
+        engine,
+        _feature(item),
+        case.format(**params),
+        V9_LINUX_SCATTWIN_DEFECT,
+    )
 
 
 @pytest.fixture
@@ -117,18 +165,6 @@ def not_run(request, engine):
     feature = _feature(request)
 
     def _not_run(case: str, reason: str) -> None:
-        _append(
-            path,
-            {
-                "feature": feature,
-                "case": case,
-                "engine": engine.label,
-                "simind_version": engine.version,
-                "note": reason,
-                "status": "not run",
-                "timestamp": _timestamp(),
-            },
-        )
-        pytest.skip(reason)
+        _record_not_run(path, engine, feature, case, reason)
 
     return _not_run

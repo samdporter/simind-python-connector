@@ -32,7 +32,6 @@ VOXEL_MM = 4.0
 SEED = 7
 WATER_SPHERE_RADIUS_MM = 60.0
 
-V9_LINUX_DEFECT = "v9 Linux SCATTWIN engine defect (heap corruption)"
 V9_LINUX_REPORT = (
     ".superpowers/sdd/2026-10-17-p3-feature-validation/v9-path-crash-report.md"
 )
@@ -90,22 +89,10 @@ def _expected_raw_components(engine, ca: int) -> set[str]:
     return [{"tot"}, {"air", "tot"}, {"ai2", "air", "pri", "sca", "tot"}][ca]
 
 
-@pytest.fixture
-def run_scattwin(engine, not_run):
-    def _run(connector, case: str):
-        try:
-            return connector.run(timeout=600)
-        except SimulationError:
-            if engine.label != "v9-linux":
-                raise
-            not_run(case, V9_LINUX_DEFECT)
-
-    return _run
-
-
 @pytest.mark.macos_v9
+@pytest.mark.scattwin_data("ca_raw_files_{ca}")
 @pytest.mark.parametrize("ca", [0, 1, 2])
-def test_ca_raw_files(validate, run_scattwin, engine, tmp_path, ca):
+def test_ca_raw_files(validate, engine, tmp_path, ca):
     """Manual: CA selects the SCATTWIN files written (v8 p.27-28, v9 p.27).
 
     The expected sets come from observed runs: the v8 manual lists air, tot and
@@ -116,7 +103,7 @@ def test_ca_raw_files(validate, run_scattwin, engine, tmp_path, ca):
     connector = _connector(tmp_path, "ca")
     connector.add_runtime_switch("CA", ca)
 
-    outputs = run_scattwin(connector, case)
+    outputs = connector.run(timeout=600)
     derived = {
         key.rsplit("_w", 1)[0]
         for key, result in outputs.items()
@@ -138,12 +125,13 @@ def test_ca_raw_files(validate, run_scattwin, engine, tmp_path, ca):
 
 
 @pytest.mark.macos_v9
-def test_ca1_derived_primary(validate, not_run, run_scattwin, engine, tmp_path):
+@pytest.mark.scattwin_data
+def test_ca1_derived_primary(validate, not_run, engine, tmp_path):
     if engine.version != 8:
         not_run("ca1_derived_primary", "v9 CA=1 writes no scatter image to derive from")
     connector = _connector(tmp_path, "pri")
     connector.add_runtime_switch("CA", 1)
-    outputs = run_scattwin(connector, "ca1_derived_primary")
+    outputs = connector.run(timeout=600)
     if "pri_w1" not in outputs:
         not_run("ca1_derived_primary", "the connector does not derive pri_w1")
 
@@ -162,18 +150,19 @@ def test_ca1_derived_primary(validate, not_run, run_scattwin, engine, tmp_path):
     )
 
 
-def _run_with_window_file(run_scattwin, directory, case, name):
+def _run_with_window_file(directory, name):
     (directory / f"{name}.win").write_text(TWO_WINDOWS)
     connector = _connector(directory, "fw")
     connector.add_runtime_switch("CA", 0)
     connector.add_runtime_switch("FW", name)
-    return run_scattwin(connector, case)
+    return connector.run(timeout=600)
 
 
 @pytest.mark.macos_v9
-def test_fw_two_windows(validate, run_scattwin, tmp_path):
+@pytest.mark.scattwin_data
+def test_fw_two_windows(validate, tmp_path):
     """Manual: FW names the window file, without extension (v8 p.29, v9 p.28)."""
-    outputs = _run_with_window_file(run_scattwin, tmp_path, "fw_two_windows", "twowin")
+    outputs = _run_with_window_file(tmp_path, "twowin")
     assert {"tot_w1", "tot_w2"} <= set(outputs)
 
     validate(
@@ -186,11 +175,10 @@ def test_fw_two_windows(validate, run_scattwin, tmp_path):
 
 
 @pytest.mark.macos_v9
-def test_fw_sixteen_character_name(validate, run_scattwin, tmp_path):
+@pytest.mark.scattwin_data
+def test_fw_sixteen_character_name(validate, tmp_path):
     name = "windowfile_sixtn"
-    outputs = _run_with_window_file(
-        run_scattwin, tmp_path, "fw_sixteen_character_name", name
-    )
+    outputs = _run_with_window_file(tmp_path, name)
 
     validate(
         "fw_sixteen_character_name",
@@ -350,6 +338,7 @@ def test_v9_linux_scattwin_defect(validate, not_run, engine):
 
 
 @pytest.mark.macos_v9
+@pytest.mark.scattwin_data
 def test_scattwin_default_ca(validate, tmp_path):
     """The manual defines no CA default for v8; v9 states CA:0 (p.27)."""
     connector = _connector(tmp_path, "dca")

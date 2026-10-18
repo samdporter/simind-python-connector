@@ -71,6 +71,7 @@ def replicate_image(tmp_path_factory):
     return _image(_run(tmp_path_factory.mktemp("replicate"), "replicate", 2))
 
 
+@pytest.mark.scattwin_data
 def test_serial_vs_replicate(validate, serial_images, replicate_image):
     """Replicate MPI cannot take RR, so the replicate run uses SIMIND's own
     per-process seeding; the reference is the mean of the serial totals."""
@@ -86,6 +87,7 @@ def test_serial_vs_replicate(validate, serial_images, replicate_image):
     )
 
 
+@pytest.mark.scattwin_data
 def test_serial_vs_split(validate, tmp_path, serial_images):
     reference = np.mean([image.sum() for image in serial_images])
     split = _image(_run(tmp_path, "split", 2, True, seed=SPLIT_SEED)).sum()
@@ -95,6 +97,7 @@ def test_serial_vs_split(validate, tmp_path, serial_images):
     )
 
 
+@pytest.mark.scattwin_data
 def test_replicate_halves_variance(validate, serial_images, replicate_image):
     """Two replicate processes sum independent histories, so the replicate
     image has half the per-bin variance of a serial run. Identical ranks
@@ -125,6 +128,7 @@ def test_replicate_halves_variance(validate, serial_images, replicate_image):
     )
 
 
+@pytest.mark.scattwin_data
 def test_replicate_seeds_processes_as_rr_1_to_n(validate, tmp_path, replicate_image):
     """The replicate run is the mean of the serial runs with RR=1 and RR=2."""
     rr1 = _image(_run(tmp_path, "rr1", seed=1))
@@ -138,6 +142,7 @@ def test_replicate_seeds_processes_as_rr_1_to_n(validate, tmp_path, replicate_im
     )
 
 
+@pytest.mark.scattwin_data
 def test_replicate_three_processes_runs(validate, tmp_path):
     try:
         _run(tmp_path, "replicate3", 3)

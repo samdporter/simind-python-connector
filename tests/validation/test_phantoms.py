@@ -1,10 +1,8 @@
 import math
-from contextlib import contextmanager
 
 import numpy as np
 import pytest
 
-from simind_python_connector.core.types import SimulationError
 from simind_python_connector.phantoms import (
     AnalyticPhantom,
     Box,
@@ -31,7 +29,6 @@ from tests.test_phantoms_simind import (
 
 pytestmark = [pytest.mark.validation, pytest.mark.requires_simind]
 
-V9_LINUX_DEFECT = "v9 Linux SCATTWIN engine defect (heap corruption)"
 SOURCE_SHIFT_CM = (2.0, 1.0, -1.0)
 SHAPES = {
     "ellipsoid": Ellipsoid((4.0, 3.0, 2.0)),
@@ -81,20 +78,6 @@ def _voxel_projection(
     return connector.run()["tot_w1"].projection
 
 
-@pytest.fixture
-def v9_linux_guard(engine, not_run):
-    @contextmanager
-    def guard(case: str):
-        try:
-            yield
-        except SimulationError:
-            if engine.label != "v9-linux":
-                raise
-            not_run(case, V9_LINUX_DEFECT)
-
-    return guard
-
-
 def _validate_all(validate, checks):
     """Record every check before failing on the first one that missed."""
     failures = []
@@ -115,15 +98,15 @@ def _projection_checks(case, correlation, centre_gap):
 
 
 @pytest.mark.macos_v9
+@pytest.mark.scattwin_data("analytic_vs_voxel_{shape}")
 @pytest.mark.parametrize("shape", list(SHAPES))
-def test_analytic_vs_voxel_shape(validate, v9_linux_guard, tmp_path, shape):
+def test_analytic_vs_voxel_shape(validate, tmp_path, shape):
     case = f"analytic_vs_voxel_{shape}"
     phantom = AnalyticPhantom(SHAPES[shape], _WATER, source_shift_cm=SOURCE_SHIFT_CM)
-    with v9_linux_guard(case):
-        connector = _analytic_connector(tmp_path, "analytic")
-        connector.configure_phantom(phantom)
-        analytic = connector.run()["tot_w1"].projection
-        voxel = _voxel_projection(tmp_path, "voxel", phantom)
+    connector = _analytic_connector(tmp_path, "analytic")
+    connector.configure_phantom(phantom)
+    analytic = connector.run()["tot_w1"].projection
+    voxel = _voxel_projection(tmp_path, "voxel", phantom)
 
     _validate_all(validate, _projection_checks(case, *_compare(case, analytic, voxel)))
 
@@ -142,22 +125,20 @@ def _jaszczak_like(**insert_mode) -> AnalyticPhantom:
 
 
 @pytest.mark.macos_v9
+@pytest.mark.scattwin_data("inserts_{mode}")
 @pytest.mark.parametrize("mode", list(INSERT_MODES))
-def test_inserts_mode(validate, v9_linux_guard, tmp_path, mode):
+def test_inserts_mode(validate, tmp_path, mode):
     case = f"inserts_{mode}"
     phantom = _jaszczak_like(**INSERT_MODES[mode])
-    with v9_linux_guard(case):
-        connector = _analytic_connector(tmp_path, "inserts")
-        connector.configure_phantom(phantom)
-        analytic = connector.run()["tot_w1"].projection
-        voxel = _voxel_projection(
-            tmp_path,
-            "inserts_voxel",
-            phantom,
-            COLD_VOXEL_QUANTIZATION_SCALE
-            if mode == "cold"
-            else VOXEL_QUANTIZATION_SCALE,
-        )
+    connector = _analytic_connector(tmp_path, "inserts")
+    connector.configure_phantom(phantom)
+    analytic = connector.run()["tot_w1"].projection
+    voxel = _voxel_projection(
+        tmp_path,
+        "inserts_voxel",
+        phantom,
+        COLD_VOXEL_QUANTIZATION_SCALE if mode == "cold" else VOXEL_QUANTIZATION_SCALE,
+    )
 
     checks = _projection_checks(case, *_compare(case, analytic, voxel))
     checks.append(
@@ -176,7 +157,8 @@ def test_inserts_mode(validate, v9_linux_guard, tmp_path, mode):
 
 
 @pytest.mark.macos_v9
-def test_cardiac_defect_lowers_counts(validate, v9_linux_guard, tmp_path):
+@pytest.mark.scattwin_data
+def test_cardiac_defect_lowers_counts(validate, tmp_path):
     """Fractional drop in the pixels the defect empties, net of a no-op defect.
 
     SIMIND histories are fixed, so a defect redistributes counts: the projections
@@ -210,13 +192,12 @@ def test_cardiac_defect_lowers_counts(validate, v9_linux_guard, tmp_path):
         return (healthy[emptied].sum() - other[emptied].sum()) / healthy[emptied].sum()
 
     case = "cardiac_defect_lowers_counts"
-    with v9_linux_guard(case):
-        healthy = projection("heart", None)
-        defect = projection("defect", defect_at(0.0))
-        no_op_defects = [
-            projection("no_op", defect_at(1.0), seed=7),
-            projection("no_op_reseeded", defect_at(1.0), seed=8),
-        ]
+    healthy = projection("heart", None)
+    defect = projection("defect", defect_at(0.0))
+    no_op_defects = [
+        projection("no_op", defect_at(1.0), seed=7),
+        projection("no_op_reseeded", defect_at(1.0), seed=8),
+    ]
 
     nulls = [drop_in_emptied_pixels(healthy, p) for p in no_op_defects]
     validate(
@@ -229,14 +210,16 @@ def test_cardiac_defect_lowers_counts(validate, v9_linux_guard, tmp_path):
 
 
 @pytest.mark.macos_v9
-@pytest.mark.parametrize("library", list(LibraryPhantom))
-def test_library_phantom(validate, v9_linux_guard, tmp_path, library):
+@pytest.mark.scattwin_data("library_{id}")
+@pytest.mark.parametrize(
+    "library", list(LibraryPhantom), ids=lambda library: library.name.lower()
+)
+def test_library_phantom(validate, tmp_path, library):
     case = f"library_{library.name.lower()}"
     prefix = "library"
-    with v9_linux_guard(case):
-        connector = _connector(tmp_path, prefix, num_projections=8)
-        connector.configure_phantom(library)
-        projection = connector.run()["tot_w1"].projection
+    connector = _connector(tmp_path, prefix, num_projections=8)
+    connector.configure_phantom(library)
+    projection = connector.run()["tot_w1"].projection
     density, _ = read_simind_density_image(tmp_path / prefix / f"{prefix}.hct")
 
     validate(

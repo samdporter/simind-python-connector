@@ -2,6 +2,7 @@ import ast
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -127,3 +128,41 @@ def test_validation_tests_are_excluded_from_the_ci_selection():
             if isinstance(node, ast.Attribute)
         ]
         assert "requires_simind" in marks, path.name
+
+
+class _FakeItem:
+    module = SimpleNamespace(__name__="tests.validation.test_mpi")
+    originalname = "test_serial_vs_split"
+    callspec = None
+
+    def __init__(self, marker):
+        self.marker = marker
+
+    def get_closest_marker(self, name):
+        return self.marker
+
+
+def test_scattwin_data_cases_are_not_run_on_v9_linux(tmp_path, monkeypatch):
+    monkeypatch.setenv("SIMIND_VALIDATION_OUT", str(tmp_path))
+    monkeypatch.setenv("SIMIND_VALIDATION_ENGINE", "v9-linux")
+    monkeypatch.setenv("SIMIND_VERSION", "9")
+    marker = pytest.mark.scattwin_data.mark
+
+    with pytest.raises(pytest.skip.Exception):
+        validation.pytest_runtest_setup(_FakeItem(marker))
+
+    [record] = _lines(tmp_path / "v9-linux.jsonl")
+    assert record["status"] == "not run"
+    assert record["feature"] == "mpi"
+    assert record["case"] == "serial_vs_split"
+    assert "SCATTWIN engine defect" in record["note"]
+
+
+def test_scattwin_data_cases_run_on_other_engines(tmp_path, monkeypatch):
+    monkeypatch.setenv("SIMIND_VALIDATION_OUT", str(tmp_path))
+    monkeypatch.setenv("SIMIND_VALIDATION_ENGINE", "v9-macos")
+    monkeypatch.setenv("SIMIND_VERSION", "9")
+
+    validation.pytest_runtest_setup(_FakeItem(pytest.mark.scattwin_data.mark))
+
+    assert not list(tmp_path.iterdir())

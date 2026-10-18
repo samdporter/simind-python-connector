@@ -55,6 +55,7 @@ def _max_relative_deviation_from(ratio: float, first: np.ndarray, second: np.nda
     return float(np.max(np.abs(second[positive] / first[positive] - ratio) / ratio))
 
 
+@pytest.mark.scattwin_data
 def test_activity_doubling(validate, tmp_path):
     tot1 = _total(tmp_path, "a10", activity_mbq=10)
     tot2 = _total(tmp_path, "a20", activity_mbq=20)
@@ -74,6 +75,7 @@ def test_activity_doubling(validate, tmp_path):
     )
 
 
+@pytest.mark.scattwin_data
 def test_time_doubling(validate, tmp_path):
     tot1 = _total(tmp_path, "t1", time_s=1)
     tot2 = _total(tmp_path, "t2", time_s=2)
@@ -87,6 +89,7 @@ def test_time_doubling(validate, tmp_path):
     )
 
 
+@pytest.mark.scattwin_data
 def test_source_magnitude_does_not_change_counts(validate, tmp_path):
     base = _total(tmp_path, "s1")
     scaled = _total(tmp_path, "s10", source_scale=10.0)
@@ -100,6 +103,7 @@ def test_source_magnitude_does_not_change_counts(validate, tmp_path):
     )
 
 
+@pytest.mark.scattwin_data
 def test_histories_do_not_change_counts(validate, tmp_path):
     t7 = float(_total(tmp_path, "h7", seed=7).sum())
     t8 = float(_total(tmp_path, "h8", seed=8).sum())

@@ -44,8 +44,18 @@ def _parse_problem(connector, outputs) -> str:
     "case, routine, ca",
     [
         ("dummy", ScoringRoutine.DUMMY, None),
-        ("scattwin_ca0", ScoringRoutine.SCATTWIN, 0),
-        ("scattwin_ca1", ScoringRoutine.SCATTWIN, 1),
+        pytest.param(
+            "scattwin_ca0",
+            ScoringRoutine.SCATTWIN,
+            0,
+            marks=pytest.mark.scattwin_data("outputs_parse_{case}"),
+        ),
+        pytest.param(
+            "scattwin_ca1",
+            ScoringRoutine.SCATTWIN,
+            1,
+            marks=pytest.mark.scattwin_data("outputs_parse_{case}"),
+        ),
         ("penetrate", ScoringRoutine.PENETRATE, None),
     ],
 )
@@ -84,6 +94,7 @@ def test_truncated_payload_rejected(validate, tmp_path):
     validate("truncated_payload_rejected", rejected, expected=1.0, abs_tol=0)
 
 
+@pytest.mark.scattwin_data
 def test_projection_geometry_from_header(validate, tmp_path):
     connector, outputs = _run(tmp_path, ScoringRoutine.SCATTWIN, ca=0)
     result = next(iter(outputs.values()))
