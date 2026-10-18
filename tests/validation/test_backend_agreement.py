@@ -177,11 +177,9 @@ def pytomography_run(tmp_path_factory, engine):
     adaptor.run()
     projections = adaptor.get_outputs()["all_interactions"]
 
-    # The converted .hs header carries the STIR start angle (SIMIND's + 180), which
-    # PyTomography's reader takes as SIMIND's, so read SIMIND's own header (v8
-    # writes .h00, v9 one .h01.. per component; the first is all_interactions).
-    native_header = sorted(adaptor.output_dir.glob(f"{adaptor.output_prefix}.h0*"))[0]
-    object_meta, proj_meta = pytomo_simind.get_metadata(str(native_header))
+    object_meta, proj_meta = pytomo_simind.get_metadata(
+        str(adaptor.get_output_header_path("all_interactions"))
+    )
     system_matrix = SPECTSystemMatrix(
         obj2obj_transforms=[SPECTAttenuationTransform(attenuation_map=mu_tensor)],
         proj2proj_transforms=[],
