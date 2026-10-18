@@ -103,10 +103,10 @@ def _adaptor(root, name):
 
 class _Fixed:
     def __init__(self, estimate):
-        self.estimate_ = estimate
+        self.value = estimate
 
     def estimate(self, image):
-        return self.estimate_
+        return self.value
 
 
 @pytest.fixture(scope="module")
@@ -213,9 +213,14 @@ def test_svrg_snapshot_after_refresh(setup, validate):
     x = algorithm.solution
 
     set_subset_additive(objectives, setup.scatter)
-    refresh_stochastic_state(f, x)
 
     _, full = _fresh_gradients(objectives, x)
+    validate(
+        "svrg_stale_without_refresh",
+        _relative_difference([f._full_gradient_at_snapshot.as_array()], [full]),
+        lower=0.1,
+    )
+    refresh_stochastic_state(f, x)
     validate(
         "svrg_snapshot_after_refresh",
         _relative_difference([f._full_gradient_at_snapshot.as_array()], [full]),
@@ -235,14 +240,24 @@ def test_sag_gradients_after_refresh(setup, validate):
     x = algorithm.solution
 
     set_subset_additive(objectives, setup.scatter)
-    refresh_stochastic_state(f, x)
 
     gradients, full = _fresh_gradients(objectives, x)
-    stored = [g.as_array() for g in f._list_stored_gradients]
-    stored.append(f._full_gradient_at_iterate.as_array())
+
+    def stored():
+        return [
+            *(g.as_array() for g in f._list_stored_gradients),
+            f._full_gradient_at_iterate.as_array(),
+        ]
+
+    validate(
+        "sag_stale_without_refresh",
+        _relative_difference(stored(), [*gradients, full]),
+        lower=0.1,
+    )
+    refresh_stochastic_state(f, x)
     validate(
         "sag_gradients_after_refresh",
-        _relative_difference(stored, [*gradients, full]),
+        _relative_difference(stored(), [*gradients, full]),
         expected=0,
         abs_tol=1e-5,
     )
