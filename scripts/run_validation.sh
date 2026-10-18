@@ -19,7 +19,8 @@ Usage: bash scripts/run_validation.sh --engine v8|v9|v9-macos [--feature NAME]..
 
 Runs the SIMIND validation tests and records the numbers in
 output/validation/<engine>.jsonl. v8 and v9 run in Docker (python image,
-then sirf image); v9-macos runs on the host with the native macOS binary.
+then sirf image, then pytomography image); v9-macos runs on the host with
+the native macOS binary.
 --feature NAME runs tests/validation/test_NAME.py and replaces only that
 feature's records; without it the engine file is rebuilt from scratch.
 USAGE
@@ -128,7 +129,8 @@ run_in_docker() {
         "$service" bash -lc "export PATH=$SIMIND_DIR:\$PATH; python -m pytest -m '$marker' ${TARGETS[*]}" || collect_status $?
 }
 
-run_in_docker python "validation and not requires_sirf"
+run_in_docker python "validation and not requires_sirf and not requires_pytomography"
 run_in_docker sirf "validation and requires_sirf"
+run_in_docker pytomography "validation and requires_pytomography"
 
 exit "$STATUS"
