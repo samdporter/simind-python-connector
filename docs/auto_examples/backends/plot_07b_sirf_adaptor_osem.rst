@@ -78,7 +78,7 @@ A cylindrical body with a hot sphere on a 32 x 32 x 32 grid of 4 mm voxels.
 Both maps are written as STIR Interfile images and read back as SIRF
 images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 48-83
+.. GENERATED FROM PYTHON SOURCE LINES 48-85
 
 .. code-block:: Python
 
@@ -116,6 +116,8 @@ images.
 
     source_image = read_sirf_image(source, output_dir / "sirf_source")
     mu_image = read_sirf_image(mu_map, output_dir / "sirf_mu")
+    # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+    spectub_mu_image = read_sirf_image(mu_map[..., ::-1], output_dir / "sirf_spectub_mu")
 
 
 
@@ -124,7 +126,7 @@ images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 84-91
+.. GENERATED FROM PYTHON SOURCE LINES 86-93
 
 Simulate
 --------
@@ -134,7 +136,7 @@ cm), for Tc-99m (140 keV) with a single 126-154 keV window and the ma-lehr
 collimator. SCATTWIN writes the total projection and, separately, the
 scatter in that window (switch ``CA`` 2 asks for the split).
 
-.. GENERATED FROM PYTHON SOURCE LINES 91-120
+.. GENERATED FROM PYTHON SOURCE LINES 93-122
 
 .. code-block:: Python
 
@@ -274,11 +276,11 @@ scatter in that window (switch ``CA`` 2 asks for the split).
      Sensitivity Cps/MBq: 73.9911        
      Sensitivity Cpm/uCi: 164.2602       
                                                                               
-     Simulation started.: 2026:10:17 14:01:26
-     Simulation stopped.: 2026:10:17 14:05:15
-     Elapsed time.......: 0 h, 3 m and 49 s
+     Simulation started.: 2026:10:18 20:49:03
+     Simulation stopped.: 2026:10:18 20:53:17
+     Elapsed time.......: 0 h, 4 m and 14 s
      DetectorHits.......: 114570         
-     DetectorHits/CPUsec: 501            
+     DetectorHits/CPUsec: 451            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -294,7 +296,7 @@ scatter in that window (switch ``CA`` 2 asks for the split).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 121-135
+.. GENERATED FROM PYTHON SOURCE LINES 123-137
 
 Reconstruct with OSEM, without and with scatter
 -----------------------------------------------
@@ -311,7 +313,7 @@ SIMIND's own scatter estimate for this run as a fixed additive term, floored
 at a small positive value. It is not updated during the reconstruction; the
 MC-scatter-in-the-loop examples refresh it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 135-168
+.. GENERATED FROM PYTHON SOURCE LINES 137-170
 
 .. code-block:: Python
 
@@ -321,7 +323,7 @@ MC-scatter-in-the-loop examples refresh it.
         reconstruction = source_image.get_uniform_copy(1.0)
 
         acq_matrix = sirf.SPECTUBMatrix()
-        acq_matrix.set_attenuation_image(mu_image)
+        acq_matrix.set_attenuation_image(spectub_mu_image)
         acq_matrix.set_keep_all_views_in_cache(True)
         acq_matrix.set_resolution_model(0.0, 0.0, False)
         acq_model = sirf.AcquisitionModelUsingMatrix(acq_matrix)
@@ -355,7 +357,7 @@ MC-scatter-in-the-loop examples refresh it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 169-176
+.. GENERATED FROM PYTHON SOURCE LINES 171-178
 
 Compare with the truth
 ----------------------
@@ -365,7 +367,7 @@ scatter is a small share of the counts in the window (the printed fraction),
 so a fixed additive term lowers the absolute level by about that share but
 barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
-.. GENERATED FROM PYTHON SOURCE LINES 176-217
+.. GENERATED FROM PYTHON SOURCE LINES 178-219
 
 .. code-block:: Python
 
@@ -425,8 +427,8 @@ barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
     Scatter fraction of the window: 12.5%
     True hot-to-background ratio: 2.50
-    No scatter term: hot-to-background ratio 2.13
-    SIMIND scatter term: hot-to-background ratio 2.13
+    No scatter term: hot-to-background ratio 2.28
+    SIMIND scatter term: hot-to-background ratio 2.28
 
 
 
@@ -434,7 +436,7 @@ barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (3 minutes 50.465 seconds)
+   **Total running time of the script:** (4 minutes 16.613 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_07b_sirf_adaptor_osem.py:

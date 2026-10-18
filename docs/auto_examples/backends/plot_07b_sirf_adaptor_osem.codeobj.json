@@ -2927,6 +2927,22 @@
    "name": "ABC.get_uniform_copy"
   }
  ],
+ "spectub_mu_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
  "title": [
   {
    "is_class": false,
