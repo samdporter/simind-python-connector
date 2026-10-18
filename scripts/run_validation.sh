@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker/compose.yaml"
-MACOS_V9_SOURCE="${SIMIND_MACOS_V9_DIR:-$ROOT_DIR/tmp/simind_macos_v90}"
+MACOS_V9_SOURCE="${SIMIND_MACOS_V9_DIR:-}"
 # the macOS v9 install ships no phantom.zub; the library phantoms take it from the v9 Linux tree
-LIBRARY_TABLE_ROOT="${SIMIND_MACOS_V9_TABLE_ROOT:-$ROOT_DIR/tmp/engines/v9}"
+LIBRARY_TABLE_ROOT="${SIMIND_MACOS_V9_TABLE_ROOT:-}"
 # SIMIND rejects an SMC_DIR of 100 characters or more, so it is reached through a short link
 MACOS_V9_DIR="${SIMIND_MACOS_V9_LINK:-/tmp/simind-v9-macos}"
 OUT_DIR="$ROOT_DIR/output/validation"
@@ -78,7 +78,13 @@ elif [[ -f "$RECORD_FILE" ]]; then
     done
 fi
 
-PYTHON="${PYTHON:-$ROOT_DIR/../../../.venv/bin/python}"
+if [[ -z "${PYTHON:-}" ]]; then
+    if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+        PYTHON="$ROOT_DIR/.venv/bin/python"
+    else
+        PYTHON=python
+    fi
+fi
 STATUS=0
 
 # pytest exits 5 when nothing was selected, which is not a failure here
@@ -89,6 +95,11 @@ collect_status() {
 }
 
 if [[ "$ENGINE" == v9-macos ]]; then
+    if [[ -z "$MACOS_V9_SOURCE" || -z "$LIBRARY_TABLE_ROOT" ]]; then
+        echo "v9-macos needs SIMIND_MACOS_V9_DIR (the macOS v9 install) and" \
+            "SIMIND_MACOS_V9_TABLE_ROOT (a v9 Linux tree for phantom.zub)" >&2
+        exit 2
+    fi
     ln -sfn "$MACOS_V9_SOURCE" "$MACOS_V9_DIR"
     SIMIND_VALIDATION_ENGINE=v9-darwin \
     SIMIND_VALIDATION_OUT="$OUT_DIR" \

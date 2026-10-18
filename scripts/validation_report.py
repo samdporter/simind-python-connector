@@ -33,6 +33,19 @@ def _load(out_dir: Path) -> tuple[list[str], dict]:
                     case["expected"] = f"≤ {upper:.4g}"
                 else:
                     case["expected"] = f"{lower:.4g}–{upper:.4g}"
+    for cases in features.values():
+        not_run = [
+            name
+            for name, row in cases.items()
+            if all(record["status"] != "run" for record in row["engines"].values())
+        ]
+        for name in not_run:
+            parts = [other for other in cases if other.startswith(f"{name}_")]
+            for other in parts:
+                for engine, record in cases[name]["engines"].items():
+                    cases[other]["engines"].setdefault(engine, record)
+            if parts:
+                del cases[name]
     return engines, features
 
 
