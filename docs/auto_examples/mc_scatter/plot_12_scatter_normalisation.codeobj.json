@@ -2104,6 +2104,22 @@
    "name": "builtin_function_or_method"
   }
  ],
+ "first_update_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
  "fraction": [
   {
    "is_class": false,
@@ -2223,6 +2239,15 @@
    "name": "ndarray"
   }
  ],
+ "image.clone": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
  "image.sum": [
   {
    "is_class": false,
@@ -2264,6 +2289,326 @@
    "module": "builtins",
    "module_short": "builtins",
    "name": "builtin_function_or_method"
+  }
+ ],
+ "low_history": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  }
+ ],
+ "low_history.run": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.run"
+  }
+ ],
+ "low_history.set_mu_map": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_mu_map"
+  }
+ ],
+ "low_history.set_source": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_source"
+  }
+ ],
+ "low_history.set_template": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_template"
+  }
+ ],
+ "low_history_outputs": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
   }
  ],
  "make_acq_model": [
@@ -3306,6 +3651,15 @@
    "name": "ImageData"
   }
  ],
+ "sum_scale": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
  "sums": [
   {
    "is_class": false,
@@ -3356,6 +3710,15 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "ndarray"
+  }
+ ],
+ "trimmed_scale": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
   }
  ],
  "true_array": [

@@ -148,13 +148,13 @@ TIME_PER_VIEW_S = 2.0
 QUANTIZATION_SCALE = 0.06 * DEFAULT_QUANTIZATION_SCALE
 
 
-def make_adaptor(name):
+def make_adaptor(name, quantization_scale=QUANTIZATION_SCALE):
     adaptor = SirfSimindAdaptor(
         configs.get("Example.yaml"),
         str(output_dir),
         name,
         scoring_routine=ScoringRoutine.PENETRATE,
-        quantization_scale=QUANTIZATION_SCALE,
+        quantization_scale=quantization_scale,
     )
     adaptor.set_energy_windows([126], [154], [0])
     adaptor.add_runtime_switch("CC", "ma-lehr")
@@ -220,22 +220,24 @@ uncorrected = run_osem_with_corrections(
 # estimate refreshed after every pass of 12 subiterations. The estimate is
 # smoothed over 3 bins, across views as well, and the additive term starts at
 # zero and averages successive estimates (``damping=0.5``). With ``seed=None``
-# the 8 MPI processes use their fixed seeds in every call of every strategy, so
-# the Monte Carlo noise does not depend on the strategy.
+# the 8 MPI processes use their fixed seeds in every call, so every strategy
+# uses the same rank seeds in every pass.
 #
-# ``RecordedScatter`` keeps every raw estimate, before the damping, and the
-# total of each SIMIND run before it is scaled.
+# ``RecordedScatter`` keeps every raw estimate, before the damping, the image it
+# was made from, and the total of each SIMIND run before it is scaled.
 
 
 class RecordedScatter(ScatterCorrection):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.estimates = []
+        self.images = []
         self.simind_totals = []
 
     def estimate(self, image):
         scatter = super().estimate(image)
         self.estimates.append(scatter)
+        self.images.append(image.clone())
         total = self.projector.last_outputs["all_interactions"].as_array()
         self.simind_totals.append(total / self.last_scale)
         return scatter
@@ -297,11 +299,11 @@ def reconstruct(projector_options, correction_options):
 runs = {title: reconstruct(*options) for title, options in STRATEGIES.items()}
 
 # %%
-# Same Monte Carlo noise
-# ----------------------
+# The first update's Monte Carlo noise
+# ------------------------------------
 # The first pass has a zero additive term, so every strategy hands SIMIND the
-# same image at the first update. If the seeds are the same, the SIMIND totals of
-# that update differ only by the scale factor. The table gives the largest
+# same image at the first update. With the same seeds, the SIMIND totals of that
+# update therefore differ only by the scale factor. The table gives the largest
 # difference between the totals, each normalised to unit sum, relative to the
 # largest bin.
 
@@ -315,8 +317,10 @@ for title, total in first_totals.items():
     print(f"{title}: {difference:.1e}")
 
 # %%
-# The totals differ by at most 2e-7, which is float rounding, so every strategy
-# sees the same Monte Carlo noise: only the normalisation differs.
+# At the first update the totals differ by at most 2e-7, which is float rounding,
+# so every strategy sees the same Monte Carlo noise there: only the
+# normalisation differs. Later updates use the same seeds but images that differ
+# with the strategy, so their noise differs too.
 
 # %%
 # The scale of each update
@@ -370,6 +374,36 @@ plt.show()
 # scale follows the scale of the current image, which the pass without scatter
 # correction overestimates. The scales of sum and trimmed agree within 1% at
 # every update.
+
+# %%
+# Sum against trimmed at low history
+# ----------------------------------
+# One run of the first-update image at a hundredth of the histories, scaled both
+# ways:
+
+first_update_image = runs["Reference, sum"][2].images[0]
+low_history = make_adaptor(
+    "low_history", quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE
+)
+low_history.set_template(template)
+low_history.set_mu_map(mu_image)
+low_history.set_source(first_update_image)
+low_history_outputs = low_history.run()
+sum_scale = reference_normaliser(full_model, method="sum")(
+    low_history_outputs, first_update_image
+)
+trimmed_scale = reference_normaliser(full_model, method="trimmed")(
+    low_history_outputs, first_update_image
+)
+print(
+    f"At 1% of the histories: sum {sum_scale:.4g}, trimmed {trimmed_scale:.4g}, "
+    f"ratio {trimmed_scale / sum_scale:.2f}"
+)
+
+# %%
+# At these history counts ``sum`` and ``trimmed`` agree within 1%. At a
+# hundredth of the default history budget, ``trimmed`` scales to about 0.92 of
+# ``sum``: low counts bias it low, which is why the other tutorials use ``sum``.
 
 # %%
 # The last raw estimates

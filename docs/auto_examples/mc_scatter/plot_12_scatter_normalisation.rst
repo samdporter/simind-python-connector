@@ -211,13 +211,13 @@ scatter is the expectation's all interactions minus its geometric primary.
     QUANTIZATION_SCALE = 0.06 * DEFAULT_QUANTIZATION_SCALE
 
 
-    def make_adaptor(name):
+    def make_adaptor(name, quantization_scale=QUANTIZATION_SCALE):
         adaptor = SirfSimindAdaptor(
             configs.get("Example.yaml"),
             str(output_dir),
             name,
             scoring_routine=ScoringRoutine.PENETRATE,
-            quantization_scale=QUANTIZATION_SCALE,
+            quantization_scale=quantization_scale,
         )
         adaptor.set_energy_windows([126], [154], [0])
         adaptor.add_runtime_switch("CC", "ma-lehr")
@@ -353,11 +353,11 @@ scatter is the expectation's all interactions minus its geometric primary.
      Sensitivity Cps/MBq: 56.7328        
      Sensitivity Cpm/uCi: 125.9469       
                                                                               
-     Simulation started.: 2026:10:19 10:49:22
-     Simulation stopped.: 2026:10:19 10:52:12
-     Elapsed time.......: 0 h, 2 m and 50 s
+     Simulation started.: 2026:10:19 11:59:37
+     Simulation stopped.: 2026:10:19 12:02:13
+     Elapsed time.......: 0 h, 2 m and 36 s
      DetectorHits.......: 3446           
-     DetectorHits/CPUsec: 161            
+     DetectorHits/CPUsec: 175            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -431,13 +431,13 @@ Each strategy reconstructs the same measured data with a SIMIND scatter
 estimate refreshed after every pass of 12 subiterations. The estimate is
 smoothed over 3 bins, across views as well, and the additive term starts at
 zero and averages successive estimates (``damping=0.5``). With ``seed=None``
-the 8 MPI processes use their fixed seeds in every call of every strategy, so
-the Monte Carlo noise does not depend on the strategy.
+the 8 MPI processes use their fixed seeds in every call, so every strategy
+uses the same rank seeds in every pass.
 
-``RecordedScatter`` keeps every raw estimate, before the damping, and the
-total of each SIMIND run before it is scaled.
+``RecordedScatter`` keeps every raw estimate, before the damping, the image it
+was made from, and the total of each SIMIND run before it is scaled.
 
-.. GENERATED FROM PYTHON SOURCE LINES 228-299
+.. GENERATED FROM PYTHON SOURCE LINES 228-301
 
 .. code-block:: Python
 
@@ -447,11 +447,13 @@ total of each SIMIND run before it is scaled.
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.estimates = []
+            self.images = []
             self.simind_totals = []
 
         def estimate(self, image):
             scatter = super().estimate(image)
             self.estimates.append(scatter)
+            self.images.append(image.clone())
             total = self.projector.last_outputs["all_interactions"].as_array()
             self.simind_totals.append(total / self.last_scale)
             return scatter
@@ -626,11 +628,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:19 10:52:24
-     Simulation stopped.: 2026:10:19 10:55:58
-     Elapsed time.......: 0 h, 3 m and 34 s
+     Simulation started.: 2026:10:19 12:02:23
+     Simulation stopped.: 2026:10:19 12:05:44
+     Elapsed time.......: 0 h, 3 m and 21 s
      DetectorHits.......: 4479           
-     DetectorHits/CPUsec: 166            
+     DetectorHits/CPUsec: 177            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -748,11 +750,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 56.2401        
      Sensitivity Cpm/uCi: 124.8529       
                                                                               
-     Simulation started.: 2026:10:19 10:56:02
-     Simulation stopped.: 2026:10:19 10:58:12
-     Elapsed time.......: 0 h, 2 m and 10 s
+     Simulation started.: 2026:10:19 12:05:49
+     Simulation stopped.: 2026:10:19 12:07:53
+     Elapsed time.......: 0 h, 2 m and 4 s
      DetectorHits.......: 2518           
-     DetectorHits/CPUsec: 154            
+     DetectorHits/CPUsec: 161            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -870,11 +872,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 56.4584        
      Sensitivity Cpm/uCi: 125.3377       
                                                                               
-     Simulation started.: 2026:10:19 10:58:15
-     Simulation stopped.: 2026:10:19 10:59:41
-     Elapsed time.......: 0 h, 1 m and 26 s
+     Simulation started.: 2026:10:19 12:07:56
+     Simulation stopped.: 2026:10:19 12:09:21
+     Elapsed time.......: 0 h, 1 m and 25 s
      DetectorHits.......: 1619           
-     DetectorHits/CPUsec: 149            
+     DetectorHits/CPUsec: 151            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -992,11 +994,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:19 10:59:47
-     Simulation stopped.: 2026:10:19 11:03:14
-     Elapsed time.......: 0 h, 3 m and 27 s
+     Simulation started.: 2026:10:19 12:09:28
+     Simulation stopped.: 2026:10:19 12:13:07
+     Elapsed time.......: 0 h, 3 m and 39 s
      DetectorHits.......: 4479           
-     DetectorHits/CPUsec: 172            
+     DetectorHits/CPUsec: 162            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1114,11 +1116,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 56.6186        
      Sensitivity Cpm/uCi: 125.6934       
                                                                               
-     Simulation started.: 2026:10:19 11:03:19
-     Simulation stopped.: 2026:10:19 11:04:49
-     Elapsed time.......: 0 h, 1 m and 30 s
+     Simulation started.: 2026:10:19 12:13:12
+     Simulation stopped.: 2026:10:19 12:14:38
+     Elapsed time.......: 0 h, 1 m and 26 s
      DetectorHits.......: 1659           
-     DetectorHits/CPUsec: 144            
+     DetectorHits/CPUsec: 151            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1236,11 +1238,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 57.0218        
      Sensitivity Cpm/uCi: 126.5883       
                                                                               
-     Simulation started.: 2026:10:19 11:04:54
-     Simulation stopped.: 2026:10:19 11:06:02
-     Elapsed time.......: 0 h, 1 m and 8 s
+     Simulation started.: 2026:10:19 12:14:43
+     Simulation stopped.: 2026:10:19 12:15:47
+     Elapsed time.......: 0 h, 1 m and 4 s
      DetectorHits.......: 1186           
-     DetectorHits/CPUsec: 138            
+     DetectorHits/CPUsec: 145            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1358,8 +1360,8 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:19 11:06:08
-     Simulation stopped.: 2026:10:19 11:09:38
+     Simulation started.: 2026:10:19 12:15:54
+     Simulation stopped.: 2026:10:19 12:19:24
      Elapsed time.......: 0 h, 3 m and 30 s
      DetectorHits.......: 4479           
      DetectorHits/CPUsec: 170            
@@ -1480,11 +1482,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 56.8346        
      Sensitivity Cpm/uCi: 126.1729       
                                                                               
-     Simulation started.: 2026:10:19 11:09:43
-     Simulation stopped.: 2026:10:19 11:11:10
-     Elapsed time.......: 0 h, 1 m and 27 s
+     Simulation started.: 2026:10:19 12:19:28
+     Simulation stopped.: 2026:10:19 12:20:53
+     Elapsed time.......: 0 h, 1 m and 25 s
      DetectorHits.......: 1687           
-     DetectorHits/CPUsec: 152            
+     DetectorHits/CPUsec: 156            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1602,11 +1604,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 56.6072        
      Sensitivity Cpm/uCi: 125.6679       
                                                                               
-     Simulation started.: 2026:10:19 11:11:15
-     Simulation stopped.: 2026:10:19 11:12:23
-     Elapsed time.......: 0 h, 1 m and 8 s
+     Simulation started.: 2026:10:19 12:20:58
+     Simulation stopped.: 2026:10:19 12:22:08
+     Elapsed time.......: 0 h, 1 m and 10 s
      DetectorHits.......: 1215           
-     DetectorHits/CPUsec: 140            
+     DetectorHits/CPUsec: 137            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1724,11 +1726,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:19 11:12:30
-     Simulation stopped.: 2026:10:19 11:15:55
-     Elapsed time.......: 0 h, 3 m and 25 s
+     Simulation started.: 2026:10:19 12:22:14
+     Simulation stopped.: 2026:10:19 12:25:49
+     Elapsed time.......: 0 h, 3 m and 35 s
      DetectorHits.......: 4479           
-     DetectorHits/CPUsec: 174            
+     DetectorHits/CPUsec: 166            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1846,11 +1848,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 56.3795        
      Sensitivity Cpm/uCi: 125.1626       
                                                                               
-     Simulation started.: 2026:10:19 11:15:59
-     Simulation stopped.: 2026:10:19 11:18:02
-     Elapsed time.......: 0 h, 2 m and 3 s
+     Simulation started.: 2026:10:19 12:25:53
+     Simulation stopped.: 2026:10:19 12:27:57
+     Elapsed time.......: 0 h, 2 m and 4 s
      DetectorHits.......: 2463           
-     DetectorHits/CPUsec: 158            
+     DetectorHits/CPUsec: 157            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1968,11 +1970,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 56.4151        
      Sensitivity Cpm/uCi: 125.2415       
                                                                               
-     Simulation started.: 2026:10:19 11:18:06
-     Simulation stopped.: 2026:10:19 11:19:27
-     Elapsed time.......: 0 h, 1 m and 21 s
+     Simulation started.: 2026:10:19 12:28:00
+     Simulation stopped.: 2026:10:19 12:29:23
+     Elapsed time.......: 0 h, 1 m and 23 s
      DetectorHits.......: 1565           
-     DetectorHits/CPUsec: 152            
+     DetectorHits/CPUsec: 150            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2090,11 +2092,11 @@ total of each SIMIND run before it is scaled.
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:19 11:19:33
-     Simulation stopped.: 2026:10:19 11:22:58
-     Elapsed time.......: 0 h, 3 m and 25 s
+     Simulation started.: 2026:10:19 12:29:29
+     Simulation stopped.: 2026:10:19 12:32:52
+     Elapsed time.......: 0 h, 3 m and 23 s
      DetectorHits.......: 4479           
-     DetectorHits/CPUsec: 173            
+     DetectorHits/CPUsec: 175            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2120,7 +2122,7 @@ total of each SIMIND run before it is scaled.
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: estimate_src      
      Cover.....: al        ScoreRout.: penetrate DensityImg: estimate_dns      
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 91979          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 91978          
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -2144,7 +2146,7 @@ total of each SIMIND run before it is scaled.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 1.19457        
+     Emission type......: 3                      Initial Weight....: 1.19458        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -2163,15 +2165,15 @@ total of each SIMIND run before it is scaled.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.90 %          90.66 %
-     Penetration........:   4.20 %           3.60 %
-     Scatter in collim..:   3.85 %           3.12 %
-     X-rays in collim...:   5.04 %           2.61 %
+     Geometric..........:  86.91 %          90.58 %
+     Penetration........:   4.21 %           3.60 %
+     Scatter in collim..:   3.87 %           3.09 %
+     X-rays in collim...:   5.01 %           2.73 %
                                                                               
-     K-photon1 74.16 keV:  65.80 %          49.09 %
-     K-photon2 85.36 keV:  25.93 %          50.91 %
-     K-photon3 26.27 keV:   6.40 %           0.00 %
-     K-photon4 29.83 keV:   1.88 %           0.00 %
+     K-photon1 74.16 keV:  64.82 %          51.40 %
+     K-photon2 85.36 keV:  26.57 %          48.60 %
+     K-photon3 26.27 keV:   6.88 %           0.00 %
+     K-photon4 29.83 keV:   1.73 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -2188,35 +2190,35 @@ total of each SIMIND run before it is scaled.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  38.14  52.31   0.95   0.34  35.08  52.24   1.24   0.41
-     penetration..:   1.41   1.46   0.03   0.01   1.28   1.29   0.05   0.01
-     collim scatt.:   1.09   1.45   0.03   0.01   0.88   1.78   0.02   0.01
-     collim x-rays:   1.26   1.53   0.00   0.00   2.59   3.10   0.00   0.00
+     geometric....:  38.61  52.46   0.94   0.34  35.06  52.42   1.22   0.41
+     penetration..:   1.32   1.31   0.05   0.00   1.26   1.25   0.05   0.01
+     collim scatt.:   0.96   1.56   0.01   0.00   0.89   1.75   0.02   0.00
+     collim x-rays:   1.10   1.34   0.00   0.00   2.64   3.03   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 442.9          
-     MaxValue projection: 0.2788         
-     CountRate spectrum.: 62.61          
-     CountRate E-Window.: 55.97          
+     MaxValue spectrum..: 442.3          
+     MaxValue projection: 0.5435         
+     CountRate spectrum.: 62.66          
+     CountRate E-Window.: 56.13          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.31181        
-     Scatter/Total......: 0.56744        
-     Scatter order 1....: 51.8  %        
-     Scatter order 2....: 31.88 %        
-     Scatter order 3....: 16.33 %        
+     Scatter/Primary....: 1.31891        
+     Scatter/Total......: 0.56876        
+     Scatter order 1....: 51.68 %        
+     Scatter order 2....: 31.75 %        
+     Scatter order 3....: 16.58 %        
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8576         
+     Efficiency E-window: 0.8595         
      Efficiency spectrum: 0.9594         
-     Sensitivity Cps/MBq: 55.9664        
-     Sensitivity Cpm/uCi: 124.2455       
+     Sensitivity Cps/MBq: 56.1334        
+     Sensitivity Cpm/uCi: 124.6163       
                                                                               
-     Simulation started.: 2026:10:19 11:23:03
-     Simulation stopped.: 2026:10:19 11:25:08
-     Elapsed time.......: 0 h, 2 m and 5 s
-     DetectorHits.......: 2495           
-     DetectorHits/CPUsec: 158            
+     Simulation started.: 2026:10:19 12:32:56
+     Simulation stopped.: 2026:10:19 12:34:55
+     Elapsed time.......: 0 h, 1 m and 59 s
+     DetectorHits.......: 2505           
+     DetectorHits/CPUsec: 167            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2230,7 +2232,7 @@ total of each SIMIND run before it is scaled.
      Command: estimate estimate /NN:1/CC:ma-lehr/PX:0.7
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    4.8% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    5.0% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
@@ -2242,7 +2244,7 @@ total of each SIMIND run before it is scaled.
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: estimate_src      
      Cover.....: al        ScoreRout.: penetrate DensityImg: estimate_dns      
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 60172          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 59127          
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -2266,7 +2268,7 @@ total of each SIMIND run before it is scaled.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 1.82602        
+     Emission type......: 3                      Initial Weight....: 1.85829        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -2285,15 +2287,15 @@ total of each SIMIND run before it is scaled.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.14 %          90.47 %
-     Penetration........:   4.21 %           3.66 %
-     Scatter in collim..:   3.70 %           3.06 %
-     X-rays in collim...:   4.95 %           2.82 %
+     Geometric..........:  87.05 %          90.58 %
+     Penetration........:   4.24 %           3.60 %
+     Scatter in collim..:   3.73 %           3.19 %
+     X-rays in collim...:   4.99 %           2.63 %
                                                                               
-     K-photon1 74.16 keV:  63.85 %          48.23 %
-     K-photon2 85.36 keV:  29.19 %          51.77 %
-     K-photon3 26.27 keV:   5.60 %           0.00 %
-     K-photon4 29.83 keV:   1.36 %           0.00 %
+     K-photon1 74.16 keV:  62.39 %          48.06 %
+     K-photon2 85.36 keV:  28.77 %          51.94 %
+     K-photon3 26.27 keV:   6.82 %           0.00 %
+     K-photon4 29.83 keV:   2.02 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -2310,35 +2312,35 @@ total of each SIMIND run before it is scaled.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  39.20  51.74   0.95   0.36  35.33  52.23   1.21   0.42
-     penetration..:   1.33   1.18   0.02   0.01   1.24   1.26   0.05   0.01
-     collim scatt.:   1.07   1.43   0.01   0.00   0.94   1.68   0.02   0.00
-     collim x-rays:   1.41   1.30   0.00   0.00   2.62   2.99   0.00   0.00
+     geometric....:  38.86  52.00   0.96   0.29  35.36  52.00   1.21   0.42
+     penetration..:   1.47   1.07   0.02   0.01   1.28   1.29   0.05   0.01
+     collim scatt.:   1.19   1.57   0.04   0.00   1.02   1.70   0.01   0.00
+     collim x-rays:   1.08   1.43   0.00   0.00   2.54   3.12   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 445.1          
-     MaxValue projection: 0.2557         
-     CountRate spectrum.: 62.67          
-     CountRate E-Window.: 56.20          
+     MaxValue spectrum..: 449.0          
+     MaxValue projection: 0.1812         
+     CountRate spectrum.: 62.56          
+     CountRate E-Window.: 55.97          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.30211        
-     Scatter/Total......: 0.56562        
-     Scatter order 1....: 51.97 %        
-     Scatter order 2....: 31.69 %        
-     Scatter order 3....: 16.34 %        
+     Scatter/Primary....: 1.29592        
+     Scatter/Total......: 0.56444        
+     Scatter order 1....: 51.94 %        
+     Scatter order 2....: 31.66 %        
+     Scatter order 3....: 16.4  %        
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8599         
-     Efficiency spectrum: 0.9589         
-     Sensitivity Cps/MBq: 56.2029        
-     Sensitivity Cpm/uCi: 124.7704       
+     Efficiency E-window: 0.8587         
+     Efficiency spectrum: 0.9598         
+     Sensitivity Cps/MBq: 55.9698        
+     Sensitivity Cpm/uCi: 124.2529       
                                                                               
-     Simulation started.: 2026:10:19 11:25:13
-     Simulation stopped.: 2026:10:19 11:26:36
-     Elapsed time.......: 0 h, 1 m and 23 s
-     DetectorHits.......: 1620           
-     DetectorHits/CPUsec: 152            
+     Simulation started.: 2026:10:19 12:34:59
+     Simulation stopped.: 2026:10:19 12:36:26
+     Elapsed time.......: 0 h, 1 m and 27 s
+     DetectorHits.......: 1659           
+     DetectorHits/CPUsec: 149            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2354,17 +2356,17 @@ total of each SIMIND run before it is scaled.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 300-307
+.. GENERATED FROM PYTHON SOURCE LINES 302-309
 
-Same Monte Carlo noise
-----------------------
+The first update's Monte Carlo noise
+------------------------------------
 The first pass has a zero additive term, so every strategy hands SIMIND the
-same image at the first update. If the seeds are the same, the SIMIND totals of
-that update differ only by the scale factor. The table gives the largest
+same image at the first update. With the same seeds, the SIMIND totals of that
+update therefore differ only by the scale factor. The table gives the largest
 difference between the totals, each normalised to unit sum, relative to the
 largest bin.
 
-.. GENERATED FROM PYTHON SOURCE LINES 307-317
+.. GENERATED FROM PYTHON SOURCE LINES 309-319
 
 .. code-block:: Python
 
@@ -2387,20 +2389,22 @@ largest bin.
  .. code-block:: none
 
     Known activity: 0.0e+00
-    Reference, sum: 1.8e-07
-    Reference, trimmed: 1.4e-07
-    Dewaraja, global: 1.2e-07
-    Dewaraja, pixel-wise: 1.2e-07
+    Reference, sum: 1.4e-07
+    Reference, trimmed: 1.8e-07
+    Dewaraja, global: 9.2e-08
+    Dewaraja, pixel-wise: 9.2e-08
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 318-320
+.. GENERATED FROM PYTHON SOURCE LINES 320-324
 
-The totals differ by at most 2e-7, which is float rounding, so every strategy
-sees the same Monte Carlo noise: only the normalisation differs.
+At the first update the totals differ by at most 2e-7, which is float rounding,
+so every strategy sees the same Monte Carlo noise there: only the
+normalisation differs. Later updates use the same seeds but images that differ
+with the strategy, so their noise differs too.
 
-.. GENERATED FROM PYTHON SOURCE LINES 322-329
+.. GENERATED FROM PYTHON SOURCE LINES 326-333
 
 The scale of each update
 ------------------------
@@ -2410,7 +2414,7 @@ smoothed scatter of its SIMIND run, before the damped average with the
 estimates of the earlier updates. The first update is made from an image that
 is not corrected for scatter.
 
-.. GENERATED FROM PYTHON SOURCE LINES 329-361
+.. GENERATED FROM PYTHON SOURCE LINES 333-365
 
 .. code-block:: Python
 
@@ -2473,13 +2477,13 @@ is not corrected for scatter.
       scale: 1134, 1126, 1125
       raw estimate sum: 2.349e+06, 2.335e+06, 2.323e+06
     Dewaraja, pixel-wise
-      scale: 1134, 1134, 1129
-      raw estimate sum: 2.269e+06, 2.234e+06, 2.198e+06
+      scale: 1134, 1131, 1134
+      raw estimate sum: 2.269e+06, 2.235e+06, 2.199e+06
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 362-373
+.. GENERATED FROM PYTHON SOURCE LINES 366-377
 
 The estimates of known activity and of the Dewaraja global model stay within 1%
 of the true scatter sum (2.327e6) at every update, and the global model's scale
@@ -2493,7 +2497,179 @@ scale follows the scale of the current image, which the pass without scatter
 correction overestimates. The scales of sum and trimmed agree within 1% at
 every update.
 
-.. GENERATED FROM PYTHON SOURCE LINES 375-381
+.. GENERATED FROM PYTHON SOURCE LINES 379-383
+
+Sum against trimmed at low history
+----------------------------------
+One run of the first-update image at a hundredth of the histories, scaled both
+ways:
+
+.. GENERATED FROM PYTHON SOURCE LINES 383-403
+
+.. code-block:: Python
+
+
+    first_update_image = runs["Reference, sum"][2].images[0]
+    low_history = make_adaptor(
+        "low_history", quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE
+    )
+    low_history.set_template(template)
+    low_history.set_mu_map(mu_image)
+    low_history.set_source(first_update_image)
+    low_history_outputs = low_history.run()
+    sum_scale = reference_normaliser(full_model, method="sum")(
+        low_history_outputs, first_update_image
+    )
+    trimmed_scale = reference_normaliser(full_model, method="trimmed")(
+        low_history_outputs, first_update_image
+    )
+    print(
+        f"At 1% of the histories: sum {sum_scale:.4g}, trimmed {trimmed_scale:.4g}, "
+        f"ratio {trimmed_scale / sum_scale:.2f}"
+    )
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    14.5% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: low_history       
+     Phantom B : bone      BackScatt.: pmt       OutputFile: low_history       
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: low_history_src   
+     Cover.....: al        ScoreRout.: penetrate DensityImg: low_history_dns   
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 27852          
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 225          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 75           Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 3.94496        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.90 %          90.72 %
+     Penetration........:   4.37 %           3.59 %
+     Scatter in collim..:   3.78 %           3.18 %
+     X-rays in collim...:   4.95 %           2.52 %
+                                                                              
+     K-photon1 74.16 keV:  65.15 %          50.97 %
+     K-photon2 85.36 keV:  26.98 %          49.03 %
+     K-photon3 26.27 keV:   6.36 %           0.00 %
+     K-photon4 29.83 keV:   1.51 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  36.50  54.52   0.99   0.44  33.61  54.15   1.11   0.46
+     penetration..:   1.35   1.17   0.09   0.00   1.28   1.27   0.05   0.00
+     collim scatt.:   0.95   1.37   0.05   0.00   0.84   1.90   0.02   0.00
+     collim x-rays:   0.97   1.60   0.00   0.00   2.45   2.86   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 424.3          
+     MaxValue projection: 0.5084         
+     CountRate spectrum.: 61.80          
+     CountRate E-Window.: 55.35          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 1.41801        
+     Scatter/Total......: 0.58644        
+     Scatter order 1....: 51.31 %        
+     Scatter order 2....: 32.09 %        
+     Scatter order 3....: 16.59 %        
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.8605         
+     Efficiency spectrum: 0.9607         
+     Sensitivity Cps/MBq: 55.3495        
+     Sensitivity Cpm/uCi: 122.876        
+                                                                              
+     Simulation started.: 2026:10:19 12:36:43
+     Simulation stopped.: 2026:10:19 12:37:50
+     Elapsed time.......: 0 h, 1 m and 7 s
+     DetectorHits.......: 805            
+     DetectorHits/CPUsec: 90             
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: low_history.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: low_history low_history /NN:1/CC:ma-lehr/PX:0.7
+    At 1% of the histories: sum 3077, trimmed 2818, ratio 0.92
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 404-407
+
+At these history counts ``sum`` and ``trimmed`` agree within 1%. At a
+hundredth of the default history budget, ``trimmed`` scales to about 0.92 of
+``sum``: low counts bias it low, which is why the other tutorials use ``sum``.
+
+.. GENERATED FROM PYTHON SOURCE LINES 409-415
 
 The last raw estimates
 ----------------------
@@ -2502,7 +2678,7 @@ sum of the absolute difference over the true sum. The additive term of the
 last OSEM pass is a damped average of the estimates, so it is not what is
 shown here.
 
-.. GENERATED FROM PYTHON SOURCE LINES 381-420
+.. GENERATED FROM PYTHON SOURCE LINES 415-454
 
 .. code-block:: Python
 
@@ -2574,12 +2750,12 @@ shown here.
     Reference, sum: sum 2.563e+06, absolute difference 51%
     Reference, trimmed: sum 2.504e+06, absolute difference 50%
     Dewaraja, global: sum 2.323e+06, absolute difference 49%
-    Dewaraja, pixel-wise: sum 2.198e+06, absolute difference 46%
+    Dewaraja, pixel-wise: sum 2.199e+06, absolute difference 46%
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 421-426
+.. GENERATED FROM PYTHON SOURCE LINES 455-460
 
 Known activity and the Dewaraja global model have a last estimate within 1% of
 the true sum and follow the true scatter over the views. The reference
@@ -2587,14 +2763,14 @@ normalisations are 8 to 10% above it and the pixel-wise model is 6% below.
 Bin by bin, every strategy differs from the true scatter by about half of the
 true sum, including the strategies whose sums agree.
 
-.. GENERATED FROM PYTHON SOURCE LINES 428-432
+.. GENERATED FROM PYTHON SOURCE LINES 462-466
 
 Reconstructions
 ---------------
 The images are shown relative to their mean in the background mask. The
 profile runs along x through the centres of the 22 and 37 mm spheres.
 
-.. GENERATED FROM PYTHON SOURCE LINES 432-470
+.. GENERATED FROM PYTHON SOURCE LINES 466-504
 
 .. code-block:: Python
 
@@ -2660,7 +2836,7 @@ profile runs along x through the centres of the 22 and 37 mm spheres.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 471-484
+.. GENERATED FROM PYTHON SOURCE LINES 505-518
 
 Contrast recovery, noise and total activity
 -------------------------------------------
@@ -2676,7 +2852,7 @@ total activity is its image sum over the truth's sum, with the scale fixed by
 the true primary of the data: counts of the primary per unit of the fast
 model's projection of the true activity. A value of 1 is the true total.
 
-.. GENERATED FROM PYTHON SOURCE LINES 484-508
+.. GENERATED FROM PYTHON SOURCE LINES 518-542
 
 .. code-block:: Python
 
@@ -2719,12 +2895,12 @@ model's projection of the true activity. A value of 1 is the true total.
     Reference, sum              0.29      0.39      0.50      0.52   1.66   1.01
     Reference, trimmed          0.31      0.39      0.52      0.54   1.66   1.02
     Dewaraja, global            0.26      0.33      0.46      0.49   1.48   1.23
-    Dewaraja, pixel-wise        0.26      0.36      0.43      0.45   1.45   1.27
+    Dewaraja, pixel-wise        0.26      0.34      0.43      0.46   1.45   1.28
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 509-522
+.. GENERATED FROM PYTHON SOURCE LINES 543-556
 
 All five corrections raise the recovery of the four hot spheres above the
 reconstruction without correction (0.24, 0.32, 0.37 and 0.40), and all stay
@@ -2743,7 +2919,7 @@ the mask includes voxels on the sphere edges.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (37 minutes 21.764 seconds)
+   **Total running time of the script:** (38 minutes 21.408 seconds)
 
 
 .. _sphx_glr_download_auto_examples_mc_scatter_plot_12_scatter_normalisation.py:
