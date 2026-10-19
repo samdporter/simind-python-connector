@@ -135,7 +135,7 @@ with the head end up, and columns are radial.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.128 seconds)
+   **Total running time of the script:** (0 minutes 7.858 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py:

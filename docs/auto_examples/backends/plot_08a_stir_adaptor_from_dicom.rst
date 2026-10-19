@@ -137,13 +137,22 @@ Views 0 and 30 of the 120 views, 90 degrees apart.
    :class: sphx-glr-single-img
 
 
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:549: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
+      setattr(self, word, getattr(machar, word).flat[0])
+    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:89: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
+      return self._float_to_str(self.smallest_subnormal)
+
 
 
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.436 seconds)
+   **Total running time of the script:** (0 minutes 0.973 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08a_stir_adaptor_from_dicom.py:
