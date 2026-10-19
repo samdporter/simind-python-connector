@@ -380,9 +380,9 @@ Poisson noise from a seeded generator is added to the simulated counts.
      Sensitivity Cps/MBq: 56.7328        
      Sensitivity Cpm/uCi: 125.9469       
                                                                               
-     Simulation started.: 2026:10:19 13:09:15
-     Simulation stopped.: 2026:10:19 13:11:57
-     Elapsed time.......: 0 h, 2 m and 42 s
+     Simulation started.: 2026:10:19 13:28:00
+     Simulation stopped.: 2026:10:19 13:30:41
+     Elapsed time.......: 0 h, 2 m and 41 s
      DetectorHits.......: 3446           
      DetectorHits/CPUsec: 169            
                                                                               
@@ -607,11 +607,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:19 13:12:08
-     Simulation stopped.: 2026:10:19 13:15:27
-     Elapsed time.......: 0 h, 3 m and 19 s
+     Simulation started.: 2026:10:19 13:30:53
+     Simulation stopped.: 2026:10:19 13:34:19
+     Elapsed time.......: 0 h, 3 m and 26 s
      DetectorHits.......: 4479           
-     DetectorHits/CPUsec: 179            
+     DetectorHits/CPUsec: 173            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -729,11 +729,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 56.6186        
      Sensitivity Cpm/uCi: 125.6934       
                                                                               
-     Simulation started.: 2026:10:19 13:15:31
-     Simulation stopped.: 2026:10:19 13:16:56
-     Elapsed time.......: 0 h, 1 m and 25 s
+     Simulation started.: 2026:10:19 13:34:24
+     Simulation stopped.: 2026:10:19 13:35:52
+     Elapsed time.......: 0 h, 1 m and 28 s
      DetectorHits.......: 1659           
-     DetectorHits/CPUsec: 155            
+     DetectorHits/CPUsec: 149            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -851,11 +851,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 57.0218        
      Sensitivity Cpm/uCi: 126.5883       
                                                                               
-     Simulation started.: 2026:10:19 13:17:00
-     Simulation stopped.: 2026:10:19 13:18:07
+     Simulation started.: 2026:10:19 13:35:57
+     Simulation stopped.: 2026:10:19 13:37:04
      Elapsed time.......: 0 h, 1 m and 7 s
      DetectorHits.......: 1186           
-     DetectorHits/CPUsec: 140            
+     DetectorHits/CPUsec: 138            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1049,11 +1049,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 55.9551        
      Sensitivity Cpm/uCi: 124.2203       
                                                                               
-     Simulation started.: 2026:10:19 13:18:13
-     Simulation stopped.: 2026:10:19 13:21:40
-     Elapsed time.......: 0 h, 3 m and 27 s
+     Simulation started.: 2026:10:19 13:37:11
+     Simulation stopped.: 2026:10:19 13:40:37
+     Elapsed time.......: 0 h, 3 m and 26 s
      DetectorHits.......: 4479           
-     DetectorHits/CPUsec: 172            
+     DetectorHits/CPUsec: 173            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1171,11 +1171,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 57.5193        
      Sensitivity Cpm/uCi: 127.6928       
                                                                               
-     Simulation started.: 2026:10:19 13:21:45
-     Simulation stopped.: 2026:10:19 13:23:02
-     Elapsed time.......: 0 h, 1 m and 17 s
+     Simulation started.: 2026:10:19 13:40:42
+     Simulation stopped.: 2026:10:19 13:42:03
+     Elapsed time.......: 0 h, 1 m and 21 s
      DetectorHits.......: 1477           
-     DetectorHits/CPUsec: 151            
+     DetectorHits/CPUsec: 145            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1293,11 +1293,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 57.3862        
      Sensitivity Cpm/uCi: 127.3974       
                                                                               
-     Simulation started.: 2026:10:19 13:23:07
-     Simulation stopped.: 2026:10:19 13:24:07
-     Elapsed time.......: 0 h, 1 m and 0 s
+     Simulation started.: 2026:10:19 13:42:08
+     Simulation stopped.: 2026:10:19 13:43:09
+     Elapsed time.......: 0 h, 1 m and 1 s
      DetectorHits.......: 1046           
-     DetectorHits/CPUsec: 137            
+     DetectorHits/CPUsec: 136            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1346,11 +1346,11 @@ fits the data better, beyond Monte Carlo noise.
 
  .. code-block:: none
 
-    scatter update at iteration 12: additive sum 3.035e+06, 201 s
-    scatter update at iteration 24: additive sum 2.211e+06, 87 s
-    scatter update at iteration 36: additive sum 2.387e+06, 69 s
+    scatter update at iteration 12: additive sum 3.035e+06, 208 s
+    scatter update at iteration 24: additive sum 2.211e+06, 90 s
+    scatter update at iteration 36: additive sum 2.387e+06, 70 s
     residual update at iteration 12: additive sum 3.065e+06, 210 s
-    residual update at iteration 24: additive sum 2.632e+06, 80 s
+    residual update at iteration 24: additive sum 2.632e+06, 84 s
     residual update at iteration 36: additive sum 2.603e+06, 63 s
     effective objective at each residual update: -7.90877e+06, -9.35389e+06, -8.45431e+06
 
@@ -1475,22 +1475,21 @@ coefficient of variation in the background mask.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 420-429
+.. GENERATED FROM PYTHON SOURCE LINES 420-428
 
 Scatter correction raises the recovery of every hot sphere above the fast
-model alone. The full residual correction matches it at 17 mm, but its larger
-and noisier additive term leaves the other three spheres lower, and the 22 mm
-sphere below the fast model alone. The effective objective also stops
-improving after the second update. With one noise realisation and three
-damped updates this chart does not rank the two corrections: it shows how
-much of the gap to the truth each one closes at this budget, and that an
-accurate forward model alone does not guarantee a better image than a
-well-tuned scatter estimate.
+model alone. The full residual correction matches it at 17 mm but is lower
+for the other three, and below the fast model alone at 22 mm. The effective
+objective also stops improving after the second update. With one noise
+realisation and three damped updates this chart does not rank the two
+corrections: it shows how much of the gap to the truth each one closes at
+this budget, and that an accurate forward model does not by itself guarantee
+a better image than a scatter estimate.
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (14 minutes 58.721 seconds)
+   **Total running time of the script:** (15 minutes 15.721 seconds)
 
 
 .. _sphx_glr_download_auto_examples_mc_scatter_plot_13_residual_correction.py:

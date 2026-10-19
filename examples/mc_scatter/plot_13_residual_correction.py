@@ -418,11 +418,10 @@ plt.show()
 
 # %%
 # Scatter correction raises the recovery of every hot sphere above the fast
-# model alone. The full residual correction matches it at 17 mm, but its larger
-# and noisier additive term leaves the other three spheres lower, and the 22 mm
-# sphere below the fast model alone. The effective objective also stops
-# improving after the second update. With one noise realisation and three
-# damped updates this chart does not rank the two corrections: it shows how
-# much of the gap to the truth each one closes at this budget, and that an
-# accurate forward model alone does not guarantee a better image than a
-# well-tuned scatter estimate.
+# model alone. The full residual correction matches it at 17 mm but is lower
+# for the other three, and below the fast model alone at 22 mm. The effective
+# objective also stops improving after the second update. With one noise
+# realisation and three damped updates this chart does not rank the two
+# corrections: it shows how much of the gap to the truth each one closes at
+# this budget, and that an accurate forward model does not by itself guarantee
+# a better image than a scatter estimate.
