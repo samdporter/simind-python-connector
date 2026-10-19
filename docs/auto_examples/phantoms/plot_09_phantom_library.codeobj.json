@@ -178,6 +178,22 @@
    "name": "ProjectionGeometry"
   }
  ],
+ "ScoringRoutine.PENETRATE.value": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.core.types.ScoringRoutine.PENETRATE",
+   "module_short": "simind_python_connector.core.types.ScoringRoutine.PENETRATE",
+   "name": "value"
+  }
+ ],
  "SimindPythonConnector": [
   {
    "is_class": true,

@@ -14,7 +14,7 @@ projection. The RDP is smooth, so it is part of the gradient-based objective
 rather than a proximal term. Its strength was picked by eye at this grid.
 
 .. warning::
-   This example takes about twenty minutes, nearly all of it in the SIMIND runs:
+   This example takes about seventeen minutes, nearly all of it in the SIMIND runs:
    the simulation of the data and one scatter estimate per update for each of
    the two reconstructions. Every run uses 8 MPI processes.
 
@@ -173,7 +173,9 @@ def make_adaptor(name):
         scoring_routine=ScoringRoutine.PENETRATE,
         quantization_scale=QUANTIZATION_SCALE,
     )
-    adaptor.set_energy_windows([126], [154], [0])
+    # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
+    adaptor.add_config_value(20, 154.0)
+    adaptor.add_config_value(21, 126.0)
     adaptor.add_runtime_switch("CC", "ma-lehr")
     adaptor.set_mpi(8)
     adaptor.add_config_value(1, 140.0)

@@ -27,7 +27,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 from simind_python_connector import SimindPythonConnector, configs
-from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
+from simind_python_connector.core.types import (
+    DEFAULT_QUANTIZATION_SCALE,
+    ScoringRoutine,
+)
 from simind_python_connector.phantoms import (
     AnalyticPhantom,
     HorizontalCylinder,
@@ -80,14 +83,18 @@ def simulate(phantom, prefix):
             image_duration_s=None,
         )
     )
-    connector.set_energy_windows([126], [154], [0])
+    # PENETRATE scores all interactions; it takes its energy window from
+    # Indexes 20 (upper) and 21 (lower).
+    connector.add_config_value(84, ScoringRoutine.PENETRATE.value)
+    connector.add_config_value(20, 154.0)
+    connector.add_config_value(21, 126.0)
     connector.add_runtime_switch("CC", "ma-lehr")
     connector.add_runtime_switch("RR", 12345)
     # A small history budget keeps both runs within a few minutes while
     # leaving visible structure in the projections.
     connector.add_config_value(26, 0.1)
     connector.configure_phantom(phantom, time_per_projection_s=10.0)
-    return connector.run()["tot_w1"].projection
+    return connector.run()["all_interactions"].projection
 
 
 # %%

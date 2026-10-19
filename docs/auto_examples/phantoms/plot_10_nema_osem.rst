@@ -201,7 +201,7 @@ projections come out in counts (Index 25). The 8 MPI processes each simulate
 all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
 Poisson noise from a seeded generator is added to the simulated counts.
 
-.. GENERATED FROM PYTHON SOURCE LINES 140-176
+.. GENERATED FROM PYTHON SOURCE LINES 140-178
 
 .. code-block:: Python
 
@@ -219,7 +219,9 @@ Poisson noise from a seeded generator is added to the simulated counts.
     adaptor.set_template(template)
     adaptor.set_source(activity_image)
     adaptor.set_mu_map(mu_image)
-    adaptor.set_energy_windows([126], [154], [0])
+    # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
+    adaptor.add_config_value(20, 154.0)
+    adaptor.add_config_value(21, 126.0)
     adaptor.add_runtime_switch("CC", "ma-lehr")
     adaptor.set_mpi(8)
     adaptor.add_config_value(1, 140.0)
@@ -271,8 +273,8 @@ Poisson noise from a seeded generator is added to the simulated counts.
      EnergyResolution...: 9.2          SPECT     Activity..........: 1118.8         
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          Random    Distance to det...: 25             
-     LowerEneWindowTresh: 75           Cover     ShiftSource X.....: 0              
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
      PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
      PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
      HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
@@ -310,13 +312,13 @@ Poisson noise from a seeded generator is added to the simulated counts.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.02 %          90.39 %
-     Penetration........:   4.23 %           3.63 %
-     Scatter in collim..:   3.77 %           3.21 %
-     X-rays in collim...:   4.98 %           2.77 %
+     Geometric..........:  87.02 %          94.49 %
+     Penetration........:   4.23 %           3.20 %
+     Scatter in collim..:   3.77 %           2.31 %
+     X-rays in collim...:   4.98 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.54 %          50.56 %
-     K-photon2 85.36 keV:  27.72 %          49.44 %
+     K-photon1 74.16 keV:  64.54 %           0.00 %
+     K-photon2 85.36 keV:  27.72 %           0.00 %
      K-photon3 26.27 keV:   6.17 %           0.00 %
      K-photon4 29.83 keV:   1.56 %           0.00 %
                                                                               
@@ -335,32 +337,32 @@ Poisson noise from a seeded generator is added to the simulated counts.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  38.61  51.98   0.88   0.31  35.44  51.83   1.23   0.43
-     penetration..:   1.37   1.19   0.04   0.01   1.26   1.25   0.05   0.01
-     collim scatt.:   1.03   1.77   0.03   0.00   0.94   1.79   0.03   0.01
-     collim x-rays:   1.28   1.49   0.00   0.00   2.70   3.04   0.00   0.00
+     geometric....:  71.16  23.25   0.00   0.00  35.44  51.83   1.23   0.43
+     penetration..:   2.52   0.64   0.00   0.00   1.26   1.25   0.05   0.01
+     collim scatt.:   1.86   0.57   0.00   0.00   0.94   1.79   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.70   3.04   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
      MaxValue spectrum..: 0.5061E+06     
-     MaxValue projection: 205.7          
+     MaxValue projection: 143.0          
      CountRate spectrum.: 0.7080E+05     
-     CountRate E-Window.: 0.6347E+05     
+     CountRate E-Window.: 0.3322E+05     
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.2927         
-     Scatter/Total......: 0.56383        
-     Scatter order 1....: 52.03 %        
-     Scatter order 2....: 31.7  %        
-     Scatter order 3....: 16.27 %        
+     Scatter/Primary....: 0.32006        
+     Scatter/Total......: 0.24246        
+     Scatter order 1....: 85.74 %        
+     Scatter order 2....: 12.84 %        
+     Scatter order 3....: 1.42 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8599         
+     Efficiency E-window: 0.4501         
      Efficiency spectrum: 0.9592         
-     Sensitivity Cps/MBq: 56.7328        
-     Sensitivity Cpm/uCi: 125.9469       
+     Sensitivity Cps/MBq: 29.6947        
+     Sensitivity Cpm/uCi: 65.9223        
                                                                               
-     Simulation started.: 2026:10:19 16:18:24
-     Simulation stopped.: 2026:10:19 16:21:10
+     Simulation started.: 2026:10:19 16:51:33
+     Simulation stopped.: 2026:10:19 16:54:19
      Elapsed time.......: 0 h, 2 m and 46 s
      DetectorHits.......: 3446           
      DetectorHits/CPUsec: 165            
@@ -375,19 +377,19 @@ Poisson noise from a seeded generator is added to the simulated counts.
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
      Command: measured measured /NN:1/CC:ma-lehr/PX:0.7
-    Measured counts: 3.809e+06
+    Measured counts: 1.992e+06
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 177-181
+.. GENERATED FROM PYTHON SOURCE LINES 179-183
 
 OSEM
 ----
 The model is SPECTUB with the flipped attenuation map and no PSF. OSEM runs
 with 6 subsets of 10 views each, for 4 full iterations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 181-201
+.. GENERATED FROM PYTHON SOURCE LINES 183-203
 
 .. code-block:: Python
 
@@ -418,14 +420,14 @@ with 6 subsets of 10 views each, for 4 full iterations.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 202-206
+.. GENERATED FROM PYTHON SOURCE LINES 204-208
 
 Reconstruction and truth
 ------------------------
 Both images are shown relative to their mean in the background mask, so the
 arbitrary scale of the reconstruction does not matter.
 
-.. GENERATED FROM PYTHON SOURCE LINES 206-220
+.. GENERATED FROM PYTHON SOURCE LINES 208-222
 
 .. code-block:: Python
 
@@ -455,7 +457,7 @@ arbitrary scale of the reconstruction does not matter.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 221-230
+.. GENERATED FROM PYTHON SOURCE LINES 223-232
 
 Contrast recovery
 -----------------
@@ -467,7 +469,7 @@ The 10 and 13 mm spheres are cold and are not scored. The simulation has a
 modest number of photons, so the recovery is noisy and need not rise
 smoothly with the sphere size.
 
-.. GENERATED FROM PYTHON SOURCE LINES 230-255
+.. GENERATED FROM PYTHON SOURCE LINES 232-257
 
 .. code-block:: Python
 
@@ -509,10 +511,10 @@ smoothly with the sphere size.
 
  .. code-block:: none
 
-    17 mm sphere: contrast recovery 0.24 (truth 0.44)
-    22 mm sphere: contrast recovery 0.30 (truth 0.51)
-    28 mm sphere: contrast recovery 0.36 (truth 0.63)
-    37 mm sphere: contrast recovery 0.39 (truth 0.66)
+    17 mm sphere: contrast recovery 0.29 (truth 0.44)
+    22 mm sphere: contrast recovery 0.32 (truth 0.51)
+    28 mm sphere: contrast recovery 0.45 (truth 0.63)
+    37 mm sphere: contrast recovery 0.47 (truth 0.66)
 
 
 
@@ -520,7 +522,7 @@ smoothly with the sphere size.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (2 minutes 53.749 seconds)
+   **Total running time of the script:** (2 minutes 54.892 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_10_nema_osem.py:

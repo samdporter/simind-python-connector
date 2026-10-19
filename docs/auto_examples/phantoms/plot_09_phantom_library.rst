@@ -38,7 +38,7 @@ Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 21-93
+.. GENERATED FROM PYTHON SOURCE LINES 21-100
 
 .. code-block:: Python
 
@@ -51,7 +51,10 @@ Check that SIMIND is installed and choose where the outputs are written.
     import matplotlib.pyplot as plt
 
     from simind_python_connector import SimindPythonConnector, configs
-    from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
+    from simind_python_connector.core.types import (
+        DEFAULT_QUANTIZATION_SCALE,
+        ScoringRoutine,
+    )
     from simind_python_connector.phantoms import (
         AnalyticPhantom,
         HorizontalCylinder,
@@ -104,14 +107,18 @@ Check that SIMIND is installed and choose where the outputs are written.
                 image_duration_s=None,
             )
         )
-        connector.set_energy_windows([126], [154], [0])
+        # PENETRATE scores all interactions; it takes its energy window from
+        # Indexes 20 (upper) and 21 (lower).
+        connector.add_config_value(84, ScoringRoutine.PENETRATE.value)
+        connector.add_config_value(20, 154.0)
+        connector.add_config_value(21, 126.0)
         connector.add_runtime_switch("CC", "ma-lehr")
         connector.add_runtime_switch("RR", 12345)
         # A small history budget keeps both runs within a few minutes while
         # leaving visible structure in the projections.
         connector.add_config_value(26, 0.1)
         connector.configure_phantom(phantom, time_per_projection_s=10.0)
-        return connector.run()["tot_w1"].projection
+        return connector.run()["all_interactions"].projection
 
 
 
@@ -121,7 +128,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 94-100
+.. GENERATED FROM PYTHON SOURCE LINES 101-107
 
 Analytic phantom
 ----------------
@@ -130,7 +137,7 @@ described with SIMIND's own shapes. ``voxelise`` shows the source as SIMIND
 sees it. The phantom has a known shape but no absolute activity, so the
 source is in relative units.
 
-.. GENERATED FROM PYTHON SOURCE LINES 100-115
+.. GENERATED FROM PYTHON SOURCE LINES 107-122
 
 .. code-block:: Python
 
@@ -156,7 +163,7 @@ source is in relative units.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 116-122
+.. GENERATED FROM PYTHON SOURCE LINES 123-129
 
 NEMA/IEC body phantom
 ---------------------
@@ -165,7 +172,7 @@ insert. Its activity is known in MBq per voxel, so the run is normalised by
 the known total activity (Index 25). Building it here, before either
 simulation, means a missing phantomgen stops the example immediately.
 
-.. GENERATED FROM PYTHON SOURCE LINES 122-125
+.. GENERATED FROM PYTHON SOURCE LINES 129-132
 
 .. code-block:: Python
 
@@ -179,13 +186,13 @@ simulation, means a missing phantomgen stops the example immediately.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-129
+.. GENERATED FROM PYTHON SOURCE LINES 133-136
 
 Simulations
 -----------
 Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
 
-.. GENERATED FROM PYTHON SOURCE LINES 129-133
+.. GENERATED FROM PYTHON SOURCE LINES 136-140
 
 .. code-block:: Python
 
@@ -210,48 +217,48 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Phantom S : h2o       Crystal...: nai       InputFile.: jaszczak          
      Phantom B : bone      BackScatt.: pmt       OutputFile: jaszczak          
      Collimator: pb_sb2    SourceRout: jaszak    SourceImg.: none              
-     Cover.....: al        ScoreRout.: scattwin  DensityImg: none              
+     Cover.....: al        ScoreRout.: penetrate DensityImg: none              
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          Spectra   PhotonsPerProj....: 100000         
-     EnergyResolution...: 9.2          ma-lehr   Activity..........: 1              
-     MaxScatterOrder....: 3            SPECT     DetectorLenght....: 21.25          
-     DetectorWidth......: 27           x-rays    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          BScatt    Distance to det...: 25             
-     LowerEneWindowTresh: 75           Random    ShiftSource X.....: 0              
-     PixelSize  I.......: 0.7          Cover     ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.7          Phantom   ShiftSource Z.....: 0              
-     HalfLength S.......: 10           Resolut   HalfLength P......: 10             
-     HalfWidth  S.......: 10           Forced    HalfWidth  P......: 10             
-     HalfHeight S.......: 10           Header    HalfHeight P......: 10             
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 100000         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 10           Forced    HalfLength P......: 10             
+     HalfWidth  S.......: 10           Header    HalfWidth  P......: 10             
+     HalfHeight S.......: 10                     HalfHeight P......: 10             
      SourceType.........: MultiSpheres           PhantomType.......: HorCylinder  
     ------------------------------------------------------------------------------
                    Projection          Hits       Scatt/Tot    Progress
   
   
-                    1 of  24            4706        0.501          4 %
-                    2 of  24            4798        0.512          8 %
-                    3 of  24            4767        0.514         12 %
-                    4 of  24            4647        0.513         16 %
-                    5 of  24            4675        0.513         20 %
-                    6 of  24            4865        0.516         25 %
-                    7 of  24            4523        0.518         29 %
-                    8 of  24            4664        0.518         33 %
-                    9 of  24            4647        0.520         37 %
-                   10 of  24            4752        0.524         41 %
-                   11 of  24            4709        0.524         45 %
-                   12 of  24            4637        0.524         50 %
-                   13 of  24            4688        0.524         54 %
-                   14 of  24            4793        0.525         58 %
-                   15 of  24            4673        0.526         62 %
-                   16 of  24            4802        0.527         66 %
-                   17 of  24            4787        0.525         70 %
-                   18 of  24            4662        0.526         75 %
-                   19 of  24            4659        0.525         79 %
-                   20 of  24            4668        0.525         83 %
-                   21 of  24            4837        0.526         87 %
-                   22 of  24            4729        0.525         91 %
-                   23 of  24            4748        0.525         95 %
-                   24 of  24            4739        0.524        100 %
+                    1 of  24            4706        0.211          4 %
+                    2 of  24            4798        0.215          8 %
+                    3 of  24            4767        0.218         12 %
+                    4 of  24            4647        0.216         16 %
+                    5 of  24            4675        0.214         20 %
+                    6 of  24            4865        0.210         25 %
+                    7 of  24            4523        0.210         29 %
+                    8 of  24            4664        0.209         33 %
+                    9 of  24            4647        0.211         37 %
+                   10 of  24            4752        0.212         41 %
+                   11 of  24            4709        0.211         45 %
+                   12 of  24            4637        0.211         50 %
+                   13 of  24            4688        0.210         54 %
+                   14 of  24            4793        0.210         58 %
+                   15 of  24            4673        0.211         62 %
+                   16 of  24            4802        0.213         66 %
+                   17 of  24            4787        0.214         70 %
+                   18 of  24            4662        0.213         75 %
+                   19 of  24            4659        0.213         79 %
+                   20 of  24            4668        0.214         83 %
+                   21 of  24            4837        0.214         87 %
+                   22 of  24            4729        0.213         91 %
+                   23 of  24            4748        0.212         95 %
+                   24 of  24            4739        0.211        100 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -279,13 +286,13 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.79 %          90.23 %
-     Penetration........:   4.42 %           4.01 %
-     Scatter in collim..:   3.71 %           2.99 %
-     X-rays in collim...:   5.08 %           2.77 %
+     Geometric..........:  86.79 %          94.02 %
+     Penetration........:   4.42 %           3.60 %
+     Scatter in collim..:   3.71 %           2.37 %
+     X-rays in collim...:   5.08 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.22 %          49.19 %
-     K-photon2 85.36 keV:  26.64 %          50.81 %
+     K-photon1 74.16 keV:  64.22 %           0.00 %
+     K-photon2 85.36 keV:  26.64 %           0.00 %
      K-photon3 26.27 keV:   7.83 %           0.00 %
      K-photon4 29.83 keV:   1.31 %           0.00 %
                                                                               
@@ -299,45 +306,41 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
         5       11.4940    0.0139    0.0012  Ellipsoid           
         6       26.5218    0.0321    0.0012  Ellipsoid           
       BKG     6233.0000    0.9422    0.0002
+  
     ------------------------------------------------------------------------------
-      Scattwin results: Window file: jaszczak.win        
-  
-      Win  WinAdded  Range(keV)   ScaleFactor
-       1       0    126.0 - 154.0   1.000
-  
-      Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.854E+03 0.180E+03 0.674E+03 0.267E+00 0.211E+00 0.356E+02
-  
-      Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
-       1    94.09%     3.58%     2.33%    94.02%     3.60%     2.37%
-  
-      Win   SC 1  SC 2  SC 3
-       1   87.4% 11.4%  1.2%
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  74.16  19.86   0.00   0.00  38.99  48.37   1.26   0.42
+     penetration..:   2.89   0.71   0.00   0.00   1.49   1.29   0.05   0.00
+     collim scatt.:   1.85   0.52   0.00   0.00   0.98   1.65   0.03   0.00
+     collim x-rays:   0.00   0.00   0.00   0.00   2.61   2.85   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
      MaxValue spectrum..: 224.9          
-     MaxValue projection: 0.4146         
+     MaxValue projection: 0.4098         
      CountRate spectrum.: 71.37          
-     CountRate E-Window.: 64.52          
+     CountRate E-Window.: 35.59          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.09873        
-     Scatter/Total......: 0.52352        
-     Scatter order 1....: 54.85 %        
-     Scatter order 2....: 30.95 %        
-     Scatter order 3....: 14.2  %        
+     Scatter/Primary....: 0.2673         
+     Scatter/Total......: 0.21092        
+     Scatter order 1....: 87.4  %        
+     Scatter order 2....: 11.38 %        
+     Scatter order 3....: 1.22 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8629         
+     Efficiency E-window: 0.476          
      Efficiency spectrum: 0.9546         
-     Sensitivity Cps/MBq: 64.518         
-     Sensitivity Cpm/uCi: 143.23         
+     Sensitivity Cps/MBq: 35.5863        
+     Sensitivity Cpm/uCi: 79.0016        
                                                                               
-     Simulation started.: 2026:10:19 16:09:39
-     Simulation stopped.: 2026:10:19 16:12:53
-     Elapsed time.......: 0 h, 3 m and 14 s
+     Simulation started.: 2026:10:19 16:46:10
+     Simulation stopped.: 2026:10:19 16:49:36
+     Elapsed time.......: 0 h, 3 m and 26 s
      DetectorHits.......: 4739           
-     DetectorHits/CPUsec: 24             
+     DetectorHits/CPUsec: 23             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -359,19 +362,19 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Phantom S : h2o       Crystal...: nai       InputFile.: nema              
      Phantom B : bone      BackScatt.: pmt       OutputFile: nema              
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: nema_src          
-     Cover.....: al        ScoreRout.: scattwin  DensityImg: nema_dns          
+     Cover.....: al        ScoreRout.: penetrate DensityImg: nema_dns          
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          Spectra   PhotonsPerProj....: 30422          
-     EnergyResolution...: 9.2          ma-lehr   Activity..........: 5594           
-     MaxScatterOrder....: 3            SPECT     DetectorLenght....: 21.25          
-     DetectorWidth......: 27           x-rays    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          BScatt    Distance to det...: 25             
-     LowerEneWindowTresh: 75           Random    ShiftSource X.....: 0              
-     PixelSize  I.......: 0.7          Cover     ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.7          Phantom   ShiftSource Z.....: 0              
-     HalfLength S.......: 16.8         Resolut   HalfLength P......: 16.8           
-     HalfWidth  S.......: 16.8         Forced    HalfWidth  P......: 16.8           
-     HalfHeight S.......: 16.8         Header    HalfHeight P......: 16.8           
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 30422          
+     EnergyResolution...: 9.2          SPECT     Activity..........: 5594           
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
      SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
     ------------------------------------------------------------------------------
                    Projection          Hits       Scatt/Tot    Progress
@@ -404,13 +407,13 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.33 %          91.57 %
-     Penetration........:   5.02 %           3.34 %
-     Scatter in collim..:   2.90 %           3.05 %
-     X-rays in collim...:   5.75 %           2.04 %
+     Geometric..........:  86.33 %          94.63 %
+     Penetration........:   5.02 %           3.02 %
+     Scatter in collim..:   2.90 %           2.35 %
+     X-rays in collim...:   5.75 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  61.05 %          46.65 %
-     K-photon2 85.36 keV:  25.50 %          53.35 %
+     K-photon1 74.16 keV:  61.05 %           0.00 %
+     K-photon2 85.36 keV:  25.50 %           0.00 %
      K-photon3 26.27 keV:  12.55 %           0.00 %
      K-photon4 29.83 keV:   0.90 %           0.00 %
                                                                               
@@ -423,43 +426,39 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      CenterPoint I......: 25                     ShiftPhantom X....: 0              
      CenterPoint J......: 25                     ShiftPhantom Y....: 0              
      CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
     ------------------------------------------------------------------------------
-      Scattwin results: Window file: nema.win            
-  
-      Win  WinAdded  Range(keV)   ScaleFactor
-       1       0    126.0 - 154.0   1.000
-  
-      Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.393E+07 0.971E+06 0.296E+07 0.328E+00 0.247E+00 0.293E+02
-  
-      Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
-       1    94.81%     3.21%     1.98%    94.63%     3.02%     2.35%
-  
-      Win   SC 1  SC 2  SC 3
-       1   86.5% 12.5%  1.0%
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.14  23.50   0.00   0.00  34.85  52.46   1.40   0.36
+     penetration..:   2.68   0.34   0.00   0.00   1.29   1.12   0.04   0.00
+     collim scatt.:   1.49   0.86   0.00   0.00   0.90   1.55   0.00   0.07
+     collim x-rays:   0.00   0.00   0.00   0.00   3.57   2.38   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
      MaxValue spectrum..: 0.9484E+06     
-     MaxValue projection: 4884.          
+     MaxValue projection: 4758.          
      CountRate spectrum.: 0.3528E+06     
-     CountRate E-Window.: 0.3135E+06     
+     CountRate E-Window.: 0.1637E+06     
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.31059        
-     Scatter/Total......: 0.56721        
-     Scatter order 1....: 51.5  %        
-     Scatter order 2....: 32.58 %        
-     Scatter order 3....: 15.92 %        
+     Scatter/Primary....: 0.3281         
+     Scatter/Total......: 0.24705        
+     Scatter order 1....: 86.53 %        
+     Scatter order 2....: 12.51 %        
+     Scatter order 3....: 0.96 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8492         
+     Efficiency E-window: 0.4434         
      Efficiency spectrum: 0.9558         
-     Sensitivity Cps/MBq: 56.039         
-     Sensitivity Cpm/uCi: 124.4067       
+     Sensitivity Cps/MBq: 29.2642        
+     Sensitivity Cpm/uCi: 64.9666        
                                                                               
-     Simulation started.: 2026:10:19 16:12:54
-     Simulation stopped.: 2026:10:19 16:13:56
-     Elapsed time.......: 0 h, 1 m and 2 s
+     Simulation started.: 2026:10:19 16:49:37
+     Simulation stopped.: 2026:10:19 16:50:42
+     Elapsed time.......: 0 h, 1 m and 5 s
      DetectorHits.......: 836            
      DetectorHits/CPUsec: 13             
                                                                               
@@ -476,14 +475,14 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 134-138
+.. GENERATED FROM PYTHON SOURCE LINES 141-145
 
 Slices and projections
 ----------------------
 The central slice of the Jaszczak source, the slice through the hottest NEMA/IEC
 voxel, and the first projection view of each.
 
-.. GENERATED FROM PYTHON SOURCE LINES 138-153
+.. GENERATED FROM PYTHON SOURCE LINES 145-160
 
 .. code-block:: Python
 
@@ -517,7 +516,7 @@ voxel, and the first projection view of each.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (4 minutes 18.736 seconds)
+   **Total running time of the script:** (4 minutes 33.614 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_09_phantom_library.py:

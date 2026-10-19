@@ -18,7 +18,7 @@ putting that estimate on the scale of the data:
    times the measured data, as in the same paper.
 
 .. warning::
-   This example takes about 40 minutes, nearly all of it in the SIMIND runs:
+   This example takes about 30 minutes, nearly all of it in the SIMIND runs:
    the simulation of the data and one scatter estimate per update for each of
    the five strategies. Every run uses 8 MPI processes.
 
@@ -156,7 +156,9 @@ def make_adaptor(name, quantization_scale=QUANTIZATION_SCALE):
         scoring_routine=ScoringRoutine.PENETRATE,
         quantization_scale=quantization_scale,
     )
-    adaptor.set_energy_windows([126], [154], [0])
+    # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
+    adaptor.add_config_value(20, 154.0)
+    adaptor.add_config_value(21, 126.0)
     adaptor.add_runtime_switch("CC", "ma-lehr")
     adaptor.set_mpi(8)
     adaptor.add_config_value(1, 140.0)
@@ -363,22 +365,22 @@ axes[1].legend()
 plt.show()
 
 # %%
-# The estimates of known activity and of the Dewaraja global model stay within 1%
-# of the true scatter sum (2.327e6) at every update, and the global model's scale
-# stays near 1130. The pixel-wise estimate drifts down to about 6% below the
+# The estimates of known activity and of the Dewaraja global model stay within 3%
+# of the true scatter sum (5.692e5) at every update, and the global model's scale
+# stays near 1130. The pixel-wise estimate drifts down to about 27% below the
 # true sum.
 #
-# The two reference normalisations estimate about 6.1e6, 1.4e6 and 2.5e6. The
-# first is 2.6 times the true scatter, and the reconstruction without correction
-# has 2.6 times the true total activity (see the table below). The reference
+# The two reference normalisations estimate about 8.2e5, 6.4e5 and 5.9e5. The
+# first is 1.4 times the true scatter, and the reconstruction without correction
+# has 1.4 times the true total activity (see the table below). The reference
 # scale follows the scale of the current image, which the pass without scatter
-# correction overestimates. The scales of sum and trimmed agree within 1% at
-# every update.
+# correction overestimates. The scales of sum and trimmed differ by at most 3%
+# at every update.
 
 # %%
 # Sum against trimmed at low history
 # ----------------------------------
-# One run of the first-update image at a hundredth of the histories, scaled both
+# One run of the first-update image at a sixth of the histories, scaled both
 # ways:
 
 first_update_image = runs["Reference, sum"][2].images[0]
@@ -396,13 +398,13 @@ trimmed_scale = reference_normaliser(full_model, method="trimmed")(
     low_history_outputs, first_update_image
 )
 print(
-    f"At 1% of the histories: sum {sum_scale:.4g}, trimmed {trimmed_scale:.4g}, "
+    f"At a sixth of the histories: sum {sum_scale:.4g}, trimmed {trimmed_scale:.4g}, "
     f"ratio {trimmed_scale / sum_scale:.2f}"
 )
 
 # %%
-# At these history counts ``sum`` and ``trimmed`` agree within 1%. At a
-# hundredth of the default history budget, ``trimmed`` scales to about 0.92 of
+# The scales of sum and trimmed differ by at most 3% in the main runs. At a
+# sixth of the history budget used above, ``trimmed`` scales to 0.70 of
 # ``sum``: low counts bias it low, which is why the other tutorials use ``sum``.
 
 # %%
@@ -452,11 +454,11 @@ ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
 plt.show()
 
 # %%
-# Known activity and the Dewaraja global model have a last estimate within 1% of
+# Known activity and the Dewaraja global model have a last estimate within 3% of
 # the true sum and follow the true scatter over the views. The reference
-# normalisations are 8 to 10% above it and the pixel-wise model is 6% below.
-# Bin by bin, every strategy differs from the true scatter by about half of the
-# true sum, including the strategies whose sums agree.
+# normalisations are 4 to 5% above it and the pixel-wise model is 27% below.
+# Bin by bin, every strategy differs from the true scatter by about the true sum,
+# including the strategies whose sums agree.
 
 # %%
 # Reconstructions
@@ -540,16 +542,17 @@ for title, image in recon_arrays.items():
     )
 
 # %%
-# All five corrections raise the recovery of the four hot spheres above the
-# reconstruction without correction (0.24, 0.32, 0.37 and 0.40), and all stay
-# below the truth's own score. The differences between strategies, 0.09 at
-# most, are small next to the gap to the truth, and there is one noise
-# realisation, so the table does not rank them. Trimmed and sum differ by 0.02
-# at most.
+# All five corrections raise the 28 and 37 mm recovery above the reconstruction
+# without correction (0.29, 0.33, 0.46 and 0.47). At 17 and 22 mm the differences
+# are within 0.05, so the table does not separate them from the uncorrected
+# image. All stay below the truth's own score. The differences between
+# strategies, 0.06 at most, are small next to the gap to the truth, and there is
+# one noise realisation, so the table does not rank them. Trimmed and sum differ
+# by 0.04 at most.
 #
 # The total activity separates the strategies more: 1.01 for the reference
-# normalisations, 1.23 to 1.28 for the others, and 2.60 without correction. The
-# order follows the last scatter sums, with the larger scatter estimate giving
-# the smaller total. The background noise of the corrected images, 1.5 to 1.7,
-# is higher than without correction, 1.1. The truth's own value is 0.38 because
-# the mask includes voxels on the sphere edges.
+# normalisations, 1.05 to 1.13 for the others, and 1.41 without correction. The
+# total follows the last scatter sum approximately, with the larger estimate
+# giving the smaller total. The background noise of the corrected images, 1.5 to
+# 1.6, is higher than without correction, 1.4. The truth's own value is 0.38
+# because the mask includes voxels on the sphere edges.

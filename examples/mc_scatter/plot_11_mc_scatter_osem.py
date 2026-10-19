@@ -12,7 +12,7 @@ geometric primary, scaled to the fast model and added to its forward
 projection.
 
 .. warning::
-   This example takes about ten minutes, nearly all of it in the SIMIND runs:
+   This example takes about nine minutes, nearly all of it in the SIMIND runs:
    the simulation of the data and one scatter estimate per update. Every run
    uses 8 MPI processes.
 
@@ -159,7 +159,9 @@ adaptor = SirfSimindAdaptor(
 adaptor.set_template(template)
 adaptor.set_source(activity_image)
 adaptor.set_mu_map(mu_image)
-adaptor.set_energy_windows([126], [154], [0])
+# PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
+adaptor.add_config_value(20, 154.0)
+adaptor.add_config_value(21, 126.0)
 adaptor.add_runtime_switch("CC", "ma-lehr")
 adaptor.set_mpi(8)
 adaptor.add_config_value(1, 140.0)
@@ -241,7 +243,8 @@ estimate_adaptor = SirfSimindAdaptor(
     scoring_routine=ScoringRoutine.PENETRATE,
     quantization_scale=0.06 * DEFAULT_QUANTIZATION_SCALE,
 )
-estimate_adaptor.set_energy_windows([126], [154], [0])
+estimate_adaptor.add_config_value(20, 154.0)
+estimate_adaptor.add_config_value(21, 126.0)
 estimate_adaptor.add_runtime_switch("CC", "ma-lehr")
 estimate_adaptor.set_mpi(8)
 estimate_adaptor.add_config_value(1, 140.0)
@@ -369,5 +372,5 @@ ax.legend()
 plt.show()
 
 # %%
-# Scatter correction raises the recovery of all four hot spheres, but it stays
-# below the truth's own score.
+# Scatter correction raises the recovery at 28 and 37 mm and leaves the 17 and
+# 22 mm values essentially unchanged; all four stay below the truth's own score.

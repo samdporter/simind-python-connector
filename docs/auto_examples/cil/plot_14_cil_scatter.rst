@@ -33,7 +33,7 @@ group of views, and a ``CorrectionCallback`` swaps in a new scatter estimate
 every 12 iterations.
 
 .. warning::
-   This example takes about twelve minutes, nearly all of it in the SIMIND runs:
+   This example takes about eleven minutes, nearly all of it in the SIMIND runs:
    the simulation of the data and one scatter estimate per update. Every run
    uses 8 MPI processes.
 
@@ -215,7 +215,7 @@ projections come out in counts (Index 25). The 8 MPI processes each simulate
 all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
 Poisson noise from a seeded generator is added to the simulated counts.
 
-.. GENERATED FROM PYTHON SOURCE LINES 154-198
+.. GENERATED FROM PYTHON SOURCE LINES 154-200
 
 .. code-block:: Python
 
@@ -233,7 +233,9 @@ Poisson noise from a seeded generator is added to the simulated counts.
             scoring_routine=ScoringRoutine.PENETRATE,
             quantization_scale=QUANTIZATION_SCALE,
         )
-        adaptor.set_energy_windows([126], [154], [0])
+        # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
+        adaptor.add_config_value(20, 154.0)
+        adaptor.add_config_value(21, 126.0)
         adaptor.add_runtime_switch("CC", "ma-lehr")
         adaptor.set_mpi(8)
         adaptor.add_config_value(1, 140.0)
@@ -293,8 +295,8 @@ Poisson noise from a seeded generator is added to the simulated counts.
      EnergyResolution...: 9.2          SPECT     Activity..........: 1118.8         
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          Random    Distance to det...: 25             
-     LowerEneWindowTresh: 75           Cover     ShiftSource X.....: 0              
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
      PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
      PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
      HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
@@ -332,13 +334,13 @@ Poisson noise from a seeded generator is added to the simulated counts.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.02 %          90.39 %
-     Penetration........:   4.23 %           3.63 %
-     Scatter in collim..:   3.77 %           3.21 %
-     X-rays in collim...:   4.98 %           2.77 %
+     Geometric..........:  87.02 %          94.49 %
+     Penetration........:   4.23 %           3.20 %
+     Scatter in collim..:   3.77 %           2.31 %
+     X-rays in collim...:   4.98 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.54 %          50.56 %
-     K-photon2 85.36 keV:  27.72 %          49.44 %
+     K-photon1 74.16 keV:  64.54 %           0.00 %
+     K-photon2 85.36 keV:  27.72 %           0.00 %
      K-photon3 26.27 keV:   6.17 %           0.00 %
      K-photon4 29.83 keV:   1.56 %           0.00 %
                                                                               
@@ -357,35 +359,35 @@ Poisson noise from a seeded generator is added to the simulated counts.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  38.61  51.98   0.88   0.31  35.44  51.83   1.23   0.43
-     penetration..:   1.37   1.19   0.04   0.01   1.26   1.25   0.05   0.01
-     collim scatt.:   1.03   1.77   0.03   0.00   0.94   1.79   0.03   0.01
-     collim x-rays:   1.28   1.49   0.00   0.00   2.70   3.04   0.00   0.00
+     geometric....:  71.16  23.25   0.00   0.00  35.44  51.83   1.23   0.43
+     penetration..:   2.52   0.64   0.00   0.00   1.26   1.25   0.05   0.01
+     collim scatt.:   1.86   0.57   0.00   0.00   0.94   1.79   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.70   3.04   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
      MaxValue spectrum..: 0.5061E+06     
-     MaxValue projection: 205.7          
+     MaxValue projection: 143.0          
      CountRate spectrum.: 0.7080E+05     
-     CountRate E-Window.: 0.6347E+05     
+     CountRate E-Window.: 0.3322E+05     
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.2927         
-     Scatter/Total......: 0.56383        
-     Scatter order 1....: 52.03 %        
-     Scatter order 2....: 31.7  %        
-     Scatter order 3....: 16.27 %        
+     Scatter/Primary....: 0.32006        
+     Scatter/Total......: 0.24246        
+     Scatter order 1....: 85.74 %        
+     Scatter order 2....: 12.84 %        
+     Scatter order 3....: 1.42 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8599         
+     Efficiency E-window: 0.4501         
      Efficiency spectrum: 0.9592         
-     Sensitivity Cps/MBq: 56.7328        
-     Sensitivity Cpm/uCi: 125.9469       
+     Sensitivity Cps/MBq: 29.6947        
+     Sensitivity Cpm/uCi: 65.9223        
                                                                               
-     Simulation started.: 2026:10:19 15:03:49
-     Simulation stopped.: 2026:10:19 15:06:46
-     Elapsed time.......: 0 h, 2 m and 57 s
+     Simulation started.: 2026:10:19 19:11:46
+     Simulation stopped.: 2026:10:19 19:14:22
+     Elapsed time.......: 0 h, 2 m and 36 s
      DetectorHits.......: 3446           
-     DetectorHits/CPUsec: 154            
+     DetectorHits/CPUsec: 175            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -397,12 +399,12 @@ Poisson noise from a seeded generator is added to the simulated counts.
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
      Command: measured measured /NN:1/CC:ma-lehr/PX:0.7
-    Measured counts: 3.809e+06
+    Measured counts: 1.992e+06
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 199-205
+.. GENERATED FROM PYTHON SOURCE LINES 201-207
 
 Subset objectives
 -----------------
@@ -411,7 +413,7 @@ Kullback-Leibler objectives, one per group of 10 views, share the same
 additive term. ``build_subset_objectives`` sets up one acquisition model per
 subset.
 
-.. GENERATED FROM PYTHON SOURCE LINES 205-238
+.. GENERATED FROM PYTHON SOURCE LINES 207-240
 
 .. code-block:: Python
 
@@ -455,14 +457,14 @@ subset.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 239-243
+.. GENERATED FROM PYTHON SOURCE LINES 241-245
 
 ISTA without scatter correction
 -------------------------------
 ``AdaptiveSensitivity`` makes a unit step an MLEM update for the data term.
 With a zero additive term this is plain maximum-likelihood ISTA.
 
-.. GENERATED FROM PYTHON SOURCE LINES 243-249
+.. GENERATED FROM PYTHON SOURCE LINES 245-251
 
 .. code-block:: Python
 
@@ -479,7 +481,7 @@ With a zero additive term this is plain maximum-likelihood ISTA.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 250-263
+.. GENERATED FROM PYTHON SOURCE LINES 252-265
 
 ISTA with SIMIND scatter
 ------------------------
@@ -495,7 +497,7 @@ callback is skipped, so the last iterations use the estimate from iteration 36.
 ``seed=None`` leaves the ``RR`` switch unset, so the 8 MPI processes use their
 fixed seeds.
 
-.. GENERATED FROM PYTHON SOURCE LINES 263-292
+.. GENERATED FROM PYTHON SOURCE LINES 265-294
 
 .. code-block:: Python
 
@@ -538,7 +540,7 @@ fixed seeds.
 
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    1.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    1.7% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
@@ -550,12 +552,12 @@ fixed seeds.
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: estimate_src      
      Cover.....: al        ScoreRout.: penetrate DensityImg: estimate_dns      
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 166261         
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 101116         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          Random    Distance to det...: 25             
-     LowerEneWindowTresh: 75           Cover     ShiftSource X.....: 0              
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
      PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
      PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
      HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
@@ -574,7 +576,7 @@ fixed seeds.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 0.66086        
+     Emission type......: 3                      Initial Weight....: 1.08662        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -593,15 +595,15 @@ fixed seeds.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.10 %          90.64 %
-     Penetration........:   4.20 %           3.53 %
-     Scatter in collim..:   3.77 %           3.15 %
-     X-rays in collim...:   4.92 %           2.67 %
+     Geometric..........:  86.96 %          94.57 %
+     Penetration........:   4.22 %           3.24 %
+     Scatter in collim..:   3.72 %           2.19 %
+     X-rays in collim...:   5.09 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.33 %          50.19 %
-     K-photon2 85.36 keV:  27.73 %          49.81 %
-     K-photon3 26.27 keV:   6.16 %           0.00 %
-     K-photon4 29.83 keV:   1.78 %           0.00 %
+     K-photon1 74.16 keV:  64.36 %           0.00 %
+     K-photon2 85.36 keV:  27.69 %           0.00 %
+     K-photon3 26.27 keV:   6.24 %           0.00 %
+     K-photon4 29.83 keV:   1.71 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -618,35 +620,35 @@ fixed seeds.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  38.22  52.50   1.00   0.30  34.95  52.50   1.20   0.44
-     penetration..:   1.39   1.22   0.03   0.01   1.25   1.24   0.04   0.01
-     collim scatt.:   1.01   1.65   0.02   0.01   0.93   1.80   0.04   0.00
-     collim x-rays:   1.31   1.33   0.00   0.00   2.58   3.00   0.00   0.00
+     geometric....:  70.26  24.47   0.01   0.00  34.93  52.45   1.21   0.43
+     penetration..:   2.38   0.88   0.00   0.00   1.24   1.28   0.04   0.01
+     collim scatt.:   1.40   0.60   0.00   0.00   0.83   1.66   0.02   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.68   3.22   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 446.3          
-     MaxValue projection: 0.1663         
-     CountRate spectrum.: 62.77          
-     CountRate E-Window.: 56.22          
+     MaxValue spectrum..: 442.0          
+     MaxValue projection: 0.1089         
+     CountRate spectrum.: 62.62          
+     CountRate E-Window.: 29.18          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.32409        
-     Scatter/Total......: 0.56972        
-     Scatter order 1....: 51.49 %        
-     Scatter order 2....: 31.93 %        
-     Scatter order 3....: 16.58 %        
+     Scatter/Primary....: 0.33254        
+     Scatter/Total......: 0.24955        
+     Scatter order 1....: 85.58 %        
+     Scatter order 2....: 13.08 %        
+     Scatter order 3....: 1.34 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8597         
-     Efficiency spectrum: 0.9598         
-     Sensitivity Cps/MBq: 56.2234        
-     Sensitivity Cpm/uCi: 124.8159       
+     Efficiency E-window: 0.447          
+     Efficiency spectrum: 0.9593         
+     Sensitivity Cps/MBq: 29.1806        
+     Sensitivity Cpm/uCi: 64.781         
                                                                               
-     Simulation started.: 2026:10:19 15:09:15
-     Simulation stopped.: 2026:10:19 15:12:33
-     Elapsed time.......: 0 h, 3 m and 18 s
-     DetectorHits.......: 4442           
-     DetectorHits/CPUsec: 178            
+     Simulation started.: 2026:10:19 19:16:33
+     Simulation stopped.: 2026:10:19 19:18:38
+     Elapsed time.......: 0 h, 2 m and 5 s
+     DetectorHits.......: 2778           
+     DetectorHits/CPUsec: 175            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -660,7 +662,7 @@ fixed seeds.
      Command: estimate estimate /NN:1/CC:ma-lehr/PX:0.7
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    5.7% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    4.7% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
@@ -672,12 +674,12 @@ fixed seeds.
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: estimate_src      
      Cover.....: al        ScoreRout.: penetrate DensityImg: estimate_dns      
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 54996          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 59809          
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          Random    Distance to det...: 25             
-     LowerEneWindowTresh: 75           Cover     ShiftSource X.....: 0              
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
      PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
      PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
      HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
@@ -696,7 +698,7 @@ fixed seeds.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 1.99787        
+     Emission type......: 3                      Initial Weight....: 1.8371         
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -715,15 +717,15 @@ fixed seeds.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.95 %          90.53 %
-     Penetration........:   4.20 %           3.60 %
-     Scatter in collim..:   3.76 %           2.94 %
-     X-rays in collim...:   5.09 %           2.94 %
+     Geometric..........:  86.84 %          94.39 %
+     Penetration........:   4.29 %           3.23 %
+     Scatter in collim..:   3.72 %           2.38 %
+     X-rays in collim...:   5.15 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.33 %          51.60 %
-     K-photon2 85.36 keV:  27.75 %          48.40 %
-     K-photon3 26.27 keV:   6.11 %           0.00 %
-     K-photon4 29.83 keV:   1.81 %           0.00 %
+     K-photon1 74.16 keV:  63.73 %           0.00 %
+     K-photon2 85.36 keV:  28.58 %           0.00 %
+     K-photon3 26.27 keV:   5.73 %           0.00 %
+     K-photon4 29.83 keV:   1.96 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -740,35 +742,35 @@ fixed seeds.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  40.56  50.50   1.03   0.35  37.66  49.67   1.28   0.43
-     penetration..:   1.25   1.15   0.04   0.00   1.33   1.15   0.04   0.00
-     collim scatt.:   0.87   1.50   0.03   0.03   0.93   1.58   0.04   0.00
-     collim x-rays:   1.35   1.34   0.00   0.00   2.80   3.09   0.00   0.00
+     geometric....:  71.40  23.24   0.01   0.00  35.25  51.86   1.22   0.45
+     penetration..:   2.46   0.62   0.00   0.00   1.29   1.24   0.04   0.00
+     collim scatt.:   1.82   0.45   0.00   0.00   0.95   1.68   0.03   0.00
+     collim x-rays:   0.00   0.00   0.00   0.00   2.80   3.18   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 473.9          
-     MaxValue projection: 0.2881         
-     CountRate spectrum.: 63.61          
-     CountRate E-Window.: 57.03          
+     MaxValue spectrum..: 454.6          
+     MaxValue projection: 0.2158         
+     CountRate spectrum.: 63.37          
+     CountRate E-Window.: 29.68          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.17656        
-     Scatter/Total......: 0.54056        
-     Scatter order 1....: 52.7  %        
-     Scatter order 2....: 31.34 %        
-     Scatter order 3....: 15.96 %        
+     Scatter/Primary....: 0.32373        
+     Scatter/Total......: 0.24456        
+     Scatter order 1....: 85.69 %        
+     Scatter order 2....: 12.79 %        
+     Scatter order 3....: 1.52 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8588         
-     Efficiency spectrum: 0.958          
-     Sensitivity Cps/MBq: 57.0252        
-     Sensitivity Cpm/uCi: 126.5959       
+     Efficiency E-window: 0.4494         
+     Efficiency spectrum: 0.9596         
+     Sensitivity Cps/MBq: 29.6764        
+     Sensitivity Cpm/uCi: 65.8817        
                                                                               
-     Simulation started.: 2026:10:19 15:13:01
-     Simulation stopped.: 2026:10:19 15:14:23
+     Simulation started.: 2026:10:19 19:19:06
+     Simulation stopped.: 2026:10:19 19:20:28
      Elapsed time.......: 0 h, 1 m and 22 s
-     DetectorHits.......: 1463           
-     DetectorHits/CPUsec: 141            
+     DetectorHits.......: 1610           
+     DetectorHits/CPUsec: 155            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -782,7 +784,7 @@ fixed seeds.
      Command: estimate estimate /NN:1/CC:ma-lehr/PX:0.7
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    7.9% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    6.4% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
@@ -794,12 +796,12 @@ fixed seeds.
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: estimate_src      
      Cover.....: al        ScoreRout.: penetrate DensityImg: estimate_dns      
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 43435          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 47861          
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          Random    Distance to det...: 25             
-     LowerEneWindowTresh: 75           Cover     ShiftSource X.....: 0              
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
      PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
      PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
      HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
@@ -818,7 +820,7 @@ fixed seeds.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 2.52964        
+     Emission type......: 3                      Initial Weight....: 2.29571        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -837,15 +839,15 @@ fixed seeds.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.83 %          90.70 %
-     Penetration........:   4.34 %           3.55 %
-     Scatter in collim..:   3.75 %           3.04 %
-     X-rays in collim...:   5.07 %           2.71 %
+     Geometric..........:  87.15 %          94.48 %
+     Penetration........:   4.18 %           3.24 %
+     Scatter in collim..:   3.78 %           2.28 %
+     X-rays in collim...:   4.89 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  63.56 %          49.67 %
-     K-photon2 85.36 keV:  28.41 %          50.33 %
-     K-photon3 26.27 keV:   6.58 %           0.00 %
-     K-photon4 29.83 keV:   1.44 %           0.00 %
+     K-photon1 74.16 keV:  65.50 %           0.00 %
+     K-photon2 85.36 keV:  26.92 %           0.00 %
+     K-photon3 26.27 keV:   5.98 %           0.00 %
+     K-photon4 29.83 keV:   1.60 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -862,35 +864,35 @@ fixed seeds.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  40.09  50.61   0.97   0.32  36.25  51.05   1.23   0.43
-     penetration..:   1.42   1.26   0.04   0.00   1.28   1.17   0.04   0.01
-     collim scatt.:   1.10   1.50   0.03   0.00   0.97   1.69   0.03   0.00
-     collim x-rays:   1.22   1.44   0.00   0.00   2.94   2.89   0.00   0.00
+     geometric....:  71.19  22.78   0.00   0.00  35.75  52.00   1.24   0.42
+     penetration..:   2.93   0.69   0.00   0.00   1.32   1.24   0.04   0.00
+     collim scatt.:   1.99   0.43   0.00   0.00   0.88   1.67   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.42   2.98   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 456.9          
-     MaxValue projection: 0.3023         
-     CountRate spectrum.: 63.65          
-     CountRate E-Window.: 56.82          
+     MaxValue spectrum..: 449.0          
+     MaxValue projection: 0.1503         
+     CountRate spectrum.: 63.28          
+     CountRate E-Window.: 29.88          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.23688        
-     Scatter/Total......: 0.55295        
-     Scatter order 1....: 52.6  %        
-     Scatter order 2....: 31.39 %        
-     Scatter order 3....: 16.01 %        
+     Scatter/Primary....: 0.31856        
+     Scatter/Total......: 0.24159        
+     Scatter order 1....: 85.44 %        
+     Scatter order 2....: 13.03 %        
+     Scatter order 3....: 1.53 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8563         
-     Efficiency spectrum: 0.9592         
-     Sensitivity Cps/MBq: 56.8231        
-     Sensitivity Cpm/uCi: 126.1473       
+     Efficiency E-window: 0.453          
+     Efficiency spectrum: 0.9593         
+     Sensitivity Cps/MBq: 29.8843        
+     Sensitivity Cpm/uCi: 66.3431        
                                                                               
-     Simulation started.: 2026:10:19 15:14:56
-     Simulation stopped.: 2026:10:19 15:16:06
-     Elapsed time.......: 0 h, 1 m and 10 s
-     DetectorHits.......: 1152           
-     DetectorHits/CPUsec: 128            
+     Simulation started.: 2026:10:19 19:20:55
+     Simulation stopped.: 2026:10:19 19:22:04
+     Elapsed time.......: 0 h, 1 m and 9 s
+     DetectorHits.......: 1296           
+     DetectorHits/CPUsec: 149            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -902,22 +904,22 @@ fixed seeds.
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
      Command: estimate estimate /NN:1/CC:ma-lehr/PX:0.7
-    update at iteration 12: scale 2944, scatter sum 3.061e+06, 201 s
-    update at iteration 24: scale 688.7, scatter sum 2.225e+06, 84 s
-    update at iteration 36: scale 1242, scatter sum 2.387e+06, 74 s
-    True scatter sum: 2.327e+06
+    update at iteration 12: scale 1605, scatter sum 4.092e+05, 128 s
+    update at iteration 24: scale 1267, scatter sum 5.31e+05, 84 s
+    update at iteration 36: scale 1161, scatter sum 5.62e+05, 71 s
+    True scatter sum: 5.692e+05
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 293-297
+.. GENERATED FROM PYTHON SOURCE LINES 295-299
 
 Reconstructions
 ---------------
 Both images are shown relative to their mean in the background mask, so the
 arbitrary scale of the reconstructions does not matter.
 
-.. GENERATED FROM PYTHON SOURCE LINES 297-319
+.. GENERATED FROM PYTHON SOURCE LINES 299-321
 
 .. code-block:: Python
 
@@ -955,7 +957,7 @@ arbitrary scale of the reconstructions does not matter.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 320-328
+.. GENERATED FROM PYTHON SOURCE LINES 322-330
 
 Contrast recovery and noise
 ---------------------------
@@ -966,7 +968,7 @@ the truth scores below 1; its score is the ceiling for the reconstructions.
 The 10 and 13 mm spheres are cold and are not scored. The noise is the
 coefficient of variation in the background mask.
 
-.. GENERATED FROM PYTHON SOURCE LINES 328-359
+.. GENERATED FROM PYTHON SOURCE LINES 330-361
 
 .. code-block:: Python
 
@@ -1016,23 +1018,23 @@ coefficient of variation in the background mask.
 
                                  17 mm     22 mm     28 mm     37 mm    CoV
     Truth                         0.44      0.51      0.63      0.66   0.38
-    No scatter correction         0.23      0.32      0.37      0.39   1.12
-    SIMIND scatter                0.26      0.39      0.48      0.54   1.65
+    No scatter correction         0.28      0.34      0.47      0.46   1.39
+    SIMIND scatter                0.27      0.35      0.52      0.50   1.58
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 360-364
+.. GENERATED FROM PYTHON SOURCE LINES 362-366
 
-Scatter correction raises the recovery of all four hot spheres above the
-reconstruction without correction, and it stays below the truth's own score.
-The background noise rises as well, because the scatter estimate is noisier
-than the data term it replaces.
+Scatter correction raises the recovery at 22, 28 and 37 mm above the
+reconstruction without correction; at 17 mm it is 0.01 lower. All stay below
+the truth's own score. The background noise rises as well, because the scatter
+estimate is noisier than the data term it replaces.
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (12 minutes 50.753 seconds)
+   **Total running time of the script:** (10 minutes 47.254 seconds)
 
 
 .. _sphx_glr_download_auto_examples_cil_plot_14_cil_scatter.py:

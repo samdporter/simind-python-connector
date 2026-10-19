@@ -151,7 +151,9 @@ adaptor = SirfSimindAdaptor(
 adaptor.set_template(template)
 adaptor.set_source(activity_image)
 adaptor.set_mu_map(mu_image)
-adaptor.set_energy_windows([126], [154], [0])
+# PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
+adaptor.add_config_value(20, 154.0)
+adaptor.add_config_value(21, 126.0)
 adaptor.add_runtime_switch("CC", "ma-lehr")
 adaptor.set_mpi(8)
 adaptor.add_config_value(1, 140.0)

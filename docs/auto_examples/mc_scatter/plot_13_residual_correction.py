@@ -15,7 +15,7 @@ SIMIND projection but removes only the scatter, all interactions minus the
 geometric primary.
 
 .. warning::
-   This example takes about fifteen minutes, nearly all of it in the SIMIND
+   This example takes about thirteen minutes, nearly all of it in the SIMIND
    runs: the simulation of the data, and one SIMIND projection per update for
    each of the two corrected reconstructions. Every run uses 8 MPI processes.
 
@@ -165,7 +165,9 @@ def make_adaptor(name):
         scoring_routine=ScoringRoutine.PENETRATE,
         quantization_scale=QUANTIZATION_SCALE,
     )
-    adaptor.set_energy_windows([126], [154], [0])
+    # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
+    adaptor.add_config_value(20, 154.0)
+    adaptor.add_config_value(21, 126.0)
     adaptor.add_runtime_switch("CC", "ma-lehr")
     adaptor.set_mpi(8)
     adaptor.add_config_value(1, 140.0)
@@ -417,11 +419,12 @@ ax.legend()
 plt.show()
 
 # %%
-# Scatter correction raises the recovery of every hot sphere above the fast
-# model alone. The full residual correction matches it at 17 mm but is lower
-# for the other three, and below the fast model alone at 22 mm. The effective
-# objective also stops improving after the second update. With one noise
-# realisation and three damped updates this chart does not rank the two
-# corrections: it shows how much of the gap to the truth each one closes at
-# this budget, and that an accurate forward model does not by itself guarantee
-# a better image than a scatter estimate.
+# Scatter correction raises the recovery at 28 and 37 mm and leaves the 17 and
+# 22 mm values essentially unchanged. With one noise realisation the full
+# residual correction does not separate from the scatter correction: the two
+# differ by 0.06 or less at every sphere. At 22 mm the residual is below the
+# fast model alone. The effective objective falls at each update, by less at the
+# last one. With three damped updates this chart does not rank the two
+# corrections: it shows how much of the gap to the truth each one closes at this
+# budget, and that an accurate forward model does not by itself guarantee a
+# better image than a scatter estimate.
