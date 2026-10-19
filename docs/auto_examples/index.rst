@@ -357,6 +357,23 @@ MC scatter and normalisation
     </div>
 
 
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="A SIMIND run does not know the scale of the data. This example reconstructs one simulated NEMA/IEC phantom acquisition with SIRF OSEM and a SIMIND scatter estimate that is refreshed from the current image, and compares five ways of putting that estimate on the scale of the data:">
+
+.. only:: html
+
+  .. image:: /auto_examples/mc_scatter/images/thumb/sphx_glr_plot_12_scatter_normalisation_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/mc_scatter/plot_12_scatter_normalisation`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Normalising the Monte Carlo scatter</div>
+    </div>
+
+
 .. thumbnail-parent-div-close
 
 .. raw:: html
