@@ -259,11 +259,11 @@ the scatter in that window (switch ``CA`` 2 asks for the split).
      Sensitivity Cps/MBq: 73.8959        
      Sensitivity Cpm/uCi: 164.0488       
                                                                               
-     Simulation started.: 2026:10:17 14:05:32
-     Simulation stopped.: 2026:10:17 14:09:21
-     Elapsed time.......: 0 h, 3 m and 49 s
+     Simulation started.: 2026:10:19 16:21:36
+     Simulation stopped.: 2026:10:19 16:25:31
+     Elapsed time.......: 0 h, 3 m and 55 s
      DetectorHits.......: 114581         
-     DetectorHits/CPUsec: 500            
+     DetectorHits/CPUsec: 488            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -342,7 +342,7 @@ MC-scatter-in-the-loop examples refresh it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 158-169
+.. GENERATED FROM PYTHON SOURCE LINES 158-168
 
 Compare with the truth
 ----------------------
@@ -351,12 +351,11 @@ and in the body away from it, against the true ratio. In this small phantom
 scatter is a small share of the counts in the window (the printed fraction),
 so a fixed additive term lowers the absolute level by about that share but
 barely changes the ratio: SIMIND's scatter is smooth and follows the body.
-The ratio here differs slightly from 07A and 07B, which use a different
-projector discretisation. Object tensors are (x, y, z) and projections are [view,
-radial, axial], so images are transposed to put y or axial on the rows.
+Object tensors are (x, y, z) and projections are [view, radial, axial], so
+images are transposed to put y or axial on the rows.
 Axial index 0 is on the top row, as in 07A and 07B.
 
-.. GENERATED FROM PYTHON SOURCE LINES 169-211
+.. GENERATED FROM PYTHON SOURCE LINES 168-210
 
 .. code-block:: Python
 
@@ -426,7 +425,7 @@ Axial index 0 is on the top row, as in 07A and 07B.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (4 minutes 0.009 seconds)
+   **Total running time of the script:** (4 minutes 7.459 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_07c_pytomography_adaptor_osem.py:

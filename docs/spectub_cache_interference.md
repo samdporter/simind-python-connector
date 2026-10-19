@@ -6,12 +6,12 @@ orphan: true
 
 This page records a SPECTUB cache interference observed in the SIMIND-corrected
 reconstruction path shipped in **2.0.1**, and the cache setting now used by the
-repository's shared Monte Carlo example models. The evidence is specific to the
-backend versions listed below.
+CIL Monte Carlo tutorials. The evidence is specific to the backend versions
+listed below.
 
 ## Status and impact
 
-- **Observed in 2.0.1; cache disabled in the shared Monte Carlo example model.**
+- **Observed in 2.0.1; cache disabled in the CIL Monte Carlo tutorials.**
 - When two separately set-up SPECTUB acquisition models are used together
   (for example a `fast` model and an `accurate` model) and all-views caching is
   left enabled, the models can interfere through SPECTUB's shared all-views
@@ -49,11 +49,13 @@ than 1e-5**, with a maximum absolute difference of **0.0222821**. The next
 refresh differed by at most **1.55e-6**. With caching off, both refreshes
 differed by at most **1.55e-6**, consistent with floating-point roundoff.
 
-The repository now disables all-views caching in
-`examples/_mc_scatter_common.py`'s shared SPECTUB model factory. This covers
-the fast model used alongside separately set-up accurate models in the Monte
-Carlo correction examples. The SIRF reconstruction test fixture uses the same
-setting and checks the residual against a fresh recomputation.
+The `Monte Carlo scatter correction with CIL` and `RDP-regularised
+reconstruction with SVRG` tutorials (`examples/cil/plot_14_cil_scatter.py` and
+`examples/cil/plot_15_cil_rdp_svrg.py`) disable all-views caching in their
+SPECTUB model factory. Each reconstruction sets up several models, one per
+subset, so this keeps them from sharing cached views. The SIRF reconstruction
+test fixture uses the same setting and checks the residual against a fresh
+recomputation.
 
 ### Direct isolation (cache ON versus cache OFF)
 

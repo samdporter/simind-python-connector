@@ -111,9 +111,9 @@ satisfied requirement).
   and `docs/requirements.txt` is gone. The sdist excludes local-only material
   (`AGENTS.md`, `CLAUDE.md`, `opencode.jsonc`, `simind_manual.pdf`, `simind/` and
   generated docs).
-- The python container image's MPICH provisioning (`mpirun` plus the SONAME compat
-  links) is asserted by the container-script tests, so rebuilding the image cannot
-  silently drop the MPI runtime the MPI tests need.
+- The python container image provisions MPICH (`mpirun` plus the SONAME compat
+  links) for SIMIND's MPI binary, so `set_mpi(n)` runs `simind_mpi` in the
+  container.
 
 ### Removed
 - `simind_python_connector.backends` (`get_backend`, `set_backend`, `reset_backend`,

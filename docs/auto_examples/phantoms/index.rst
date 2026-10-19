@@ -19,7 +19,7 @@ Phantoms and reconstruction
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Simulate phantoms that need no hand-made voxel maps: SIMIND&#x27;s analytic multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from phantomgen. Both are quick Tc-99m runs with 24 views and few photon histories, so the projections are noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="Simulate phantoms that need no hand-made voxel maps: SIMIND&#x27;s analytic multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from phantomgen. Both are Tc-99m runs with 24 views, so the projections are noisy.">
 
 .. only:: html
 

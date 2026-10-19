@@ -26,9 +26,10 @@ reconstruct it with SIRF OSEM and measure the contrast recovery of the hot
 spheres.
 
 The data are simulated by SIMIND and reconstructed with a SPECTUB model that
-does not include the collimator blur. The model is close to the physics that
-made the data, by construction, so the recovery shown here is an optimistic
-best case.
+does not include the collimator blur or a scatter term, so OSEM treats
+scattered events as if they came from the primary distribution. The model is
+close to the physics that made the data, by construction, so the recovery
+shown here is an optimistic best case.
 
 .. warning::
    This example takes about three to four minutes, nearly all of it in the SIMIND
@@ -39,13 +40,13 @@ best case.
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 25-28
+.. GENERATED FROM PYTHON SOURCE LINES 26-29
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 28-62
+.. GENERATED FROM PYTHON SOURCE LINES 29-63
 
 .. code-block:: Python
 
@@ -90,7 +91,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 63-69
+.. GENERATED FROM PYTHON SOURCE LINES 64-70
 
 NEMA/IEC phantom
 ----------------
@@ -99,7 +100,7 @@ Its two smallest spheres, 10 and 13 mm, are cold; the four hot spheres are
 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 the density times the attenuation coefficient of water at 140 keV.
 
-.. GENERATED FROM PYTHON SOURCE LINES 69-109
+.. GENERATED FROM PYTHON SOURCE LINES 70-110
 
 .. code-block:: Python
 
@@ -155,7 +156,7 @@ the density times the attenuation coefficient of water at 140 keV.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 110-115
+.. GENERATED FROM PYTHON SOURCE LINES 111-116
 
 Template
 --------
@@ -163,7 +164,7 @@ The template sets the projection geometry: 48 x 48 bins of 7 mm, 60 views
 over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 reconstruction take their geometry from it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 115-131
+.. GENERATED FROM PYTHON SOURCE LINES 116-132
 
 .. code-block:: Python
 
@@ -190,7 +191,7 @@ reconstruction take their geometry from it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 132-139
+.. GENERATED FROM PYTHON SOURCE LINES 133-140
 
 "Measured" data
 ---------------
@@ -200,7 +201,7 @@ projections come out in counts (Index 25). The 8 MPI processes each simulate
 all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
 Poisson noise from a seeded generator is added to the simulated counts.
 
-.. GENERATED FROM PYTHON SOURCE LINES 139-175
+.. GENERATED FROM PYTHON SOURCE LINES 140-176
 
 .. code-block:: Python
 
@@ -358,11 +359,11 @@ Poisson noise from a seeded generator is added to the simulated counts.
      Sensitivity Cps/MBq: 56.7328        
      Sensitivity Cpm/uCi: 125.9469       
                                                                               
-     Simulation started.: 2026:10:18 20:44:38
-     Simulation stopped.: 2026:10:18 20:47:45
-     Elapsed time.......: 0 h, 3 m and 7 s
+     Simulation started.: 2026:10:19 16:18:24
+     Simulation stopped.: 2026:10:19 16:21:10
+     Elapsed time.......: 0 h, 2 m and 46 s
      DetectorHits.......: 3446           
-     DetectorHits/CPUsec: 147            
+     DetectorHits/CPUsec: 165            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -379,14 +380,14 @@ Poisson noise from a seeded generator is added to the simulated counts.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 176-180
+.. GENERATED FROM PYTHON SOURCE LINES 177-181
 
 OSEM
 ----
 The model is SPECTUB with the flipped attenuation map and no PSF. OSEM runs
 with 6 subsets of 10 views each, for 4 full iterations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 180-200
+.. GENERATED FROM PYTHON SOURCE LINES 181-201
 
 .. code-block:: Python
 
@@ -417,14 +418,14 @@ with 6 subsets of 10 views each, for 4 full iterations.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 201-205
+.. GENERATED FROM PYTHON SOURCE LINES 202-206
 
 Reconstruction and truth
 ------------------------
 Both images are shown relative to their mean in the background mask, so the
 arbitrary scale of the reconstruction does not matter.
 
-.. GENERATED FROM PYTHON SOURCE LINES 205-219
+.. GENERATED FROM PYTHON SOURCE LINES 206-220
 
 .. code-block:: Python
 
@@ -454,7 +455,7 @@ arbitrary scale of the reconstruction does not matter.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 220-229
+.. GENERATED FROM PYTHON SOURCE LINES 221-230
 
 Contrast recovery
 -----------------
@@ -466,7 +467,7 @@ The 10 and 13 mm spheres are cold and are not scored. The simulation has a
 modest number of photons, so the recovery is noisy and need not rise
 smoothly with the sphere size.
 
-.. GENERATED FROM PYTHON SOURCE LINES 229-254
+.. GENERATED FROM PYTHON SOURCE LINES 230-255
 
 .. code-block:: Python
 
@@ -519,7 +520,7 @@ smoothly with the sphere size.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (3 minutes 16.311 seconds)
+   **Total running time of the script:** (2 minutes 53.749 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_10_nema_osem.py:

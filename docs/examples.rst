@@ -1,31 +1,31 @@
 Examples
 ========
 
-Examples 01–08 are in the :doc:`gallery <auto_examples/index>`: runnable
+Examples 01–15 are in the :doc:`gallery <auto_examples/index>`: runnable
 scripts with their figures and printed output. Follow :doc:`tutorial` for the
 recommended order, prerequisites, and what to inspect.
 
 Build the gallery locally with ``bash scripts/build_gallery.sh``. Read the Docs
 shows the committed outputs and does not run the examples.
 
-Examples 09–13 are runnable scripts at the repository root:
+The gallery has five sections:
 
-- ``09_mc_scatter_osem.py`` and ``11_residual_correction.py`` use SIRF and
-  SIMIND; ``10_mc_scatter_cil.py`` also requires CIL.
-- ``12_phantoms.py`` uses phantomgen's known-activity NEMA/IEC phantom when
-  available, otherwise SIMIND's built-in multiple-inserts phantom.
-- ``13_nema_reconstruction.py --backend stir|sirf`` simulates and reconstructs
-  the same known-activity phantom with the selected backend.
-
-Run them from the repository root, for example:
-
-.. code-block:: bash
-
-    python examples/12_phantoms.py
-    python examples/13_nema_reconstruction.py --backend sirf
+- :doc:`Getting started <auto_examples/getting_started/index>`: core NumPy
+  simulations, energy windows, configurations, scoring, and density conversion.
+- :doc:`Backends <auto_examples/backends/index>`: STIR, SIRF and PyTomography
+  reconstruction, and projection geometry from DICOM.
+- :doc:`Phantoms and reconstruction <auto_examples/phantoms/index>`: SIMIND's
+  analytic phantom library, and a NEMA/IEC simulation reconstructed with SIRF
+  OSEM.
+- :doc:`MC scatter and normalisation <auto_examples/mc_scatter/index>`: Monte
+  Carlo scatter in SIRF OSEM, the scale of the scatter estimate, and residual
+  correction.
+- :doc:`Regularised reconstruction with CIL <auto_examples/cil/index>`: scatter
+  correction with CIL ISTA and a relative-difference prior with SVRG.
 
 Examples that simulate need a working SIMIND installation, and backend examples
-need that backend installed. Gallery outputs are written under
+need that backend installed. The NEMA examples also need phantomgen; its
+install command is in the tutorial. Gallery outputs are written under
 ``$SIMIND_EXAMPLES_OUTPUT`` (default ``./output``). Lower ``quantization_scale``,
 fewer views, or a mostly-zero source map can shorten a smoke run; quantitative
 runs need appropriate statistics and calibration.

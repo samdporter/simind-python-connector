@@ -23,19 +23,22 @@ Phantom library
 
 Simulate phantoms that need no hand-made voxel maps: SIMIND's analytic
 multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from
-phantomgen. Both are quick Tc-99m runs with 24 views and few
-photon histories, so the projections are noisy.
+phantomgen. Both are Tc-99m runs with 24 views, so the projections are noisy.
+
+.. warning::
+   This example takes about five minutes, nearly all of it in the two SIMIND
+   runs.
 
 The NEMA/IEC phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 15-18
+.. GENERATED FROM PYTHON SOURCE LINES 18-21
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 18-72
+.. GENERATED FROM PYTHON SOURCE LINES 21-93
 
 .. code-block:: Python
 
@@ -57,6 +60,7 @@ Check that SIMIND is installed and choose where the outputs are written.
         nema_iec_phantom,
         voxelise,
     )
+    from simind_python_connector.utils.interfile import ProjectionGeometry
 
 
     if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
@@ -72,23 +76,40 @@ Check that SIMIND is installed and choose where the outputs are written.
 
     GRID = (48, 48, 48)
     VOXEL_MM = 7.0
+    NUM_VIEWS = 24
 
 
     def simulate(phantom, prefix):
-        """Run SIMIND on the phantom: Tc-99m, 126-154 keV, 48 x 48 bins of 7 mm."""
+        """Run SIMIND on the phantom: Tc-99m, 126-154 keV, 24 views of 7 mm."""
         connector = SimindPythonConnector(
             configs.get("Example.yaml"),
             output_dir,
             prefix,
             quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
         )
+        # The acquisition geometry is declared explicitly, not taken from either
+        # phantom: 48 bins of 7 mm, a full turn and a 250 mm radius.
+        connector.configure_acquisition(
+            ProjectionGeometry(
+                num_projections=NUM_VIEWS,
+                extent_deg=360.0,
+                direction="CW",
+                start_angle_deg=180.0,
+                radius_mm=250.0,
+                radii_mm=None,
+                num_bins=GRID[2],
+                num_axial=GRID[0],
+                bin_size_mm=VOXEL_MM,
+                axial_size_mm=VOXEL_MM,
+                image_duration_s=None,
+            )
+        )
         connector.set_energy_windows([126], [154], [0])
         connector.add_runtime_switch("CC", "ma-lehr")
         connector.add_runtime_switch("RR", 12345)
-        connector.add_config_value(26, 0.01)
-        connector.add_config_value(28, VOXEL_MM / 10.0)
-        connector.add_config_value(76, GRID[2])
-        connector.add_config_value(77, GRID[0])
+        # A small history budget keeps both runs within a few minutes while
+        # leaving visible structure in the projections.
+        connector.add_config_value(26, 0.1)
         connector.configure_phantom(phantom, time_per_projection_s=10.0)
         return connector.run()["tot_w1"].projection
 
@@ -100,7 +121,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 73-79
+.. GENERATED FROM PYTHON SOURCE LINES 94-100
 
 Analytic phantom
 ----------------
@@ -109,7 +130,7 @@ described with SIMIND's own shapes. ``voxelise`` shows the source as SIMIND
 sees it. The phantom has a known shape but no absolute activity, so the
 source is in relative units.
 
-.. GENERATED FROM PYTHON SOURCE LINES 79-95
+.. GENERATED FROM PYTHON SOURCE LINES 100-115
 
 .. code-block:: Python
 
@@ -127,7 +148,50 @@ source is in relative units.
     jaszczak = AnalyticPhantom(MultipleInserts(water, inserts, background=1.0), water)
 
     jaszczak_source, _ = voxelise(jaszczak, GRID, (VOXEL_MM,) * 3, supersample=4)
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 116-122
+
+NEMA/IEC body phantom
+---------------------
+phantomgen's ``pet`` preset has 8:1 hot spheres, two cold spheres and a lung
+insert. Its activity is known in MBq per voxel, so the run is normalised by
+the known total activity (Index 25). Building it here, before either
+simulation, means a missing phantomgen stops the example immediately.
+
+.. GENERATED FROM PYTHON SOURCE LINES 122-125
+
+.. code-block:: Python
+
+
+    nema = nema_iec_phantom(GRID, (VOXEL_MM,) * 3, preset="pet", supersample=4)
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 126-129
+
+Simulations
+-----------
+Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
+
+.. GENERATED FROM PYTHON SOURCE LINES 129-133
+
+.. code-block:: Python
+
+
     jaszczak_projection = simulate(jaszczak, "jaszczak")
+    nema_projection = simulate(nema, "nema")
 
 
 
@@ -148,7 +212,7 @@ source is in relative units.
      Collimator: pb_sb2    SourceRout: jaszak    SourceImg.: none              
      Cover.....: al        ScoreRout.: scattwin  DensityImg: none              
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          Spectra   PhotonsPerProj....: 10000          
+     PhotonEnergy.......: 140          Spectra   PhotonsPerProj....: 100000         
      EnergyResolution...: 9.2          ma-lehr   Activity..........: 1              
      MaxScatterOrder....: 3            SPECT     DetectorLenght....: 21.25          
      DetectorWidth......: 27           x-rays    DetectorHeight....: 0.95           
@@ -164,6 +228,30 @@ source is in relative units.
                    Projection          Hits       Scatt/Tot    Progress
   
   
+                    1 of  24            4706        0.501          4 %
+                    2 of  24            4798        0.512          8 %
+                    3 of  24            4767        0.514         12 %
+                    4 of  24            4647        0.513         16 %
+                    5 of  24            4675        0.513         20 %
+                    6 of  24            4865        0.516         25 %
+                    7 of  24            4523        0.518         29 %
+                    8 of  24            4664        0.518         33 %
+                    9 of  24            4647        0.520         37 %
+                   10 of  24            4752        0.524         41 %
+                   11 of  24            4709        0.524         45 %
+                   12 of  24            4637        0.524         50 %
+                   13 of  24            4688        0.524         54 %
+                   14 of  24            4793        0.525         58 %
+                   15 of  24            4673        0.526         62 %
+                   16 of  24            4802        0.527         66 %
+                   17 of  24            4787        0.525         70 %
+                   18 of  24            4662        0.526         75 %
+                   19 of  24            4659        0.525         79 %
+                   20 of  24            4668        0.525         83 %
+                   21 of  24            4837        0.526         87 %
+                   22 of  24            4729        0.525         91 %
+                   23 of  24            4748        0.525         95 %
+                   24 of  24            4739        0.524        100 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -172,11 +260,11 @@ source is in relative units.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 72.81478       
-     Emission type......: 3                      Initial Weight....: 87.9           
+     Emission type......: 3                      Initial Weight....: 8.79           
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
-     RotationMode.......: -360                   Nr of Projections.: 24             
+     RotationMode.......: 360                    Nr of Projections.: 24             
      RotationAngle......: 15                     Projection.[start]: 1              
      Orbital fraction...: 1                      Projection...[end]: 24             
                                                                               
@@ -191,14 +279,14 @@ source is in relative units.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  89.17 %          90.32 %
-     Penetration........:   3.67 %           2.86 %
-     Scatter in collim..:   3.72 %           3.96 %
-     X-rays in collim...:   3.44 %           2.87 %
+     Geometric..........:  86.79 %          90.23 %
+     Penetration........:   4.42 %           4.01 %
+     Scatter in collim..:   3.71 %           2.99 %
+     X-rays in collim...:   5.08 %           2.77 %
                                                                               
-     K-photon1 74.16 keV:  61.01 %          63.90 %
-     K-photon2 85.36 keV:  35.17 %          36.10 %
-     K-photon3 26.27 keV:   2.52 %           0.00 %
+     K-photon1 74.16 keV:  64.22 %          49.19 %
+     K-photon2 85.36 keV:  26.64 %          50.81 %
+     K-photon3 26.27 keV:   7.83 %           0.00 %
      K-photon4 29.83 keV:   1.31 %           0.00 %
                                                                               
      MULTIPLE SOURCE CONFIGURATION
@@ -218,38 +306,38 @@ source is in relative units.
        1       0    126.0 - 154.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.859E+03 0.200E+03 0.659E+03 0.303E+00 0.233E+00 0.358E+02
+       1   0.854E+03 0.180E+03 0.674E+03 0.267E+00 0.211E+00 0.356E+02
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
-       1    95.06%     2.86%     2.08%    95.04%     2.92%     2.04%
+       1    94.09%     3.58%     2.33%    94.02%     3.60%     2.37%
   
       Win   SC 1  SC 2  SC 3
-       1   86.1% 12.8%  1.1%
+       1   87.4% 11.4%  1.2%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 215.4          
-     MaxValue projection: 2.235          
-     CountRate spectrum.: 70.81          
-     CountRate E-Window.: 65.08          
+     MaxValue spectrum..: 224.9          
+     MaxValue projection: 0.4146         
+     CountRate spectrum.: 71.37          
+     CountRate E-Window.: 64.52          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.13993        
-     Scatter/Total......: 0.5327         
-     Scatter order 1....: 55.02 %        
-     Scatter order 2....: 30.97 %        
-     Scatter order 3....: 14.01 %        
+     Scatter/Primary....: 1.09873        
+     Scatter/Total......: 0.52352        
+     Scatter order 1....: 54.85 %        
+     Scatter order 2....: 30.95 %        
+     Scatter order 3....: 14.2  %        
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.879          
-     Efficiency spectrum: 0.9563         
-     Sensitivity Cps/MBq: 65.0846        
-     Sensitivity Cpm/uCi: 144.4879       
+     Efficiency E-window: 0.8629         
+     Efficiency spectrum: 0.9546         
+     Sensitivity Cps/MBq: 64.518         
+     Sensitivity Cpm/uCi: 143.23         
                                                                               
-     Simulation started.: 2026:10:18 19:11:46
-     Simulation stopped.: 2026:10:18 19:12:06
-     Elapsed time.......: 0 h, 0 m and 20 s
-     DetectorHits.......: 461            
-     DetectorHits/CPUsec: 22             
+     Simulation started.: 2026:10:19 16:09:39
+     Simulation stopped.: 2026:10:19 16:12:53
+     Elapsed time.......: 0 h, 3 m and 14 s
+     DetectorHits.......: 4739           
+     DetectorHits/CPUsec: 24             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -261,34 +349,6 @@ source is in relative units.
      Inifile: simind.ini
      Message: Input file used:jaszczak.inp                                         
      Command: jaszczak jaszczak /CC:ma-lehr/RR:12345/IF:jaszczak.inp/BG:1.0
-
-
-
-
-.. GENERATED FROM PYTHON SOURCE LINES 96-101
-
-NEMA/IEC body phantom
----------------------
-phantomgen's ``pet`` preset has 8:1 hot spheres, two cold spheres and a lung
-insert. Its activity is known in MBq per voxel, so the run is normalised by
-the known total activity (Index 25).
-
-.. GENERATED FROM PYTHON SOURCE LINES 101-105
-
-.. code-block:: Python
-
-
-    nema = nema_iec_phantom(GRID, (VOXEL_MM,) * 3, preset="pet", supersample=4)
-    nema_projection = simulate(nema, "nema")
-
-
-
-
-
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
     5.6% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
@@ -329,7 +389,7 @@ the known total activity (Index 25).
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
-     RotationMode.......: -360                   Nr of Projections.: 24             
+     RotationMode.......: 360                    Nr of Projections.: 24             
      RotationAngle......: 15                     Projection.[start]: 1              
      Orbital fraction...: 1                      Projection...[end]: 24             
                                                                               
@@ -344,15 +404,15 @@ the known total activity (Index 25).
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.26 %          91.29 %
-     Penetration........:   4.28 %           3.65 %
-     Scatter in collim..:   3.19 %           2.32 %
-     X-rays in collim...:   5.27 %           2.74 %
+     Geometric..........:  86.33 %          91.57 %
+     Penetration........:   5.02 %           3.34 %
+     Scatter in collim..:   2.90 %           3.05 %
+     X-rays in collim...:   5.75 %           2.04 %
                                                                               
-     K-photon1 74.16 keV:  72.25 %          65.66 %
-     K-photon2 85.36 keV:  17.13 %          34.34 %
-     K-photon3 26.27 keV:   9.21 %           0.00 %
-     K-photon4 29.83 keV:   1.41 %           0.00 %
+     K-photon1 74.16 keV:  61.05 %          46.65 %
+     K-photon2 85.36 keV:  25.50 %          53.35 %
+     K-photon3 26.27 keV:  12.55 %           0.00 %
+     K-photon4 29.83 keV:   0.90 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -370,37 +430,37 @@ the known total activity (Index 25).
        1       0    126.0 - 154.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.395E+07 0.104E+07 0.292E+07 0.355E+00 0.262E+00 0.295E+02
+       1   0.393E+07 0.971E+06 0.296E+07 0.328E+00 0.247E+00 0.293E+02
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
-       1    93.88%     3.90%     2.22%    94.86%     3.48%     1.66%
+       1    94.81%     3.21%     1.98%    94.63%     3.02%     2.35%
   
       Win   SC 1  SC 2  SC 3
-       1   84.6% 13.3%  2.1%
+       1   86.5% 12.5%  1.0%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 0.1005E+07     
-     MaxValue projection: 6186.          
-     CountRate spectrum.: 0.3545E+06     
-     CountRate E-Window.: 0.3153E+06     
+     MaxValue spectrum..: 0.9484E+06     
+     MaxValue projection: 4884.          
+     CountRate spectrum.: 0.3528E+06     
+     CountRate E-Window.: 0.3135E+06     
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 1.36837        
-     Scatter/Total......: 0.57777        
-     Scatter order 1....: 52.56 %        
-     Scatter order 2....: 31.61 %        
-     Scatter order 3....: 15.83 %        
+     Scatter/Primary....: 1.31059        
+     Scatter/Total......: 0.56721        
+     Scatter order 1....: 51.5  %        
+     Scatter order 2....: 32.58 %        
+     Scatter order 3....: 15.92 %        
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8522         
-     Efficiency spectrum: 0.9581         
-     Sensitivity Cps/MBq: 56.3639        
-     Sensitivity Cpm/uCi: 125.1279       
+     Efficiency E-window: 0.8492         
+     Efficiency spectrum: 0.9558         
+     Sensitivity Cps/MBq: 56.039         
+     Sensitivity Cpm/uCi: 124.4067       
                                                                               
-     Simulation started.: 2026:10:18 19:12:07
-     Simulation stopped.: 2026:10:18 19:13:12
-     Elapsed time.......: 0 h, 1 m and 5 s
-     DetectorHits.......: 851            
+     Simulation started.: 2026:10:19 16:12:54
+     Simulation stopped.: 2026:10:19 16:13:56
+     Elapsed time.......: 0 h, 1 m and 2 s
+     DetectorHits.......: 836            
      DetectorHits/CPUsec: 13             
                                                                               
      OTHER INFORMATION
@@ -416,14 +476,14 @@ the known total activity (Index 25).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 106-110
+.. GENERATED FROM PYTHON SOURCE LINES 134-138
 
 Slices and projections
 ----------------------
 The central slice of the Jaszczak source, the slice through the hottest NEMA/IEC
 voxel, and the first projection view of each.
 
-.. GENERATED FROM PYTHON SOURCE LINES 110-125
+.. GENERATED FROM PYTHON SOURCE LINES 138-153
 
 .. code-block:: Python
 
@@ -457,7 +517,7 @@ voxel, and the first projection view of each.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (1 minutes 26.721 seconds)
+   **Total running time of the script:** (4 minutes 18.736 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_09_phantom_library.py:

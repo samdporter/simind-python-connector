@@ -124,40 +124,22 @@ def compose_run_lines(argv_log: Path) -> list[str]:
     ]
 
 
-def test_only_mc_scatter_runs_09_and_10_and_builds_only_sirf(examples_runner):
+def test_only_sirf_runs_07b_and_builds_only_sirf(examples_runner):
     repo, argv_log, env = examples_runner
 
-    result = run_examples(repo, env, "--only-mc-scatter")
+    result = run_examples(repo, env, "--only-sirf")
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert build_services(argv_log) == ["sirf"]
     runs = compose_run_lines(argv_log)
-    assert any("examples/09_mc_scatter_osem.py" in line for line in runs), runs
-    assert any("examples/10_mc_scatter_cil.py" in line for line in runs), runs
-    assert not any("plot_07b_sirf_adaptor_osem" in line for line in runs), runs
-
-
-def test_only_sirf_with_only_mc_scatter_runs_all_three_sirf_examples(
-    examples_runner,
-):
-    repo, argv_log, env = examples_runner
-
-    result = run_examples(repo, env, "--only-sirf", "--only-mc-scatter")
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert build_services(argv_log) == ["sirf"]
-    runs = compose_run_lines(argv_log)
-    for example in (
-        "examples/backends/plot_07b_sirf_adaptor_osem.py",
-        "examples/09_mc_scatter_osem.py",
-        "examples/10_mc_scatter_cil.py",
-    ):
-        assert any(example in line for line in runs), (example, runs)
+    assert any(
+        "examples/backends/plot_07b_sirf_adaptor_osem.py" in line for line in runs
+    ), runs
     assert not any("plot_07a_stir_adaptor_osem" in line for line in runs), runs
     assert not any("plot_07c_pytomography_adaptor_osem" in line for line in runs), runs
 
 
-def test_default_selection_includes_mc_scatter_examples(examples_runner):
+def test_default_selection_runs_every_group(examples_runner):
     repo, argv_log, env = examples_runner
 
     result = run_examples(repo, env)
@@ -170,11 +152,16 @@ def test_default_selection_includes_mc_scatter_examples(examples_runner):
         "pytomography",
     }
     runs = compose_run_lines(argv_log)
-    assert any("examples/09_mc_scatter_osem.py" in line for line in runs), runs
-    assert any("examples/10_mc_scatter_cil.py" in line for line in runs), runs
+    for example in (
+        "examples/getting_started/plot_01_basic_simulation.py",
+        "examples/backends/plot_07a_stir_adaptor_osem.py",
+        "examples/backends/plot_07b_sirf_adaptor_osem.py",
+        "examples/backends/plot_07c_pytomography_adaptor_osem.py",
+    ):
+        assert any(example in line for line in runs), (example, runs)
 
 
-def test_missing_simind_skips_mc_scatter_and_does_not_build_sirf(
+def test_missing_simind_skips_simind_examples_and_their_images(
     examples_runner, tmp_path: Path
 ):
     repo, argv_log, env = examples_runner
@@ -185,23 +172,27 @@ def test_missing_simind_skips_mc_scatter_and_does_not_build_sirf(
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "skipping SIMIND-dependent examples" in result.stdout
-    assert "sirf" not in build_services(argv_log)
+    assert set(build_services(argv_log)) == {"python"}
     runs = compose_run_lines(argv_log)
-    assert not any("09_mc_scatter_osem" in line for line in runs), runs
-    assert not any("10_mc_scatter_cil" in line for line in runs), runs
+    for example in (
+        "plot_07a_stir_adaptor_osem",
+        "plot_07b_sirf_adaptor_osem",
+        "plot_07c_pytomography_adaptor_osem",
+    ):
+        assert not any(example in line for line in runs), runs
 
 
-def test_only_mc_scatter_with_missing_simind_skips_build_entirely(
+def test_only_sirf_with_missing_simind_skips_build_entirely(
     examples_runner, tmp_path: Path
 ):
     """Cleared selection leaves no services to build; an argument-less
-    `docker compose build` would build every service, sirf included."""
+    `docker compose build` would build every service."""
     repo, argv_log, env = examples_runner
 
     result = run_examples(
         repo,
         env,
-        "--only-mc-scatter",
+        "--only-sirf",
         "--simind-path",
         str(tmp_path / "missing" / "simind"),
     )
@@ -216,11 +207,10 @@ def test_only_mc_scatter_with_missing_simind_skips_build_entirely(
     runs = [
         line for line in recorded if line.startswith("compose ") and " run " in line
     ]
-    assert not any("09_mc_scatter_osem" in line for line in runs), runs
-    assert not any("10_mc_scatter_cil" in line for line in runs), runs
+    assert not any("plot_07b_sirf_adaptor_osem" in line for line in runs), runs
 
 
-def test_only_mc_scatter_require_simind_fails_when_simind_missing(
+def test_only_sirf_require_simind_fails_when_simind_missing(
     examples_runner, tmp_path: Path
 ):
     repo, argv_log, env = examples_runner
@@ -228,7 +218,7 @@ def test_only_mc_scatter_require_simind_fails_when_simind_missing(
     result = run_examples(
         repo,
         env,
-        "--only-mc-scatter",
+        "--only-sirf",
         "--require-simind",
         "--simind-path",
         str(tmp_path / "missing" / "simind"),

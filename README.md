@@ -9,8 +9,10 @@ SIMIND project and Lund University.
 
 See the [workflow tutorial](docs/tutorial.rst) for an ordered path through a
 core simulation, known-activity NEMA phantom, reconstruction, scatter
-correction, and measured-data calibration. The [documentation](https://simind-python-connector.readthedocs.io/)
-explains installation, geometry, normalisation, backend options, and the
+correction, and measured-data calibration. The [gallery](docs/auto_examples/index.rst)
+has every tutorial with its figures and printed output. The
+[documentation](https://simind-python-connector.readthedocs.io/) explains
+installation, geometry, normalisation, backend options, and the
 [observed SIMIND output-component mapping](docs/simind_validation.md).
 
 Install the package and example plotting dependencies:
@@ -69,10 +71,12 @@ phantomgen package; the install command is in the tutorial.
   and density conversion.
 - `examples/backends/plot_07a` / `07b` / `07c`: STIR / SIRF / PyTomography adaptors.
 - `examples/backends/plot_08a` / `08b` / `08c`: DICOM setup for STIR / SIRF / PyTomography.
-- `examples/09`–`11`: SIRF scatter and residual correction, plus CIL in `10`.
-- `examples/12`: phantomgen NEMA/IEC with known activity, with SIMIND's
-  multiple-inserts phantom as a geometry-only fallback.
-- `examples/13`: one known-activity NEMA simulation reconstructed with STIR or SIRF.
+- `examples/phantoms/plot_09` / `plot_10`: the SIMIND analytic phantom library,
+  and a known-activity NEMA/IEC simulation reconstructed with SIRF OSEM.
+- `examples/mc_scatter/plot_11`–`plot_13`: Monte Carlo scatter in SIRF OSEM,
+  scatter normalisation, and residual correction.
+- `examples/cil/plot_14` / `plot_15`: CIL scatter correction, and an
+  RDP-regularised SVRG reconstruction.
 
 Lower `quantization_scale`, fewer projections, or a mostly-zero source map can
 make smoke runs faster. These settings reduce history statistics; they do not

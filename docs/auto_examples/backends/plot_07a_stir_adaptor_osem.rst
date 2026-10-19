@@ -79,7 +79,7 @@ A cylindrical body with a hot sphere on a 32 x 32 x 32 grid of 4 mm voxels.
 Both maps are written as STIR Interfile images and read back as STIR
 images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 49-84
+.. GENERATED FROM PYTHON SOURCE LINES 49-86
 
 .. code-block:: Python
 
@@ -117,6 +117,8 @@ images.
 
     source_image = read_stir_image(source, output_dir / "stir_source")
     mu_image = read_stir_image(mu_map, output_dir / "stir_mu")
+    # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+    spectub_mu_image = read_stir_image(mu_map[..., ::-1], output_dir / "stir_spectub_mu")
 
 
 
@@ -125,7 +127,7 @@ images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 85-92
+.. GENERATED FROM PYTHON SOURCE LINES 87-94
 
 Simulate
 --------
@@ -135,7 +137,7 @@ cm), for Tc-99m (140 keV) with a single 126-154 keV window and the ma-lehr
 collimator. SCATTWIN writes the total projection and, separately, the
 scatter in that window (switch ``CA`` 2 asks for the split).
 
-.. GENERATED FROM PYTHON SOURCE LINES 92-121
+.. GENERATED FROM PYTHON SOURCE LINES 94-123
 
 .. code-block:: Python
 
@@ -273,11 +275,11 @@ scatter in that window (switch ``CA`` 2 asks for the split).
      Sensitivity Cps/MBq: 73.9911        
      Sensitivity Cpm/uCi: 164.2602       
                                                                               
-     Simulation started.: 2026:10:17 13:57:27
-     Simulation stopped.: 2026:10:17 14:01:15
-     Elapsed time.......: 0 h, 3 m and 48 s
+     Simulation started.: 2026:10:19 16:14:13
+     Simulation stopped.: 2026:10:19 16:18:06
+     Elapsed time.......: 0 h, 3 m and 53 s
      DetectorHits.......: 114570         
-     DetectorHits/CPUsec: 504            
+     DetectorHits/CPUsec: 492            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -293,7 +295,7 @@ scatter in that window (switch ``CA`` 2 asks for the split).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 122-140
+.. GENERATED FROM PYTHON SOURCE LINES 124-142
 
 Reconstruct with OSEM, without and with scatter
 -----------------------------------------------
@@ -314,7 +316,7 @@ With direct STIR bindings, calling ``set_up()`` on the projector or
 objective before the reconstructor can collapse SPECTUB reconstructions to
 zero, so the chain is configured and only the reconstructor is set up.
 
-.. GENERATED FROM PYTHON SOURCE LINES 140-183
+.. GENERATED FROM PYTHON SOURCE LINES 142-185
 
 .. code-block:: Python
 
@@ -325,7 +327,7 @@ zero, so the chain is configured and only the reconstructor is set up.
         reconstruction.fill(1.0)
 
         proj_matrix = stir.ProjMatrixByBinSPECTUB()
-        proj_matrix.set_attenuation_image_sptr(mu_image)
+        proj_matrix.set_attenuation_image_sptr(spectub_mu_image)
         proj_matrix.set_resolution_model(0.0, 0.0, False)
         proj_matrix.set_keep_all_views_in_cache(True)
 
@@ -374,7 +376,7 @@ zero, so the chain is configured and only the reconstructor is set up.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 184-191
+.. GENERATED FROM PYTHON SOURCE LINES 186-193
 
 Compare with the truth
 ----------------------
@@ -384,7 +386,7 @@ scatter is a small share of the counts in the window (the printed fraction),
 so a fixed additive term lowers the absolute level by about that share but
 barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
-.. GENERATED FROM PYTHON SOURCE LINES 191-232
+.. GENERATED FROM PYTHON SOURCE LINES 193-234
 
 .. code-block:: Python
 
@@ -444,8 +446,8 @@ barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
     Scatter fraction of the window: 12.5%
     True hot-to-background ratio: 2.50
-    No scatter term: hot-to-background ratio 2.13
-    SIMIND scatter term: hot-to-background ratio 2.13
+    No scatter term: hot-to-background ratio 2.28
+    SIMIND scatter term: hot-to-background ratio 2.28
     /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:549: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
       setattr(self, word, getattr(machar, word).flat[0])
     /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:89: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
@@ -457,7 +459,7 @@ barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (3 minutes 48.514 seconds)
+   **Total running time of the script:** (3 minutes 54.834 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_07a_stir_adaptor_osem.py:

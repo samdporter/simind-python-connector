@@ -7,9 +7,10 @@ reconstruct it with SIRF OSEM and measure the contrast recovery of the hot
 spheres.
 
 The data are simulated by SIMIND and reconstructed with a SPECTUB model that
-does not include the collimator blur. The model is close to the physics that
-made the data, by construction, so the recovery shown here is an optimistic
-best case.
+does not include the collimator blur or a scatter term, so OSEM treats
+scattered events as if they came from the primary distribution. The model is
+close to the physics that made the data, by construction, so the recovery
+shown here is an optimistic best case.
 
 .. warning::
    This example takes about three to four minutes, nearly all of it in the SIMIND

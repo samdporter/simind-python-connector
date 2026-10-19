@@ -34,7 +34,9 @@ silently return corrupted projections (see :doc:`simind_validation`).
 SIMIND releases may differ in their data files and output components. Check
 your local release manual and the observations in :doc:`simind_validation`
 before relying on a particular component name. Keep each binary paired with
-its own data directory. Start with the core NumPy example:
+its own data directory. Start with the :doc:`basic simulation tutorial
+<auto_examples/getting_started/plot_01_basic_simulation>`, at
+``examples/getting_started/plot_01_basic_simulation.py``:
 
 .. code-block:: bash
 
@@ -49,23 +51,26 @@ run, use the activity and
 time for the acquisition, enough histories for stable statistics, the intended
 number of views, and the matching collimator, windows, and detector settings.
 
-Build a known-activity NEMA phantom
------------------------------------
+Build the phantoms
+------------------
 
-Example 12 uses `phantomgen <https://github.com/varzakis/phantomgen>`_ when
-installed. It is optional and is currently installed from GitHub, not PyPI.
+The :doc:`phantom library tutorial
+<auto_examples/phantoms/plot_09_phantom_library>` simulates SIMIND's analytic
+multiple-inserts phantom and the NEMA/IEC body phantom. The NEMA phantom comes
+from `phantomgen <https://github.com/varzakis/phantomgen>`_, which is optional
+and is currently installed from GitHub, not PyPI:
 
 .. code-block:: bash
 
     python -m pip install 'phantomgen @ git+https://github.com/varzakis/phantomgen'
-    python examples/12_phantoms.py
+    python examples/phantoms/plot_09_phantom_library.py
 
-The example creates the NEMA/IEC body phantom with explicit activity in MBq per
-voxel, density, and named masks. Inspect the printed activity summed within
-each mask and the projection sum. Open ``output/phantoms`` to inspect the
-written maps and projection. If phantomgen is absent, the example runs
-SIMIND's built-in multiple-inserts phantom instead; that fallback is useful
-for geometry, but it does not have phantomgen's known-activity ground truth.
+The NEMA/IEC body phantom has explicit activity in MBq per voxel, density, and
+named masks. The example builds it before either simulation, so a missing
+phantomgen stops there rather than after the analytic run. It writes both
+projections under ``output/phantom_library`` and plots a central source slice
+and the first projection view of each phantom. The 24 views and low history
+count make the projections noisy.
 
 For a quick smoke run, reduce ``quantization_scale`` and the number of views,
 or threshold the source to a mostly-zero map. Use ``NN >= 1``. For quantitative
@@ -101,49 +106,48 @@ routine and SIMIND version; see :doc:`simind_validation` for the observed map.
 Reconstruct the simulated acquisition
 -------------------------------------
 
-Run the same known-activity NEMA simulation through either backend:
+The :doc:`NEMA simulation and OSEM tutorial
+<auto_examples/phantoms/plot_10_nema_osem>` simulates the known-activity
+NEMA/IEC phantom and reconstructs it with SIRF OSEM:
 
 .. code-block:: bash
 
-    python examples/13_nema_reconstruction.py --backend stir
-    python examples/13_nema_reconstruction.py --backend sirf
+    python examples/phantoms/plot_10_nema_osem.py
 
-Install only the selected backend; see :doc:`installation`. The script uses
-phantomgen, low source quantisation, and ``NN=1`` for a quick smoke run. Inspect
-the activity and density arrays, projection header, and reconstruction under
-``output/nema_reconstruction``. The short OSEM run confirms array shapes and
-returns a finite image after two OSEM subiterations. Matching dimensions do not verify axis,
-view-angle, or orbit alignment. The SIRF image reader also warns that STIR image
-geometry information may be incorrect, so check the geometry fields
-independently. For quantitative work, increase histories and iterations and
+Install SIRF and phantomgen; see :doc:`installation`. The tutorial simulates 60
+views with 8 MPI processes, adds seeded Poisson noise, and reconstructs with
+SPECTUB attenuation but no collimator blur or scatter. That model is close to
+the one that made the data by construction, so the reported sphere recovery is
+a best case. Inspect the measured counts, the reconstruction and truth slices,
+and the contrast-recovery bars under ``output/nema_osem``. It scores the 17-37
+mm hot spheres only; the 10 and 13 mm spheres are cold. The run takes a few
+minutes, nearly all of it in SIMIND. Matching dimensions do not verify axis,
+view-angle, or orbit alignment, and a finite image is not evidence of absolute
+sensitivity. For quantitative work, increase histories and iterations and
 validate voxel spacing, view angles, center of rotation, axis orientation, and
-absolute calibration. The observed SIMIND v8 Linux Intel smoke (activity
-568.1 MBq, 4 views, ``NN=1``) returned projection shape ``(1, 96, 4, 96)`` with
-66,190 counts. STIR and SIRF each returned a finite ``(96, 96, 96)`` image after
-two OSEM subiterations. These values record that smoke run only; they are not
-quantitative targets or evidence of absolute sensitivity.
+absolute calibration.
 
-The same entry point also completed with ``SIMIND_VERSION=9`` against the
-Linux Intel v9 build: both backends returned 67,500 projection counts and a
-finite reconstruction on the same grid. The counts are rounded run summaries;
-they are not cross-version equality targets.
+Monte Carlo scatter and residual correction
+-------------------------------------------
 
-SIMIND scatter, residuals, and CIL
-----------------------------------
+The Monte Carlo tutorials simulate the NEMA/IEC phantom and reconstruct it with
+SIRF or CIL. Each takes about 10–40 minutes, nearly all of it in SIMIND:
 
-Examples 09 and 11 use SIRF OSEM; Example 10 uses CIL. They provide a small
-SIMIND-based scatter estimate and an iterative residual-correction workflow.
+- :doc:`Monte Carlo scatter correction in OSEM
+  <auto_examples/mc_scatter/plot_11_mc_scatter_osem>`
+- :doc:`Normalising the Monte Carlo scatter
+  <auto_examples/mc_scatter/plot_12_scatter_normalisation>`
+- :doc:`Residual correction with SIMIND as the accurate model
+  <auto_examples/mc_scatter/plot_13_residual_correction>`
+- :doc:`Monte Carlo scatter correction with CIL
+  <auto_examples/cil/plot_14_cil_scatter>`
+- :doc:`RDP-regularised reconstruction with SVRG
+  <auto_examples/cil/plot_15_cil_rdp_svrg>`
 
-.. code-block:: bash
-
-    python examples/09_mc_scatter_osem.py
-    python examples/11_residual_correction.py
-    python examples/10_mc_scatter_cil.py
-
-Example 10 additionally needs CIL. Inspect the update records and reconstruction
-metrics printed by each run. These examples use an installed fast-model
-objective and small Monte Carlo runs. The objective, noise, and update cadence
-are demonstration choices, not evidence of quantitative accuracy. See
+The CIL tutorials additionally need CIL. Inspect the update records and
+reconstruction metrics printed by each run. These tutorials use a fast SPECTUB
+model and small Monte Carlo runs. The objective, noise, and update cadence are
+demonstration choices, not evidence of quantitative accuracy. See
 :doc:`reconstruction` for the model, damping, floor, and calibration details.
 For quantitative work, establish an accurate reference and validate the
 scatter or residual estimate against it; a faster objective remains an
@@ -152,17 +156,12 @@ approximation, and the non-zero positivity floor can affect low-count regions.
 Measured projections and DICOM calibration
 ------------------------------------------
 
-Examples 08A, 08B and 08C read projection geometry from the Y-90 NM DICOM
-dataset (``SIMIND_CONNECTOR_Y90_DATA``, or fetched on first use):
-
-.. code-block:: bash
-
-    python examples/backends/plot_08a_stir_adaptor_from_dicom.py
-    python examples/backends/plot_08b_sirf_adaptor_from_dicom.py
-    python examples/backends/plot_08c_pytomography_adaptor_from_dicom.py
-
-The scripts build STIR, SIRF or PyTomography projection objects and plot the
-projection.
+The :doc:`STIR <auto_examples/backends/plot_08a_stir_adaptor_from_dicom>`,
+:doc:`SIRF <auto_examples/backends/plot_08b_sirf_adaptor_from_dicom>` and
+:doc:`PyTomography <auto_examples/backends/plot_08c_pytomography_adaptor_from_dicom>`
+DICOM tutorials read projection geometry from the Y-90 NM dataset
+(``SIMIND_CONNECTOR_Y90_DATA``, or fetched on first use). They build STIR, SIRF
+or PyTomography projection objects and plot the projection.
 Compare the DICOM-derived geometry with the simulated header before use. A
 DICOM geometry match does not calibrate absolute sensitivity. For a calibrated
 comparison, document the activity, acquisition time, decay reference, energy

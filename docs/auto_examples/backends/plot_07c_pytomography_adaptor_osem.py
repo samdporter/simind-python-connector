@@ -162,9 +162,8 @@ np.save(
 # scatter is a small share of the counts in the window (the printed fraction),
 # so a fixed additive term lowers the absolute level by about that share but
 # barely changes the ratio: SIMIND's scatter is smooth and follows the body.
-# The ratio here differs slightly from 07A and 07B, which use a different
-# projector discretisation. Object tensors are (x, y, z) and projections are [view,
-# radial, axial], so images are transposed to put y or axial on the rows.
+# Object tensors are (x, y, z) and projections are [view, radial, axial], so
+# images are transposed to put y or axial on the rows.
 # Axial index 0 is on the top row, as in 07A and 07B.
 
 source_arr = source_tensor.detach().cpu().numpy()

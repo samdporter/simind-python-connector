@@ -4,8 +4,11 @@ Phantom library
 
 Simulate phantoms that need no hand-made voxel maps: SIMIND's analytic
 multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from
-phantomgen. Both are quick Tc-99m runs with 24 views and few
-photon histories, so the projections are noisy.
+phantomgen. Both are Tc-99m runs with 24 views, so the projections are noisy.
+
+.. warning::
+   This example takes about five minutes, nearly all of it in the two SIMIND
+   runs.
 
 The NEMA/IEC phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
@@ -33,6 +36,7 @@ from simind_python_connector.phantoms import (
     nema_iec_phantom,
     voxelise,
 )
+from simind_python_connector.utils.interfile import ProjectionGeometry
 
 
 if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
@@ -48,23 +52,40 @@ output_dir.mkdir(parents=True, exist_ok=True)
 
 GRID = (48, 48, 48)
 VOXEL_MM = 7.0
+NUM_VIEWS = 24
 
 
 def simulate(phantom, prefix):
-    """Run SIMIND on the phantom: Tc-99m, 126-154 keV, 48 x 48 bins of 7 mm."""
+    """Run SIMIND on the phantom: Tc-99m, 126-154 keV, 24 views of 7 mm."""
     connector = SimindPythonConnector(
         configs.get("Example.yaml"),
         output_dir,
         prefix,
         quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
     )
+    # The acquisition geometry is declared explicitly, not taken from either
+    # phantom: 48 bins of 7 mm, a full turn and a 250 mm radius.
+    connector.configure_acquisition(
+        ProjectionGeometry(
+            num_projections=NUM_VIEWS,
+            extent_deg=360.0,
+            direction="CW",
+            start_angle_deg=180.0,
+            radius_mm=250.0,
+            radii_mm=None,
+            num_bins=GRID[2],
+            num_axial=GRID[0],
+            bin_size_mm=VOXEL_MM,
+            axial_size_mm=VOXEL_MM,
+            image_duration_s=None,
+        )
+    )
     connector.set_energy_windows([126], [154], [0])
     connector.add_runtime_switch("CC", "ma-lehr")
     connector.add_runtime_switch("RR", 12345)
-    connector.add_config_value(26, 0.01)
-    connector.add_config_value(28, VOXEL_MM / 10.0)
-    connector.add_config_value(76, GRID[2])
-    connector.add_config_value(77, GRID[0])
+    # A small history budget keeps both runs within a few minutes while
+    # leaving visible structure in the projections.
+    connector.add_config_value(26, 0.1)
     connector.configure_phantom(phantom, time_per_projection_s=10.0)
     return connector.run()["tot_w1"].projection
 
@@ -90,16 +111,23 @@ inserts = tuple(
 jaszczak = AnalyticPhantom(MultipleInserts(water, inserts, background=1.0), water)
 
 jaszczak_source, _ = voxelise(jaszczak, GRID, (VOXEL_MM,) * 3, supersample=4)
-jaszczak_projection = simulate(jaszczak, "jaszczak")
 
 # %%
 # NEMA/IEC body phantom
 # ---------------------
 # phantomgen's ``pet`` preset has 8:1 hot spheres, two cold spheres and a lung
 # insert. Its activity is known in MBq per voxel, so the run is normalised by
-# the known total activity (Index 25).
+# the known total activity (Index 25). Building it here, before either
+# simulation, means a missing phantomgen stops the example immediately.
 
 nema = nema_iec_phantom(GRID, (VOXEL_MM,) * 3, preset="pet", supersample=4)
+
+# %%
+# Simulations
+# -----------
+# Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
+
+jaszczak_projection = simulate(jaszczak, "jaszczak")
 nema_projection = simulate(nema, "nema")
 
 # %%

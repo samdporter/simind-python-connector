@@ -51,3 +51,22 @@ def test_core_examples_do_not_import_optional_backends(name: str):
 @pytest.mark.unit
 def test_adaptor_examples_import_only_their_backend(name: str, backend: str):
     assert gallery.example_backend(ROOT / "examples" / "backends" / name) == backend
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "relative_path,backend",
+    [
+        ("phantoms/plot_09_phantom_library.py", "python"),
+        ("phantoms/plot_10_nema_osem.py", "sirf"),
+        ("mc_scatter/plot_11_mc_scatter_osem.py", "sirf"),
+        ("mc_scatter/plot_12_scatter_normalisation.py", "sirf"),
+        ("mc_scatter/plot_13_residual_correction.py", "sirf"),
+        ("cil/plot_14_cil_scatter.py", "sirf"),
+        ("cil/plot_15_cil_rdp_svrg.py", "sirf"),
+    ],
+)
+def test_phantom_and_reconstruction_examples_import_only_their_backend(
+    relative_path: str, backend: str
+):
+    assert gallery.example_backend(ROOT / "examples" / relative_path) == backend

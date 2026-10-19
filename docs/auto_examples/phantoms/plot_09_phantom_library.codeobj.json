@@ -116,6 +116,15 @@
    "name": "MultipleInserts"
   }
  ],
+ "NUM_VIEWS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
  "Path": [
   {
    "is_class": true,
@@ -137,6 +146,36 @@
    "module": "pathlib",
    "module_short": "pathlib",
    "name": "Path"
+  }
+ ],
+ "ProjectionGeometry": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.interfile",
+   "module_short": "simind_python_connector.utils.interfile",
+   "name": "ProjectionGeometry"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils",
+   "module_short": "simind_python_connector.utils",
+   "name": "ProjectionGeometry"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "ProjectionGeometry"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.interfile",
+   "module_short": "simind_python_connector.utils.interfile",
+   "name": "ProjectionGeometry"
   }
  ],
  "SimindPythonConnector": [

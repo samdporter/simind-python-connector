@@ -80,6 +80,8 @@ def read_stir_image(array: np.ndarray, base: Path) -> stir.FloatVoxelsOnCartesia
 
 source_image = read_stir_image(source, output_dir / "stir_source")
 mu_image = read_stir_image(mu_map, output_dir / "stir_mu")
+# STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+spectub_mu_image = read_stir_image(mu_map[..., ::-1], output_dir / "stir_spectub_mu")
 
 # %%
 # Simulate
@@ -144,7 +146,7 @@ def reconstruct(additive_term=None):
     reconstruction.fill(1.0)
 
     proj_matrix = stir.ProjMatrixByBinSPECTUB()
-    proj_matrix.set_attenuation_image_sptr(mu_image)
+    proj_matrix.set_attenuation_image_sptr(spectub_mu_image)
     proj_matrix.set_resolution_model(0.0, 0.0, False)
     proj_matrix.set_keep_all_views_in_cache(True)
 

@@ -2093,6 +2093,15 @@
    "name": "builtin_function_or_method"
   }
  ],
+ "spectub_mu_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "stir",
+   "module_short": "stir",
+   "name": "FloatVoxelsOnCartesianGrid"
+  }
+ ],
  "stir.FloatVoxelsOnCartesianGrid": [
   {
    "is_class": true,

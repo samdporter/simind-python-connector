@@ -8,7 +8,6 @@ RUN_CORE=0
 RUN_STIR=0
 RUN_SIRF=0
 RUN_PYTOMO=0
-RUN_MC_SCATTER=0
 SELECTION_SET=0
 DO_BUILD=1
 REQUIRE_SIMIND=0
@@ -27,7 +26,6 @@ Options:
   --only-stir          Run STIR OSEM example (07A).
   --only-sirf          Run only SIRF OSEM example (07B).
   --only-pytomography  Run only PyTomography OSEM example (07C).
-  --only-mc-scatter    Run MC scatter examples (09, 10 in sirf container; need SIMIND).
   --only-osem          Run all OSEM examples (07A, 07B, 07C).
   --simind-path PATH   Path to SIMIND executable on host (default: ./simind/simind).
   --docker-platform P  Override Docker target platform (e.g. linux/amd64).
@@ -45,7 +43,6 @@ select_only_mode() {
         RUN_STIR=0
         RUN_SIRF=0
         RUN_PYTOMO=0
-        RUN_MC_SCATTER=0
         SELECTION_SET=1
     fi
 }
@@ -67,10 +64,6 @@ while [[ $# -gt 0 ]]; do
         --only-pytomography)
             select_only_mode
             RUN_PYTOMO=1
-            ;;
-        --only-mc-scatter)
-            select_only_mode
-            RUN_MC_SCATTER=1
             ;;
         --only-osem)
             select_only_mode
@@ -120,7 +113,6 @@ if [[ "$SELECTION_SET" -eq 0 ]]; then
     RUN_STIR=1
     RUN_SIRF=1
     RUN_PYTOMO=1
-    RUN_MC_SCATTER=1
 fi
 
 if [[ -z "$SIMIND_PATH" ]]; then
@@ -154,7 +146,7 @@ if [[ -z "$DOCKER_PLATFORM" && "$SIMIND_AVAILABLE" -eq 1 ]]; then
 fi
 
 SIMIND_REQUIRED_GROUPS=0
-if [[ "$RUN_CORE" -eq 1 || "$RUN_STIR" -eq 1 || "$RUN_SIRF" -eq 1 || "$RUN_PYTOMO" -eq 1 || "$RUN_MC_SCATTER" -eq 1 ]]; then
+if [[ "$RUN_CORE" -eq 1 || "$RUN_STIR" -eq 1 || "$RUN_SIRF" -eq 1 || "$RUN_PYTOMO" -eq 1 ]]; then
     SIMIND_REQUIRED_GROUPS=1
 fi
 
@@ -168,7 +160,6 @@ if [[ "$SIMIND_REQUIRED_GROUPS" -eq 1 && "$SIMIND_AVAILABLE" -eq 0 ]]; then
     RUN_STIR=0
     RUN_SIRF=0
     RUN_PYTOMO=0
-    RUN_MC_SCATTER=0
 fi
 
 run_service() {
@@ -243,7 +234,7 @@ fi
 if [[ "$RUN_STIR" -eq 1 ]]; then
     SERVICES_TO_BUILD+=("stir")
 fi
-if [[ "$RUN_SIRF" -eq 1 || "$RUN_MC_SCATTER" -eq 1 ]]; then
+if [[ "$RUN_SIRF" -eq 1 ]]; then
     SERVICES_TO_BUILD+=("sirf")
 fi
 if [[ "$RUN_PYTOMO" -eq 1 ]]; then
@@ -291,11 +282,6 @@ fi
 
 if [[ "$RUN_SIRF" -eq 1 ]]; then
     run_service sirf "python examples/backends/plot_07b_sirf_adaptor_osem.py"
-fi
-
-if [[ "$RUN_MC_SCATTER" -eq 1 ]]; then
-    run_service sirf "python examples/09_mc_scatter_osem.py"
-    run_service sirf "python examples/10_mc_scatter_cil.py"
 fi
 
 if [[ "$RUN_PYTOMO" -eq 1 ]]; then

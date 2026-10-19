@@ -121,9 +121,9 @@ Changed
 - The SIRF, STIR and PyTomography container images now ship MPICH and use its
   ``mpirun``, so ``set_mpi`` runs ``simind_mpi`` there as it does in the
   python image.
-- The python container image's MPICH provisioning (``mpirun`` plus the SONAME
-  compat links) is asserted by the container-script tests, so rebuilding the
-  image cannot silently drop the MPI runtime the MPI tests need.
+- The python container image provisions MPICH (``mpirun`` plus the SONAME
+  compat links) for SIMIND's MPI binary, so ``set_mpi(n)`` runs ``simind_mpi``
+  in the container.
 
 Removed
 ~~~~~~~
