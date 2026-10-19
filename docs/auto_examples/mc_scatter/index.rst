@@ -51,6 +51,23 @@ MC scatter and normalisation
     </div>
 
 
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Reconstruct a simulated NEMA/IEC phantom acquisition with SIRF OSEM three times: with the fast SPECTUB model only, with a SIMIND scatter estimate, and with SIMIND as the accurate forward model in a Fu &amp; Qi residual correction.">
+
+.. only:: html
+
+  .. image:: /auto_examples/mc_scatter/images/thumb/sphx_glr_plot_13_residual_correction_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/mc_scatter/plot_13_residual_correction`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Residual correction with SIMIND as the accurate model</div>
+    </div>
+
+
 .. thumbnail-parent-div-close
 
 .. raw:: html
@@ -63,4 +80,5 @@ MC scatter and normalisation
 
    /auto_examples/mc_scatter/plot_11_mc_scatter_osem
    /auto_examples/mc_scatter/plot_12_scatter_normalisation
+   /auto_examples/mc_scatter/plot_13_residual_correction
 
