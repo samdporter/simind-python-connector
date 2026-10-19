@@ -89,14 +89,22 @@ def test_residual_correction_rejects_a_fast_model_with_an_additive_term(psf_scen
 
 def test_interleaved_spectub_residual_matches_fresh_projection(psf_scene):
     """The shared cache-off model factory keeps OSEM residuals consistent."""
-    scene = psf_scene
-    from examples._mc_scatter_common import fast_model_factory
+    import sirf.STIR as sirf
+
     from simind_python_connector.recon.corrections import ResidualCorrection
     from simind_python_connector.recon.osem import run_osem_with_corrections
     from simind_python_connector.recon.updates import AdditiveUpdater, UpdateSchedule
 
+    scene = psf_scene
     mu_image = scene.x_true.get_uniform_copy(0.0)
-    make_fast = fast_model_factory(mu_image)
+
+    def make_fast():
+        matrix = sirf.SPECTUBMatrix()
+        matrix.set_attenuation_image(mu_image)
+        matrix.set_keep_all_views_in_cache(False)
+        matrix.set_resolution_model(0.0, 0.0, False)
+        return sirf.AcquisitionModelUsingMatrix(matrix)
+
     fast = make_fast()
     accurate = scene.make_accurate()
     fast.set_up(scene.measured, scene.x_true)

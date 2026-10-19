@@ -1,0 +1,3577 @@
+{
+ "AdaptiveSensitivity": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities.preconditioner",
+   "module_short": "cil.optimisation.utilities",
+   "name": "AdaptiveSensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities",
+   "module_short": "cil.optimisation.utilities",
+   "name": "AdaptiveSensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "AdaptiveSensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "AdaptiveSensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities.preconditioner",
+   "module_short": "cil.optimisation.utilities",
+   "name": "Sensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities",
+   "module_short": "cil.optimisation.utilities",
+   "name": "Sensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "Sensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "Sensitivity"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities.preconditioner",
+   "module_short": "cil.optimisation.utilities",
+   "name": "Preconditioner"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities",
+   "module_short": "cil.optimisation.utilities",
+   "name": "Preconditioner"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "Preconditioner"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "Preconditioner"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities",
+   "module_short": "cil.optimisation.utilities",
+   "name": "AdaptiveSensitivity"
+  }
+ ],
+ "AdditiveUpdater": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.updates",
+   "module_short": "simind_python_connector.recon",
+   "name": "AdditiveUpdater"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "AdditiveUpdater"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "AdditiveUpdater"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "AdditiveUpdater"
+  }
+ ],
+ "CorrectionCallback": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.cil",
+   "module_short": "simind_python_connector.recon.cil",
+   "name": "CorrectionCallback"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "CorrectionCallback"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "CorrectionCallback"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities.callbacks",
+   "module_short": "cil.optimisation.utilities.callbacks",
+   "name": "Callback"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.utilities",
+   "module_short": "cil.optimisation.utilities",
+   "name": "Callback"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "Callback"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "Callback"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.cil",
+   "module_short": "simind_python_connector.recon.cil",
+   "name": "CorrectionCallback"
+  }
+ ],
+ "DEFAULT_QUANTIZATION_SCALE": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.core.types",
+   "module_short": "simind_python_connector.core.types",
+   "name": "DEFAULT_QUANTIZATION_SCALE"
+  }
+ ],
+ "GRID": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
+  }
+ ],
+ "ISTA": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.algorithms.FISTA",
+   "module_short": "cil.optimisation.algorithms",
+   "name": "ISTA"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.algorithms",
+   "module_short": "cil.optimisation.algorithms",
+   "name": "ISTA"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "ISTA"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "ISTA"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.algorithms.Algorithm",
+   "module_short": "cil.optimisation.algorithms",
+   "name": "Algorithm"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.algorithms",
+   "module_short": "cil.optimisation.algorithms",
+   "name": "Algorithm"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "Algorithm"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "Algorithm"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "cil.optimisation.algorithms",
+   "module_short": "cil.optimisation.algorithms",
+   "name": "ISTA"
+  }
+ ],
+ "ITERATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "IndicatorBox": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions.IndicatorBox",
+   "module_short": "cil.optimisation.functions",
+   "name": "IndicatorBox"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions",
+   "module_short": "cil.optimisation.functions",
+   "name": "IndicatorBox"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "IndicatorBox"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "IndicatorBox"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions.Function",
+   "module_short": "cil.optimisation.functions",
+   "name": "Function"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions",
+   "module_short": "cil.optimisation.functions",
+   "name": "Function"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "Function"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "Function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions",
+   "module_short": "cil.optimisation.functions",
+   "name": "IndicatorBox"
+  }
+ ],
+ "NUM_SUBSETS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "Path": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "Path"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "PurePath"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "Path"
+  }
+ ],
+ "QUANTIZATION_SCALE": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "SPHERES": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
+  }
+ ],
+ "SPHERES.values": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  }
+ ],
+ "STIRSPECTAcquisitionDataBuilder": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.builders.acquisition_builder",
+   "module_short": "simind_python_connector.builders",
+   "name": "STIRSPECTAcquisitionDataBuilder"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.builders",
+   "module_short": "simind_python_connector.builders",
+   "name": "STIRSPECTAcquisitionDataBuilder"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "STIRSPECTAcquisitionDataBuilder"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.builders",
+   "module_short": "simind_python_connector.builders",
+   "name": "STIRSPECTAcquisitionDataBuilder"
+  }
+ ],
+ "STIRSPECTImageDataBuilder": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.builders.image_builder",
+   "module_short": "simind_python_connector.builders",
+   "name": "STIRSPECTImageDataBuilder"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.builders",
+   "module_short": "simind_python_connector.builders",
+   "name": "STIRSPECTImageDataBuilder"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "STIRSPECTImageDataBuilder"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.builders",
+   "module_short": "simind_python_connector.builders",
+   "name": "STIRSPECTImageDataBuilder"
+  }
+ ],
+ "ScatterCorrection": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.corrections",
+   "module_short": "simind_python_connector.recon",
+   "name": "ScatterCorrection"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "ScatterCorrection"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "ScatterCorrection"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "ScatterCorrection"
+  }
+ ],
+ "ScoringRoutine.PENETRATE": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.core.types",
+   "module_short": "simind_python_connector.core",
+   "name": "ScoringRoutine"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.core",
+   "module_short": "simind_python_connector.core",
+   "name": "ScoringRoutine"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "ScoringRoutine"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.core.types.ScoringRoutine",
+   "module_short": "simind_python_connector.core.types.ScoringRoutine",
+   "name": "PENETRATE"
+  }
+ ],
+ "SimindProjector": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.projector",
+   "module_short": "simind_python_connector.recon",
+   "name": "SimindProjector"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "SimindProjector"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SimindProjector"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "SimindProjector"
+  }
+ ],
+ "SirfSimindAdaptor": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  }
+ ],
+ "SumFunction": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions.Function",
+   "module_short": "cil.optimisation.functions",
+   "name": "SumFunction"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions",
+   "module_short": "cil.optimisation.functions",
+   "name": "SumFunction"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "SumFunction"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "SumFunction"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions.Function",
+   "module_short": "cil.optimisation.functions",
+   "name": "Function"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions",
+   "module_short": "cil.optimisation.functions",
+   "name": "Function"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil.optimisation",
+   "module_short": "cil.optimisation",
+   "name": "Function"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "cil",
+   "module_short": "cil",
+   "name": "Function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "cil.optimisation.functions",
+   "module_short": "cil.optimisation.functions",
+   "name": "SumFunction"
+  }
+ ],
+ "TIME_PER_VIEW_S": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "TOTAL_MBQ": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "TRUE_RATIO": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "UPDATE_EVERY": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "UpdateSchedule": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.updates",
+   "module_short": "simind_python_connector.recon",
+   "name": "UpdateSchedule"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "UpdateSchedule"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "UpdateSchedule"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "UpdateSchedule"
+  }
+ ],
+ "VOXEL_MM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "activity_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
+ "activity_image.get_uniform_copy": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ImageData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.get_uniform_copy"
+  }
+ ],
+ "ax": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes"
+  }
+ ],
+ "ax.axis": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.axis"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.axis"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.axis"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.axis"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.axis"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.axis"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.axis"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.axis"
+  }
+ ],
+ "ax.bar": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.bar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.bar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.bar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.bar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.bar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.bar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.bar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.bar"
+  }
+ ],
+ "ax.imshow": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.imshow"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.imshow"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.imshow"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.imshow"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.imshow"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.imshow"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.imshow"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.imshow"
+  }
+ ],
+ "ax.legend": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.legend"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.legend"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.legend"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.legend"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.legend"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.legend"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.legend"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.legend"
+  }
+ ],
+ "ax.set_title": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_title"
+  }
+ ],
+ "ax.set_xlabel": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_xlabel"
+  }
+ ],
+ "ax.set_xticks": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_xticks"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_xticks"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_xticks"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_xticks"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_xticks"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_xticks"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_xticks"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_xticks"
+  }
+ ],
+ "ax.set_ylabel": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_ylabel"
+  }
+ ],
+ "axes": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "background": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "baseline_objectives": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.cil",
+   "module_short": "simind_python_connector.recon.cil",
+   "name": "SubsetObjectives"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "SubsetObjectives"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SubsetObjectives"
+  }
+ ],
+ "build_subset_objectives": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.cil",
+   "module_short": "simind_python_connector.recon.cil",
+   "name": "build_subset_objectives"
+  }
+ ],
+ "configs.get": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.configs",
+   "module_short": "simind_python_connector.configs",
+   "name": "get"
+  }
+ ],
+ "contrast_recovery": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "corrected": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
+ "corrected.as_array": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.as_array"
+  }
+ ],
+ "counts": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "counts.shape": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
+  }
+ ],
+ "cov": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "diameters": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "list"
+  }
+ ],
+ "estimate_adaptor": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  }
+ ],
+ "expected": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData"
+  }
+ ],
+ "expected.as_array": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.as_array"
+  }
+ ],
+ "expected.clone": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.clone"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.clone"
+  }
+ ],
+ "fig": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "Figure"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Figure"
+  }
+ ],
+ "fig.colorbar": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "Figure.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Figure.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "FigureBase.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "FigureBase.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.colorbar"
+  }
+ ],
+ "full_model": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionModelUsingMatrix"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionModelUsingMatrix"
+  }
+ ],
+ "full_model.set_up": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionModelUsingMatrix.set_up"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionModelUsingMatrix.set_up"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionModel.set_up"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionModel.set_up"
+  }
+ ],
+ "get_attenuation_coefficient": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.converters.attenuation",
+   "module_short": "simind_python_connector.converters.attenuation",
+   "name": "get_attenuation_coefficient"
+  }
+ ],
+ "image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "initial_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
+ "ista": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "make_adaptor": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "make_model": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "measured": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData"
+  }
+ ],
+ "measured.as_array": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.as_array"
+  }
+ ],
+ "measured.fill": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.fill"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.fill"
+  }
+ ],
+ "measured.get_uniform_copy": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.get_uniform_copy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.get_uniform_copy"
+  }
+ ],
+ "measured.sum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.sum"
+  }
+ ],
+ "measured_adaptor": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor"
+  }
+ ],
+ "measured_adaptor.run": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.run"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.run"
+  }
+ ],
+ "measured_adaptor.set_activity": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.set_activity"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_activity"
+  }
+ ],
+ "measured_adaptor.set_mu_map": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.set_mu_map"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_mu_map"
+  }
+ ],
+ "measured_adaptor.set_source": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.set_source"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_source"
+  }
+ ],
+ "measured_adaptor.set_template": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.sirf_adaptor",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SirfSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors._native_adaptor",
+   "module_short": "simind_python_connector.connectors._native_adaptor",
+   "name": "_NativeSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "_NativeSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "_NativeSimindAdaptor.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.set_template"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_template"
+  }
+ ],
+ "mu": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "mu_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
+ "nema": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.phantoms",
+   "module_short": "simind_python_connector.phantoms",
+   "name": "VoxelPhantom"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "VoxelPhantom"
+  }
+ ],
+ "nema.activity_mbq": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "nema.activity_mbq.sum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  }
+ ],
+ "nema.density_g_cm3": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "nema.masks": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
+  }
+ ],
+ "nema_iec_phantom": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.phantoms",
+   "module_short": "simind_python_connector.phantoms",
+   "name": "nema_iec_phantom"
+  }
+ ],
+ "np.arange": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "arange"
+  }
+ ],
+ "np.argwhere": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "argwhere"
+  }
+ ],
+ "np.float32": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "floating"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "inexact"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "number"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "generic"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "np.maximum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "maximum"
+  }
+ ],
+ "np.random.default_rng": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random",
+   "module_short": "numpy.random",
+   "name": "default_rng"
+  }
+ ],
+ "objectives": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.cil",
+   "module_short": "simind_python_connector.recon.cil",
+   "name": "SubsetObjectives"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "SubsetObjectives"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SubsetObjectives"
+  }
+ ],
+ "objectives.functions": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "list"
+  }
+ ],
+ "offset": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "os.environ.get": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os",
+   "module_short": "os",
+   "name": "_Environ.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections.abc",
+   "module_short": "collections.abc",
+   "name": "MutableMapping.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections",
+   "module_short": "collections",
+   "name": "MutableMapping.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections.abc",
+   "module_short": "collections.abc",
+   "name": "Mapping.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections",
+   "module_short": "collections",
+   "name": "Mapping.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections.abc",
+   "module_short": "collections.abc",
+   "name": "Collection.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections",
+   "module_short": "collections",
+   "name": "Collection.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections.abc",
+   "module_short": "collections.abc",
+   "name": "Sized.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections",
+   "module_short": "collections",
+   "name": "Sized.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections.abc",
+   "module_short": "collections.abc",
+   "name": "Iterable.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections",
+   "module_short": "collections",
+   "name": "Iterable.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections.abc",
+   "module_short": "collections.abc",
+   "name": "Container.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "collections",
+   "module_short": "collections",
+   "name": "Container.get"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os.environ",
+   "module_short": "os.environ",
+   "name": "get"
+  }
+ ],
+ "output_dir": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "PosixPath"
+  }
+ ],
+ "output_dir.mkdir": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "PosixPath.mkdir"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "Path.mkdir"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "PurePosixPath.mkdir"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "PurePath.mkdir"
+  }
+ ],
+ "outputs": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
+  }
+ ],
+ "plt.show": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "show"
+  }
+ ],
+ "plt.subplots": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "subplots"
+  }
+ ],
+ "projector": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.projector",
+   "module_short": "simind_python_connector.recon",
+   "name": "SimindProjector"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "SimindProjector"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SimindProjector"
+  }
+ ],
+ "recon_arrays": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
+  }
+ ],
+ "recon_arrays.items": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  }
+ ],
+ "record": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.updates",
+   "module_short": "simind_python_connector.recon",
+   "name": "UpdateRecord"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "UpdateRecord"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "UpdateRecord"
+  }
+ ],
+ "record.additive_sum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "record.iteration": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "record.scale": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "record.seconds": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "recovery": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "list"
+  }
+ ],
+ "reference_normaliser": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "reference_normaliser"
+  }
+ ],
+ "relative_to_background": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "rng": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random._generator",
+   "module_short": "numpy.random",
+   "name": "Generator"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random",
+   "module_short": "numpy.random",
+   "name": "Generator"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "Generator"
+  }
+ ],
+ "rng.poisson": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  }
+ ],
+ "scores": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
+  }
+ ],
+ "scores.items": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  }
+ ],
+ "shown": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.image",
+   "module_short": "matplotlib.image",
+   "name": "AxesImage"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "AxesImage"
+  }
+ ],
+ "shutil.which": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "shutil",
+   "module_short": "shutil",
+   "name": "which"
+  }
+ ],
+ "sirf.AcquisitionData.set_storage_scheme": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR.AcquisitionData",
+   "module_short": "sirf.STIR.AcquisitionData",
+   "name": "set_storage_scheme"
+  }
+ ],
+ "sirf.AcquisitionModelUsingMatrix": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionModelUsingMatrix"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionModelUsingMatrix"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionModel"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionModel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionModelUsingMatrix"
+  }
+ ],
+ "sirf.SPECTUBMatrix": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "SPECTUBMatrix"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "SPECTUBMatrix"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "SPECTUBMatrix"
+  }
+ ],
+ "slice_z": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "spectub_mu_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
+ "template": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData"
+  }
+ ],
+ "title": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  }
+ ],
+ "to_sirf_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "true_scatter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData"
+  }
+ ],
+ "true_scatter.sum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ScanData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ScanData.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.sum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.sum"
+  }
+ ],
+ "truth_array": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "truth_array.max": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  }
+ ],
+ "uncorrected": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData"
+  }
+ ],
+ "uncorrected.as_array": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ImageData.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "DataContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.SIRF",
+   "module_short": "sirf.SIRF",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "ArrayContainer.as_array"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.as_array"
+  }
+ ],
+ "updater": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon.updates",
+   "module_short": "simind_python_connector.recon",
+   "name": "AdditiveUpdater"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.recon",
+   "module_short": "simind_python_connector.recon",
+   "name": "AdditiveUpdater"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "AdditiveUpdater"
+  }
+ ],
+ "updater.history": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "list"
+  }
+ ],
+ "values": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "list"
+  }
+ ],
+ "x": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "zero_additive": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf",
+   "module_short": "sirf",
+   "name": "AcquisitionData"
+  }
+ ]
+}
