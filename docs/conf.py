@@ -136,6 +136,7 @@ sphinx_gallery_conf = {
             "../examples/phantoms",
             "../examples/mc_scatter",
             "../examples/cil",
+            "../examples/real_data",
         ]
     ),
     "abort_on_example_error": True,

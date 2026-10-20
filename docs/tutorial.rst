@@ -159,11 +159,55 @@ Measured projections and DICOM calibration
 The :doc:`STIR <auto_examples/backends/plot_08a_stir_adaptor_from_dicom>`,
 :doc:`SIRF <auto_examples/backends/plot_08b_sirf_adaptor_from_dicom>` and
 :doc:`PyTomography <auto_examples/backends/plot_08c_pytomography_adaptor_from_dicom>`
-DICOM tutorials read projection geometry from the Y-90 NM dataset
-(``SIMIND_CONNECTOR_Y90_DATA``, or fetched on first use). They build STIR, SIRF
-or PyTomography projection objects and plot the projection.
+DICOM tutorials read projection geometry from the Y-90 NM dataset named by
+``SIMIND_CONNECTOR_Y90_DATA``; no path argument is needed (see
+:doc:`datasets`). They build STIR, SIRF or PyTomography projection objects and
+plot the projection.
 Compare the DICOM-derived geometry with the simulated header before use. A
 DICOM geometry match does not calibrate absolute sensitivity. For a calibrated
 comparison, document the activity, acquisition time, decay reference, energy
 window, collimator, camera, and any measured projection used to scale the
 simulation. Treat any resulting factor as specific to those assumptions.
+
+Real Y-90 data
+--------------
+
+The rest of the measured Y-90 study is in the :doc:`Real Y-90 data
+<auto_examples/real_data/index>` gallery section. The dataset is described in
+:doc:`datasets`; it is not downloadable yet, so set
+``SIMIND_CONNECTOR_Y90_DATA`` to a local directory first. Every tutorial below
+reads it through ``fetch_y90_phantom`` and takes no path argument.
+
+Work through them in this order:
+
+1. The DICOM tutorials above (examples 08A, 08B, 08C) read ``peak.dcm`` and
+   build the STIR, SIRF or PyTomography projection object.
+
+2. The CT-to-SPECT conversion tutorials read the CT series of the same
+   phantom, register it onto the SPECT grid, and stop with diagnostics
+   instead of publishing maps when the registration check fails:
+
+   - :doc:`CT conversion with STIR
+     <auto_examples/real_data/plot_16a_stir_ct_conversion>`
+   - :doc:`CT conversion with SIRF
+     <auto_examples/real_data/plot_16b_sirf_ct_conversion>`
+   - :doc:`CT conversion with PyTomography
+     <auto_examples/real_data/plot_16c_pytomography_ct_conversion>`
+
+   Each tutorial uses only its own backend. The SIRF route is the reusable
+   one; the later tutorials take their CT preparation from it.
+
+3. The :doc:`Y-90 effective energy tutorial
+   <auto_examples/real_data/plot_17_y90_effective_energy>` (SIRF) compares two
+   reconstructions of the measured projections that differ only in the
+   attenuation model: a single 150-keV map against a map weighted across the
+   detected 75-225 keV spectrum. Neither reconstruction includes scatter, so
+   the pair is a model comparison, not an accuracy ranking.
+
+4. The :doc:`Monte Carlo scatter tutorial
+   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) compares Monte
+   Carlo scatter strategies on a common reconstruction schedule and reports
+   the reconstructed sphere-to-liver activity-concentration ratio against the
+   truth value of 4.0. Its absolute activity scale comes from a relative
+   calibration, so read the reported activities as comparisons between
+   strategies rather than as independently calibrated values.

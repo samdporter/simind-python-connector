@@ -5,7 +5,9 @@ SIRF projection from DICOM
 Create a SIRF projection object from a DICOM NM projection file. The data
 is a Y-90 bremsstrahlung study: a Mediso
 AnyScan acquisition of 120 views over 360 degrees, 128 x 128 bins of
-4.2578 mm and a 75-225 keV window. It is fetched with ``fetch_y90_phantom``.
+4.2578 mm and a 75-225 keV window. The script takes no path argument:
+``fetch_y90_phantom`` reads the directory named by
+``SIMIND_CONNECTOR_Y90_DATA``.
 """
 
 # %%

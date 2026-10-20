@@ -77,6 +77,9 @@ phantomgen package; the install command is in the tutorial.
   scatter normalisation, and residual correction.
 - `examples/cil/plot_14` / `plot_15`: CIL scatter correction, and an
   RDP-regularised SVRG reconstruction.
+- `examples/real_data/plot_16a` / `16b` / `16c`: CT-to-SPECT conversion with
+  STIR / SIRF / PyTomography for the measured Y-90 phantom.
+- `examples/real_data/plot_17`: the Y-90 effective attenuation energy with SIRF.
 
 Lower `quantization_scale`, fewer projections, or a mostly-zero source map can
 make smoke runs faster. These settings reduce history statistics; they do not

@@ -91,3 +91,24 @@ def test_every_real_gallery_example_has_one_backend():
         backend = gallery.example_backend(path)
         if path.parent.name == "getting_started":
             assert backend == "python"
+
+
+@pytest.mark.unit
+def test_real_data_examples_run_in_exactly_one_backend_build():
+    examples = ROOT / "examples"
+    patterns = {
+        backend: gallery.execution_pattern(examples, backend)
+        for backend in gallery.BACKENDS
+    }
+    paths = [
+        path
+        for path in gallery.gallery_examples(examples)
+        if path.parent.name == "real_data"
+    ]
+    assert paths
+    for path in paths:
+        path_str = str(path)
+        matched = [
+            name for name, pattern in patterns.items() if re.search(pattern, path_str)
+        ]
+        assert matched == [gallery.example_backend(path)], path.name

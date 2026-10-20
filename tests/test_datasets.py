@@ -26,6 +26,16 @@ def test_missing_files_are_listed(tmp_path, monkeypatch):
         datasets.fetch_y90_phantom()
 
 
+def test_missing_environment_directory_lists_the_files(tmp_path, monkeypatch):
+    missing = tmp_path / "no_such_directory"
+    monkeypatch.setenv("SIMIND_CONNECTOR_Y90_DATA", str(missing))
+    with pytest.raises(FileNotFoundError) as excinfo:
+        datasets.fetch_y90_phantom()
+    message = str(excinfo.value)
+    assert str(missing) in message
+    assert "peak.dcm" in message and "ctac" in message
+
+
 def test_unpublished_record_points_at_the_environment_variable(monkeypatch):
     monkeypatch.delenv("SIMIND_CONNECTOR_Y90_DATA", raising=False)
     monkeypatch.setattr(datasets, "Y90_PHANTOM_RECORD", {"url": "", "sha256": ""})

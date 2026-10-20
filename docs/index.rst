@@ -15,6 +15,7 @@ simind-python-connector Documentation
    simind_validation
    backends
    examples
+   datasets
    auto_examples/index
    api
 

@@ -1,14 +1,14 @@
 Examples
 ========
 
-Examples 01–15 are in the :doc:`gallery <auto_examples/index>`: runnable
+Examples 01–18 are in the :doc:`gallery <auto_examples/index>`: runnable
 scripts with their figures and printed output. Follow :doc:`tutorial` for the
 recommended order, prerequisites, and what to inspect.
 
 Build the gallery locally with ``bash scripts/build_gallery.sh``. Read the Docs
 shows the committed outputs and does not run the examples.
 
-The gallery has five sections:
+The gallery has six sections:
 
 - :doc:`Getting started <auto_examples/getting_started/index>`: core NumPy
   simulations, energy windows, configurations, scoring, and density conversion.
@@ -22,6 +22,10 @@ The gallery has five sections:
   correction.
 - :doc:`Regularised reconstruction with CIL <auto_examples/cil/index>`: scatter
   correction with CIL ISTA and a relative-difference prior with SVRG.
+- :doc:`Real Y-90 data <auto_examples/real_data/index>`: CT-to-SPECT
+  conversion in STIR, SIRF and PyTomography, the Y-90 effective attenuation
+  energy, and Monte Carlo scatter strategies. The data are local for now; see
+  :doc:`datasets`.
 
 Examples that simulate need a working SIMIND installation, and backend examples
 need that backend installed. The NEMA examples also need phantomgen; its
