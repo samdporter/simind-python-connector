@@ -68,9 +68,10 @@ The known compartment contents at the scan, with a +-2% activity uncertainty:
      - 8.082
      - 544.4
 
-The total activity is 160.8 MBq and the sphere-to-liver activity ratio is
-4.0. The activities are the compartment contents at the scan; they are not
-decay corrected, and the +-2% applies to the activity only.
+The total activity is 160.8 MBq and the sphere-to-liver
+activity-concentration ratio is 4.0. The activities are the compartment
+contents at the scan; they are not decay corrected, and the +-2% applies to
+the activity only.
 
 Where the data are used
 -----------------------
