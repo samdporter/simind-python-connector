@@ -32,6 +32,7 @@ from pathlib import Path
 
 import numpy as np
 import pydicom
+from scipy.ndimage import binary_erosion
 from scipy.ndimage import shift as shift_image
 
 from simind_python_connector.converters.attenuation import (
@@ -228,30 +229,52 @@ def ct_coverage(ct_affine, target_affine, ct_shape):
 # %%
 # Registration report
 # -------------------
-# The metric is computed on the native 4.2578 mm grid before any reduction. A
-# fixed body mask is built once from covered voxels with HU above -400 and a
-# positive reference value. The mask never moves; only the CT-derived
-# attenuation map is shifted. The report contains the zero-offset Pearson
-# correlation, then the highest integer-search normalised cross-correlation
-# (NCC) over a +/-5-voxel search and its signed ``(z, y, x)`` shift. A quadratic
-# fit around the best integer shift refines the peak to subvoxel precision when
-# the fit is negative definite, finite and locally bounded; otherwise the
-# integer estimate is kept. The gate is a Euclidean offset of at most one
-# native voxel. A failed gate stops the tutorial before any accepted map is
-# written.
+# The metric is computed on the native 4.2578 mm grid before any reduction.
+# Registration is assessed by normalized cross-correlation within a mask defined
+# by CT coverage, CT HU > -400, positive vendor attenuation and finite values. We
+# erode this mask once by one SPECT-grid voxel and keep the resulting mask fixed
+# for every candidate translation. This reduces sensitivity to boundary
+# differences between the sharp CT and the smoothed vendor attenuation map. The
+# exact acceptance criterion remains a Euclidean residual of at most 1.0 voxel;
+# the measured translation is not applied to the CT-derived maps.
+#
+# In this dataset, the vendor map has a thicker table-side body boundary and a
+# fainter table than the CT-derived map. These differences bias the un-eroded
+# correlation metric but cannot be corrected by a global translation. The table
+# is therefore not treated as an anatomical registration landmark. This
+# interior-focused check does not establish agreement of the body boundary or
+# table attenuation.
+#
+# The report contains the zero-offset Pearson correlation, then the highest
+# integer-search normalised cross-correlation (NCC) over a +/-5-voxel search and
+# its signed ``(z, y, x)`` shift. A quadratic fit around the best integer shift
+# refines the peak to subvoxel precision when the fit is negative definite,
+# finite and locally bounded; otherwise the integer estimate is kept. A failed
+# gate stops the tutorial before any accepted map is written.
 
 
 GATE_VOXELS = 1.0
 
+MASK_DEFINITION = (
+    "CT coverage, CT HU > -400, positive vendor attenuation and finite values"
+)
+MASK_EROSION = "one 3-D connectivity-1 binary erosion, one voxel, border_value=0"
 
-def registration_mask(coverage, hu_grid, umap, ct_map):
-    """Return the fixed body region used for every candidate translation."""
+
+def _intersection_mask(coverage, hu_grid, umap, ct_map):
     return (
         coverage
         & (hu_grid > -400)
         & (umap > 0)
         & np.isfinite(ct_map)
         & np.isfinite(umap)
+    )
+
+
+def registration_mask(coverage, hu_grid, umap, ct_map):
+    """Return the fixed body region used for every candidate translation."""
+    return binary_erosion(
+        _intersection_mask(coverage, hu_grid, umap, ct_map), iterations=1
     )
 
 
@@ -633,6 +656,16 @@ def run():
     region = registration_mask(coverage, hu_grid, umap, attenuation)
     report = registration_report(attenuation, umap, region)
     report["coverage_fraction"] = float(coverage.mean())
+    report["mask"] = {
+        "definition": MASK_DEFINITION,
+        "erosion": MASK_EROSION,
+        "region_voxels": report["region_voxels"],
+    }
+    historical = registration_report(
+        attenuation, umap, _intersection_mask(coverage, hu_grid, umap, attenuation)
+    )
+    historical["role"] = "historical diagnostic only; not the acceptance metric"
+    report["historical_full_mask"] = historical
     save_json(output_directory / "registration.json", report)
     save_registration_overlay(
         output_directory / "registration_overlay.png", attenuation, umap, report
@@ -642,7 +675,20 @@ def run():
         f"{report['zero_pearson']:.4f}, best integer NCC {report['best_ncc']:.4f} "
         f"at {report['best_integer_zyx']}"
     )
-    print(f"Fixed mask: {report['region_voxels']} voxels")
+    print(f"Registration mask: {MASK_DEFINITION}")
+    print(f"Mask erosion: {MASK_EROSION}")
+    print(f"Fixed mask after erosion: {report['region_voxels']} voxels")
+    if historical["euclidean_voxels"] is None:
+        historical_outcome = historical["reason"]
+    else:
+        historical_outcome = (
+            f"{historical['euclidean_voxels']:.3f} voxels = "
+            f"{historical['euclidean_mm']:.2f} mm ({historical['status']})"
+        )
+    print(
+        "Historical un-eroded mask (diagnostic only): "
+        f"{historical['region_voxels']} voxels, {historical_outcome}"
+    )
     if not report["passed"]:
         write_unaccepted_summary(output_directory, report)
     accept_registration(report)

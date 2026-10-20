@@ -14,6 +14,7 @@ from pydicom.uid import (
     NuclearMedicineImageStorage,
     generate_uid,
 )
+from scipy.ndimage import binary_erosion, generate_binary_structure
 from scipy.ndimage import shift as shift_image
 
 
@@ -307,6 +308,98 @@ def script(request):
 
 
 @pytest.mark.unit
+def test_registration_mask_erodes_the_intersection_once(script):
+    shape = (12, 13, 14)
+    coverage = np.ones(shape, dtype=bool)
+    coverage[0, 0, 0] = False
+    hu_grid = np.full(shape, -1000.0)
+    hu_grid[0:7, 2:10, 3:11] = 80.0
+    umap = np.zeros(shape)
+    umap[0:7, 2:10, 3:11] = 0.1
+    ct_map = np.full(shape, 0.1)
+    ct_map[3, 5, 7] = np.nan
+    umap[4, 6, 8] = np.inf
+    inputs = (coverage, hu_grid, umap, ct_map)
+    snapshots = [array.copy() for array in inputs]
+
+    body = (
+        coverage
+        & (hu_grid > -400)
+        & (umap > 0)
+        & np.isfinite(ct_map)
+        & np.isfinite(umap)
+    )
+    expected = binary_erosion(
+        body,
+        structure=generate_binary_structure(3, 1),
+        iterations=1,
+        border_value=0,
+    )
+
+    mask = script.registration_mask(coverage, hu_grid, umap, ct_map)
+
+    assert mask.dtype == bool
+    assert np.array_equal(mask, expected)
+    assert not mask[0].any()
+    for array, snapshot in zip(inputs, snapshots):
+        assert np.array_equal(array, snapshot, equal_nan=True)
+
+
+@pytest.mark.unit
+def test_registration_mask_is_the_same_on_every_route():
+    shape = (16, 16, 16)
+    coverage = np.ones(shape, dtype=bool)
+    hu_grid = np.full(shape, -1000.0)
+    hu_grid[3:12, 3:12, 3:12] = 200.0
+    umap = np.zeros(shape)
+    umap[3:12, 3:12, 3:12] = 0.05
+    ct_map = np.full(shape, 0.1)
+
+    masks = [
+        route.registration_mask(coverage, hu_grid, umap, ct_map)
+        for route in (stir_script, sirf_script, pytomography_script)
+    ]
+
+    assert masks[0].any()
+    assert all(np.array_equal(masks[0], mask) for mask in masks[1:])
+    assert masks[0].sum() < 9**3
+
+
+@pytest.mark.unit
+def test_erosion_that_leaves_insufficient_support_fails(script, tmp_path):
+    shape = (24, 24, 24)
+    coverage = np.zeros(shape, dtype=bool)
+    coverage[5:19, 5:19, 5:19] = True
+    hu_grid = np.full(shape, -1000.0)
+    hu_grid[6:17, 6:17, 6:17] = 100.0
+    umap = np.zeros(shape)
+    umap[6:17, 6:17, 6:17] = 0.1
+    ct_map = np.zeros(shape)
+    ct_map[6:17, 6:17, 6:17] = 0.1
+    full = (
+        coverage
+        & (hu_grid > -400)
+        & (umap > 0)
+        & np.isfinite(ct_map)
+        & np.isfinite(umap)
+    )
+
+    region = script.registration_mask(coverage, hu_grid, umap, ct_map)
+    report = script.registration_report(ct_map, umap, region)
+
+    assert full.sum() >= 1000
+    assert 0 < region.sum() < 1000
+    assert report["passed"] is False
+    assert report["status"] == "fail"
+    assert "registration region" in report["reason"]
+    if hasattr(script, "accept_or_report"):
+        assert script.accept_or_report(report, tmp_path) is False
+    else:
+        with pytest.raises(RuntimeError, match="registration failed"):
+            script.accept_registration(report)
+
+
+@pytest.mark.unit
 def test_registration_scores_every_candidate_on_one_fixed_mask(script):
     reference = _asymmetric_blob()
     moved = shift_image(reference, (2.0, -1.0, 1.0), order=3)
@@ -459,6 +552,21 @@ def test_failure_records_an_unaccepted_summary_and_clears_stale_maps(tmp_path):
     assert not (tmp_path / "maps.png").exists()
 
 
+@pytest.mark.unit
+def test_stir_passing_report_continues_to_map_publication(tmp_path):
+    report = {
+        "status": "pass",
+        "passed": True,
+        "reason": "",
+        "euclidean_voxels": 0.5,
+        "euclidean_mm": 2.13,
+    }
+
+    assert stir_script.accept_or_report(report, tmp_path) is True
+    assert not (tmp_path / "UNACCEPTED.txt").exists()
+    assert not (tmp_path / "summary.json").exists()
+
+
 # %%
 # Live checks on the measured data
 
@@ -490,7 +598,7 @@ def _landmark_checks(hu_grid):
 
 
 @pytest.mark.requires_sirf
-def test_sirf_identity_route_fails_the_fixed_mask_gate(
+def test_sirf_identity_route_passes_the_eroded_mask_gate(
     y90_data, real_ct, target_affine, tmp_path
 ):
     hu_grid, _ = sirf_script.resample_to_spect(
@@ -503,16 +611,17 @@ def test_sirf_identity_route_fails_the_fixed_mask_gate(
     region = sirf_script.registration_mask(coverage, hu_grid, umap, attenuation)
     report = sirf_script.registration_report(attenuation, umap, region)
 
-    assert report["passed"] is False
-    assert report["status"] == "fail"
-    assert report["euclidean_voxels"] > 1.0
-    assert report["zero_pearson"] > 0.3
+    assert report["passed"] is True
+    assert report["status"] == "pass"
+    assert report["euclidean_voxels"] <= 1.0
+    assert report["best_integer_zyx"] == [0, 0, 0]
+    assert report["zero_pearson"] > 0.8
     assert report["region_voxels"] > 100_000
     _landmark_checks(hu_grid)
 
 
 @pytest.mark.requires_stir
-def test_stir_zoom_image_route_fails_the_native_grid_gate(
+def test_stir_zoom_image_route_passes_the_eroded_mask_gate(
     y90_data, real_ct, target_affine, tmp_path
 ):
     hu_grid, coverage = stir_script.resample_to_spect(
@@ -523,15 +632,18 @@ def test_stir_zoom_image_route_fails_the_native_grid_gate(
     region = stir_script.registration_mask(coverage, hu_grid, umap, attenuation)
     report = stir_script.registration_report(attenuation, umap, region)
 
-    assert report["passed"] is False
-    assert report["status"] == "fail"
-    assert report["euclidean_voxels"] > 1.0
-    assert report["zero_pearson"] > 0.5
+    assert report["passed"] is True
+    assert report["status"] == "pass"
+    assert report["euclidean_voxels"] <= 1.0
+    assert report["best_integer_zyx"] == [0, 0, 0]
+    assert report["zero_pearson"] > 0.8
+    assert stir_script.accept_or_report(report, tmp_path) is True
+    assert not (tmp_path / "UNACCEPTED.txt").exists()
     _landmark_checks(hu_grid)
 
 
 @pytest.mark.requires_pytomography
-def test_pytomography_corrected_affine_fails_the_fixed_mask_gate(
+def test_pytomography_corrected_affine_passes_the_eroded_mask_gate(
     y90_data, real_ct, target_affine, tmp_path
 ):
     files = sorted((y90_data / "ctac").glob("*.dcm"))
@@ -547,10 +659,11 @@ def test_pytomography_corrected_affine_fails_the_fixed_mask_gate(
     region = pytomography_script.registration_mask(coverage, hu_grid, umap, mu_grid)
     report = pytomography_script.registration_report(mu_grid, umap, region)
 
-    assert report["passed"] is False
-    assert report["status"] == "fail"
-    assert report["euclidean_voxels"] > 1.0
-    assert report["zero_pearson"] > 0.3
+    assert report["passed"] is True
+    assert report["status"] == "pass"
+    assert report["euclidean_voxels"] <= 1.0
+    assert report["best_integer_zyx"] == [0, 0, 0]
+    assert report["zero_pearson"] > 0.8
     assert report["region_voxels"] > 100_000
     assert np.count_nonzero(mu_grid) > 100_000
     _landmark_checks(hu_grid)
