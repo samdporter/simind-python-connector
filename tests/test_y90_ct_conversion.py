@@ -1,6 +1,7 @@
 """Tests for the real Y-90 CT conversion tutorials."""
 
 import importlib.util
+import json
 from pathlib import Path
 
 import numpy as np
@@ -274,54 +275,188 @@ def _asymmetric_blob(size=48):
     return main + feature
 
 
+def _independent_ncc(first, second):
+    first = first - first.mean()
+    second = second - second.mean()
+    return float((first * second).sum() / np.sqrt((first**2).sum() * (second**2).sum()))
+
+
+def _fixed_mask_search(ct_map, reference, mask, max_shift=5):
+    """Brute-force the integer NCC search without any mask movement."""
+    best = (-np.inf, (0, 0, 0))
+    for dz in range(-max_shift, max_shift + 1):
+        for dy in range(-max_shift, max_shift + 1):
+            for dx in range(-max_shift, max_shift + 1):
+                moved = shift_image(
+                    ct_map, (dz, dy, dx), order=1, mode="constant", cval=0.0
+                )
+                if not np.all(np.isfinite(moved[mask])):
+                    continue
+                score = _independent_ncc(moved[mask], reference[mask])
+                if np.isfinite(score) and score > best[0]:
+                    best = (score, (dz, dy, dx))
+    return best
+
+
+@pytest.fixture(
+    params=[stir_script, sirf_script, pytomography_script],
+    ids=["stir", "sirf", "pytomography"],
+)
+def script(request):
+    return request.param
+
+
+@pytest.mark.unit
+def test_registration_scores_every_candidate_on_one_fixed_mask(script):
+    reference = _asymmetric_blob()
+    moved = shift_image(reference, (2.0, -1.0, 1.0), order=3)
+    mask = (reference > 0.05) & (moved > 0.05)
+    mask[:, :, :10] = False
+    frozen = mask.copy()
+
+    report = script.registration_report(moved, reference, mask)
+
+    assert np.array_equal(mask, frozen)
+    best_score, best_shift = _fixed_mask_search(moved, reference, frozen)
+    assert report["best_integer_zyx"] == list(best_shift)
+    assert report["best_ncc"] == pytest.approx(best_score, abs=1e-6)
+    assert report["region_voxels"] == int(frozen.sum())
+    assert report["best_ncc_definition"] == "integer-search NCC"
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "offset,status",
-    [
-        ((0.0, 0.0, 0.0), "pass"),
-        ((0.5, 0.0, 0.0), "pass"),
-        ((1.0, 0.0, 0.0), "pass"),
-        ((2.0, 0.0, 0.0), "fail"),
-    ],
+    "offset",
+    [(0.0, 0.0, 0.0), (0.5, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.75, -0.5)],
 )
-def test_registration_gate_accepts_one_voxel_and_rejects_two(offset, status):
+def test_refinement_recovers_integer_and_fractional_offsets(script, offset):
     reference = _asymmetric_blob()
     moved = shift_image(reference, offset, order=3)
-    report = stir_script.registration_report(moved, reference, reference > 0.05)
 
-    assert report["status"] == status
-    assert np.allclose(report["offset_zyx"], -np.array(offset), atol=0.2)
+    report = script.registration_report(moved, reference, reference > 0.05)
+
+    # A 0.15-voxel estimator tolerance is a test property, not a gate allowance.
+    assert np.allclose(report["offset_zyx"], -np.array(offset), atol=0.15)
     assert report["zero_pearson"] > 0.8
 
 
 @pytest.mark.unit
-def test_registration_rejects_empty_and_flat_regions():
-    flat = np.ones((32, 32, 32), dtype=np.float32)
-    empty = stir_script.registration_report(flat, flat, np.zeros_like(flat, bool))
-    assert empty["status"] == "fail"
-    assert "empty" in empty["reason"]
-
-    region = np.ones_like(flat, bool)
-    flat_report = stir_script.registration_report(flat, flat, region)
-    assert flat_report["status"] == "fail"
-    assert "flat" in flat_report["reason"]
-    with pytest.raises(RuntimeError, match="registration failed"):
-        stir_script.accept_registration(flat_report)
+@pytest.mark.parametrize(
+    "distance,expected", [(1.0, True), (1.02, False), (1.05, False)]
+)
+def test_gate_accepts_exactly_one_voxel(script, distance, expected):
+    assert script.passes_gate(distance) is expected
 
 
 @pytest.mark.unit
-def test_near_pass_is_reported_separately_from_a_strict_pass():
+def test_registration_rejects_empty_and_flat_regions(script):
+    flat = np.ones((32, 32, 32), dtype=np.float32)
+    empty = script.registration_report(flat, flat, np.zeros_like(flat, bool))
+    assert empty["status"] == "fail"
+    assert empty["passed"] is False
+    assert "empty" in empty["reason"]
+
+    region = np.ones_like(flat, bool)
+    flat_report = script.registration_report(flat, flat, region)
+    assert flat_report["status"] == "fail"
+    assert flat_report["passed"] is False
+    assert "flat" in flat_report["reason"]
+    with pytest.raises(RuntimeError, match="registration failed"):
+        sirf_script.accept_registration(flat_report)
+
+
+@pytest.mark.unit
+def test_nonfinite_candidate_samples_invalidate_only_that_candidate(script):
     reference = _asymmetric_blob()
-    moved = shift_image(reference, (1.05, 0.0, 0.0), order=3)
-    report = stir_script.registration_report(
-        moved, reference, reference > 0.05, near_pass_voxels=1.1
+    mask = reference > 0.05
+    outside = (~mask) & (reference > 1e-6)
+    # Find a voxel just below the mask in z, so a +1 z shift would pull it in.
+    candidates = np.argwhere(outside)
+    voxel = next(
+        tuple(point)
+        for point in candidates
+        if point[0] + 1 < reference.shape[0] and mask[point[0] + 1, point[1], point[2]]
     )
+    moved = reference.copy()
+    moved[voxel] = np.nan
+    frozen = mask.copy()
+
+    report = script.registration_report(moved, reference, mask)
+
+    assert np.array_equal(mask, frozen)
+    assert report["best_integer_zyx"] != [1, 0, 0]
+    assert np.isfinite(report["best_ncc"])
+    assert report["region_voxels"] == int(frozen.sum())
+
+
+@pytest.mark.unit
+def test_registration_rejects_an_optimum_at_the_search_boundary(script):
+    reference = _asymmetric_blob()
+    moved = shift_image(reference, (7.0, 0.0, 0.0), order=3)
+
+    report = script.registration_report(moved, reference, reference > 0.05, max_shift=5)
 
     assert report["passed"] is False
-    assert report["status"] == "near_pass"
-    stir_script.accept_registration(report, allow_near_pass=True)
-    with pytest.raises(RuntimeError):
-        stir_script.accept_registration(report)
+    assert report["status"] == "fail"
+    assert "boundary" in report["reason"]
+    assert max(abs(value) for value in report["best_integer_zyx"]) == 5
+
+
+@pytest.mark.unit
+def test_quadratic_peak_rejects_invalid_fits(script):
+    assert script.quadratic_peak({}, (0, 0, 0)) is None
+
+    minimum = {
+        (dz, dy, dx): dz**2 + dy**2 + dx**2
+        for dz in (-1, 0, 1)
+        for dy in (-1, 0, 1)
+        for dx in (-1, 0, 1)
+    }
+    assert script.quadratic_peak(minimum, (0, 0, 0)) is None
+
+    unbounded = {
+        (dz, dy, dx): -(dz**2 + dy**2 + dx**2) + 10.0 * dz
+        for dz in (-1, 0, 1)
+        for dy in (-1, 0, 1)
+        for dx in (-1, 0, 1)
+    }
+    assert script.quadratic_peak(unbounded, (0, 0, 0)) is None
+
+    peak = {
+        (dz, dy, dx): -((dz - 0.3) ** 2 + dy**2 + dx**2)
+        for dz in (-1, 0, 1)
+        for dy in (-1, 0, 1)
+        for dx in (-1, 0, 1)
+    }
+    fitted = script.quadratic_peak(peak, (0, 0, 0))
+    assert fitted is not None
+    assert np.allclose(fitted, [0.3, 0.0, 0.0], atol=0.01)
+
+
+@pytest.mark.unit
+def test_failure_records_an_unaccepted_summary_and_clears_stale_maps(tmp_path):
+    (tmp_path / "maps.png").write_bytes(b"stale")
+    (tmp_path / "summary.json").write_text('{"status": "pass"}')
+    (tmp_path / "UNACCEPTED.txt").write_text("stale")
+    stir_script.clear_stale_outputs(tmp_path)
+    assert not (tmp_path / "maps.png").exists()
+    assert not (tmp_path / "summary.json").exists()
+
+    report = {
+        "status": "fail",
+        "passed": False,
+        "reason": "offset 1.450 voxels exceeds the 1.0-voxel gate",
+        "euclidean_voxels": 1.45,
+        "euclidean_mm": 6.17,
+    }
+    assert stir_script.accept_or_report(report, tmp_path) is False
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+    assert summary["status"] == "UNACCEPTED"
+    assert summary["euclidean_voxels"] == pytest.approx(1.45)
+    assert summary["reason"] == report["reason"]
+    assert "one-voxel gate" in (tmp_path / "UNACCEPTED.txt").read_text()
+    assert not (tmp_path / "maps.png").exists()
 
 
 # %%
@@ -355,7 +490,7 @@ def _landmark_checks(hu_grid):
 
 
 @pytest.mark.requires_sirf
-def test_sirf_identity_route_passes_the_native_grid_gate(
+def test_sirf_identity_route_fails_the_fixed_mask_gate(
     y90_data, real_ct, target_affine, tmp_path
 ):
     hu_grid, _ = sirf_script.resample_to_spect(
@@ -364,43 +499,39 @@ def test_sirf_identity_route_passes_the_native_grid_gate(
     coverage = sirf_script.ct_coverage(real_ct.affine, target_affine, real_ct.hu.shape)
     hu_grid[~coverage] = -1000.0
     attenuation = sirf_script.hu_to_attenuation(hu_grid, 150.0)
-    report = sirf_script.registration_report(
-        attenuation,
-        sirf_script.read_umap(y90_data),
-        (hu_grid > -400) & coverage,
-    )
+    umap = sirf_script.read_umap(y90_data)
+    region = sirf_script.registration_mask(coverage, hu_grid, umap, attenuation)
+    report = sirf_script.registration_report(attenuation, umap, region)
 
-    assert report["status"] == "pass"
-    assert report["euclidean_voxels"] <= 1.0
+    assert report["passed"] is False
+    assert report["status"] == "fail"
+    assert report["euclidean_voxels"] > 1.0
     assert report["zero_pearson"] > 0.3
     assert report["region_voxels"] > 100_000
     _landmark_checks(hu_grid)
 
 
 @pytest.mark.requires_stir
-def test_stir_zoom_image_route_is_an_about_one_voxel_near_pass(
+def test_stir_zoom_image_route_fails_the_native_grid_gate(
     y90_data, real_ct, target_affine, tmp_path
 ):
     hu_grid, coverage = stir_script.resample_to_spect(
         real_ct, target_affine, y90_data / "umap_zoomed.hv", tmp_path
     )
     attenuation = stir_script.hu_to_attenuation(hu_grid, 150.0)
-    report = stir_script.registration_report(
-        attenuation,
-        stir_script.read_umap(y90_data),
-        (hu_grid > -400) & coverage,
-        near_pass_voxels=1.1,
-    )
+    umap = stir_script.read_umap(y90_data)
+    region = stir_script.registration_mask(coverage, hu_grid, umap, attenuation)
+    report = stir_script.registration_report(attenuation, umap, region)
 
     assert report["passed"] is False
-    assert report["status"] == "near_pass"
-    assert 1.0 < report["euclidean_voxels"] <= 1.1
+    assert report["status"] == "fail"
+    assert report["euclidean_voxels"] > 1.0
     assert report["zero_pearson"] > 0.5
     _landmark_checks(hu_grid)
 
 
 @pytest.mark.requires_pytomography
-def test_pytomography_corrected_affine_passes_and_conversion_is_compared(
+def test_pytomography_corrected_affine_fails_the_fixed_mask_gate(
     y90_data, real_ct, target_affine, tmp_path
 ):
     files = sorted((y90_data / "ctac").glob("*.dcm"))
@@ -412,15 +543,15 @@ def test_pytomography_corrected_affine_passes_and_conversion_is_compared(
     )
     hu_grid[~coverage] = -1000.0
     mu_grid[~coverage] = 0.0
-    report = pytomography_script.registration_report(
-        mu_grid,
-        pytomography_script.read_umap(y90_data),
-        coverage & (mu_grid > 0),
-    )
+    umap = pytomography_script.read_umap(y90_data)
+    region = pytomography_script.registration_mask(coverage, hu_grid, umap, mu_grid)
+    report = pytomography_script.registration_report(mu_grid, umap, region)
 
-    assert report["status"] == "pass"
-    assert report["euclidean_voxels"] <= 1.0
-    assert report["zero_pearson"] > 0.8
+    assert report["passed"] is False
+    assert report["status"] == "fail"
+    assert report["euclidean_voxels"] > 1.0
+    assert report["zero_pearson"] > 0.3
+    assert report["region_voxels"] > 100_000
     assert np.count_nonzero(mu_grid) > 100_000
     _landmark_checks(hu_grid)
 

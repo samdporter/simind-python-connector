@@ -211,19 +211,39 @@ def read_umap(data_directory):
 # %%
 # Registration report
 # -------------------
-# The metric is computed on the native 4.2578 mm grid before any reduction. It
-# reports the zero-offset Pearson correlation over a fixed phantom-focused
-# region, then searches translations of the CT-derived map over +/-5 voxels
-# for the highest normalised cross-correlation. A quadratic fit over the
-# neighbouring integer shifts refines the peak to subvoxel precision; that fit
-# is quoted to about 0.05 voxel. The offset is signed ``(z, y, x)``. A failed
-# gate stops the tutorial before any accepted map is written.
+# The metric is computed on the native 4.2578 mm grid before any reduction. A
+# fixed body mask is built once from covered voxels with HU above -400 and a
+# positive reference value. The mask never moves; only the CT-derived
+# attenuation map is shifted. The report contains the zero-offset Pearson
+# correlation, then the highest integer-search normalised cross-correlation
+# (NCC) over a +/-5-voxel search and its signed ``(z, y, x)`` shift. A quadratic
+# fit around the best integer shift refines the peak to subvoxel precision when
+# the fit is negative definite, finite and locally bounded; otherwise the
+# integer estimate is kept. The gate is a Euclidean offset of at most one
+# native voxel. A failed gate stops the tutorial before any accepted map is
+# written.
 #
 # ``zoom_image`` resamples from the fine CT grid onto the coarser SPECT grid.
-# Its interpolation and half-voxel conventions leave a residual of about one
-# SPECT voxel even when the geometry is correct. This tutorial therefore
-# classifies the route as a near-pass, "about one voxel", and does not claim a
-# strict pass. The next tutorial shows the SIRF route, which passes.
+# On this dataset the STIR identity route does not meet the one-voxel gate. The
+# anatomy is coincident in the overlays, but the NCC residual is too large;
+# interpolation and smoothing in ``zoom_image`` may affect the measurement. The
+# tutorial therefore reports the STIR route as unaccepted and publishes no
+# density or attenuation maps. The SIRF tutorial gives the route used for the
+# reconstruction.
+
+
+GATE_VOXELS = 1.0
+
+
+def registration_mask(coverage, hu_grid, umap, ct_map):
+    """Return the fixed body region used for every candidate translation."""
+    return (
+        coverage
+        & (hu_grid > -400)
+        & (umap > 0)
+        & np.isfinite(ct_map)
+        & np.isfinite(umap)
+    )
 
 
 def _ncc(first, second, mask):
@@ -233,88 +253,18 @@ def _ncc(first, second, mask):
     return float((first * second).sum() / denominator) if denominator > 0 else np.nan
 
 
-def registration_report(
-    ct_map,
-    reference,
-    region,
-    voxel_size_mm=VOXEL_SIZE_MM,
-    max_shift=5,
-    min_voxels=1000,
-    near_pass_voxels=None,
-):
-    """Measure the CT-to-SPECT offset and decide whether it passes the gate."""
-    region = np.asarray(region, bool) & np.isfinite(ct_map) & np.isfinite(reference)
-    overlap = region & (reference > 0)
-    report = {
-        "region_voxels": int(overlap.sum()),
-        "zero_pearson": None,
-        "best_integer_zyx": None,
-        "best_ncc": None,
-        "offset_zyx": None,
-        "offset_mm": None,
-        "euclidean_voxels": None,
-        "euclidean_mm": None,
-        "passed": False,
-        "near_pass": False,
-        "status": "fail",
-        "reason": "",
-    }
-    if overlap.sum() < min_voxels:
-        report["reason"] = "empty registration region"
-        return report
-    if np.std(ct_map[overlap]) == 0 or np.std(reference[overlap]) == 0:
-        report["reason"] = "flat registration region"
-        return report
-    report["zero_pearson"] = float(
-        np.corrcoef(ct_map[overlap], reference[overlap])[0, 1]
-    )
+def passes_gate(euclidean_voxels):
+    """Return whether a measured offset meets the one-voxel gate."""
+    return euclidean_voxels <= GATE_VOXELS
 
-    occupied = np.argwhere(region)
-    low = np.maximum(occupied.min(axis=0) - max_shift - 2, 0)
-    high = np.minimum(occupied.max(axis=0) + max_shift + 3, region.shape)
-    crop = tuple(slice(start, stop) for start, stop in zip(low, high))
-    ct_crop = ct_map[crop]
-    reference_crop = reference[crop]
-    region_crop = region[crop]
 
-    scores = {}
-    best = (-np.inf, (0, 0, 0))
-    for dz in range(-max_shift, max_shift + 1):
-        for dy in range(-max_shift, max_shift + 1):
-            for dx in range(-max_shift, max_shift + 1):
-                moved = shift_image(
-                    ct_crop, (dz, dy, dx), order=1, mode="constant", cval=0.0
-                )
-                moved_region = (
-                    shift_image(
-                        region_crop.astype(np.uint8),
-                        (dz, dy, dx),
-                        order=0,
-                        mode="constant",
-                        cval=0,
-                    )
-                    > 0
-                )
-                mask = moved_region & (reference_crop > 0)
-                if mask.sum() < min_voxels:
-                    continue
-                score = _ncc(moved, reference_crop, mask)
-                if not np.isfinite(score):
-                    continue
-                scores[(dz, dy, dx)] = score
-                if score > best[0]:
-                    best = (score, (dz, dy, dx))
-    if not scores:
-        report["reason"] = "no overlap survives the translation search"
-        return report
-
-    best_score, best_shift = best
-    refined = np.array(best_shift, float)
+def quadratic_peak(scores, centre):
+    """Return the subvoxel maximum around ``centre``, or None if the fit fails."""
     rows, values = [], []
     for dz in (-1, 0, 1):
         for dy in (-1, 0, 1):
             for dx in (-1, 0, 1):
-                key = (best_shift[0] + dz, best_shift[1] + dy, best_shift[2] + dx)
+                key = (centre[0] + dz, centre[1] + dy, centre[2] + dx)
                 if key not in scores:
                     continue
                 rows.append(
@@ -332,62 +282,126 @@ def registration_report(
                     ]
                 )
                 values.append(scores[key])
-    if len(values) >= 10:
-        coefficients, *_ = np.linalg.lstsq(
-            np.array(rows, float), np.array(values, float), rcond=None
-        )
-        hessian = np.array(
-            [
-                [2 * coefficients[4], coefficients[7], coefficients[8]],
-                [coefficients[7], 2 * coefficients[5], coefficients[9]],
-                [coefficients[8], coefficients[9], 2 * coefficients[6]],
-            ]
-        )
-        gradient = np.array([coefficients[1], coefficients[2], coefficients[3]])
-        if np.linalg.det(hessian) < 0:
-            subvoxel = -np.linalg.solve(hessian, gradient)
-            if np.all(np.abs(subvoxel) <= 1.5):
-                refined = np.array(best_shift, float) + subvoxel
+    if len(values) < 10:
+        return None
+    coefficients, *_ = np.linalg.lstsq(
+        np.array(rows, float), np.array(values, float), rcond=None
+    )
+    if not np.all(np.isfinite(coefficients)):
+        return None
+    hessian = np.array(
+        [
+            [2 * coefficients[4], coefficients[7], coefficients[8]],
+            [coefficients[7], 2 * coefficients[5], coefficients[9]],
+            [coefficients[8], coefficients[9], 2 * coefficients[6]],
+        ]
+    )
+    if not np.all(np.linalg.eigvalsh(hessian) < 0):
+        return None
+    gradient = np.array([coefficients[1], coefficients[2], coefficients[3]])
+    try:
+        subvoxel = -np.linalg.solve(hessian, gradient)
+    except np.linalg.LinAlgError:
+        return None
+    if not np.all(np.isfinite(subvoxel)) or np.max(np.abs(subvoxel)) > 1.0:
+        return None
+    return subvoxel
+
+
+def registration_report(
+    ct_map,
+    reference,
+    mask,
+    voxel_size_mm=VOXEL_SIZE_MM,
+    max_shift=5,
+    min_voxels=1000,
+):
+    """Measure the CT-to-SPECT offset on a fixed mask and apply the gate."""
+    ct_map = np.asarray(ct_map, float)
+    reference = np.asarray(reference, float)
+    mask = np.asarray(mask, bool) & np.isfinite(ct_map) & np.isfinite(reference)
+    report = {
+        "region_voxels": int(mask.sum()),
+        "zero_pearson": None,
+        "best_integer_zyx": None,
+        "best_ncc": None,
+        "best_ncc_definition": "integer-search NCC",
+        "offset_zyx": None,
+        "offset_mm": None,
+        "euclidean_voxels": None,
+        "euclidean_mm": None,
+        "refined_by": "integer",
+        "passed": False,
+        "status": "fail",
+        "reason": "",
+    }
+    if mask.sum() < min_voxels:
+        report["reason"] = "empty registration region"
+        return report
+    if np.std(ct_map[mask]) == 0 or np.std(reference[mask]) == 0:
+        report["reason"] = "flat registration region"
+        return report
+    report["zero_pearson"] = float(np.corrcoef(ct_map[mask], reference[mask])[0, 1])
+
+    # Crop to the mask plus the search margin so the search stays local.
+    occupied = np.argwhere(mask)
+    low = np.maximum(occupied.min(axis=0) - max_shift - 2, 0)
+    high = np.minimum(occupied.max(axis=0) + max_shift + 3, mask.shape)
+    crop = tuple(slice(start, stop) for start, stop in zip(low, high))
+    ct_crop = ct_map[crop]
+    reference_crop = reference[crop]
+    mask_crop = mask[crop]
+
+    scores = {}
+    best = (-np.inf, (0, 0, 0))
+    for dz in range(-max_shift, max_shift + 1):
+        for dy in range(-max_shift, max_shift + 1):
+            for dx in range(-max_shift, max_shift + 1):
+                moved = shift_image(
+                    ct_crop, (dz, dy, dx), order=1, mode="constant", cval=0.0
+                )
+                if not np.all(np.isfinite(moved[mask_crop])):
+                    continue
+                score = _ncc(moved, reference_crop, mask_crop)
+                if not np.isfinite(score):
+                    continue
+                scores[(dz, dy, dx)] = score
+                if score > best[0]:
+                    best = (score, (dz, dy, dx))
+    if not scores:
+        report["reason"] = "no overlap survives the translation search"
+        return report
+
+    best_score, best_shift = best
+    report["best_integer_zyx"] = [int(value) for value in best_shift]
+    report["best_ncc"] = float(best_score)
+    if max(abs(value) for value in best_shift) == max_shift:
+        report["reason"] = "best integer shift reaches the search boundary"
+        return report
+
+    refined = np.array(best_shift, float)
+    subvoxel = quadratic_peak(scores, best_shift)
+    if subvoxel is not None:
+        refined += subvoxel
+        report["refined_by"] = "quadratic"
 
     distance = float(np.linalg.norm(refined))
     report.update(
         {
-            "best_integer_zyx": [int(value) for value in best_shift],
-            "best_ncc": float(best_score),
             "offset_zyx": refined.tolist(),
             "offset_mm": (refined * voxel_size_mm).tolist(),
             "euclidean_voxels": distance,
             "euclidean_mm": distance * voxel_size_mm,
-            # The subvoxel fit is quoted to about 0.05 voxel.
-            "passed": distance <= 1.0 + 0.05,
+            "passed": passes_gate(distance),
         }
     )
     if report["passed"]:
         report["status"] = "pass"
-    elif near_pass_voxels is not None and distance <= near_pass_voxels:
-        report["near_pass"] = True
-        report["status"] = "near_pass"
     else:
-        report["reason"] = f"offset {distance:.3f} voxels exceeds the gate"
-    return report
-
-
-def accept_registration(report, allow_near_pass=False):
-    """Return normally for an accepted report; otherwise stop the tutorial."""
-    if report["status"] == "pass":
-        return
-    if allow_near_pass and report["status"] == "near_pass":
-        print(
-            "Registration near-pass: "
-            f"{report['euclidean_voxels']:.3f} voxels "
-            f"({report['euclidean_mm']:.2f} mm), treated as about one voxel."
+        report["reason"] = (
+            f"offset {distance:.3f} voxels exceeds the {GATE_VOXELS:.1f}-voxel gate"
         )
-        return
-    raise RuntimeError(
-        "CT-to-SPECT registration failed: "
-        f"{report['reason'] or report['status']}. Diagnostics were written before "
-        "any map was produced."
-    )
+    return report
 
 
 # %%
@@ -518,10 +532,14 @@ def save_registration_overlay(path, ct_map, umap, report):
         axis.imshow(np.dstack([ct_plane, reference_plane, np.zeros_like(ct_plane)]))
         axis.set_title(title)
         axis.axis("off")
-    figure.suptitle(
-        f"CT (red) and umap (green): {report['euclidean_voxels']:.3f} voxels, "
-        f"{report['euclidean_mm']:.2f} mm ({report['status']})"
-    )
+    if report["euclidean_voxels"] is None:
+        outcome = report["reason"] or "no registration"
+    else:
+        outcome = (
+            f"{report['euclidean_voxels']:.3f} voxels, "
+            f"{report['euclidean_mm']:.2f} mm ({report['status']})"
+        )
+    figure.suptitle(f"CT (red) and umap (green): {outcome}")
     figure.tight_layout()
     figure.savefig(path, dpi=130)
 
@@ -556,6 +574,51 @@ def save_json(path, payload):
         json.dump(payload, stream, indent=1)
 
 
+def clear_stale_outputs(output_directory):
+    """Remove earlier accepted results so a rerun cannot present them as current."""
+    for name in (
+        "maps.png",
+        "summary.json",
+        "registration.json",
+        "registration_overlay.png",
+        "UNACCEPTED.txt",
+    ):
+        (Path(output_directory) / name).unlink(missing_ok=True)
+
+
+def write_unaccepted_summary(output_directory, report):
+    """Record that the gate failed and that no accepted maps were published."""
+    summary = {
+        "status": "UNACCEPTED",
+        "reason": report["reason"],
+        "euclidean_voxels": report["euclidean_voxels"],
+        "euclidean_mm": report["euclidean_mm"],
+        "registration": report,
+    }
+    if report["euclidean_voxels"] is None:
+        detail = f"Reason: {report['reason']}\n"
+    else:
+        detail = (
+            f"Residual: {report['euclidean_voxels']:.3f} voxels "
+            f"({report['euclidean_mm']:.2f} mm).\n"
+            f"Reason: {report['reason']}\n"
+        )
+    save_json(Path(output_directory) / "summary.json", summary)
+    (Path(output_directory) / "UNACCEPTED.txt").write_text(
+        "Registration did not meet the one-voxel gate.\n"
+        + detail
+        + "No density or attenuation maps were published.\n"
+    )
+
+
+def accept_or_report(report, output_directory):
+    """Return True to continue; record an unaccepted result and return False."""
+    if report["passed"]:
+        return True
+    write_unaccepted_summary(output_directory, report)
+    return False
+
+
 # %%
 # Run the tutorial
 # ----------------
@@ -570,6 +633,7 @@ def run():
         / "stir"
     )
     output_directory.mkdir(parents=True, exist_ok=True)
+    clear_stale_outputs(output_directory)
 
     ct_series = read_ct_series(data_directory / "ctac")
     target_affine = patient_to_spect_affine(data_directory / "peak.dcm", ct_series)
@@ -590,21 +654,38 @@ def run():
 
     umap = read_umap(data_directory)
     attenuation = hu_to_attenuation(hu_grid, ENERGY_KEV).astype(np.float32)
-    density = hu_to_density_schneider(hu_grid).astype(np.float32)
 
-    region = (hu_grid > -400) & coverage
-    report = registration_report(attenuation, umap, region, near_pass_voxels=1.1)
+    region = registration_mask(coverage, hu_grid, umap, attenuation)
+    report = registration_report(attenuation, umap, region)
     report["coverage_fraction"] = float(coverage.mean())
     save_json(output_directory / "registration.json", report)
     save_registration_overlay(
         output_directory / "registration_overlay.png", attenuation, umap, report
     )
-    accept_registration(report, allow_near_pass=True)
-
     print(
         "Registration: zero-offset Pearson "
-        f"{report['zero_pearson']:.4f}, best NCC {report['best_ncc']:.4f}"
+        f"{report['zero_pearson']:.4f}, best integer NCC {report['best_ncc']:.4f} "
+        f"at {report['best_integer_zyx']}"
     )
+    print(f"Fixed mask: {report['region_voxels']} voxels")
+    if not accept_or_report(report, output_directory):
+        print(
+            "Offset (z, y, x): "
+            f"{np.round(report['offset_zyx'], 3)} voxels = "
+            f"{np.round(report['offset_mm'], 2)} mm"
+        )
+        print(
+            f"Euclidean: {report['euclidean_voxels']:.3f} voxels = "
+            f"{report['euclidean_mm']:.2f} mm -> UNACCEPTED "
+            f"({report['reason']})"
+        )
+        print(
+            "The STIR route is reported as unaccepted; no density or attenuation "
+            "maps were published."
+        )
+        return
+
+    density = hu_to_density_schneider(hu_grid).astype(np.float32)
     print(
         "Offset (z, y, x): "
         f"{np.round(report['offset_zyx'], 3)} voxels = "
@@ -612,8 +693,7 @@ def run():
     )
     print(
         f"Euclidean: {report['euclidean_voxels']:.3f} voxels = "
-        f"{report['euclidean_mm']:.2f} mm -> {report['status'].upper()} "
-        "('about one voxel')"
+        f"{report['euclidean_mm']:.2f} mm -> {report['status'].upper()}"
     )
 
     air = (hu_grid < -900) & coverage
