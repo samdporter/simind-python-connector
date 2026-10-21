@@ -897,7 +897,7 @@ def build_additive(
 
 
 def damped_additive(previous, estimate, damping=DAMPING, floor=1e-5):
-    """Additive term after one damped update; the first call primes the term."""
+    """Return a damped additive update; a zero previous term gives a half-strength first estimate when damping is 0.5."""  # noqa: E501
     previous = np.asarray(previous, float)
     estimate = np.asarray(estimate, float)
     if previous.shape != estimate.shape:
