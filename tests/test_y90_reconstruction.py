@@ -563,6 +563,78 @@ def test_centre_sensitivity_reports_ordering_changes():
     )
 
 
+@pytest.mark.unit
+def test_centre_sensitivity_pm1_cube_includes_the_nominal_centre():
+    shape = (16, 16, 16)
+    affine = _centred_affine(shape)
+    liver_fraction = np.ones(shape)
+    k, j, i = np.meshgrid(*[np.arange(axis) for axis in shape], indexing="ij")
+    image = np.ones(shape) + 0.1 * i
+
+    # With a single offset the ±1 cube is exactly {(0, 0, 0)}: a selection that
+    # drops the nominal centre would leave the cube empty and raise instead of
+    # reporting a range.
+    result = script.centre_sensitivity(
+        {"first": image}, liver_fraction, affine, offsets=(0,)
+    )
+
+    combined = result["combined"]
+    assert result["centres"] == 1
+    assert combined["pm1_min"] == pytest.approx(combined["nominal_min"])
+    assert combined["pm1_max"] == pytest.approx(combined["nominal_max"])
+
+
+@pytest.mark.unit
+def test_centre_sensitivity_pm1_range_reflects_an_extremum_at_the_nominal_centre():
+    shape = (16, 16, 16)
+    affine = _centred_affine(shape)
+    sphere = script.sphere_fraction(
+        script.SPHERE_CENTRE_MM, script.SPHERE_RADIUS_MM, affine, shape=shape
+    )
+    liver_fraction = np.ones(shape)
+    image = np.ones(shape)
+    image[sphere > 0] = 4.0
+
+    # The hot region sits exactly at the frozen centre, so shifting the VOI
+    # away lowers the sphere-to-liver ratio: the nominal centre is the maximum.
+    result = script.centre_sensitivity({"first": image}, liver_fraction, affine)
+
+    nominal = script.voi_ratio(
+        image, sphere, script.liver_excluding_sphere(liver_fraction, sphere)
+    )
+    combined = result["combined"]
+    assert combined["all_max"] == pytest.approx(nominal)
+    assert combined["pm1_max"] == pytest.approx(nominal)
+    assert combined["pm1_min"] <= nominal <= combined["pm1_max"]
+
+
+@pytest.mark.unit
+def test_centre_sensitivity_pm2_cube_covers_every_offset():
+    shape = (16, 16, 16)
+    affine = _centred_affine(shape)
+    liver_fraction = np.ones(shape)
+    k, j, i = np.meshgrid(*[np.arange(axis) for axis in shape], indexing="ij")
+    first = np.ones(shape) + 0.1 * i
+    second = np.ones(shape) + 0.1 * j
+
+    result = script.centre_sensitivity(
+        {"first": first, "second": second}, liver_fraction, affine
+    )
+
+    assert result["centres"] == 125
+    assert set(result["offsets_voxels"]) == {-2, -1, 0, 1, 2}
+    combined = result["combined"]
+    assert combined["pm2_min"] == pytest.approx(combined["all_min"])
+    assert combined["pm2_max"] == pytest.approx(combined["all_max"])
+    assert combined["pm2_min"] <= combined["nominal_min"]
+    assert combined["nominal_max"] <= combined["pm2_max"]
+    for values in result["strategies"].values():
+        assert values["pm2_min"] == pytest.approx(values["all_min"])
+        assert values["pm2_max"] == pytest.approx(values["all_max"])
+        assert values["pm1_min"] >= values["pm2_min"]
+        assert values["pm1_max"] <= values["pm2_max"]
+
+
 # %%
 # Geometry and reduction
 

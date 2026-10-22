@@ -780,8 +780,10 @@ def centre_sensitivity(
     The radius, liver segmentation and images stay fixed. Offsets are applied
     independently to each array component and converted to patient space
     through ``target_affine``. The nominal centre is the frozen
-    ``SPHERE_CENTRE_MM``. The returned ranges are sensitivities, not confidence
-    intervals, and no centre is selected.
+    ``SPHERE_CENTRE_MM``; the ±1 range covers every offset in the cube
+    {-1, 0, 1}^3, including (0, 0, 0), and ±2 likewise covers its full cube.
+    The returned ranges are sensitivities, not confidence intervals, and no
+    centre is selected.
     """
     images = {name: np.asarray(image, float) for name, image in images.items()}
     if not images:
@@ -812,7 +814,9 @@ def centre_sensitivity(
         return float(min(values)), float(max(values))
 
     all_keys = list(records)
-    pm1_keys = [key for key in all_keys if max(abs(value) for value in key) == 1]
+    # The reported ±1 range is the full cube {-1, 0, 1}^3, which includes the
+    # frozen nominal centre (0, 0, 0), so an extremum there is not omitted.
+    pm1_keys = [key for key in all_keys if max(abs(value) for value in key) <= 1]
     pm2_keys = [key for key in all_keys if max(abs(value) for value in key) <= 2]
 
     strategies = {}
@@ -2109,11 +2113,13 @@ def run(strict=True):
     # ------------------
     # Offsets of -2 to +2 native voxels per component give 125 candidate
     # centres. The sphere radius, liver segmentation and images stay fixed.
-    # These are sensitivity ranges, not confidence intervals; no centre is
-    # selected.
+    # The analysis covers the four corrected strategies (``valid_names``), not
+    # the baseline. These are sensitivity ranges, not confidence intervals; no
+    # centre is selected.
     print(
-        "125-centre sensitivity (native-voxel centre offsets; ranges, not "
-        "confidence intervals):"
+        "125-centre sensitivity for the four corrected strategies "
+        "(native-voxel centre offsets; ranges, not confidence intervals; the "
+        "baseline is not included):"
     )
     sensitivity = centre_sensitivity(
         {name: final_images[name] for name in valid_names},
@@ -2137,9 +2143,9 @@ def run(strict=True):
         f"{combined['pm2_min']:.3f}-{combined['pm2_max']:.3f}"
     )
     print(
-        f"  strategy ordering changed in "
-        f"{sensitivity['ordering_changes_over_125']} of 125 centres; "
-        "no centre was selected"
+        "  strategy ordering among the four corrected strategies changed in "
+        f"{sensitivity['ordering_changes_over_125']} of 125 centres; the "
+        "baseline is not part of this count; no centre was selected"
     )
 
     # %%
@@ -2390,7 +2396,8 @@ def run(strict=True):
     # conventions are plausible contributors, not a demonstrated complete
     # explanation.
     #
-    # The nominal strategy ordering changed in 86 of 125 centres. These results
+    # The nominal ordering among the four corrected strategies changed in 86
+    # of 125 centres (the baseline is not part of that count). These results
     # do not support a robust strategy ranking or quantitative superiority
     # claim.
     #
