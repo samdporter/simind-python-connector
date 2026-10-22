@@ -68,6 +68,7 @@ def test_adaptor_examples_import_only_their_backend(name: str, backend: str):
         ("real_data/plot_16b_sirf_ct_conversion.py", "sirf"),
         ("real_data/plot_16c_pytomography_ct_conversion.py", "pytomography"),
         ("real_data/plot_17_y90_effective_energy.py", "sirf"),
+        ("real_data/plot_18_y90_mc_scatter.py", "sirf"),
     ],
 )
 def test_phantom_and_reconstruction_examples_import_only_their_backend(

@@ -773,6 +773,7 @@ def save_attenuation_maps(path, attenuation_150, attenuation_weighted):
     plt = _pyplot()
     slice_index = int(round(63.5))
     difference = attenuation_weighted[slice_index] - attenuation_150[slice_index]
+    limit = float(np.max(np.abs(difference)))
     maps = [
         (attenuation_150[slice_index], "Attenuation at 150 keV", "magma", 0.0, 0.25),
         (
@@ -782,7 +783,7 @@ def save_attenuation_maps(path, attenuation_150, attenuation_weighted):
             0.0,
             0.25,
         ),
-        (difference, "Weighted minus 150 keV", "magma", 0.0, 0.03),
+        (difference, "Weighted minus 150 keV", "coolwarm", -limit, limit),
     ]
     figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
     for axis, (image, title, cmap, low, high) in zip(axes, maps):

@@ -24,15 +24,17 @@ SIRF projection from DICOM
 Create a SIRF projection object from a DICOM NM projection file. The data
 is a Y-90 bremsstrahlung study: a Mediso
 AnyScan acquisition of 120 views over 360 degrees, 128 x 128 bins of
-4.2578 mm and a 75-225 keV window. It is fetched with ``fetch_y90_phantom``.
+4.2578 mm and a 75-225 keV window. The script takes no path argument:
+``fetch_y90_phantom`` reads the directory named by
+``SIMIND_CONNECTOR_Y90_DATA``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 12-15
+.. GENERATED FROM PYTHON SOURCE LINES 14-17
 
 Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 15-35
+.. GENERATED FROM PYTHON SOURCE LINES 17-37
 
 .. code-block:: Python
 
@@ -63,7 +65,7 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 36-41
+.. GENERATED FROM PYTHON SOURCE LINES 38-43
 
 Build the SIRF projection data
 ------------------------------
@@ -71,7 +73,7 @@ The builder fills an Interfile header from the DICOM metadata and writes
 the projection counts next to it. The result is read back as SIRF
 ``AcquisitionData``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 41-54
+.. GENERATED FROM PYTHON SOURCE LINES 43-56
 
 .. code-block:: Python
 
@@ -106,13 +108,13 @@ the projection counts next to it. The result is read back as SIRF
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 55-58
+.. GENERATED FROM PYTHON SOURCE LINES 57-60
 
 Plot two views
 --------------
 Views 0 and 30 of the 120 views, 90 degrees apart.
 
-.. GENERATED FROM PYTHON SOURCE LINES 58-70
+.. GENERATED FROM PYTHON SOURCE LINES 60-72
 
 .. code-block:: Python
 
@@ -143,7 +145,7 @@ Views 0 and 30 of the 120 views, 90 degrees apart.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.335 seconds)
+   **Total running time of the script:** (0 minutes 0.954 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08b_sirf_adaptor_from_dicom.py:

@@ -205,9 +205,10 @@ Work through them in this order:
    the pair is a model comparison, not an accuracy ranking.
 
 4. The :doc:`Monte Carlo scatter tutorial
-   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) compares Monte
-   Carlo scatter strategies on a common reconstruction schedule and reports
-   the reconstructed sphere-to-liver activity-concentration ratio against the
-   truth value of 4.0. Its absolute activity scale comes from a relative
-   calibration, so read the reported activities as comparisons between
-   strategies rather than as independently calibrated values.
+   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) is an audited
+   diagnostic negative result, not a passing quantitative tutorial. It compares
+   Monte Carlo scatter strategies on a common reconstruction schedule, but the
+   global-scaling arm collapsed and is not quantitatively interpretable, the
+   nominal sphere-to-liver ratios are centre-sensitive and do not support a
+   strategy ranking, and statistical adequacy was not established. Read the
+   page's quality warning and gate table before using any number from it.

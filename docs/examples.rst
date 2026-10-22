@@ -24,8 +24,8 @@ The gallery has six sections:
   correction with CIL ISTA and a relative-difference prior with SVRG.
 - :doc:`Real Y-90 data <auto_examples/real_data/index>`: CT-to-SPECT
   conversion in STIR, SIRF and PyTomography, the Y-90 effective attenuation
-  energy, and Monte Carlo scatter strategies. The data are local for now; see
-  :doc:`datasets`.
+  energy, and a Monte Carlo scatter comparison published as a diagnostic
+  negative result. The data are local for now; see :doc:`datasets`.
 
 Examples that simulate need a working SIMIND installation, and backend examples
 need that backend installed. The NEMA examples also need phantomgen; its

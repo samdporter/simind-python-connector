@@ -24,15 +24,17 @@ PyTomography projection from DICOM
 Create a PyTomography projection tensor from a DICOM NM projection file,
 following PyTomography's DICOM IO API. The data is a Y-90 bremsstrahlung
 study: a Mediso AnyScan acquisition of 120 views over 360 degrees, 128 x 128
-bins of 4.2578 mm and a 75-225 keV window. It is fetched with ``fetch_y90_phantom``.
+bins of 4.2578 mm and a 75-225 keV window. The script takes no path argument:
+``fetch_y90_phantom`` reads the directory named by
+``SIMIND_CONNECTOR_Y90_DATA``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 12-15
+.. GENERATED FROM PYTHON SOURCE LINES 14-17
 
 Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 15-34
+.. GENERATED FROM PYTHON SOURCE LINES 17-36
 
 .. code-block:: Python
 
@@ -62,14 +64,14 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 35-39
+.. GENERATED FROM PYTHON SOURCE LINES 37-41
 
 Load the projections
 --------------------
 ``get_projections`` returns a tensor ordered (theta, r, z). ``index_peak=0``
 selects the first energy window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 39-47
+.. GENERATED FROM PYTHON SOURCE LINES 41-49
 
 .. code-block:: Python
 
@@ -95,7 +97,7 @@ selects the first energy window.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 48-55
+.. GENERATED FROM PYTHON SOURCE LINES 50-57
 
 Plot two views
 --------------
@@ -105,7 +107,7 @@ mod 360, so its view k is DICOM frame (k + 60) mod 120 and frame 0 is view 60.
 The tensor is transposed and drawn with ``origin="lower"`` so rows are axial
 with the head end up, and columns are radial.
 
-.. GENERATED FROM PYTHON SOURCE LINES 55-66
+.. GENERATED FROM PYTHON SOURCE LINES 57-68
 
 .. code-block:: Python
 
@@ -135,7 +137,7 @@ with the head end up, and columns are radial.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 7.858 seconds)
+   **Total running time of the script:** (0 minutes 5.057 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py:

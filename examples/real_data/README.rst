@@ -34,3 +34,16 @@ reference and is never converted to density.
 
 The tutorials need NumPy, pydicom, matplotlib and SciPy. The SIRF tutorial
 also needs nibabel. All three need the matching backend.
+
+The remaining two tutorials use the same dataset:
+
+- ``plot_17_y90_effective_energy.py`` (SIRF) compares a single 150-keV
+  attenuation map with one weighted by the detected 75-225 keV spectrum, using
+  two otherwise identical reconstructions that both omit scatter.
+- ``plot_18_y90_mc_scatter.py`` (SIRF) compares Monte Carlo scatter strategies
+  on a common reconstruction schedule. It is an audited diagnostic negative
+  result, not a passing quantitative tutorial: the global-scaling arm collapsed
+  and is not quantitatively interpretable, the nominal sphere-to-liver ratios
+  are sensitive to the frozen sphere centre and do not support a strategy
+  ranking, and statistical adequacy was not established. The page reports
+  every failed or inconclusive quality gate.
