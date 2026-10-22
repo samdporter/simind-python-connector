@@ -1,10 +1,22 @@
 """
-Y-90 reconstruction with Monte Carlo scatter
-============================================
+Y-90 reconstruction with Monte Carlo scatter: an audited negative result
+========================================================================
+
+.. important::
+   This tutorial reports an audited negative result. Statistical adequacy was
+   not established: the smoothed-scatter seed L1 was 6.24% against a 5% gate,
+   the known-activity two-refresh change was 6.22% against 5%, and the
+   history-doubling check did not establish native-geometry convergence. The
+   Dewaraja global arm collapsed in this configuration and is shown only as a
+   diagnostic; it is not quantitatively interpretable and it is not ranked
+   against the other strategies. The primary ratios are sensitive to the
+   frozen sphere centre, and the results do not support a robust strategy
+   ranking or a quantitative superiority claim.
 
 Reconstruct a measured Y-90 phantom acquisition with SIRF OSEM and a SIMIND
-Monte Carlo scatter estimate, and compare five ways of putting that estimate on
-the scale of the data plus an uncorrected baseline.
+Monte Carlo scatter estimate, and compare four usable ways of putting that
+estimate on the scale of the data plus an uncorrected baseline. A fifth route,
+the paper's global scaling, is reported separately as a diagnostic failure.
 
 The data are the measured 120-view acquisition (``peak.hs``, 75-225 keV,
 4.2578 mm bins) of a liver phantom with a hot sphere. The scatter model is
@@ -21,14 +33,21 @@ The five corrections are:
 2. **Reference, sum.** SIMIND's geometric primary is scaled to the fast
    model's forward projection of the same image, with the ratio of sums.
 3. **Reference, trimmed.** The same with a trimmed mean of the bin ratios.
-4. **Dewaraja, global.** One factor scales SIMIND's total to the measured
-   data (Dewaraja et al., Med Phys 44:6364, 2017).
+4. **Dewaraja, global (diagnostic only).** One factor scales SIMIND's total to
+   the measured data (Dewaraja et al., Med Phys 44:6364, 2017). This arm
+   collapsed in this configuration; its image and ratio are kept as a
+   diagnostic and are not compared with the compartment estimates.
 5. **Dewaraja, pixel-wise.** SIMIND's scatter fraction in each bin times the
    measured data, as in the same paper, smoothed over 3 bins including the
    view axis.
 
 The baseline reconstructs the same data with a zero additive term and no
 refresh.
+
+The tutorial reproduces the paper's normalisation algebra, not its full
+physical experiment: the measured window is 75-225 keV rather than
+105-195 keV, the collimator is a library MA-MLEGP definition, and the primary
+model is geometric SPECTUB without a point-spread function.
 
 Schedule: one common zero-additive pass, one shared first-refresh SIMIND run
 from that image, one strategy-specific second-refresh SIMIND run for each of
@@ -57,6 +76,7 @@ The Y-90 phantom data are not published for download yet. Set
 import json
 import os
 import time
+import warnings
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from multiprocessing import get_context
@@ -143,6 +163,11 @@ SLUGS = {
     "Dewaraja, pixel-wise": "pixelwise",
 }
 BASELINE = "Baseline"
+GLOBAL_STRATEGY = "Dewaraja, global"
+GLOBAL_HEADING = (
+    "Global scaling — collapsed; diagnostic only, not quantitatively interpretable"
+)
+DIAGNOSTIC_LABELS = {GLOBAL_STRATEGY: "Global scaling"}
 
 
 # %%
@@ -610,12 +635,32 @@ def resample_mask(mask, ct_affine, target_affine, supersample=4):
     return fraction / supersample**3
 
 
-def sphere_fraction(centre_mm, radius_mm, target_affine, supersample=4):
-    """Fractional occupancy of a sphere centred at a fixed patient position."""
-    offsets = (np.arange(supersample) + 0.5) / supersample - 0.5
-    axes = [np.arange(MATRIX_SIZE) for _ in range(3)]
+def sphere_fraction(centre_mm, radius_mm, target_affine, shape=None, supersample=4):
+    """Fractional occupancy of a sphere centred at a fixed patient position.
+
+    Only the voxels near the sphere are evaluated; the rest of the returned
+    array is zero.
+    """
+    shape = (MATRIX_SIZE,) * 3 if shape is None else tuple(int(v) for v in shape)
+    fraction = np.zeros(shape, np.float32)
+    centre_mm = np.asarray(centre_mm, float)
+    axes = []
+    for size, spacing, origin, value in (
+        (shape[0], target_affine[2, 2], target_affine[2, 3], centre_mm[2]),
+        (shape[1], target_affine[1, 1], target_affine[1, 3], centre_mm[1]),
+        (shape[2], target_affine[0, 0], target_affine[0, 3], centre_mm[0]),
+    ):
+        index = (value - origin) / spacing
+        half_width = radius_mm / abs(spacing) + 2.0
+        low = max(int(np.floor(index - half_width)), 0)
+        high = min(int(np.ceil(index + half_width)) + 1, size)
+        axes.append(np.arange(low, high))
+    if any(axis.size == 0 for axis in axes):
+        return fraction
+
     k, j, i = np.meshgrid(*axes, indexing="ij")
-    fraction = np.zeros((MATRIX_SIZE,) * 3, np.float32)
+    local = np.zeros(k.shape, np.float32)
+    offsets = (np.arange(supersample) + 0.5) / supersample - 0.5
     for sz in offsets:
         for sy in offsets:
             for sx in offsets:
@@ -627,8 +672,13 @@ def sphere_fraction(centre_mm, radius_mm, target_affine, supersample=4):
                     + (y - centre_mm[1]) ** 2
                     + (z - centre_mm[2]) ** 2
                 )
-                fraction += (distance <= radius_mm).astype(np.float32)
-    return fraction / supersample**3
+                local += (distance <= radius_mm).astype(np.float32)
+    low = [int(axis[0]) for axis in axes]
+    high = [int(axis[-1]) + 1 for axis in axes]
+    fraction[low[0] : high[0], low[1] : high[1], low[2] : high[2]] = (
+        local / supersample**3
+    )
+    return fraction
 
 
 def liver_excluding_sphere(liver, sphere):
@@ -716,6 +766,102 @@ def voi_ratio(image, sphere, liver):
     if numerator <= 0.0 or denominator <= 0.0:
         raise ValueError("nonpositive sphere or liver mean")
     return numerator / denominator
+
+
+def centre_sensitivity(
+    images,
+    liver_fraction,
+    target_affine,
+    radius_mm=SPHERE_RADIUS_MM,
+    offsets=(-2, -1, 0, 1, 2),
+):
+    """Ratio ranges over native-voxel shifts of the fixed sphere centre.
+
+    The radius, liver segmentation and images stay fixed. Offsets are applied
+    independently to each array component and converted to patient space
+    through ``target_affine``. The nominal centre is the frozen
+    ``SPHERE_CENTRE_MM``. The returned ranges are sensitivities, not confidence
+    intervals, and no centre is selected.
+    """
+    images = {name: np.asarray(image, float) for name, image in images.items()}
+    if not images:
+        raise ValueError("at least one image is required")
+    shape = next(iter(images.values())).shape
+    offsets = tuple(int(value) for value in offsets)
+    nominal_centre = np.asarray(SPHERE_CENTRE_MM, float)
+
+    records = {}
+    for dz in offsets:
+        for dy in offsets:
+            for dx in offsets:
+                shift = target_affine[:3, :3] @ np.array([dx, dy, dz], float)
+                sphere = sphere_fraction(
+                    nominal_centre + shift,
+                    radius_mm,
+                    target_affine,
+                    shape=shape,
+                )
+                liver = liver_excluding_sphere(liver_fraction, sphere)
+                records[(dz, dy, dx)] = {
+                    name: voi_ratio(image, sphere, liver)
+                    for name, image in images.items()
+                }
+
+    def bounds(keys):
+        values = [records[key][name] for key in keys for name in images]
+        return float(min(values)), float(max(values))
+
+    all_keys = list(records)
+    pm1_keys = [key for key in all_keys if max(abs(value) for value in key) == 1]
+    pm2_keys = [key for key in all_keys if max(abs(value) for value in key) <= 2]
+
+    strategies = {}
+    for name in images:
+        per_all = [records[key][name] for key in all_keys]
+        per_pm1 = [records[key][name] for key in pm1_keys]
+        per_pm2 = [records[key][name] for key in pm2_keys]
+        strategies[name] = {
+            "nominal": records[(0, 0, 0)][name],
+            "all_min": float(min(per_all)),
+            "all_max": float(max(per_all)),
+            "pm1_min": float(min(per_pm1)),
+            "pm1_max": float(max(per_pm1)),
+            "pm2_min": float(min(per_pm2)),
+            "pm2_max": float(max(per_pm2)),
+        }
+
+    def ordering(values):
+        ordered = sorted(values.items(), key=lambda item: item[1], reverse=True)
+        return [name for name, _ in ordered]
+
+    nominal_order = ordering(records[(0, 0, 0)])
+    ordering_changes = sum(
+        1 for values in records.values() if ordering(values) != nominal_order
+    )
+    combined_all = bounds(all_keys)
+    combined_pm1 = bounds(pm1_keys)
+    combined_pm2 = bounds(pm2_keys)
+    nominal_values = list(records[(0, 0, 0)].values())
+    return {
+        "offsets_voxels": list(offsets),
+        "centres": len(records),
+        "strategies": strategies,
+        "combined": {
+            "nominal_min": float(min(nominal_values)),
+            "nominal_max": float(max(nominal_values)),
+            "all_min": combined_all[0],
+            "all_max": combined_all[1],
+            "pm1_min": combined_pm1[0],
+            "pm1_max": combined_pm1[1],
+            "pm2_min": combined_pm2[0],
+            "pm2_max": combined_pm2[1],
+        },
+        "ordering_nominal": nominal_order,
+        "ordering_changes_over_125": int(ordering_changes),
+        "note": (
+            "Sensitivity ranges, not confidence intervals; no centre was selected."
+        ),
+    }
 
 
 def calibrate_to_total(image, support, total_mbq=TOTAL_MBQ):
@@ -897,7 +1043,11 @@ def build_additive(
 
 
 def damped_additive(previous, estimate, damping=DAMPING, floor=1e-5):
-    """Return a damped additive update; a zero previous term gives a half-strength first estimate when damping is 0.5."""  # noqa: E501
+    """Return a damped additive update.
+
+    A zero previous term gives a half-strength first estimate when damping is
+    0.5.
+    """
     previous = np.asarray(previous, float)
     estimate = np.asarray(estimate, float)
     if previous.shape != estimate.shape:
@@ -1419,22 +1569,33 @@ def save_voi_overlay(path, reference, liver, sphere):
     plt.close(figure)
 
 
-def save_reconstructions(path, images, titles, slice_index):
+def save_reconstructions(path, images, titles, slice_index, vmax=None, title=None):
     plt = _pyplot()
     values = [image[slice_index] for image in images]
-    high = max(float(np.percentile(value[value > 0], 99.5)) for value in values)
+    shared = vmax is not None
+    if vmax is None:
+        vmax = max(float(np.percentile(value[value > 0], 99.5)) for value in values)
     columns = 3
     rows = int(np.ceil(len(values) / columns))
     figure, axes = plt.subplots(rows, columns, figsize=(4 * columns, 4 * rows))
-    for axis, title, value in zip(np.ravel(axes), titles, values):
-        shown = axis.imshow(value, cmap="magma", vmin=0.0, vmax=high)
-        axis.set_title(title)
+    for axis, panel_title, value in zip(np.ravel(axes), titles, values):
+        shown = axis.imshow(value, cmap="magma", vmin=0.0, vmax=vmax)
+        axis.set_title(panel_title)
         axis.axis("off")
     for axis in np.ravel(axes)[len(values) :]:
         axis.axis("off")
-    figure.colorbar(shown, ax=np.ravel(axes).tolist(), shrink=0.7, label="activity")
+    scale = "same scale as the main panel" if shared else "shared across panels"
+    figure.colorbar(
+        shown,
+        ax=np.ravel(axes).tolist(),
+        shrink=0.7,
+        label=f"activity (0 to {vmax:.3g}; {scale})",
+    )
+    if title is not None:
+        figure.suptitle(title)
     figure.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(figure)
+    return vmax
 
 
 def save_ratios(path, ratios):
@@ -1481,6 +1642,84 @@ def save_profiles(path, images, centre_voxel):
     plt.close(figure)
 
 
+def main_and_diagnostic_names(valid_names):
+    """Split presentation names: main results first, diagnostic arms second."""
+    main = [name for name, _ in STRATEGIES if name in valid_names]
+    diagnostic = [name for name, _ in STRATEGIES if name not in valid_names]
+    return main, diagnostic
+
+
+def print_metric_tables(metrics, ratios_first, ratios_final, valid_names):
+    """Print the interpretable tables; collapsed arms are diagnostics only."""
+    main, diagnostic = main_and_diagnostic_names(valid_names)
+    main = main + [BASELINE]
+    print("Primary activity-concentration ratio (sphere/liver, truth 4.0):")
+    print("  | Strategy | First corrected pass | Final ratio | Change |")
+    print("  |---|---|---|---|")
+    for name in main:
+        final = ratios_final[name]
+        first = ratios_first.get(name)
+        if first is None:
+            print(f"  | {name} | no refresh | {final:.3f} | - |")
+        else:
+            change = 100.0 * (final - first) / first
+            print(f"  | {name} | {first:.3f} | {final:.3f} | {change:+.2f}% |")
+    if diagnostic:
+        print("Diagnostic arm (not quantitatively interpretable):")
+        print(
+            "  | Diagnostic arm | First corrected-pass ratio | Final ratio | "
+            "Interpretation |"
+        )
+        print("  |---|---|---|---|")
+        for name in diagnostic:
+            label = DIAGNOSTIC_LABELS.get(name, name)
+            print(
+                f"  | {label} | {ratios_first[name]:.5f} | "
+                f"{ratios_final[name]:.4f} | Collapsed; not quantitatively "
+                "interpretable |"
+            )
+    print("Relative calibration (body total set to 160.8 MBq):")
+    print(
+        "  | Strategy | Sphere MBq | Sphere kBq/g | Liver MBq | "
+        "Liver kBq/g | Total MBq |"
+    )
+    print("  |---|---|---|---|---|---|")
+    for name in main:
+        values = metrics[name]
+        print(
+            f"  | {name} | {values['sphere_mbq']:.3f} | "
+            f"{values['sphere_kbq_g']:.1f} | {values['liver_mbq']:.2f} | "
+            f"{values['liver_kbq_g']:.1f} | {values['body_total_mbq']:.2f} |"
+        )
+    print(
+        f"  | Truth | {SPHERE_MBQ:.2f} | {SPHERE_KBQ_G:.1f} | "
+        f"{LIVER_MBQ:.2f} | {LIVER_KBQ_G:.1f} | {TOTAL_MBQ:.1f} |"
+    )
+    if diagnostic:
+        print(
+            "  The collapsed arm's calibrated values are retained in "
+            "summary.json for diagnostics and are not compared with these "
+            "compartment estimates."
+        )
+
+
+def complete_run(summary, output_directory, strict=True):
+    """Write the summary, then stop or warn when a quality gate failed."""
+    output_directory = Path(output_directory)
+    _save_json(output_directory / "summary.json", summary)
+    if summary["status"] == "quality_not_established":
+        marker = output_directory / "UNACCEPTED.txt"
+        marker.write_text(
+            "Quality not established: one or more statistical gates failed.\n"
+            + json.dumps(summary["gates"], indent=1)
+            + "\n"
+        )
+        message = f"Statistical adequacy was not established; see {marker}"
+        if strict:
+            raise RuntimeError(message)
+        warnings.warn(message, RuntimeWarning)
+
+
 # %%
 # Run the tutorial
 # ----------------
@@ -1493,6 +1732,7 @@ def clear_stale_outputs(output_directory):
         "registration.png",
         "vois.png",
         "reconstructions.png",
+        "reconstructions_global.png",
         "ratios.png",
         "scatter.png",
         "profiles.png",
@@ -1506,7 +1746,7 @@ def _save_json(path, payload):
         json.dump(payload, stream, indent=1)
 
 
-def run():
+def run(strict=True):
     started = time.perf_counter()
     data_directory = fetch_y90_phantom()
     output_directory = (
@@ -1842,37 +2082,6 @@ def run():
     )
     strategy_metrics[BASELINE] = baseline_metrics
 
-    print("Primary metric (sphere/liver concentration, truth 4.0):")
-    for name, values in strategy_metrics.items():
-        print(
-            f"  {name}: {values['ratio']:.3f} "
-            f"(first refresh {values.get('ratio_first_refresh', float('nan')):.3f})"
-        )
-    old_ratio = ratio_with_truth_mass(final_images["Reference, sum"], sphere, liver)
-    print(
-        "  Reference, sum with the old whole-organ 1149.49 g denominator: "
-        f"{old_ratio:.2f}"
-    )
-
-    # %%
-    # Secondary relative calibration
-    print("Relative calibration (body total set to 160.8 MBq):")
-    for name, values in strategy_metrics.items():
-        print(
-            f"  {name}: sphere {values['sphere_mbq']:.3f} MBq "
-            f"({values['sphere_kbq_g']:.1f} kBq/g), liver "
-            f"{values['liver_mbq']:.2f} MBq ({values['liver_kbq_g']:.1f} kBq/g), "
-            f"total {values['body_total_mbq']:.2f} MBq"
-        )
-    print(
-        f"  truth: sphere {SPHERE_MBQ:.2f} MBq ({SPHERE_KBQ_G:.1f} kBq/g), "
-        f"liver {LIVER_MBQ:.2f} MBq ({LIVER_KBQ_G:.1f} kBq/g), "
-        f"total {TOTAL_MBQ:.1f} MBq (+-2% activity uncertainty)"
-    )
-
-    # %%
-    # Statistical adequacy
-    print("Statistical adequacy")
     minimum_source = 0.01 * result.shared_raw["source_sum"]
     valid_names = [
         name
@@ -1880,6 +2089,62 @@ def run():
         if strategy_metrics[name]["source_sum"] >= minimum_source
     ]
     collapsed_names = [name for name, _ in STRATEGIES if name not in valid_names]
+    main_names = list(valid_names) + [BASELINE]
+
+    # %%
+    # Results
+    # -------
+    # The tables show the noncollapsed strategies in a fixed order, with the
+    # baseline last. The collapsed global arm is kept separate and is not
+    # compared with the compartment estimates.
+    print_metric_tables(strategy_metrics, ratios_first, ratios_final, valid_names)
+    old_ratio = ratio_with_truth_mass(final_images["Reference, sum"], sphere, liver)
+    print(
+        "  Reference, sum with the old whole-organ 1149.49 g denominator: "
+        f"{old_ratio:.2f}"
+    )
+
+    # %%
+    # Centre sensitivity
+    # ------------------
+    # Offsets of -2 to +2 native voxels per component give 125 candidate
+    # centres. The sphere radius, liver segmentation and images stay fixed.
+    # These are sensitivity ranges, not confidence intervals; no centre is
+    # selected.
+    print(
+        "125-centre sensitivity (native-voxel centre offsets; ranges, not "
+        "confidence intervals):"
+    )
+    sensitivity = centre_sensitivity(
+        {name: final_images[name] for name in valid_names},
+        liver_fraction,
+        target_affine,
+    )
+    for name in sensitivity["ordering_nominal"]:
+        values = sensitivity["strategies"][name]
+        print(
+            f"  {name}: nominal {values['nominal']:.3f}, 125-centre "
+            f"{values['all_min']:.3f}-{values['all_max']:.3f}, ±1 "
+            f"{values['pm1_min']:.3f}-{values['pm1_max']:.3f}, ±2 "
+            f"{values['pm2_min']:.3f}-{values['pm2_max']:.3f}"
+        )
+    combined = sensitivity["combined"]
+    print(
+        f"  combined: nominal {combined['nominal_min']:.3f}-"
+        f"{combined['nominal_max']:.3f}, 125-centre "
+        f"{combined['all_min']:.3f}-{combined['all_max']:.3f}, ±1 "
+        f"{combined['pm1_min']:.3f}-{combined['pm1_max']:.3f}, ±2 "
+        f"{combined['pm2_min']:.3f}-{combined['pm2_max']:.3f}"
+    )
+    print(
+        f"  strategy ordering changed in "
+        f"{sensitivity['ordering_changes_over_125']} of 125 centres; "
+        "no centre was selected"
+    )
+
+    # %%
+    # Statistical adequacy
+    print("Statistical adequacy")
     quantization_values = [result.shared_raw["quantization_loss"]]
     quantization_values.extend(
         strategy_metrics[name]["quantization_loss"] for name in valid_names
@@ -1969,8 +2234,10 @@ def run():
     )
     print(f"  seed smoothed-scatter relative L1: {100 * seed_l1:.2f}% (gate <= 5%)")
     nn_ratios = {1: {}, 2: {}}
+    strategy_kinds = dict(STRATEGIES)
     for nn, raw in ((1, nn_raws["nn_1"]), (2, nn_raws["nn_2"])):
-        for name, kind in STRATEGIES:
+        for name in valid_names:
+            kind = strategy_kinds[name]
             source = np.asarray(common_image, float) * activity_support
             reference_projection = None
             if kind in ("reference_sum", "reference_trimmed"):
@@ -1996,22 +2263,27 @@ def run():
             nn_ratios[nn][name] = ratio(image)
     nn_changes = {
         name: abs(nn_ratios[2][name] - nn_ratios[1][name]) / nn_ratios[1][name]
-        for name, _ in STRATEGIES
+        for name in valid_names
     }
     print(
         "  NN=1 / NN=2 final-pass ratios: "
         + ", ".join(
             f"{name} {nn_ratios[1][name]:.3f}/{nn_ratios[2][name]:.3f}"
-            for name, _ in STRATEGIES
+            for name in valid_names
         )
     )
     print(
         f"  largest NN ratio change: {100 * max(nn_changes.values()):.2f}% (gate <= 2%)"
     )
+    if collapsed_names:
+        print(
+            "  collapsed arm excluded from the history-doubling gate: "
+            + ", ".join(collapsed_names)
+        )
 
     print("  iteration-extension probe (two full iterations with the final term)")
     iteration_changes = {}
-    for name, _ in STRATEGIES:
+    for name in valid_names:
         extended = reconstruct(
             final_images[name], final_additives[name], 2 * NUM_SUBSETS
         )
@@ -2024,65 +2296,142 @@ def run():
     )
 
     print("  two-refresh stability (first versus second refresh):")
-    for name, _ in STRATEGIES:
+    for name in valid_names:
         print(
             f"    {name}: {100 * strategy_metrics[name]['stability']:.2f}% (gate <= 5%)"
+        )
+    for name in collapsed_names:
+        print(
+            f"    {name}: {100 * strategy_metrics[name]['stability']:.2f}% "
+            "(diagnostic only; excluded from the gate)"
         )
 
     # %%
     # Scatter fractions and inter-strategy differences
     print("Scatter fractions of the measured counts:")
-    for name, _ in STRATEGIES:
+    for name in valid_names:
         first = strategy_metrics[name]["scatter_fraction_first"]
         final = strategy_metrics[name]["scatter_fraction_final"]
         print(f"  {name}: first {100 * first:.1f}%, final {100 * final:.1f}%")
+    for name in collapsed_names:
+        first = strategy_metrics[name]["scatter_fraction_first"]
+        final = strategy_metrics[name]["scatter_fraction_final"]
+        print(
+            f"  {name} (diagnostic only): first {100 * first:.1f}%, "
+            f"final {100 * final:.1f}%"
+        )
     differences = {}
-    for first, _ in STRATEGIES:
+    for first in valid_names:
         row = {}
         first_values = final_additives[first]
         first_norm = first_values / first_values.sum()
-        for second, _ in STRATEGIES:
+        for second in valid_names:
             second_values = final_additives[second]
             second_norm = second_values / second_values.sum()
             row[second] = float(np.abs(first_norm - second_norm).sum())
         differences[first] = row
     print("Normalised final scatter-estimate differences (relative L1):")
-    header = "  " + " ".join(f"{name[:10]:>10}" for name, _ in STRATEGIES)
+    header = "  " + " ".join(f"{name[:10]:>10}" for name in valid_names)
     print(header)
-    for first, _ in STRATEGIES:
+    for first in valid_names:
         print(
             f"  {first[:18]:<18} "
-            + " ".join(
-                f"{differences[first][second]:10.3f}" for second, _ in STRATEGIES
-            )
+            + " ".join(f"{differences[first][second]:10.3f}" for second in valid_names)
         )
 
     # %%
     # Figures
-    save_reconstructions(
+    main_high = save_reconstructions(
         output_directory / "reconstructions.png",
-        [final_images[name] for name, _ in STRATEGIES] + [final_images[BASELINE]],
-        [name for name, _ in STRATEGIES] + [BASELINE],
+        [final_images[name] for name in main_names],
+        main_names,
         64,
     )
+    if collapsed_names:
+        save_reconstructions(
+            output_directory / "reconstructions_global.png",
+            [final_images[name] for name in collapsed_names],
+            [name for name in collapsed_names],
+            64,
+            vmax=main_high,
+            title=GLOBAL_HEADING,
+        )
     save_ratios(
         output_directory / "ratios.png",
-        {name: strategy_metrics[name]["ratio"] for name, _ in STRATEGIES}
-        | {BASELINE: ratios_final[BASELINE]},
+        {name: strategy_metrics[name]["ratio"] for name in main_names},
     )
     save_scatter(
         output_directory / "scatter.png",
-        {name: final_additives[name] for name, _ in STRATEGIES},
+        {name: final_additives[name] for name in valid_names},
     )
     save_profiles(
         output_directory / "profiles.png",
-        {name: final_images[name] for name, _ in STRATEGIES}
-        | {BASELINE: final_images[BASELINE]},
+        {name: final_images[name] for name in main_names},
         centre_voxel,
     )
 
     # %%
+    # Interpretation
+    # --------------
+    # The global arm collapsed in this configuration and is not quantitatively
+    # interpretable. Saved-component replay supports fixed-additive
+    # over-subtraction as the proximate mechanism: the first applied additive
+    # was 1.38 times measured counts in the sphere-ray region and 1.26 times in
+    # the liver-ray region. Suppression occurred before the second refresh.
+    # This is an observed failure of this acquisition/model configuration, not
+    # a general failure of Monte Carlo scatter correction or the paper's
+    # methods.
+    #
+    # At the frozen nominal centre, the four noncollapsed corrected results
+    # were 1.66–1.77, against truth 4.0 under the stated water-equivalent
+    # density approximation. Across the prespecified 125-centre sensitivity
+    # analysis, their combined range was 0.96–2.13. These are sensitivity
+    # ranges, not confidence intervals. Partial volume and centre/boundary
+    # conventions are plausible contributors, not a demonstrated complete
+    # explanation.
+    #
+    # The nominal strategy ordering changed in 86 of 125 centres. These results
+    # do not support a robust strategy ranking or quantitative superiority
+    # claim.
+    #
+    # The shared simulated total was 0.269 times measured counts, giving a
+    # global factor of 3.718. Approximately 44% of measured counts occurred in
+    # bins with zero simulated total in this finite realization. Applying one
+    # factor across this local shape/support mismatch over-scaled populated
+    # sphere/liver projections.
+    #
+    # The underlying sensitivity/partition mismatch remains unresolved.
+    # Spectrum, collimator representation, source support and detector/primary
+    # modelling are candidate contributors; no causal allocation or independent
+    # absolute-sensitivity validation was established.
+    #
+    # Statistical adequacy was not established: smoothed-scatter seed L1 was
+    # 6.24% against 5%; known-activity two-refresh change was 6.22% against 5%;
+    # the history-doubling check did not establish native-geometry convergence.
+    #
+    # The tutorial reproduces the paper's normalisation algebra, not its full
+    # physical experiment: the measured window is 75–225 keV rather than
+    # 105–195 keV, the collimator is a library MA-MLEGP definition, and the
+    # primary model is geometric SPECTUB without a point-spread function.
+
+    # %%
     # Gate summary and summary file
+    measured_array = np.asarray(measured.as_array(), dtype=float)
+    measured_total = float(measured_array.sum())
+    shared_total = float(np.asarray(result.shared_raw["all_interactions"], float).sum())
+    global_factor = measured_total / shared_total
+    zero_simind_fraction = float(
+        measured_array[
+            np.asarray(result.shared_raw["all_interactions"], float) <= 0.0
+        ].sum()
+        / measured_total
+    )
+    print(
+        "Diagnostic scale: shared/measured "
+        f"{shared_total / measured_total:.3f}, global factor "
+        f"{global_factor:.3f}, measured counts in zero-SIMIND bins "
+        f"{100 * zero_simind_fraction:.1f}%"
+    )
     stability_gate = max(strategy_metrics[name]["stability"] for name in valid_names)
     nn_gate = max(nn_changes[name] for name in valid_names)
     iteration_gate = max(iteration_changes[name] for name in valid_names)
@@ -2164,23 +2513,20 @@ def run():
         "seed_scatter_totals": {
             name: float(seed_scatter[name].sum()) for name in seed_names
         },
+        "centre_sensitivity": sensitivity,
+        "diagnostics": {
+            "shared_to_measured": shared_total / measured_total,
+            "global_factor": global_factor,
+            "measured_zero_simind_fraction": zero_simind_fraction,
+            "audited_first_additive_sphere_ray_ratio": 1.382,
+            "audited_first_additive_liver_ray_ratio": 1.263,
+        },
     }
-    _save_json(output_directory / "summary.json", summary)
-    if not all_passed:
-        (output_directory / "UNACCEPTED.txt").write_text(
-            "Quality not established: one or more statistical gates failed.\n"
-            + json.dumps(gates, indent=1)
-            + "\n"
-        )
     print(f"Total wall time: {elapsed / 60.0:.1f} min")
     print(f"Summary written to {output_directory}")
-    if not all_passed:
-        raise RuntimeError(
-            "Statistical adequacy was not established; see "
-            f"{output_directory / 'UNACCEPTED.txt'}"
-        )
+    complete_run(summary, output_directory, strict)
     _pyplot().show()
 
 
 if __name__ == "__main__":
-    run()
+    run(strict=False)

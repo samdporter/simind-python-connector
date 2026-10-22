@@ -1,6 +1,7 @@
 """Tests for the real Y-90 Monte Carlo reconstruction tutorial."""
 
 import importlib.util
+import json
 import shutil
 from pathlib import Path
 
@@ -238,6 +239,28 @@ def _schedule_fakes():
 
 
 @pytest.mark.unit
+def test_damping_halves_the_first_estimate_and_averages_the_second():
+    estimate_one = np.full((1, 2, 3, 2), 10.0)
+    estimate_two = np.full((1, 2, 3, 2), 30.0)
+
+    first = script.damped_additive(np.zeros_like(estimate_one), estimate_one)
+    second = script.damped_additive(first, estimate_two)
+
+    assert np.allclose(first, 5.0)
+    assert np.allclose(second, 0.5 * first + 0.5 * estimate_two)
+    assert np.all(second >= 1e-5)
+
+
+@pytest.mark.unit
+def test_damping_applies_the_floor():
+    estimate = np.full((1, 2, 3, 2), 1e-7)
+
+    damped = script.damped_additive(np.zeros_like(estimate), estimate)
+
+    assert np.all(damped == 1e-5)
+
+
+@pytest.mark.unit
 def test_schedule_has_six_runs_two_updates_and_equal_budgets():
     simulate, simulate_many, reconstruct, estimate, ratio, calls, _ = _schedule_fakes()
 
@@ -364,6 +387,180 @@ def test_pixelwise_zero_denominator_coverage_is_reported():
 
     assert additive.zero_denominator_fraction == pytest.approx(1.0 / 12.0)
     assert additive.values.shape == raw["all_interactions"].shape
+
+
+# %%
+# Presentation and completion
+
+
+def _failed_summary():
+    return {
+        "status": "quality_not_established",
+        "gates": {
+            "registration": True,
+            "seed_passed": False,
+            "seed_scatter_l1": 0.0624,
+            "stability_passed": False,
+            "stability_max_ratio_change": 0.0622,
+            "nn_passed": False,
+            "nn_max_ratio_change": 0.10,
+        },
+    }
+
+
+@pytest.mark.unit
+def test_quality_failure_summary_preserves_false_gates(tmp_path):
+    with pytest.warns(RuntimeWarning):
+        script.complete_run(_failed_summary(), tmp_path, strict=False)
+
+    written = json.loads((tmp_path / "summary.json").read_text())
+    assert written["status"] == "quality_not_established"
+    assert written["gates"]["seed_passed"] is False
+    assert written["gates"]["stability_max_ratio_change"] == pytest.approx(0.0622)
+    marker = (tmp_path / "UNACCEPTED.txt").read_text()
+    assert "seed_passed" in marker
+    assert "stability_passed" in marker
+
+
+@pytest.mark.unit
+def test_diagnostic_completion_warns_without_raising(tmp_path):
+    with pytest.warns(RuntimeWarning, match="Statistical adequacy"):
+        script.complete_run(_failed_summary(), tmp_path, strict=False)
+
+
+@pytest.mark.unit
+def test_strict_completion_raises(tmp_path):
+    with pytest.raises(RuntimeError, match="Statistical adequacy"):
+        script.complete_run(_failed_summary(), tmp_path, strict=True)
+
+    assert (tmp_path / "summary.json").exists()
+    assert (tmp_path / "UNACCEPTED.txt").exists()
+
+
+@pytest.mark.unit
+def test_precondition_and_simulation_errors_still_propagate(tmp_path):
+    with pytest.raises(RuntimeError, match="registration failed"):
+        script.accept_registration(
+            {"passed": False, "reason": "bad offset", "status": "fail"}
+        )
+
+    source = np.full((32, 32, 32), 1e-6, dtype=np.float32)
+    source[0, 0, 0] = 1.0
+    with pytest.raises(RuntimeError, match="lost to quantization"):
+        script.simulate_single(
+            "bad",
+            source,
+            tmp_path / "template.hs",
+            tmp_path / "density.npy",
+            tmp_path,
+        )
+
+
+@pytest.mark.unit
+def test_global_arm_is_diagnostic_only_in_the_tables(capsys):
+    valid = [
+        "Known activity",
+        "Reference, sum",
+        "Reference, trimmed",
+        "Dewaraja, pixel-wise",
+    ]
+    metrics = {
+        name: {
+            "sphere_mbq": 0.4,
+            "sphere_kbq_g": 50.0,
+            "liver_mbq": 25.0,
+            "liver_kbq_g": 25.0,
+            "body_total_mbq": 160.8,
+        }
+        for name in valid + [script.GLOBAL_STRATEGY, script.BASELINE]
+    }
+    ratios_first = {name: 1.5 for name in valid}
+    ratios_first[script.GLOBAL_STRATEGY] = 0.00174987
+    ratios_final = {name: 1.7 for name in valid}
+    ratios_final[script.GLOBAL_STRATEGY] = 0.0713
+    ratios_final[script.BASELINE] = 1.579
+
+    script.print_metric_tables(metrics, ratios_first, ratios_final, valid)
+    output = capsys.readouterr().out
+
+    main, diagnostic = script.main_and_diagnostic_names(valid)
+    assert diagnostic == [script.GLOBAL_STRATEGY]
+    assert script.GLOBAL_STRATEGY not in main
+
+    primary, rest = output.split("Diagnostic arm", maxsplit=1)
+    assert "Global scaling" not in primary
+    assert "Global scaling" in rest
+    assert "0.00175" in rest
+    assert "0.0713" in rest
+    calibration = output.split("Relative calibration")[1]
+    assert "Global scaling" not in calibration
+
+    positions = [primary.index(name) for name in main + [script.BASELINE]]
+    assert positions == sorted(positions)
+
+
+# %%
+# Centre sensitivity
+
+
+def _centred_affine(shape=(16, 16, 16), index=(8, 8, 8)):
+    """Affine that puts the frozen sphere centre at ``index`` in a small grid."""
+    voxel = script.VOXEL_MM
+    affine = np.eye(4)
+    affine[0, 0] = voxel
+    affine[1, 1] = voxel
+    affine[2, 2] = -voxel
+    affine[0, 3] = script.SPHERE_CENTRE_MM[0] - voxel * index[2]
+    affine[1, 3] = script.SPHERE_CENTRE_MM[1] - voxel * index[1]
+    affine[2, 3] = script.SPHERE_CENTRE_MM[2] + voxel * index[0]
+    return affine
+
+
+@pytest.mark.unit
+def test_centre_sensitivity_uses_identical_offsets_and_keeps_the_nominal_centre():
+    shape = (16, 16, 16)
+    affine = _centred_affine(shape)
+    sphere = script.sphere_fraction(
+        script.SPHERE_CENTRE_MM, script.SPHERE_RADIUS_MM, affine, shape=shape
+    )
+    assert script.mask_volume_ml(sphere) == pytest.approx(8.08, abs=0.1)
+    liver_fraction = np.ones(shape)
+    image = np.ones(shape)
+    image[sphere > 0] = 4.0
+
+    result = script.centre_sensitivity(
+        {"first": image, "second": image.copy()}, liver_fraction, affine
+    )
+
+    nominal = script.voi_ratio(
+        image, sphere, script.liver_excluding_sphere(liver_fraction, sphere)
+    )
+    assert result["strategies"]["first"]["nominal"] == pytest.approx(nominal)
+    assert result["strategies"]["first"] == result["strategies"]["second"]
+    assert result["centres"] == 125
+    assert result["combined"]["all_min"] <= nominal <= result["combined"]["all_max"]
+    assert result["ordering_changes_over_125"] == 0
+    assert set(result["offsets_voxels"]) == {-2, -1, 0, 1, 2}
+    assert "best" not in result
+
+
+@pytest.mark.unit
+def test_centre_sensitivity_reports_ordering_changes():
+    shape = (16, 16, 16)
+    affine = _centred_affine(shape)
+    liver_fraction = np.ones(shape)
+    k, j, i = np.meshgrid(*[np.arange(axis) for axis in shape], indexing="ij")
+    first = np.ones(shape) + 0.1 * i
+    second = np.ones(shape) + 0.1 * j
+
+    result = script.centre_sensitivity(
+        {"first": first, "second": second}, liver_fraction, affine
+    )
+
+    assert 0 < result["ordering_changes_over_125"] < 125
+    assert result["strategies"]["first"]["nominal"] == pytest.approx(
+        result["strategies"]["second"]["nominal"]
+    )
 
 
 # %%
