@@ -94,6 +94,29 @@
    "name": "Path"
   }
  ],
+ "Path.cwd": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "Path.cwd"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "PurePath.cwd"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib.Path",
+   "module_short": "pathlib.Path",
+   "name": "cwd"
+  }
+ ],
  "VOXEL_SIZE_MM": [
   {
    "is_class": false,
@@ -149,6 +172,15 @@
   }
  ],
  "_pyplot": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "_shown": [
   {
    "is_class": false,
    "is_explicit": false,

@@ -300,6 +300,29 @@
    "name": "Path"
   }
  ],
+ "Path.cwd": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "Path.cwd"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "pathlib",
+   "module_short": "pathlib",
+   "name": "PurePath.cwd"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pathlib.Path",
+   "module_short": "pathlib.Path",
+   "name": "cwd"
+  }
+ ],
  "ProcessPoolExecutor": [
   {
    "is_class": true,
@@ -793,6 +816,15 @@
   }
  ],
  "_save_json": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "_shown": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -2961,20 +2993,36 @@
    "name": "function"
   }
  ],
- "warnings.warn": [
+ "warnings.filterwarnings": [
   {
    "is_class": false,
    "is_explicit": false,
    "module": "builtins",
    "module_short": "builtins",
-   "name": "builtin_function_or_method"
+   "name": "function"
   },
   {
    "is_class": false,
    "is_explicit": false,
    "module": "warnings",
    "module_short": "warnings",
-   "name": "warn"
+   "name": "filterwarnings"
+  }
+ ],
+ "warnings.simplefilter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "warnings",
+   "module_short": "warnings",
+   "name": "simplefilter"
   }
  ],
  "weighted_mean": [

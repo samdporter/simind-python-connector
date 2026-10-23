@@ -16,6 +16,7 @@ AnyScan acquisition of 120 views over 360 degrees, 128 x 128 bins of
 # Locate the Y-90 dataset and choose where the outputs are written.
 
 import os
+import warnings
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -24,6 +25,20 @@ import stir
 from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
 from simind_python_connector.datasets import fetch_y90_phantom
 from simind_python_connector.utils import get_array
+
+
+# The container's NumPy build warns about a subnormal value that this example
+# never uses.
+warnings.filterwarnings("ignore", message="The value of the smallest subnormal")
+
+
+def _shown(path):
+    """Show a path relative to the working directory, or just its name."""
+    path = Path(path)
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path.name
 
 
 dicom_file = fetch_y90_phantom() / "peak.dcm"
@@ -48,10 +63,10 @@ output_base = output_dir / "stir_from_dicom"
 acq = builder.build(output_path=output_base)
 projection = get_array(acq)
 
-print(f"DICOM input: {dicom_file}")
+print(f"DICOM input: {_shown(dicom_file)}")
 print(f"Projection is ProjData: {isinstance(acq, stir.ProjData)}")
 print(f"Projection shape: {projection.shape}")
-print(f"Interfile output base: {output_base}")
+print(f"Interfile output base: {_shown(output_base)}")
 
 # %%
 # Plot two views

@@ -51,7 +51,7 @@ The tutorial needs the Y-90 phantom data (set
 ``SIMIND_CONNECTOR_Y90_DATA``), SIMIND, SIRF, NumPy, matplotlib, pydicom and
 nibabel. Outputs go to ``$SIMIND_EXAMPLES_OUTPUT`` or ``output/``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 34-70
+.. GENERATED FROM PYTHON SOURCE LINES 34-80
 
 .. code-block:: Python
 
@@ -92,13 +92,23 @@ nibabel. Outputs go to ``$SIMIND_EXAMPLES_OUTPUT`` or ``output/``.
     LPS_TO_RAS = np.diag([-1.0, -1.0, 1.0, 1.0])
 
 
+    def _shown(path):
+        """Show a path relative to the working directory, or just its name."""
+        path = Path(path)
+        try:
+            return path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            return path.name
 
 
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 71-78
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 81-88
 
 Isotope spectra
 ---------------
@@ -108,7 +118,7 @@ it the file lists discrete gamma lines. The ``y90_frey`` model names a
 companion ``y90.cpd`` file that is not part of the SIMIND installation, and
 the NUDAT file is a single 2186.2 keV line outside the imaging window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 78-178
+.. GENERATED FROM PYTHON SOURCE LINES 88-188
 
 .. code-block:: Python
 
@@ -219,7 +229,7 @@ the NUDAT file is a single 2186.2 keV line outside the imaging window.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 179-185
+.. GENERATED FROM PYTHON SOURCE LINES 189-195
 
 List-mode records
 -----------------
@@ -228,7 +238,7 @@ little-endian records: three crystal coordinates in cm x 100, the crystal
 energy in keV x 10, and the event weight. A negative weight marks the first
 event of a new projection. The weight magnitude is kept.
 
-.. GENERATED FROM PYTHON SOURCE LINES 185-302
+.. GENERATED FROM PYTHON SOURCE LINES 195-312
 
 .. code-block:: Python
 
@@ -356,7 +366,7 @@ event of a new projection. The weight magnitude is kept.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 303-311
+.. GENERATED FROM PYTHON SOURCE LINES 313-321
 
 CT preparation
 --------------
@@ -367,7 +377,7 @@ whose attenuation map has no recorded photon energy and is used only as the
 target geometry. SIRF's resampler pads with zero, so the CT is written as
 ``HU + 1000`` and 1000 is subtracted afterwards: padding becomes -1000 HU.
 
-.. GENERATED FROM PYTHON SOURCE LINES 311-469
+.. GENERATED FROM PYTHON SOURCE LINES 321-479
 
 .. code-block:: Python
 
@@ -536,7 +546,7 @@ target geometry. SIRF's resampler pads with zero, so the CT is written as
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 470-479
+.. GENERATED FROM PYTHON SOURCE LINES 480-489
 
 Detected spectrum acquisition
 -----------------------------
@@ -548,7 +558,7 @@ spectrum acquisition, not a substitute for the projection simulation. The
 records include the detector energy broadening and the total detected
 spectrum, without separation into PENETRATE components.
 
-.. GENERATED FROM PYTHON SOURCE LINES 479-576
+.. GENERATED FROM PYTHON SOURCE LINES 489-586
 
 .. code-block:: Python
 
@@ -631,7 +641,7 @@ spectrum, without separation into PENETRATE components.
             prefix,
             f"/FI:y90/CC:ma-mlegp/PX:{VOXEL_SIZE_MM / 10.0:.6f}/OU:11",
         ]
-        print("SIMIND command:", " ".join(command))
+        print("SIMIND command:", " ".join([Path(command[0]).name, *command[1:]]))
         log_file = output_directory / f"{prefix}.log"
         with open(log_file, "w") as log:
             subprocess.run(
@@ -656,7 +666,7 @@ spectrum, without separation into PENETRATE components.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 577-583
+.. GENERATED FROM PYTHON SOURCE LINES 587-593
 
 Count check
 -----------
@@ -665,7 +675,7 @@ reader. The engine's ``.a00`` projection is already windowed and restricted to
 the projection matrix, and ``.res`` gives the per-projection count rate. Their
 agreement checks the record interpretation and the window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 583-621
+.. GENERATED FROM PYTHON SOURCE LINES 593-631
 
 .. code-block:: Python
 
@@ -714,12 +724,12 @@ agreement checks the record interpretation and the window.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 622-624
+.. GENERATED FROM PYTHON SOURCE LINES 632-634
 
 Weighted attenuation map
 ------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 624-657
+.. GENERATED FROM PYTHON SOURCE LINES 634-667
 
 .. code-block:: Python
 
@@ -763,7 +773,7 @@ Weighted attenuation map
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 658-669
+.. GENERATED FROM PYTHON SOURCE LINES 668-679
 
 Paired reconstruction
 ---------------------
@@ -777,7 +787,7 @@ and the support are not mirrored. The two images are not a ranking: neither
 models scatter, and the weighted map is a global approximation of the
 energy-dependent attenuation.
 
-.. GENERATED FROM PYTHON SOURCE LINES 669-697
+.. GENERATED FROM PYTHON SOURCE LINES 679-707
 
 .. code-block:: Python
 
@@ -816,12 +826,12 @@ energy-dependent attenuation.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 698-700
+.. GENERATED FROM PYTHON SOURCE LINES 708-710
 
 Figures
 -------
 
-.. GENERATED FROM PYTHON SOURCE LINES 700-844
+.. GENERATED FROM PYTHON SOURCE LINES 710-854
 
 .. code-block:: Python
 
@@ -976,12 +986,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 845-847
+.. GENERATED FROM PYTHON SOURCE LINES 855-857
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 847-1017
+.. GENERATED FROM PYTHON SOURCE LINES 857-1027
 
 .. code-block:: Python
 
@@ -1149,7 +1159,7 @@ Run the tutorial
         }
         save_json(output_directory / "summary.json", summary)
         print(f"Total runtime: {summary['total_seconds'] / 60.0:.1f} min")
-        print(f"Outputs written to {output_directory}")
+        print(f"Outputs written to {_shown(output_directory)}")
         _pyplot().show()
 
 
@@ -1205,16 +1215,16 @@ Run the tutorial
     y90.isd: continuum, 1971 points from 30 to 2000 keV
     Y-90 source: 3119 voxels, sum 3446.0, maximum 4.0
     Running the list-mode spectrum acquisition
-    SIMIND command: /workspace/simind/simind y90_spectrum y90_spectrum /FI:y90/CC:ma-mlegp/PX:0.425780/OU:11
+    SIMIND command: simind y90_spectrum y90_spectrum /FI:y90/CC:ma-mlegp/PX:0.425780/OU:11
     Spectrum geometry: 24 views, 360 deg, 300 mm circular, 128 x 128 bins of 4.2578 mm, 75-225 keV
-    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 11.4 min; detector hits 928078; engine 0 h, 11 m and 24 s
+    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 11.1 min; detector hits 928078; engine 0 h, 11 m and 6 s
     Window weight 227115.8; .a00 226897.1; ratio 1.00096; .res count-rate ratio 1.00097
     Weighted mean energy: 125.6 keV; attenuation ratio to 150 keV: median 1.084
     Weighted map difference over the body: mean 0.01373 cm^-1, max 0.04273 cm^-1
     Measured acquisition shape: (1, 128, 120, 128)
-    Paired reconstruction: 2.9 min
-    Total runtime: 14.6 min
-    Outputs written to /workspace/output/real_data/effective_energy
+    Paired reconstruction: 2.8 min
+    Total runtime: 14.1 min
+    Outputs written to effective_energy
 
 
 
@@ -1222,7 +1232,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (14 minutes 34.859 seconds)
+   **Total running time of the script:** (14 minutes 8.289 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_17_y90_effective_energy.py:

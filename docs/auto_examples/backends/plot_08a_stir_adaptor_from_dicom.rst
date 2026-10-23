@@ -34,12 +34,13 @@ Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 17-37
+.. GENERATED FROM PYTHON SOURCE LINES 17-52
 
 .. code-block:: Python
 
 
     import os
+    import warnings
     from pathlib import Path
 
     import matplotlib.pyplot as plt
@@ -48,6 +49,20 @@ Locate the Y-90 dataset and choose where the outputs are written.
     from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
     from simind_python_connector.datasets import fetch_y90_phantom
     from simind_python_connector.utils import get_array
+
+
+    # The container's NumPy build warns about a subnormal value that this example
+    # never uses.
+    warnings.filterwarnings("ignore", message="The value of the smallest subnormal")
+
+
+    def _shown(path):
+        """Show a path relative to the working directory, or just its name."""
+        path = Path(path)
+        try:
+            return path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            return path.name
 
 
     dicom_file = fetch_y90_phantom() / "peak.dcm"
@@ -65,7 +80,7 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 38-43
+.. GENERATED FROM PYTHON SOURCE LINES 53-58
 
 Build the STIR projection data
 ------------------------------
@@ -73,7 +88,7 @@ The builder fills an Interfile header from the DICOM metadata and writes
 the projection counts next to it. The result is read back as STIR
 ``ProjData``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 43-56
+.. GENERATED FROM PYTHON SOURCE LINES 58-71
 
 .. code-block:: Python
 
@@ -85,10 +100,10 @@ the projection counts next to it. The result is read back as STIR
     acq = builder.build(output_path=output_base)
     projection = get_array(acq)
 
-    print(f"DICOM input: {dicom_file}")
+    print(f"DICOM input: {_shown(dicom_file)}")
     print(f"Projection is ProjData: {isinstance(acq, stir.ProjData)}")
     print(f"Projection shape: {projection.shape}")
-    print(f"Interfile output base: {output_base}")
+    print(f"Interfile output base: {_shown(output_base)}")
 
 
 
@@ -100,21 +115,21 @@ the projection counts next to it. The result is read back as STIR
 
     Debug: Direct radii processed - all same: False, values: [300.0, 300.0, 300.0, 300.000031, 300.0]...
     Debug: Skipping tomo view offset processing - direct radii already processed
-    DICOM input: /workspace/tmp/y90_data/peak.dcm
+    DICOM input: peak.dcm
     Projection is ProjData: True
     Projection shape: (1, 128, 120, 128)
-    Interfile output base: /workspace/output/dicom_projection_objects/stir/stir_from_dicom
+    Interfile output base: stir_from_dicom
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 57-60
+.. GENERATED FROM PYTHON SOURCE LINES 72-75
 
 Plot two views
 --------------
 Views 0 and 30 of the 120 views, 90 degrees apart.
 
-.. GENERATED FROM PYTHON SOURCE LINES 60-72
+.. GENERATED FROM PYTHON SOURCE LINES 75-87
 
 .. code-block:: Python
 
@@ -139,22 +154,13 @@ Views 0 and 30 of the 120 views, 90 degrees apart.
    :class: sphx-glr-single-img
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:549: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
-      setattr(self, word, getattr(machar, word).flat[0])
-    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:89: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
-      return self._float_to_str(self.smallest_subnormal)
-
 
 
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.595 seconds)
+   **Total running time of the script:** (0 minutes 0.832 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08a_stir_adaptor_from_dicom.py:

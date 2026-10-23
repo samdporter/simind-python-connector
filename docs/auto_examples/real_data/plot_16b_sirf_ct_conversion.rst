@@ -44,7 +44,7 @@ Setup
 The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
 pydicom, matplotlib, SciPy and nibabel.
 
-.. GENERATED FROM PYTHON SOURCE LINES 27-51
+.. GENERATED FROM PYTHON SOURCE LINES 27-61
 
 .. code-block:: Python
 
@@ -73,13 +73,23 @@ pydicom, matplotlib, SciPy and nibabel.
     LPS_TO_RAS = np.diag([-1.0, -1.0, 1.0, 1.0])
 
 
+    def _shown(path):
+        """Show a path relative to the working directory, or just its name."""
+        path = Path(path)
+        try:
+            return path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            return path.name
 
 
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 52-58
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 62-68
 
 Read the CT series
 ------------------
@@ -88,7 +98,7 @@ coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
 i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted; oblique
 acquisitions would need a full direction matrix.
 
-.. GENERATED FROM PYTHON SOURCE LINES 58-172
+.. GENERATED FROM PYTHON SOURCE LINES 68-182
 
 .. code-block:: Python
 
@@ -213,7 +223,7 @@ acquisitions would need a full direction matrix.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 173-181
+.. GENERATED FROM PYTHON SOURCE LINES 183-191
 
 Patient-to-SPECT frame
 ----------------------
@@ -224,7 +234,7 @@ axis. The y position is not in the NM header; the CT table height (-140 mm)
 supplies it in the shared frame of reference. No origin is re-derived from
 the images and no recentring is applied.
 
-.. GENERATED FROM PYTHON SOURCE LINES 181-229
+.. GENERATED FROM PYTHON SOURCE LINES 191-239
 
 .. code-block:: Python
 
@@ -283,7 +293,7 @@ the images and no recentring is applied.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 230-254
+.. GENERATED FROM PYTHON SOURCE LINES 240-264
 
 Registration report
 -------------------
@@ -310,7 +320,7 @@ refines the peak to subvoxel precision when the fit is negative definite,
 finite and locally bounded; otherwise the integer estimate is kept. A failed
 gate stops the tutorial before any accepted map is written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 254-449
+.. GENERATED FROM PYTHON SOURCE LINES 264-459
 
 .. code-block:: Python
 
@@ -516,7 +526,7 @@ gate stops the tutorial before any accepted map is written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 450-459
+.. GENERATED FROM PYTHON SOURCE LINES 460-469
 
 SIRF resampling route
 ---------------------
@@ -528,7 +538,7 @@ already express the registration. The resampled array is transferred to a
 clone of the STIR target image and checked for an exact value match, so the
 same route can feed a reconstruction in the SPECT frame.
 
-.. GENERATED FROM PYTHON SOURCE LINES 459-508
+.. GENERATED FROM PYTHON SOURCE LINES 469-518
 
 .. code-block:: Python
 
@@ -588,12 +598,12 @@ same route can feed a reconstruction in the SPECT frame.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 509-511
+.. GENERATED FROM PYTHON SOURCE LINES 519-521
 
 Figures and summary
 -------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 511-617
+.. GENERATED FROM PYTHON SOURCE LINES 521-627
 
 .. code-block:: Python
 
@@ -710,12 +720,12 @@ Figures and summary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 618-620
+.. GENERATED FROM PYTHON SOURCE LINES 628-630
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 620-733
+.. GENERATED FROM PYTHON SOURCE LINES 630-743
 
 .. code-block:: Python
 
@@ -826,7 +836,7 @@ Run the tutorial
         }
         save_json(output_directory / "summary.json", summary)
         save_maps(output_directory / "maps.png", hu_grid, density, attenuation)
-        print(f"Maps written to {output_directory}")
+        print(f"Maps written to {_shown(output_directory)}")
         _pyplot().show()
 
 
@@ -877,7 +887,7 @@ Run the tutorial
     Historical un-eroded mask (diagnostic only): 226014 voxels, 1.540 voxels = 6.56 mm (fail)
     Offset (z, y, x): [0.215 0.144 0.145] voxels = [0.92 0.61 0.62] mm
     Euclidean: 0.296 voxels = 1.26 mm -> PASS
-    Maps written to /workspace/output/real_data/ct_conversion/sirf
+    Maps written to sirf
 
 
 
@@ -885,7 +895,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (2 minutes 18.669 seconds)
+   **Total running time of the script:** (2 minutes 43.669 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16b_sirf_ct_conversion.py:

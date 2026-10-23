@@ -45,7 +45,7 @@ Setup
 The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
 pydicom, matplotlib, SciPy and PyTomography.
 
-.. GENERATED FROM PYTHON SOURCE LINES 28-51
+.. GENERATED FROM PYTHON SOURCE LINES 28-61
 
 .. code-block:: Python
 
@@ -73,13 +73,23 @@ pydicom, matplotlib, SciPy and PyTomography.
     ENERGY_KEV = 150.0
 
 
+    def _shown(path):
+        """Show a path relative to the working directory, or just its name."""
+        path = Path(path)
+        try:
+            return path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            return path.name
 
 
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 52-57
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 62-67
 
 Read the CT series
 ------------------
@@ -87,7 +97,7 @@ A voxel-centre affine maps grid indices ``(i, j, k)`` to patient LPS
 coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
 i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
-.. GENERATED FROM PYTHON SOURCE LINES 57-171
+.. GENERATED FROM PYTHON SOURCE LINES 67-181
 
 .. code-block:: Python
 
@@ -212,7 +222,7 @@ i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 172-179
+.. GENERATED FROM PYTHON SOURCE LINES 182-189
 
 Patient-to-SPECT frame
 ----------------------
@@ -222,7 +232,7 @@ in the NM header; the CT table height (-140 mm) supplies it in the shared
 frame of reference. No origin is re-derived from the images and no recentring
 is applied.
 
-.. GENERATED FROM PYTHON SOURCE LINES 179-227
+.. GENERATED FROM PYTHON SOURCE LINES 189-237
 
 .. code-block:: Python
 
@@ -281,7 +291,7 @@ is applied.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 228-252
+.. GENERATED FROM PYTHON SOURCE LINES 238-262
 
 Registration report
 -------------------
@@ -308,7 +318,7 @@ refines the peak to subvoxel precision when the fit is negative definite,
 finite and locally bounded; otherwise the integer estimate is kept. A failed
 gate stops the tutorial before any accepted map is written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 252-447
+.. GENERATED FROM PYTHON SOURCE LINES 262-457
 
 .. code-block:: Python
 
@@ -514,7 +524,7 @@ gate stops the tutorial before any accepted map is written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 448-464
+.. GENERATED FROM PYTHON SOURCE LINES 458-474
 
 PyTomography resampling route
 -----------------------------
@@ -533,7 +543,7 @@ origin and ignores the row direction and table height, placing the target
 outside the CT. That is a property of this header and version, not a general
 statement about Mediso data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 464-538
+.. GENERATED FROM PYTHON SOURCE LINES 474-548
 
 .. code-block:: Python
 
@@ -618,12 +628,12 @@ statement about Mediso data.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 539-541
+.. GENERATED FROM PYTHON SOURCE LINES 549-551
 
 Figures and summary
 -------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 541-686
+.. GENERATED FROM PYTHON SOURCE LINES 551-696
 
 .. code-block:: Python
 
@@ -779,12 +789,12 @@ Figures and summary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 687-689
+.. GENERATED FROM PYTHON SOURCE LINES 697-699
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 689-842
+.. GENERATED FROM PYTHON SOURCE LINES 699-852
 
 .. code-block:: Python
 
@@ -935,7 +945,7 @@ Run the tutorial
             pytomography_mu_ct,
             conversion,
         )
-        print(f"Maps written to {output_directory}")
+        print(f"Maps written to {_shown(output_directory)}")
         _pyplot().show()
 
 
@@ -996,7 +1006,7 @@ Run the tutorial
     Historical un-eroded mask (diagnostic only): 226010 voxels, 1.524 voxels = 6.49 mm (fail)
     Offset (z, y, x): [0.189 0.12  0.12 ] voxels = [0.8  0.51 0.51] mm
     Euclidean: 0.254 voxels = 1.08 mm -> PASS
-    Maps written to /workspace/output/real_data/ct_conversion/pytomography
+    Maps written to pytomography
 
 
 
@@ -1004,7 +1014,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (3 minutes 27.161 seconds)
+   **Total running time of the script:** (3 minutes 21.164 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16c_pytomography_ct_conversion.py:

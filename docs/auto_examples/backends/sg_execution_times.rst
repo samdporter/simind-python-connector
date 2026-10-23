@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**12:25.512** total execution time for 6 files **from auto_examples/backends**:
+**12:26.793** total execution time for 6 files **from auto_examples/backends**:
 
 .. container::
 
@@ -42,11 +42,11 @@ Computation times
      - 03:54.834
      - 0.0
    * - :ref:`sphx_glr_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py` (``plot_08c_pytomography_adaptor_from_dicom.py``)
-     - 00:05.057
+     - 00:06.051
      - 0.0
    * - :ref:`sphx_glr_auto_examples_backends_plot_08b_sirf_adaptor_from_dicom.py` (``plot_08b_sirf_adaptor_from_dicom.py``)
-     - 00:00.954
+     - 00:01.004
      - 0.0
    * - :ref:`sphx_glr_auto_examples_backends_plot_08a_stir_adaptor_from_dicom.py` (``plot_08a_stir_adaptor_from_dicom.py``)
-     - 00:00.595
+     - 00:00.832
      - 0.0

@@ -67,6 +67,16 @@ HOT_SPHERE_CENTRE_MM = (-77.43, -181.69, -576.20)
 HOT_SPHERE_RADIUS_MM = 12.449
 LPS_TO_RAS = np.diag([-1.0, -1.0, 1.0, 1.0])
 
+
+def _shown(path):
+    """Show a path relative to the working directory, or just its name."""
+    path = Path(path)
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path.name
+
+
 # %%
 # Isotope spectra
 # ---------------
@@ -555,7 +565,7 @@ def acquire_detected_spectrum(
         prefix,
         f"/FI:y90/CC:ma-mlegp/PX:{VOXEL_SIZE_MM / 10.0:.6f}/OU:11",
     ]
-    print("SIMIND command:", " ".join(command))
+    print("SIMIND command:", " ".join([Path(command[0]).name, *command[1:]]))
     log_file = output_directory / f"{prefix}.log"
     with open(log_file, "w") as log:
         subprocess.run(
@@ -1008,7 +1018,7 @@ def run():
     }
     save_json(output_directory / "summary.json", summary)
     print(f"Total runtime: {summary['total_seconds'] / 60.0:.1f} min")
-    print(f"Outputs written to {output_directory}")
+    print(f"Outputs written to {_shown(output_directory)}")
     _pyplot().show()
 
 

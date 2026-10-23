@@ -34,7 +34,7 @@ Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 17-36
+.. GENERATED FROM PYTHON SOURCE LINES 17-45
 
 .. code-block:: Python
 
@@ -47,6 +47,15 @@ Locate the Y-90 dataset and choose where the outputs are written.
     from pytomography.io.SPECT import dicom as pytomo_dicom
 
     from simind_python_connector.datasets import fetch_y90_phantom
+
+
+    def _shown(path):
+        """Show a path relative to the working directory, or just its name."""
+        path = Path(path)
+        try:
+            return path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            return path.name
 
 
     dicom_file = fetch_y90_phantom() / "peak.dcm"
@@ -64,14 +73,14 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 37-41
+.. GENERATED FROM PYTHON SOURCE LINES 46-50
 
 Load the projections
 --------------------
 ``get_projections`` returns a tensor ordered (theta, r, z). ``index_peak=0``
 selects the first energy window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 41-49
+.. GENERATED FROM PYTHON SOURCE LINES 50-58
 
 .. code-block:: Python
 
@@ -80,7 +89,7 @@ selects the first energy window.
     projection = projections.detach().cpu().numpy().astype(np.float32, copy=False)
     np.save(output_dir / "pytomography_projection.npy", projection)
 
-    print(f"DICOM input: {dicom_file}")
+    print(f"DICOM input: {_shown(dicom_file)}")
     print(f"Projection shape (theta, r, z): {projection.shape}")
 
 
@@ -91,13 +100,13 @@ selects the first energy window.
 
  .. code-block:: none
 
-    DICOM input: /workspace/tmp/y90_data/peak.dcm
+    DICOM input: peak.dcm
     Projection shape (theta, r, z): (120, 128, 128)
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 50-57
+.. GENERATED FROM PYTHON SOURCE LINES 59-66
 
 Plot two views
 --------------
@@ -107,7 +116,7 @@ mod 360, so its view k is DICOM frame (k + 60) mod 120 and frame 0 is view 60.
 The tensor is transposed and drawn with ``origin="lower"`` so rows are axial
 with the head end up, and columns are radial.
 
-.. GENERATED FROM PYTHON SOURCE LINES 57-68
+.. GENERATED FROM PYTHON SOURCE LINES 66-77
 
 .. code-block:: Python
 
@@ -137,7 +146,7 @@ with the head end up, and columns are radial.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 5.057 seconds)
+   **Total running time of the script:** (0 minutes 6.051 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py:

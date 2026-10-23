@@ -25,6 +25,15 @@ from pytomography.io.SPECT import dicom as pytomo_dicom
 from simind_python_connector.datasets import fetch_y90_phantom
 
 
+def _shown(path):
+    """Show a path relative to the working directory, or just its name."""
+    path = Path(path)
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path.name
+
+
 dicom_file = fetch_y90_phantom() / "peak.dcm"
 output_dir = (
     Path(os.environ.get("SIMIND_EXAMPLES_OUTPUT", "output"))
@@ -43,7 +52,7 @@ projections = pytomo_dicom.get_projections(str(dicom_file), index_peak=0)
 projection = projections.detach().cpu().numpy().astype(np.float32, copy=False)
 np.save(output_dir / "pytomography_projection.npy", projection)
 
-print(f"DICOM input: {dicom_file}")
+print(f"DICOM input: {_shown(dicom_file)}")
 print(f"Projection shape (theta, r, z): {projection.shape}")
 
 # %%

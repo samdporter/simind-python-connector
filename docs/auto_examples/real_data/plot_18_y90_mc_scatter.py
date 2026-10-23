@@ -13,6 +13,13 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
    frozen sphere centre, and the results do not support a robust strategy
    ranking or a quantitative superiority claim.
 
+The history-doubling probe uses a reduced 60-view geometry to keep its cost
+down. The reference-sum and reference-trimmed arms collapsed in that probe
+(NN=1/NN=2 ratios 0.107/0.218 and 0.008/0.023), so the 179.48% largest change
+is a probe artefact rather than native-geometry evidence. The known-activity
+(+10.2%) and pixel-wise (+1.6%) changes are usable. A native-geometry history
+check was not established.
+
 Reconstruct a measured Y-90 phantom acquisition with SIRF OSEM and a SIMIND
 Monte Carlo scatter estimate, and compare four usable ways of putting that
 estimate on the scale of the data plus an uncorrected baseline. A fifth route,
@@ -168,6 +175,23 @@ GLOBAL_HEADING = (
     "Global scaling — collapsed; diagnostic only, not quantitatively interpretable"
 )
 DIAGNOSTIC_LABELS = {GLOBAL_STRATEGY: "Global scaling"}
+
+# Warnings raised by the container environment that embed its install paths.
+warnings.filterwarnings(
+    "ignore", message="geometrical info for STIR.ImageData might be incorrect"
+)
+# Container/fork deprecation noise from the multiprocessing pool is not tutorial
+# content; the pool isolates the SIMIND subprocesses and is unaffected.
+warnings.simplefilter("ignore", DeprecationWarning)
+
+
+def _shown(path):
+    """Show a path relative to the working directory, or just its name."""
+    path = Path(path)
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path.name
 
 
 # %%
@@ -1286,6 +1310,10 @@ def simulate_job(job):
     """
     from simind_python_connector import SirfSimindAdaptor, configs
 
+    # SIRF's import resets DeprecationWarning filtering; keep the container's
+    # fork warning out of the tutorial output.
+    warnings.simplefilter("ignore", DeprecationWarning)
+
     source = np.load(job["source"])
     density = np.load(job["density"])
     output_dir = Path(job["output_dir"])
@@ -1428,6 +1456,9 @@ def simulate_many(jobs, workers=5, minimum_total=0.0):
             )
         prepared.append(job)
         losses[name] = job["quantization_loss"]
+    # SIRF's import resets DeprecationWarning filtering; keep the container's
+    # fork warning out of the tutorial output.
+    warnings.simplefilter("ignore", DeprecationWarning)
     try:
         context = get_context("fork")
     except ValueError:  # pragma: no cover - not available on every platform
@@ -1718,10 +1749,10 @@ def complete_run(summary, output_directory, strict=True):
             + json.dumps(summary["gates"], indent=1)
             + "\n"
         )
-        message = f"Statistical adequacy was not established; see {marker}"
+        message = f"Statistical adequacy was not established; see {_shown(marker)}"
         if strict:
             raise RuntimeError(message)
-        warnings.warn(message, RuntimeWarning)
+        print(f"WARNING: {message}")
 
 
 # %%
@@ -2272,7 +2303,9 @@ def run(strict=True):
         for name in valid_names
     }
     print(
-        "  NN=1 / NN=2 final-pass ratios: "
+        "  NN=1 / NN=2 final-pass ratios (history-doubling probe; reduced "
+        "60-view geometry, reference arms collapsed there; not native-geometry "
+        "evidence): "
         + ", ".join(
             f"{name} {nn_ratios[1][name]:.3f}/{nn_ratios[2][name]:.3f}"
             for name in valid_names
@@ -2530,7 +2563,7 @@ def run(strict=True):
         },
     }
     print(f"Total wall time: {elapsed / 60.0:.1f} min")
-    print(f"Summary written to {output_directory}")
+    print(f"Summary written to {_shown(output_directory)}")
     complete_run(summary, output_directory, strict)
     _pyplot().show()
 

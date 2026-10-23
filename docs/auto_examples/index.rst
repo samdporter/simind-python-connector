@@ -584,7 +584,7 @@ The remaining two tutorials use the same dataset:
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Reconstruct a measured Y-90 phantom acquisition with SIRF OSEM and a SIMIND Monte Carlo scatter estimate, and compare four usable ways of putting that estimate on the scale of the data plus an uncorrected baseline. A fifth route, the paper&#x27;s global scaling, is reported separately as a diagnostic failure.">
+    <div class="sphx-glr-thumbcontainer" tooltip="The history-doubling probe uses a reduced 60-view geometry to keep its cost down. The reference-sum and reference-trimmed arms collapsed in that probe (NN=1/NN=2 ratios 0.107/0.218 and 0.008/0.023), so the 179.48% largest change is a probe artefact rather than native-geometry evidence. The known-activity (+10.2%) and pixel-wise (+1.6%) changes are usable. A native-geometry history check was not established.">
 
 .. only:: html
 

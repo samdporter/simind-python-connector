@@ -34,7 +34,7 @@ Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 17-37
+.. GENERATED FROM PYTHON SOURCE LINES 17-46
 
 .. code-block:: Python
 
@@ -48,6 +48,15 @@ Locate the Y-90 dataset and choose where the outputs are written.
     from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
     from simind_python_connector.datasets import fetch_y90_phantom
     from simind_python_connector.utils import get_array
+
+
+    def _shown(path):
+        """Show a path relative to the working directory, or just its name."""
+        path = Path(path)
+        try:
+            return path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            return path.name
 
 
     dicom_file = fetch_y90_phantom() / "peak.dcm"
@@ -65,7 +74,7 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 38-43
+.. GENERATED FROM PYTHON SOURCE LINES 47-52
 
 Build the SIRF projection data
 ------------------------------
@@ -73,7 +82,7 @@ The builder fills an Interfile header from the DICOM metadata and writes
 the projection counts next to it. The result is read back as SIRF
 ``AcquisitionData``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 43-56
+.. GENERATED FROM PYTHON SOURCE LINES 52-65
 
 .. code-block:: Python
 
@@ -85,10 +94,10 @@ the projection counts next to it. The result is read back as SIRF
     acq = builder.build(output_path=output_base)
     projection = get_array(acq)
 
-    print(f"DICOM input: {dicom_file}")
+    print(f"DICOM input: {_shown(dicom_file)}")
     print(f"Projection is AcquisitionData: {isinstance(acq, sirf.AcquisitionData)}")
     print(f"Projection shape: {projection.shape}")
-    print(f"Interfile output base: {output_base}")
+    print(f"Interfile output base: {_shown(output_base)}")
 
 
 
@@ -100,21 +109,21 @@ the projection counts next to it. The result is read back as SIRF
 
     Debug: Direct radii processed - all same: False, values: [300.0, 300.0, 300.0, 300.000031, 300.0]...
     Debug: Skipping tomo view offset processing - direct radii already processed
-    DICOM input: /workspace/tmp/y90_data/peak.dcm
+    DICOM input: peak.dcm
     Projection is AcquisitionData: True
     Projection shape: (1, 128, 120, 128)
-    Interfile output base: /workspace/output/dicom_projection_objects/sirf/sirf_from_dicom
+    Interfile output base: sirf_from_dicom
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 57-60
+.. GENERATED FROM PYTHON SOURCE LINES 66-69
 
 Plot two views
 --------------
 Views 0 and 30 of the 120 views, 90 degrees apart.
 
-.. GENERATED FROM PYTHON SOURCE LINES 60-72
+.. GENERATED FROM PYTHON SOURCE LINES 69-81
 
 .. code-block:: Python
 
@@ -145,7 +154,7 @@ Views 0 and 30 of the 120 views, 90 degrees apart.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.954 seconds)
+   **Total running time of the script:** (0 minutes 1.004 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08b_sirf_adaptor_from_dicom.py:

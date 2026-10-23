@@ -46,6 +46,16 @@ MATRIX_SIZE = 128
 GRID_CENTRE = (MATRIX_SIZE - 1) / 2.0
 ENERGY_KEV = 150.0
 
+
+def _shown(path):
+    """Show a path relative to the working directory, or just its name."""
+    path = Path(path)
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path.name
+
+
 # %%
 # Read the CT series
 # ------------------
@@ -754,7 +764,7 @@ def run():
     }
     save_json(output_directory / "summary.json", summary)
     save_maps(output_directory / "maps.png", hu_grid, density, attenuation)
-    print(f"Maps written to {output_directory}")
+    print(f"Maps written to {_shown(output_directory)}")
     _pyplot().show()
 
 

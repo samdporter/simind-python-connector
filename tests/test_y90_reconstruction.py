@@ -410,8 +410,7 @@ def _failed_summary():
 
 @pytest.mark.unit
 def test_quality_failure_summary_preserves_false_gates(tmp_path):
-    with pytest.warns(RuntimeWarning):
-        script.complete_run(_failed_summary(), tmp_path, strict=False)
+    script.complete_run(_failed_summary(), tmp_path, strict=False)
 
     written = json.loads((tmp_path / "summary.json").read_text())
     assert written["status"] == "quality_not_established"
@@ -423,9 +422,12 @@ def test_quality_failure_summary_preserves_false_gates(tmp_path):
 
 
 @pytest.mark.unit
-def test_diagnostic_completion_warns_without_raising(tmp_path):
-    with pytest.warns(RuntimeWarning, match="Statistical adequacy"):
-        script.complete_run(_failed_summary(), tmp_path, strict=False)
+def test_diagnostic_completion_prints_warning_without_raising(tmp_path, capsys):
+    script.complete_run(_failed_summary(), tmp_path, strict=False)
+
+    output = capsys.readouterr().out
+    assert "WARNING: Statistical adequacy was not established" in output
+    assert "UNACCEPTED.txt" in output
 
 
 @pytest.mark.unit
