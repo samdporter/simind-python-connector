@@ -30,7 +30,9 @@ jobs:
           pip install -e ".[dev]"
       - name: Check the tag matches the documented version
         run: |
-          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          # Python 3.10 (matched to Read the Docs) predates the TOML parser in
+          # the standard library, so read [project] version with pathlib/re.
+          version=$(python -c 'import pathlib, re; text = pathlib.Path("pyproject.toml").read_text(encoding="utf-8"); project = re.search(r"(?ms)^\[project\].*?(?=^\[|\Z)", text).group(0); print(re.search(r"(?m)^version\s*=\s*\"([^\"]+)\"", project).group(1))')
           if [[ "$GITHUB_REF_NAME" == v* ]] && [ "$GITHUB_REF_NAME" != "v${version}" ]; then
             echo "Tag $GITHUB_REF_NAME does not match version v${version}"
             exit 1

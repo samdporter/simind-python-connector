@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+from importlib import metadata
 from pathlib import Path
 
 import docutils.core
@@ -46,6 +47,14 @@ VERSION_SURFACES = (
 BLANKET_STAGING = re.compile(
     r"git\s+add\s+(?:-[A-Za-z]+|--[A-Za-z-]+|\.)(?=\s|$)", re.MULTILINE
 )
+
+# Top-level standard-library modules that did not exist in Python 3.10, the
+# version the docs job and Read the Docs share. Workflows that select an
+# older interpreter must not import these in inline ``python -c`` snippets.
+STDLIB_INTRODUCED_LATER = {
+    "tomllib": (3, 11),
+    "compression": (3, 14),
+}
 
 
 def _changelog_md(version: str = VERSION, date: str = DATE) -> str:
@@ -306,6 +315,21 @@ def _on(workflow: dict) -> dict:
 def _needs(job: dict) -> list[str]:
     needs = job.get("needs", [])
     return [needs] if isinstance(needs, str) else list(needs)
+
+
+def _inline_python_sources(text: str) -> list[str]:
+    """Python sources passed to ``python -c`` in a workflow's run blocks."""
+    return re.findall(r"""python -c '([^']+)'""", text) + re.findall(
+        r'python -c "([^"]+)"', text
+    )
+
+
+def _imported_modules(source: str) -> set[str]:
+    """Top-level module names imported by an inline Python snippet."""
+    return {
+        match.group(1).split(".")[0]
+        for match in re.finditer(r"(?m)^\s*(?:from|import)\s+([A-Za-z_]\w*)", source)
+    }
 
 
 def test_prepare_rewrites_every_machine_surface(tmp_path: Path) -> None:
@@ -609,6 +633,76 @@ def test_docs_workflow_builds_without_execution_and_fails_on_warnings() -> None:
     assert "-W" in build["run"]
     assert "docs/auto_examples" in text
     assert "actions/upload-artifact" in text
+
+
+def test_docs_workflow_runs_only_python_3_10_compatible_commands(
+    tmp_path: Path,
+) -> None:
+    """The docs job uses Read the Docs' Python 3.10, which has no tomllib."""
+    text = _read(WORKFLOWS / "docs.yml")
+    workflow = yaml.safe_load(text)
+    steps = workflow["jobs"]["docs"]["steps"]
+
+    setup = next(
+        step
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/setup-python")
+    )
+    selected_text = setup["with"]["python-version"]
+    selected = tuple(int(part) for part in selected_text.split("."))
+    rtd = yaml.safe_load(_read(ROOT / ".readthedocs.yaml"))
+    assert selected_text == rtd["build"]["tools"]["python"]
+    assert "tomllib" not in text
+
+    for source in _inline_python_sources(text):
+        for module in _imported_modules(source):
+            introduced = STDLIB_INTRODUCED_LATER.get(module)
+            assert introduced is None or selected >= introduced, (
+                f"inline python imports {module} (Python {introduced[0]}."
+                f"{introduced[1]}+) but the docs job selects {selected_text}"
+            )
+    for name, introduced in STDLIB_INTRODUCED_LATER.items():
+        if sys.version_info >= introduced:
+            assert name in sys.stdlib_module_names
+
+    check = next(
+        step
+        for step in steps
+        if step.get("name") == "Check the tag matches the documented version"
+    )
+    version = metadata.version("simind-python-connector")
+    # The job's setup-python step provides `python`; mirror that locally.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "python").symlink_to(sys.executable)
+    env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+    extracted = subprocess.run(
+        ["bash", "-c", check["run"] + '\nprintf "%s" "$version"'],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert extracted.returncode == 0, extracted.stderr
+    assert extracted.stdout == version
+
+    matched = subprocess.run(
+        ["bash", "-c", check["run"]],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={**env, "GITHUB_REF_NAME": f"v{version}"},
+    )
+    mismatched = subprocess.run(
+        ["bash", "-c", check["run"]],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={**env, "GITHUB_REF_NAME": "v0.0.0"},
+    )
+    assert matched.returncode == 0, matched.stdout
+    assert mismatched.returncode != 0
+    assert "does not match" in mismatched.stdout
 
 
 def test_api_documents_reexported_connector_classes_once() -> None:
