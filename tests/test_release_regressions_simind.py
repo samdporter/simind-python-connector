@@ -3,6 +3,13 @@
 Run with SIMIND on PATH and SIMIND_VERSION matching the executable. The
 component cases need a build supporting SCATTWIN CA=2; the supplied v9 Linux
 Intel build crashes in that mode, while v8 Linux and v9 macOS ARM pass it.
+
+The SCATTWIN window smokes run the same 16^3 / four-view / mostly-zero point
+source with HISTORIES=0.02, CA=0 and a 300 s timeout. On the native macOS ARM64
+SIMIND v9.0 build (2026-09-27), generated windows were selected with a
+conflicting stale ``scattwin.win`` left byte-identical, and explicit
+``FW=scattwin`` selected that file's single window. These are smoke checks, not
+quantitative validation.
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ from simind_python_connector.core.types import (
     SimulationError,
 )
 from simind_python_connector.utils.interfile import ProjectionGeometry
+from simind_python_connector.utils.simind_utils import create_window_file
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_simind]
@@ -28,6 +36,7 @@ GRID = 16
 VIEWS = 4
 VOXEL_MM = 4.0
 HISTORIES = 0.02
+SMOKE_TIMEOUT_S = 300
 MISSING_NUCLIDE = "not_a_real_nuclide"
 
 
@@ -146,6 +155,63 @@ def test_small_valid_phantom_produces_meaningful_primary_outputs(
     primary = outputs["pri_w1"].projection
     assert primary.sum() > 0
     assert primary.sum() <= total.sum() + 1e-6
+
+
+def _seed_stale_default_window(tmp_path: Path) -> bytes:
+    """Write one window to the engine-default scattwin.win and return its bytes."""
+    stale = tmp_path / "scattwin.win"
+    create_window_file([100.0], [110.0], [0], output_filename=str(stale))
+    return stale.read_bytes()
+
+
+def _assert_nonzero_finite_total(outputs: dict, key: str) -> None:
+    assert key in outputs
+    projection = outputs[key].projection
+    assert np.isfinite(projection).all()
+    assert projection.sum() > 0
+
+
+def test_scattwin_generated_windows_ignore_stale_default(tmp_path: Path) -> None:
+    """Smoke: connector-written windows beat a conflicting stale scattwin.win.
+
+    Engine: native macOS ARM64 SIMIND v9.0 (2026-09-27 build). Command:
+    ``genwin genwin /PX:0.4/FI:tc99m/CC:ma-lehr/RR:7/CA:0/FW:genwin``.
+    16^3 grid, four views, 4 mm voxels, HISTORIES=0.02, CA=0, 300 s timeout.
+    """
+    stale_bytes = _seed_stale_default_window(tmp_path)
+    connector = _connector(tmp_path, "genwin", scoring_routine=ScoringRoutine.SCATTWIN)
+    connector.set_energy_windows([126.0, 92.0], [154.0, 125.0], [0, 0])
+    connector.add_runtime_switch("CA", 0)
+    assert "FW" not in connector.runtime_switches.switches
+
+    outputs = connector.run(timeout=SMOKE_TIMEOUT_S)
+
+    _assert_nonzero_finite_total(outputs, "tot_w1")
+    _assert_nonzero_finite_total(outputs, "tot_w2")
+    assert (tmp_path / "scattwin.win").read_bytes() == stale_bytes
+
+
+def test_scattwin_explicit_default_window_selection(tmp_path: Path) -> None:
+    """Smoke: FW=scattwin opts into the existing default-named one-window file.
+
+    Engine: native macOS ARM64 SIMIND v9.0 (2026-09-27 build). Command:
+    ``fwsel fwsel /PX:0.4/FI:tc99m/CC:ma-lehr/RR:7/CA:0/FW:scattwin``.
+    Two connector-written windows are configured first, so only w1 proves the
+    explicit selection; 16^3 grid, four views, HISTORIES=0.02, CA=0, 300 s.
+    """
+    stale_bytes = _seed_stale_default_window(tmp_path)
+    connector = _connector(tmp_path, "fwsel", scoring_routine=ScoringRoutine.SCATTWIN)
+    connector.set_energy_windows([126.0, 92.0], [154.0, 125.0], [0, 0])
+    connector.add_runtime_switch("CA", 0)
+
+    outputs = connector.run(
+        RuntimeOperator(switches={"FW": "scattwin"}), timeout=SMOKE_TIMEOUT_S
+    )
+
+    total_keys = {key for key in outputs if key.startswith("tot_w")}
+    assert total_keys == {"tot_w1"}
+    _assert_nonzero_finite_total(outputs, "tot_w1")
+    assert (tmp_path / "scattwin.win").read_bytes() == stale_bytes
 
 
 def _prefix_bytes(output_dir: Path, prefix: str) -> dict[str, bytes]:
