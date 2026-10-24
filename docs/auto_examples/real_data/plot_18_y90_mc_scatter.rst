@@ -99,7 +99,7 @@ The Y-90 phantom data are not published for download yet. Set
 Setup
 -----
 
-.. GENERATED FROM PYTHON SOURCE LINES 82-197
+.. GENERATED FROM PYTHON SOURCE LINES 82-201
 
 .. code-block:: Python
 
@@ -206,7 +206,11 @@ Setup
     )
     # Container/fork deprecation noise from the multiprocessing pool is not tutorial
     # content; the pool isolates the SIMIND subprocesses and is unaffected.
-    warnings.simplefilter("ignore", DeprecationWarning)
+    warnings.filterwarnings(
+        "ignore",
+        message="This process .* is multi-threaded, use of fork",
+        category=DeprecationWarning,
+    )
 
 
     def _shown(path):
@@ -225,7 +229,7 @@ Setup
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 198-204
+.. GENERATED FROM PYTHON SOURCE LINES 202-208
 
 CT series and patient-to-SPECT frame
 ------------------------------------
@@ -234,7 +238,7 @@ The CT slices are not stored in spatial order and are sorted by
 patient-to-SPECT affine uses the NM detector centre in x and z and the CT
 table height in y; no origin is re-derived from the images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 204-355
+.. GENERATED FROM PYTHON SOURCE LINES 208-359
 
 .. code-block:: Python
 
@@ -396,7 +400,7 @@ table height in y; no origin is re-derived from the images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 356-363
+.. GENERATED FROM PYTHON SOURCE LINES 360-367
 
 Registration
 ------------
@@ -406,7 +410,7 @@ finite values, eroded once to keep the body/table boundary out of the edge
 correlation. The acceptance criterion is a Euclidean offset of at most one
 voxel. The measured offset is reported, not applied to the maps.
 
-.. GENERATED FROM PYTHON SOURCE LINES 363-548
+.. GENERATED FROM PYTHON SOURCE LINES 367-552
 
 .. code-block:: Python
 
@@ -602,7 +606,7 @@ voxel. The measured offset is reported, not applied to the maps.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 549-555
+.. GENERATED FROM PYTHON SOURCE LINES 553-559
 
 SIRF resampling
 ---------------
@@ -611,7 +615,7 @@ resampler's zero padding becomes -1000 HU. The reference is an empty image
 with the target SPECT affine and the identity transform is deliberate. The
 resampled array is transferred to a STIR image on the vendor grid.
 
-.. GENERATED FROM PYTHON SOURCE LINES 555-604
+.. GENERATED FROM PYTHON SOURCE LINES 559-608
 
 .. code-block:: Python
 
@@ -671,7 +675,7 @@ resampled array is transferred to a STIR image on the vendor grid.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 605-611
+.. GENERATED FROM PYTHON SOURCE LINES 609-615
 
 Liver VOI
 ---------
@@ -680,7 +684,7 @@ closed component of the wall on each CT slice, excluding the wall itself, air,
 the lung domes and other compartments. The mask is generated once from the CT,
 before any reconstruction, and is never changed by a strategy.
 
-.. GENERATED FROM PYTHON SOURCE LINES 611-757
+.. GENERATED FROM PYTHON SOURCE LINES 615-761
 
 .. code-block:: Python
 
@@ -837,7 +841,7 @@ before any reconstruction, and is never changed by a strategy.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 758-771
+.. GENERATED FROM PYTHON SOURCE LINES 762-775
 
 Metrics
 -------
@@ -853,7 +857,7 @@ and sphere. It is affected by recovery, spillover and the VOI uncertainty.
 The activities are those at the scan; no decay correction is applied, and
 +-2% is the supplied activity uncertainty only.
 
-.. GENERATED FROM PYTHON SOURCE LINES 771-1004
+.. GENERATED FROM PYTHON SOURCE LINES 775-1008
 
 .. code-block:: Python
 
@@ -1097,12 +1101,12 @@ The activities are those at the scan; no decay correction is applied, and
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1005-1007
+.. GENERATED FROM PYTHON SOURCE LINES 1009-1011
 
 Scatter strategies
 ------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1007-1086
+.. GENERATED FROM PYTHON SOURCE LINES 1011-1090
 
 .. code-block:: Python
 
@@ -1192,12 +1196,12 @@ Scatter strategies
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1087-1089
+.. GENERATED FROM PYTHON SOURCE LINES 1091-1093
 
 Reconstruction schedule
 -----------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1089-1195
+.. GENERATED FROM PYTHON SOURCE LINES 1093-1199
 
 .. code-block:: Python
 
@@ -1314,12 +1318,12 @@ Reconstruction schedule
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1196-1198
+.. GENERATED FROM PYTHON SOURCE LINES 1200-1202
 
 SIRF and SIMIND run-time helpers
 --------------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1198-1288
+.. GENERATED FROM PYTHON SOURCE LINES 1202-1292
 
 .. code-block:: Python
 
@@ -1420,12 +1424,12 @@ SIRF and SIMIND run-time helpers
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1289-1291
+.. GENERATED FROM PYTHON SOURCE LINES 1293-1295
 
 SIMIND job
 ----------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1291-1484
+.. GENERATED FROM PYTHON SOURCE LINES 1295-1496
 
 .. code-block:: Python
 
@@ -1453,7 +1457,11 @@ SIMIND job
 
         # SIRF's import resets DeprecationWarning filtering; keep the container's
         # fork warning out of the tutorial output.
-        warnings.simplefilter("ignore", DeprecationWarning)
+        warnings.filterwarnings(
+            "ignore",
+            message="This process .* is multi-threaded, use of fork",
+            category=DeprecationWarning,
+        )
 
         source = np.load(job["source"])
         density = np.load(job["density"])
@@ -1599,7 +1607,11 @@ SIMIND job
             losses[name] = job["quantization_loss"]
         # SIRF's import resets DeprecationWarning filtering; keep the container's
         # fork warning out of the tutorial output.
-        warnings.simplefilter("ignore", DeprecationWarning)
+        warnings.filterwarnings(
+            "ignore",
+            message="This process .* is multi-threaded, use of fork",
+            category=DeprecationWarning,
+        )
         try:
             context = get_context("fork")
         except ValueError:  # pragma: no cover - not available on every platform
@@ -1629,12 +1641,12 @@ SIMIND job
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1485-1487
+.. GENERATED FROM PYTHON SOURCE LINES 1497-1499
 
 Templates and measured data
 ---------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1487-1539
+.. GENERATED FROM PYTHON SOURCE LINES 1499-1551
 
 .. code-block:: Python
 
@@ -1697,11 +1709,11 @@ Templates and measured data
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1540-1541
+.. GENERATED FROM PYTHON SOURCE LINES 1552-1553
 
 Figures
 
-.. GENERATED FROM PYTHON SOURCE LINES 1541-1758
+.. GENERATED FROM PYTHON SOURCE LINES 1553-1770
 
 .. code-block:: Python
 
@@ -1929,12 +1941,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1759-1761
+.. GENERATED FROM PYTHON SOURCE LINES 1771-1773
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1761-2573
+.. GENERATED FROM PYTHON SOURCE LINES 1773-2585
 
 .. code-block:: Python
 
@@ -2774,7 +2786,7 @@ Run the tutorial
     SIMIND source support: 15948 voxels, 1231.0 mL
     Measured projections: (1, 128, 120, 128), sum 3783028.0
     Generating the independent attenuation-only reference reconstruction
-    Reference: 94.7 s, max 4.440, sum 95176.0
+    Reference: 100.5 s, max 4.440, sum 95176.0
     Reference hot-sphere centroid: [ -77.43 -181.69 -576.2 ] mm at voxel [64.52 53.71 45.78] (peak (63, 52, 45)); accepted centre (-77.43, -181.69, -576.2), difference 0.00 mm
     Sphere: 8.092 mL, centroid [ -77.43 -181.7  -576.21] mm
     Liver ex sphere: 978.17 mL, centroid [ -31.97 -172.15 -596.65] mm
@@ -2887,11 +2899,11 @@ Run the tutorial
      Sensitivity Cps/MBq: 1.3183         
      Sensitivity Cpm/uCi: 2.9265         
                                                                               
-     Simulation started.: 2026:10:23 19:44:52
-     Simulation stopped.: 2026:10:23 20:04:20
-     Elapsed time.......: 0 h, 19 m and 28 s
+     Simulation started.: 2026:10:23 22:24:48
+     Simulation stopped.: 2026:10:23 22:42:59
+     Elapsed time.......: 0 h, 18 m and 11 s
      DetectorHits.......: 351808         
-     DetectorHits/CPUsec: 301            
+     DetectorHits/CPUsec: 323            
                                                                               
      OTHER INFORMATION
      Test simulation
@@ -2902,13 +2914,13 @@ Run the tutorial
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
      Command: shared_refresh shared_refresh /NN:1/FI:y90/CC:ma-mlegp/PX:0.4257800102233887
-    Shared first-refresh SIMIND run: 1171 s, quantization loss 0.00%
+    Shared first-refresh SIMIND run: 1092 s, quantization loss 0.00%
     Second-refresh SIMIND runs (parallel):
-      Known activity: 689 s
-      Reference, sum: 586 s
-      Reference, trimmed: 558 s
-      Dewaraja, global: 75 s
-      Dewaraja, pixel-wise: 808 s
+      Known activity: 610 s
+      Reference, sum: 512 s
+      Reference, trimmed: 486 s
+      Dewaraja, global: 66 s
+      Dewaraja, pixel-wise: 721 s
     Schedule: six SIMIND runs, two updates per corrected strategy, none for the baseline, 144 subiterations each
     Primary activity-concentration ratio (sphere/liver, truth 4.0):
       | Strategy | First corrected pass | Final ratio | Change |
@@ -2970,7 +2982,7 @@ Run the tutorial
       Reference, trimmed      0.050      0.039      0.000      0.670
       Dewaraja, pixel-wi      0.672      0.671      0.670      0.000
     Diagnostic scale: shared/measured 0.269, global factor 3.718, measured counts in zero-SIMIND bins 44.0%
-    Total wall time: 149.8 min
+    Total wall time: 134.0 min
     Summary written to y90_mc_scatter
     WARNING: Statistical adequacy was not established; see UNACCEPTED.txt
 
@@ -2980,7 +2992,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (149 minutes 47.823 seconds)
+   **Total running time of the script:** (134 minutes 1.688 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_18_y90_mc_scatter.py:

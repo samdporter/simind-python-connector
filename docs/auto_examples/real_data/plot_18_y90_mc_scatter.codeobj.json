@@ -3009,22 +3009,6 @@
    "name": "filterwarnings"
   }
  ],
- "warnings.simplefilter": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "function"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "warnings",
-   "module_short": "warnings",
-   "name": "simplefilter"
-  }
- ],
  "weighted_mean": [
   {
    "is_class": false,

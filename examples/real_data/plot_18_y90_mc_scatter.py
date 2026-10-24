@@ -182,7 +182,11 @@ warnings.filterwarnings(
 )
 # Container/fork deprecation noise from the multiprocessing pool is not tutorial
 # content; the pool isolates the SIMIND subprocesses and is unaffected.
-warnings.simplefilter("ignore", DeprecationWarning)
+warnings.filterwarnings(
+    "ignore",
+    message="This process .* is multi-threaded, use of fork",
+    category=DeprecationWarning,
+)
 
 
 def _shown(path):
@@ -1312,7 +1316,11 @@ def simulate_job(job):
 
     # SIRF's import resets DeprecationWarning filtering; keep the container's
     # fork warning out of the tutorial output.
-    warnings.simplefilter("ignore", DeprecationWarning)
+    warnings.filterwarnings(
+        "ignore",
+        message="This process .* is multi-threaded, use of fork",
+        category=DeprecationWarning,
+    )
 
     source = np.load(job["source"])
     density = np.load(job["density"])
@@ -1458,7 +1466,11 @@ def simulate_many(jobs, workers=5, minimum_total=0.0):
         losses[name] = job["quantization_loss"]
     # SIRF's import resets DeprecationWarning filtering; keep the container's
     # fork warning out of the tutorial output.
-    warnings.simplefilter("ignore", DeprecationWarning)
+    warnings.filterwarnings(
+        "ignore",
+        message="This process .* is multi-threaded, use of fork",
+        category=DeprecationWarning,
+    )
     try:
         context = get_context("fork")
     except ValueError:  # pragma: no cover - not available on every platform
