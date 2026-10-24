@@ -7,18 +7,39 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-2.0.1 - Unreleased
-------------------
+2.0.1 - 2026-10-24
+-------------------
 
-The supported successor to 1.1.1 and the replacement for the withdrawn 2.0.0
-and 3.0.0. It carries the A0-E next-major work that was published by mistake
-under 2.0.0/3.0.0, together with the projection-geometry correction that
-followed.
+The supported successor to 1.2.0, the current public release, and the
+replacement for the withdrawn 2.0.0 and 3.0.0. It carries the A0-E next-major
+work that was published by mistake under 2.0.0/3.0.0, together with the
+projection-geometry correction that followed. Upgrade from 1.2.0 with
+``pip install -U simind-python-connector``; users of the withdrawn
+2.0.0/3.0.0 releases are covered by the reinstall note below, not by an
+upgrade through those versions.
 
 If you installed the withdrawn 3.0.0, reinstall this release explicitly:
 ``pip install "simind-python-connector==2.0.1"`` (a 2.x release does not
 auto-supersede an installed 3.0.0, because pip does not downgrade an already
 satisfied requirement).
+
+Compatibility
+~~~~~~~~~~~~~
+
+- **Breaking — SCATTWIN window selection:** a SCATTWIN run that relied on an
+  implicit existing ``scattwin.win`` now raises a ``ValueError``. Migrate by
+  calling ``set_energy_windows(...)`` — the connector-written window is
+  selected and ``FW`` is injected into that run's run-local switches only,
+  never into persistent or caller-supplied switch objects — or by selecting
+  the file explicitly with ``FW="scattwin"``. A selected window file that is
+  missing or not a regular file raises ``FileNotFoundError`` instead of
+  falling back to another file, and PENETRATE or DUMMY runs never infer a
+  window file from an existing ``scattwin.win``.
+- CA/collimator validation is unchanged and routine-independent: ``CA`` is
+  validated as 0, 1 or 2 whatever the scoring routine, and the connector
+  injects no ``/CA``.
+- The connector-written ``{prefix}.inp`` for analytic phantoms is deliberately
+  retained after phantom reset clears ``IF``; nothing downstream reads it.
 
 Added
 ~~~~~
@@ -62,8 +83,17 @@ Added
   ``nema_iec_phantom``; ``configure_phantom`` on the connector and
   ``set_phantom`` / ``get_ground_truth`` on the SIRF/STIR adaptors.
 - Examples 09-12 for the reconstruction and phantom workflows.
-- ``simind_python_connector.datasets.fetch_y90_phantom``: the Y-90 phantom data for the
-  tutorials, from ``SIMIND_CONNECTOR_Y90_DATA`` or a pooch download once published.
+- Real-data Y-90 tutorials, rendered in the documentation's real-data gallery:
+  examples 16A/16B/16C (CT-to-SPECT conversion and registration against the
+  vendor attenuation map in SIRF, PyTomography and STIR), 17 (an
+  effective-energy spectrum derived from a reduced LIST_MODE acquisition) and
+  18 (a SIRF reconstruction with the SIMIND scatter corrections).
+- ``simind_python_connector.datasets.fetch_y90_phantom``: the Y-90 phantom data
+  for the tutorials, from the local directory named by
+  ``SIMIND_CONNECTOR_Y90_DATA``. The dataset is restricted: there is no public
+  download, and the real-data gallery pages are rendered case studies produced
+  from data available to the authors. The examples fail fast with a clear
+  message when the data are absent.
 
 Changed
 ~~~~~~~
@@ -280,6 +310,15 @@ Fixed
 Known limitations
 ~~~~~~~~~~~~~~~~~
 
+- The real-data gallery's example 18 publishes the audited Y-90 recovery study
+  as a diagnostic negative result: the quality of the tested
+  scatter-correction scaling strategies is not established (the global scaling
+  collapsed, the seed-stability and smoothed-L1 checks failed, and the
+  history-doubling check was inconclusive). The page ranks no strategy and
+  claims no calibrated recovery; every failed or inconclusive check is shown.
+- The Y-90 dataset behind examples 08A/B/C, 16A/B/C, 17 and 18 is restricted
+  and is not redistributed: there is no public download or other access route,
+  so the rendered case-study pages cannot be regenerated without a local copy.
 - The optional SIRF/CIL scatter and residual correction workflows ship with the
   documented :doc:`SPECTUB all-views-cache interference
   <spectub_cache_interference>`: two separately set-up SPECTUB models can
