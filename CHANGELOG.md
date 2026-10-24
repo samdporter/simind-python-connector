@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Compatibility
+- SCATTWIN runs that relied on an implicit existing `scattwin.win` now raise a
+  `ValueError` until `set_energy_windows(...)` is called or `FW="scattwin"` is
+  selected explicitly. Generated windows are selected automatically by injecting
+  `FW` into the run-local switches of that run only. A missing selected window
+  file raises `FileNotFoundError` instead of falling back.
+- CA/collimator validation (unchanged, still routine-independent, no automatic
+  `/CA`) and retention of the connector-written `.inp` file after `IF` is cleared
+  are deliberate no-ops, not unfinished work.
+
 ## [2.0.1] - Unreleased
 
 The supported successor to 1.1.1 and the replacement for the withdrawn 2.0.0 and
