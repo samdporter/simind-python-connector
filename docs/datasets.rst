@@ -24,7 +24,7 @@ the real-data pages.
 The real-data gallery (examples 08A/B/C, 16A/B/C, 17 and 18) consists of
 rendered case studies produced from data available to the authors. The pages
 are not generally reproducible tutorials: without the restricted input they
-cannot be run or regenerated. The data may be released later.
+cannot be run or regenerated.
 
 The examples fail fast with a clear message when the data are absent. This
 statement makes no privacy or redistribution claim about the data.
@@ -42,12 +42,10 @@ containing:
 works with the same layout. The fetcher reports what is wrong when the data
 are not usable:
 
-- if ``SIMIND_CONNECTOR_Y90_DATA`` is not set and no published record is
-  available, it raises ``RuntimeError`` naming the variable;
+- if ``SIMIND_CONNECTOR_Y90_DATA`` is not set, it raises ``RuntimeError``
+  naming the variable;
 - if the directory is missing files, it raises ``FileNotFoundError`` listing
-  the missing names;
-- a published record without a checksum is refused before anything is
-  downloaded.
+  the missing names.
 
 Scanner and acquisition
 -----------------------
