@@ -640,8 +640,17 @@ def spectub_image(template, values):
     return image
 
 
+def subiteration_count(num_iterations, num_subsets):
+    """Return the subiterations needed for the requested full OSEM iterations."""
+    return int(num_iterations) * int(num_subsets)
+
+
 def reconstruct(acquisition, attenuation, initial, num_subsets, num_iterations):
-    """One OSEM reconstruction with a SPECTUB attenuation model and no scatter."""
+    """One OSEM reconstruction with a SPECTUB attenuation model and no scatter.
+
+    ``num_iterations`` counts full iterations; each full iteration runs
+    ``num_subsets`` subiterations.
+    """
     import sirf.STIR as sirf
 
     matrix = sirf.SPECTUBMatrix()
@@ -656,7 +665,7 @@ def reconstruct(acquisition, attenuation, initial, num_subsets, num_iterations):
     reconstructor = sirf.OSMAPOSLReconstructor()
     reconstructor.set_objective_function(objective)
     reconstructor.set_num_subsets(num_subsets)
-    reconstructor.set_num_subiterations(num_iterations)
+    reconstructor.set_num_subiterations(subiteration_count(num_iterations, num_subsets))
     reconstructor.set_input(acquisition)
     image = initial.clone()
     reconstructor.set_up(image)
@@ -1010,6 +1019,7 @@ def run():
         "reconstruction": {
             "subsets": 12,
             "iterations": 12,
+            "subiterations": subiteration_count(12, 12),
             "initial": "unit body support (HU > -400)",
             "additive_scatter": "zero in both",
             "seconds": recon_seconds,

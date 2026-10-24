@@ -729,7 +729,7 @@ agreement checks the record interpretation and the window.
 Weighted attenuation map
 ------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 634-667
+.. GENERATED FROM PYTHON SOURCE LINES 634-676
 
 .. code-block:: Python
 
@@ -742,8 +742,17 @@ Weighted attenuation map
         return image
 
 
+    def subiteration_count(num_iterations, num_subsets):
+        """Return the subiterations needed for the requested full OSEM iterations."""
+        return int(num_iterations) * int(num_subsets)
+
+
     def reconstruct(acquisition, attenuation, initial, num_subsets, num_iterations):
-        """One OSEM reconstruction with a SPECTUB attenuation model and no scatter."""
+        """One OSEM reconstruction with a SPECTUB attenuation model and no scatter.
+
+        ``num_iterations`` counts full iterations; each full iteration runs
+        ``num_subsets`` subiterations.
+        """
         import sirf.STIR as sirf
 
         matrix = sirf.SPECTUBMatrix()
@@ -758,7 +767,7 @@ Weighted attenuation map
         reconstructor = sirf.OSMAPOSLReconstructor()
         reconstructor.set_objective_function(objective)
         reconstructor.set_num_subsets(num_subsets)
-        reconstructor.set_num_subiterations(num_iterations)
+        reconstructor.set_num_subiterations(subiteration_count(num_iterations, num_subsets))
         reconstructor.set_input(acquisition)
         image = initial.clone()
         reconstructor.set_up(image)
@@ -773,7 +782,7 @@ Weighted attenuation map
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 668-679
+.. GENERATED FROM PYTHON SOURCE LINES 677-688
 
 Paired reconstruction
 ---------------------
@@ -787,7 +796,7 @@ and the support are not mirrored. The two images are not a ranking: neither
 models scatter, and the weighted map is a global approximation of the
 energy-dependent attenuation.
 
-.. GENERATED FROM PYTHON SOURCE LINES 679-707
+.. GENERATED FROM PYTHON SOURCE LINES 688-716
 
 .. code-block:: Python
 
@@ -826,12 +835,12 @@ energy-dependent attenuation.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 708-710
+.. GENERATED FROM PYTHON SOURCE LINES 717-719
 
 Figures
 -------
 
-.. GENERATED FROM PYTHON SOURCE LINES 710-854
+.. GENERATED FROM PYTHON SOURCE LINES 719-863
 
 .. code-block:: Python
 
@@ -986,12 +995,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 855-857
+.. GENERATED FROM PYTHON SOURCE LINES 864-866
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 857-1027
+.. GENERATED FROM PYTHON SOURCE LINES 866-1037
 
 .. code-block:: Python
 
@@ -1151,6 +1160,7 @@ Run the tutorial
             "reconstruction": {
                 "subsets": 12,
                 "iterations": 12,
+                "subiterations": subiteration_count(12, 12),
                 "initial": "unit body support (HU > -400)",
                 "additive_scatter": "zero in both",
                 "seconds": recon_seconds,
@@ -1217,13 +1227,13 @@ Run the tutorial
     Running the list-mode spectrum acquisition
     SIMIND command: simind y90_spectrum y90_spectrum /FI:y90/CC:ma-mlegp/PX:0.425780/OU:11
     Spectrum geometry: 24 views, 360 deg, 300 mm circular, 128 x 128 bins of 4.2578 mm, 75-225 keV
-    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 11.1 min; detector hits 928078; engine 0 h, 11 m and 6 s
+    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 10.6 min; detector hits 928078; engine 0 h, 10 m and 37 s
     Window weight 227115.8; .a00 226897.1; ratio 1.00096; .res count-rate ratio 1.00097
     Weighted mean energy: 125.6 keV; attenuation ratio to 150 keV: median 1.084
     Weighted map difference over the body: mean 0.01373 cm^-1, max 0.04273 cm^-1
     Measured acquisition shape: (1, 128, 120, 128)
-    Paired reconstruction: 2.8 min
-    Total runtime: 14.1 min
+    Paired reconstruction: 18.3 min
+    Total runtime: 29.2 min
     Outputs written to effective_energy
 
 
@@ -1232,7 +1242,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (14 minutes 8.289 seconds)
+   **Total running time of the script:** (29 minutes 11.431 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_17_y90_effective_energy.py:

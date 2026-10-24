@@ -212,6 +212,12 @@ def test_weighted_mean_energy_uses_the_channel_weights():
     ) == pytest.approx(175.0)
 
 
+@pytest.mark.unit
+def test_subiteration_count_matches_full_iterations():
+    assert script.subiteration_count(12, 12) == 144
+    assert script.subiteration_count(3, 4) == 12
+
+
 def _y90_data():
     directory = os.environ.get("SIMIND_CONNECTOR_Y90_DATA")
     if not directory or not (Path(directory) / "peak.hs").is_file():

@@ -1515,6 +1515,15 @@
    "name": "function"
   }
  ],
+ "subiteration_count": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "subprocess.STDOUT": [
   {
    "is_class": false,

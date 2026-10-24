@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**155:24.283** total execution time for 5 files **from auto_examples/real_data**:
+**170:27.425** total execution time for 5 files **from auto_examples/real_data**:
 
 .. container::
 
@@ -36,7 +36,7 @@ Computation times
      - 134:01.688
      - 0.0
    * - :ref:`sphx_glr_auto_examples_real_data_plot_17_y90_effective_energy.py` (``plot_17_y90_effective_energy.py``)
-     - 14:08.289
+     - 29:11.431
      - 0.0
    * - :ref:`sphx_glr_auto_examples_real_data_plot_16c_pytomography_ct_conversion.py` (``plot_16c_pytomography_ct_conversion.py``)
      - 03:21.164
