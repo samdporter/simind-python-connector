@@ -81,6 +81,10 @@ phantomgen package; the install command is in the tutorial.
   STIR / SIRF / PyTomography for the measured Y-90 phantom.
 - `examples/real_data/plot_17`: the Y-90 effective attenuation energy with SIRF.
 
+The real-data pages are rendered case studies on restricted Y-90 input, not
+reproducible tutorials. See [datasets](docs/datasets.rst) for the availability
+statement.
+
 Lower `quantization_scale`, fewer projections, or a mostly-zero source map can
 make smoke runs faster. These settings reduce history statistics; they do not
 set projection counts. For quantitative output, use known activity and

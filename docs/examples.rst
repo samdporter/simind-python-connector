@@ -25,7 +25,8 @@ The gallery has six sections:
 - :doc:`Real Y-90 data <auto_examples/real_data/index>`: CT-to-SPECT
   conversion in STIR, SIRF and PyTomography, the Y-90 effective attenuation
   energy, and a Monte Carlo scatter comparison published as a diagnostic
-  negative result. The data are local for now; see :doc:`datasets`.
+  negative result. These are rendered case studies on restricted input data,
+  not reproducible tutorials; see :doc:`datasets`.
 
 Examples that simulate need a working SIMIND installation, and backend examples
 need that backend installed. The NEMA examples also need phantomgen; its

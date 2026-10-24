@@ -6,15 +6,31 @@ Datasets
 Y-90 phantom data
 -----------------
 
-The real-data tutorials use one measured Y-90 bremsstrahlung study of a
-phantom, together with the CT series of the same phantom. The
-tutorials locate the files with ``fetch_y90_phantom``, from
+The real-data gallery uses one measured Y-90 bremsstrahlung study of a
+phantom, together with the CT series of the same phantom. The examples
+locate the files with ``fetch_y90_phantom``, from
 ``simind_python_connector.datasets``.
 
-**TODO: A dataset download is coming, but is not yet available.**
+.. _y90-data-availability:
 
-Until then the data stay on your own machine. Set
-``SIMIND_CONNECTOR_Y90_DATA`` to a directory containing:
+Availability
+~~~~~~~~~~~~
+
+The data are not redistributed at this time. There is no public download,
+DOI, or other access route. Setting ``SIMIND_CONNECTOR_Y90_DATA`` to a local
+copy is the only current route, and readers without a copy cannot reproduce
+the real-data pages.
+
+The real-data gallery (examples 08A/B/C, 16A/B/C, 17 and 18) consists of
+rendered case studies produced from data available to the authors. The pages
+are not generally reproducible tutorials: without the restricted input they
+cannot be run or regenerated. The data may be released later.
+
+The examples fail fast with a clear message when the data are absent. This
+statement makes no privacy or redistribution claim about the data.
+
+If you have a local copy, point ``SIMIND_CONNECTOR_Y90_DATA`` at a directory
+containing:
 
 - ``peak.dcm`` — the projection DICOM file;
 - ``peak.hs`` and ``peak.s`` — the measured projections as Interfile;
@@ -22,12 +38,12 @@ Until then the data stay on your own machine. Set
   used only as a registration reference and as the reconstruction grid;
 - ``ctac`` — the CT series, as a directory of DICOM slices.
 
-``fetch_y90_phantom()`` returns that directory unchanged, so every tutorial
+``fetch_y90_phantom()`` returns that directory unchanged, so every example
 works with the same layout. The fetcher reports what is wrong when the data
 are not usable:
 
-- if ``SIMIND_CONNECTOR_Y90_DATA`` is not set and no download is available,
-  it raises ``RuntimeError`` naming the variable;
+- if ``SIMIND_CONNECTOR_Y90_DATA`` is not set and no published record is
+  available, it raises ``RuntimeError`` naming the variable;
 - if the directory is missing files, it raises ``FileNotFoundError`` listing
   the missing names;
 - a published record without a checksum is refused before anything is
@@ -76,6 +92,6 @@ the activity only.
 Where the data are used
 -----------------------
 
-- The :doc:`workflow tutorial <tutorial>` lists the real-data tutorials in
+- The :doc:`workflow tutorial <tutorial>` lists the real-data case studies in
   their recommended order.
 - :doc:`examples` points at the gallery sections that contain them.

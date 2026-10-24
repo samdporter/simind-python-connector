@@ -173,17 +173,20 @@ Real Y-90 data
 --------------
 
 The rest of the measured Y-90 study is in the :doc:`Real Y-90 data
-<auto_examples/real_data/index>` gallery section. The dataset is described in
-:doc:`datasets`; it is not downloadable yet, so set
-``SIMIND_CONNECTOR_Y90_DATA`` to a local directory first. Every tutorial below
-reads it through ``fetch_y90_phantom`` and takes no path argument.
+<auto_examples/real_data/index>` gallery section. These pages are rendered
+case studies, not generally reproducible tutorials: the data are not
+redistributed at this time, there is no public download or other access
+route, and the pages cannot be reproduced without the restricted input.
+Setting ``SIMIND_CONNECTOR_Y90_DATA`` to a local copy is the only current
+route; see :doc:`datasets` for the availability statement. Every page below
+reads the data through ``fetch_y90_phantom`` and takes no path argument.
 
-Work through them in this order:
+Read them in this order:
 
-1. The DICOM tutorials above (examples 08A, 08B, 08C) read ``peak.dcm`` and
+1. The DICOM pages above (examples 08A, 08B, 08C) read ``peak.dcm`` and
    build the STIR, SIRF or PyTomography projection object.
 
-2. The CT-to-SPECT conversion tutorials read the CT series of the same
+2. The CT-to-SPECT conversion case studies read the CT series of the same
    phantom, register it onto the SPECT grid, and stop with diagnostics
    instead of publishing maps when the registration check fails:
 
@@ -194,17 +197,17 @@ Work through them in this order:
    - :doc:`CT conversion with PyTomography
      <auto_examples/real_data/plot_16c_pytomography_ct_conversion>`
 
-   Each tutorial uses only its own backend. The SIRF route is the reusable
-   one; the later tutorials take their CT preparation from it.
+   Each page uses only its own backend. The SIRF route is the reusable
+   one; the later case studies take their CT preparation from it.
 
-3. The :doc:`Y-90 effective energy tutorial
+3. The :doc:`Y-90 effective energy case study
    <auto_examples/real_data/plot_17_y90_effective_energy>` (SIRF) compares two
    reconstructions of the measured projections that differ only in the
    attenuation model: a single 150-keV map against a map weighted across the
    detected 75-225 keV spectrum. Neither reconstruction includes scatter, so
    the pair is a model comparison, not an accuracy ranking.
 
-4. The :doc:`Monte Carlo scatter tutorial
+4. The :doc:`Monte Carlo scatter case study
    <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) is an audited
    diagnostic negative result, not a passing quantitative tutorial. It compares
    Monte Carlo scatter strategies on a common reconstruction schedule, but the
