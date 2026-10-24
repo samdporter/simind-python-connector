@@ -68,12 +68,15 @@ jobs:
       - name: Check package
         run: |
           twine check dist/*
-      - name: Smoke-test wheel resources
+      - name: Smoke-test wheel resources outside the checkout
         run: |
-          python -m venv /tmp/wheel-env
-          /tmp/wheel-env/bin/pip install --quiet dist/*.whl
-          /tmp/wheel-env/bin/python -c 'from simind_python_connector.configs import get; assert get("input.smc").is_file()'
-          /tmp/wheel-env/bin/python -c 'from simind_python_connector.data import data_path; assert data_path("h2o.atn").is_file()'
+          repo="$GITHUB_WORKSPACE"
+          venv="$(mktemp -d)/wheel-env"
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install --quiet dist/*.whl
+          workdir="$(mktemp -d)"
+          cd "$workdir"
+          "$venv/bin/python" "$repo/scripts/check_wheel_resources.py" --repo "$repo"
 
   container-core:
     runs-on: ubuntu-latest

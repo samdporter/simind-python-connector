@@ -630,8 +630,9 @@ def test_tests_workflow_preserves_matrix_and_checks() -> None:
         "not requires_simind and not requires_pytomography and not requires_cil "
         "and not ci_skip"
     ) in text.replace("\n", " ").replace("  ", " ")
-    assert "from simind_python_connector.configs import get" in text
-    assert "from simind_python_connector.data import data_path" in text
+    assert "scripts/check_wheel_resources.py" in text
+    assert 'cd "$workdir"' in text
+    assert '--repo "$repo"' in text
     assert "scripts/run_container_validation.sh --only-core" in text
     assert "scripts/run_container_examples.sh --only-core" in text
 

@@ -10,7 +10,9 @@ SIMIND project and Lund University.
 See the [workflow tutorial](docs/tutorial.rst) for an ordered path through a
 core simulation, known-activity NEMA phantom, reconstruction, scatter
 correction, and measured-data calibration. The [gallery](docs/auto_examples/index.rst)
-has every tutorial with its figures and printed output. The
+has every tutorial with its figures and printed output. Rendered documentation,
+including the gallery, is built from the tagged repository; source distributions
+contain the example sources rather than the generated gallery. The
 [documentation](https://simind-python-connector.readthedocs.io/) explains
 installation, geometry, normalisation, backend options, and the
 [observed SIMIND output-component mapping](docs/simind_validation.md).
