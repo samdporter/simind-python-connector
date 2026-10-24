@@ -10,8 +10,13 @@ jobs:
     with:
       ref: ${{ github.event.release.tag_name }}
 
+  docs:
+    uses: ./.github/workflows/docs.yml
+    with:
+      ref: ${{ github.event.release.tag_name }}
+
   publish:
-    needs: tests
+    needs: [tests, docs]
     runs-on: ubuntu-latest
     permissions:
       id-token: write

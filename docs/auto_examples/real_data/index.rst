@@ -5,22 +5,26 @@
 Real Y-90 data
 --------------
 
-These tutorials use a measured Y-90 phantom acquisition: a Mediso AnyScan
+These pages are restricted-data case studies, not generally reproducible
+tutorials. They use a measured Y-90 phantom acquisition: a Mediso AnyScan
 bremsstrahlung study with 120 views over 360 degrees, 128 x 128 bins of
 4.2578 mm and a 75-225 keV window, together with the CT series of the same
 phantom. The reconstruction grid is the vendor ``umap_zoomed`` grid of 128
 voxels at 4.2578 mm.
 
-TODO: A dataset download is coming, but is not yet available.
+The data are not redistributed at this time. There is no public download,
+DOI, or other access route, and the pages cannot be reproduced without the
+restricted input. Setting ``SIMIND_CONNECTOR_Y90_DATA`` to a local copy is
+the only current route; see :doc:`/datasets` for the availability statement.
 
-For now, set ``SIMIND_CONNECTOR_Y90_DATA`` to a directory containing ``peak.dcm``,
-``peak.hs``, ``peak.s``, ``umap_zoomed.hv``, ``umap_zoomed.v`` and the
-``ctac`` directory of DICOM slices. The tutorials read the CT series from that
-directory and write their figures and summaries under
+For that local copy, provide a directory containing ``peak.dcm``, ``peak.hs``,
+``peak.s``, ``umap_zoomed.hv``, ``umap_zoomed.v`` and the ``ctac`` directory
+of DICOM slices. The pages read the CT series from that directory and write
+their figures and summaries under
 ``$SIMIND_EXAMPLES_OUTPUT/real_data/ct_conversion`` (or ``output`` when the
 variable is unset).
 
-The three CT conversion tutorials show the same registration chain with a
+The three CT conversion case studies show the same registration chain with a
 different backend:
 
 - ``plot_16a_stir_ct_conversion.py`` builds the CT in the STIR frame and
@@ -36,10 +40,10 @@ writing accepted maps if the registration gate fails. The vendor attenuation
 map has no recorded photon energy, so it is used only as a registration
 reference and is never converted to density.
 
-The tutorials need NumPy, pydicom, matplotlib and SciPy. The SIRF tutorial
+The pages need NumPy, pydicom, matplotlib and SciPy. The SIRF case study
 also needs nibabel. All three need the matching backend.
 
-The remaining two tutorials use the same dataset:
+The remaining two case studies use the same restricted data:
 
 - ``plot_17_y90_effective_energy.py`` (SIRF) compares a single 150-keV
   attenuation map with one weighted by the detected 75-225 keV spectrum, using

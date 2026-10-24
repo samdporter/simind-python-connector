@@ -39,6 +39,7 @@ SDIST_REQUIRED = {
     "CHANGELOG.md",
     "CITATION.cff",
     ".zenodo.json",
+    ".readthedocs.yaml",
     "uv.lock",
     "docs/conf.py",
     "docs/_gallery.py",
@@ -62,6 +63,7 @@ SDIST_REQUIRED = {
     "docker/import_guard/sitecustomize.py",
     ".github/workflows/tests.yml",
     ".github/workflows/publish.yml",
+    ".github/workflows/docs.yml",
 }
 SDIST_FORBIDDEN_PREFIXES = (
     "docs/auto_examples/",

@@ -585,6 +585,53 @@ def test_publish_workflow_tests_the_release_tag_then_publishes() -> None:
     assert "${{ github.event.release.tag_name }}" in text
 
 
+def test_publish_workflow_gates_on_a_docs_build_of_the_release_tag() -> None:
+    workflow = yaml.safe_load(_read(WORKFLOWS / "publish.yml"))
+    jobs = workflow["jobs"]
+
+    assert jobs["docs"]["uses"] == "./.github/workflows/docs.yml"
+    assert jobs["docs"]["with"]["ref"] == "${{ github.event.release.tag_name }}"
+    assert set(_needs(jobs["publish"])) == {"tests", "docs"}
+
+
+def test_docs_workflow_builds_without_execution_and_fails_on_warnings() -> None:
+    text = _read(WORKFLOWS / "docs.yml")
+    workflow = yaml.safe_load(text)
+    steps = workflow["jobs"]["docs"]["steps"]
+
+    assert "workflow_call" in _on(workflow)
+    build = next(
+        step
+        for step in steps
+        if step.get("name") == "Build the documentation without executing examples"
+    )
+    assert build["env"]["SIMIND_GALLERY_BACKEND"] == ""
+    assert "-W" in build["run"]
+    assert "docs/auto_examples" in text
+    assert "actions/upload-artifact" in text
+
+
+def test_api_documents_reexported_connector_classes_once() -> None:
+    text = _read(ROOT / "docs" / "api.rst")
+    automodules = re.findall(r"\.\. automodule:: (\S+)", text)
+
+    assert "simind_python_connector.connectors" not in automodules
+    assert "simind_python_connector.connectors.base" in automodules
+    assert "simind_python_connector.connectors.python_connector" in automodules
+    assert len(automodules) == len(set(automodules))
+
+
+def test_readthedocs_fails_on_warnings_with_the_tested_configuration() -> None:
+    config = yaml.safe_load(_read(ROOT / ".readthedocs.yaml"))
+
+    assert config["version"] == 2
+    assert config["sphinx"]["configuration"] == "docs/conf.py"
+    assert config["sphinx"]["fail_on_warning"] is True
+    install = config["python"]["install"]
+    assert install[0]["path"] == "."
+    assert install[0]["extra_requirements"] == ["dev"]
+
+
 def test_publish_workflow_rejects_a_tag_without_the_v_prefix(tmp_path: Path) -> None:
     workflow = yaml.safe_load(_read(WORKFLOWS / "publish.yml"))
     run = next(
