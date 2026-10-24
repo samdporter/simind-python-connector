@@ -737,7 +737,12 @@ class SimindPythonConnector(BaseConnector):
         upper_bounds: Union[float, list[float]],
         scatter_orders: Union[int, list[int]],
     ) -> None:
-        """Write a SIMIND window file for this connector run."""
+        """Write the connector-owned window file selected by a later run().
+
+        The file is used automatically when the run has no explicit ``FW``
+        switch; an explicit ``FW`` still takes precedence. Selection happens in
+        run(), so changing ``output_prefix`` afterwards is rejected there.
+        """
         self._validate_output_prefix(self.output_prefix)
         validate_energy_window_prefix(self.output_prefix)
         window_path = self.output_dir / f"{self.output_prefix}.win"
@@ -757,10 +762,12 @@ class SimindPythonConnector(BaseConnector):
     ) -> RuntimeSwitches:
         """Validate the effective switch set and orbit without writing files.
 
-        Builds the same persistent+runtime switch set run() uses (operator
+        Builds the persistent+runtime switch set run() starts from (operator
         values override persistent ones and None removes them) and serialises
         it through the executor, so an illegal switch is rejected before
-        phantom inputs, an acquisition orbit or a config are written.
+        phantom inputs, an acquisition orbit or a config are written. run()
+        may add a run-local FW for a connector-written window and rechecks the
+        final set before any side effect.
 
         write_paths are the files an adaptor is about to write for this run;
         a supplied orbit that is one of them, or the config destination, is
@@ -833,6 +840,11 @@ class SimindPythonConnector(BaseConnector):
         self._validate_output_prefix(self.output_prefix)
         routine = self._config_scoring_routine()
         run_switches_holder = self._validate_runtime_operator(runtime_operator)
+
+        # Resolve the one window file SIMIND and derivation will share before
+        # staging an orbit, saving the config or clearing stale outputs. An
+        # existing default-named scattwin.win is never selected implicitly.
+        window_file = self._resolve_window_file(routine, run_switches_holder)
 
         if (
             routine is ScoringRoutine.SCATTWIN
@@ -952,8 +964,6 @@ class SimindPythonConnector(BaseConnector):
                     fov_length_mm,
                 )
 
-        window_file = self._window_file_for_run(run_switches_holder.switches)
-
         # Configuration-defined phantoms also need Interfile SPECT outputs.
         self.config.set_flag(5, True)
         self.config.set_flag(14, True)
@@ -996,7 +1006,13 @@ class SimindPythonConnector(BaseConnector):
     _OUTPUT_SUFFIXES = {".h00", ".hs", ".a00", ".s", ".win"}
 
     def _window_file_for_run(self, switches: dict) -> Optional[Path]:
-        """Return the window file SIMIND reads for this run, if any."""
+        """Select a window file from the run-local switches, if any.
+
+        An explicit ``FW`` wins. Otherwise the file this instance last wrote
+        with set_energy_windows() is selected only while it still belongs to
+        the current output directory. An existing default-named scattwin.win
+        is never selected implicitly.
+        """
         fw = switches.get("FW")
         if fw:
             return self.output_dir / f"{fw}.win"
@@ -1005,8 +1021,48 @@ class SimindPythonConnector(BaseConnector):
             and self._window_file_path.parent == self.output_dir
         ):
             return self._window_file_path
-        scattwin = self.output_dir / "scattwin.win"
-        return scattwin if scattwin.is_file() else None
+        return None
+
+    def _resolve_window_file(
+        self,
+        routine: ScoringRoutine,
+        run_switches: RuntimeSwitches,
+    ) -> Optional[Path]:
+        """Resolve and validate the single window file this run will use.
+
+        Runs once per run() before any side effect. An explicit FW is used
+        unchanged; otherwise the connector-written window is selected by
+        injecting FW into the run-local holder, never into persistent or
+        caller-supplied switch objects. An existing scattwin.win with no
+        selection is refused for SCATTWIN so the engine cannot silently reuse
+        it, while other routines leave such a file untouched and unselected.
+        """
+        window_file = self._window_file_for_run(run_switches.switches)
+        if window_file is not None and not run_switches.switches.get("FW"):
+            run_switches.set_switch("FW", self.output_prefix)
+
+        # Re-check the final effective switches, including an injected FW,
+        # before orbit staging, config saving, cleanup or execution.
+        self.executor._serialize_switches(run_switches.switches)
+
+        if window_file is None:
+            stale_default = self.output_dir / "scattwin.win"
+            if routine is ScoringRoutine.SCATTWIN and stale_default.is_file():
+                raise ValueError(
+                    "scattwin.win exists in the output directory but this "
+                    "SCATTWIN run has no selected window file; delete or move "
+                    "the stale file, call set_energy_windows() to select the "
+                    "connector-written window, or pass FW='scattwin' to use the "
+                    "existing file explicitly"
+                )
+            return None
+
+        if not window_file.is_file():
+            raise FileNotFoundError(
+                f"Selected window file not found: {window_file}; call "
+                "set_energy_windows() again or choose an existing FW file"
+            )
+        return window_file
 
     @staticmethod
     def _read_window_orders(window_file: Path) -> list[Optional[int]]:
@@ -1030,16 +1086,19 @@ class SimindPythonConnector(BaseConnector):
         """Delete stale outputs from earlier runs sharing this prefix.
 
         Connector-written inputs (``{prefix}_src.smi`` / ``{prefix}_dns.dmi``)
-        are protected because SIMIND still needs them on disk. The
-        caller-supplied orbit source is protected too, by name and by file
-        identity, so cleanup cannot delete it through a symlink, a hardlink or
-        a differently-cased spelling on a case-insensitive filesystem.
+        and the selected window file are protected because SIMIND still needs
+        them on disk. A caller's default-named ``scattwin.win`` is never
+        treated as a deletable output. The caller-supplied orbit source is
+        protected too, by name and by file identity, so cleanup cannot delete
+        it through a symlink, a hardlink or a differently-cased spelling on a
+        case-insensitive filesystem.
         """
         if window_file is None:
             window_file = self._window_file_for_run({})
         protected = {
             f"{self.output_prefix}_src.smi",
             f"{self.output_prefix}_dns.dmi",
+            "scattwin.win",
         }
         if window_file is not None and window_file.parent == self.output_dir:
             protected.add(window_file.name)
@@ -1156,7 +1215,10 @@ class SimindPythonConnector(BaseConnector):
         header_files: list[Path],
         window_file: Optional[Path],
     ) -> list[Path]:
-        """Derive the missing order-0 scatter/primary image from available pairs."""
+        """Derive the missing order-0 scatter/primary image from available pairs.
+
+        Uses the single window file selected for this run, if any.
+        """
         self._derived_keys = {}
         if window_file is None or not window_file.is_file():
             return []

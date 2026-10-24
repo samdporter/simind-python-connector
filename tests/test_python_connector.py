@@ -1926,6 +1926,282 @@ def test_python_connector_cleanup_protects_fw_window_file(tmp_path: Path):
     assert "case01_old.win" not in seen["files"]
 
 
+def _record_window_projection_run(tmp_path: Path, captured: dict, windows=(1,)):
+    """Record executor switches and write tot/sca pairs for each window."""
+    total = np.full((2, 3, 4), 10.0, dtype=np.float32)
+    scatter = np.full((2, 3, 4), 1.0, dtype=np.float32)
+
+    def fake_run_simulation(
+        output_prefix, orbit_file=None, runtime_switches=None, cwd=None, **kwargs
+    ):
+        captured["switches"] = dict(runtime_switches or {})
+        for window in windows:
+            _write_named_projection(tmp_path, f"{output_prefix}_tot_w{window}", total)
+            _write_named_projection(tmp_path, f"{output_prefix}_sca_w{window}", scatter)
+
+    return fake_run_simulation
+
+
+@pytest.mark.unit
+def test_python_connector_generated_window_beats_stale_default(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    stale = tmp_path / "scattwin.win"
+    stale.write_text("126.0,154.0,0\n92.0,124.0,0\n")
+    stale_bytes = stale.read_bytes()
+    connector.set_energy_windows([126.0, 92.0], [154.0, 124.0], [0, 1])
+    captured: dict = {}
+
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured, windows=(1, 2)
+    )
+    outputs = connector.run()
+
+    assert captured["switches"]["FW"] == "case01"
+    assert "pri_w1" in outputs
+    assert "pri_w2" not in outputs
+    assert stale.read_bytes() == stale_bytes
+    assert "FW" not in connector.runtime_switches.switches
+
+
+@pytest.mark.unit
+def test_python_connector_rejects_unselected_stale_default_window(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    _non_circular_acquisition(connector)
+    seeded = _seed_preflight_state(tmp_path)
+    stale = tmp_path / "scattwin.win"
+    stale.write_text("126.0,154.0,0\n")
+    stale_bytes = stale.read_bytes()
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="scattwin.win") as excinfo:
+        connector.run()
+
+    assert "set_energy_windows" in str(excinfo.value)
+    assert launched == []
+    for path, original in seeded.items():
+        assert path.read_bytes() == original, path
+    assert stale.read_bytes() == stale_bytes
+    assert connector._outputs is None
+    with pytest.raises(RuntimeError, match="Run the connector first"):
+        connector.get_outputs()
+    assert connector.runtime_switches.switches == {}
+
+
+@pytest.mark.unit
+def test_python_connector_explicit_default_name_window_is_used_and_protected(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="scattwin"
+    )
+    stale = tmp_path / "scattwin.win"
+    stale.write_text("126.0,154.0,0\n92.0,124.0,1\n")
+    stale_bytes = stale.read_bytes()
+    connector.add_runtime_switch("FW", "scattwin")
+    captured: dict = {}
+
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured, windows=(1, 2)
+    )
+    outputs = connector.run()
+
+    assert captured["switches"]["FW"] == "scattwin"
+    assert "pri_w1" in outputs
+    assert "pri_w2" not in outputs
+    assert stale.read_bytes() == stale_bytes
+
+
+@pytest.mark.unit
+def test_python_connector_persistent_fw_beats_generated_window(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+    connector.add_runtime_switch("FW", "customwin")
+    (tmp_path / "customwin.win").write_text("126.0,154.0,0\n92.0,124.0,0\n")
+    operator = RuntimeOperator(switches={"CA": 0})
+    captured: dict = {}
+
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured, windows=(1, 2)
+    )
+    outputs = connector.run(operator)
+
+    assert captured["switches"]["FW"] == "customwin"
+    assert "pri_w1" in outputs
+    assert "pri_w2" in outputs
+    assert connector.runtime_switches.switches == {"FW": "customwin"}
+    assert operator.switches == {"CA": 0}
+
+
+@pytest.mark.unit
+def test_python_connector_runtime_fw_beats_persistent_window(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_runtime_switch("FW", "persistentwin")
+    (tmp_path / "persistentwin.win").write_text("126.0,154.0,0\n")
+    (tmp_path / "runtimewin.win").write_text("126.0,154.0,0\n92.0,124.0,0\n")
+    operator = RuntimeOperator(switches={"FW": "runtimewin"})
+    captured: dict = {}
+
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured, windows=(1, 2)
+    )
+    outputs = connector.run(operator)
+
+    assert captured["switches"]["FW"] == "runtimewin"
+    assert "pri_w2" in outputs
+    assert connector.runtime_switches.switches == {"FW": "persistentwin"}
+    assert operator.switches == {"FW": "runtimewin"}
+
+
+@pytest.mark.unit
+def test_python_connector_runtime_fw_none_restores_generated_window(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_runtime_switch("FW", "persistentwin")
+    (tmp_path / "persistentwin.win").write_text("126.0,154.0,0\n92.0,124.0,0\n")
+    connector.set_energy_windows([126.0, 92.0], [154.0, 124.0], [0, 1])
+    operator = RuntimeOperator(switches={"FW": None})
+    captured: dict = {}
+
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured, windows=(1, 2)
+    )
+    outputs = connector.run(operator)
+
+    assert captured["switches"]["FW"] == "case01"
+    assert "pri_w1" in outputs
+    assert "pri_w2" not in outputs
+    assert connector.runtime_switches.switches == {"FW": "persistentwin"}
+    assert operator.switches == {"FW": None}
+
+
+@pytest.mark.unit
+def test_python_connector_missing_explicit_window_fails_without_default_fallback(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    default = tmp_path / "scattwin.win"
+    default.write_text("126.0,154.0,0\n")
+    default_bytes = default.read_bytes()
+    config_path = tmp_path / "case01.smc"
+    config_path.write_bytes(b"pre-existing config")
+    operator = RuntimeOperator(switches={"FW": "missingwin"})
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(FileNotFoundError, match="missingwin.win"):
+        connector.run(operator)
+
+    assert launched == []
+    assert default.read_bytes() == default_bytes
+    assert config_path.read_bytes() == b"pre-existing config"
+    assert connector.runtime_switches.switches == {}
+    assert operator.switches == {"FW": "missingwin"}
+
+
+@pytest.mark.unit
+def test_python_connector_deleted_generated_window_fails_before_execution(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.set_energy_windows([126.0], [154.0], [0])
+    (tmp_path / "case01.win").unlink()
+    config_path = tmp_path / "case01.smc"
+    config_path.write_bytes(b"pre-existing config")
+    launched: list[object] = []
+    connector.executor.run_simulation = lambda *a, **k: launched.append(True)  # type: ignore[assignment]
+
+    with pytest.raises(FileNotFoundError, match="case01.win"):
+        connector.run()
+
+    assert launched == []
+    assert config_path.read_bytes() == b"pre-existing config"
+    assert connector.runtime_switches.switches == {}
+
+
+@pytest.mark.unit
+def test_python_connector_clean_scattwin_does_not_infer_a_window_file(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    captured: dict = {}
+
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured
+    )
+    outputs = connector.run()
+
+    assert "FW" not in captured["switches"]
+    assert "pri_w1" not in outputs
+    assert set(outputs) == {"tot_w1", "sca_w1"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("routine", [ScoringRoutine.PENETRATE, ScoringRoutine.DUMMY])
+def test_python_connector_other_routines_do_not_select_stale_default(
+    tmp_path: Path, routine: ScoringRoutine
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    connector.add_config_value(84, routine.value)
+    stale = tmp_path / "scattwin.win"
+    stale.write_text("126.0,154.0,0\n")
+    stale_bytes = stale.read_bytes()
+    captured: dict = {}
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured
+    )
+    connector._ensure_interfile_headers = lambda: [  # type: ignore[method-assign]
+        tmp_path / "case01_tot_w1.hs",
+        tmp_path / "case01_sca_w1.hs",
+    ]
+
+    outputs = connector.run()
+
+    assert "FW" not in captured["switches"]
+    assert "pri_w1" not in outputs
+    assert set(outputs) == {"tot_w1", "sca_w1"}
+    assert stale.read_bytes() == stale_bytes
+
+
+@pytest.mark.unit
+def test_python_connector_explicit_fw_name_exempt_from_generated_length_limit(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"), output_dir=tmp_path, output_prefix="case01"
+    )
+    name = "windowfile_sixtn"
+    assert len(name) > 15
+    (tmp_path / f"{name}.win").write_text("126.0,154.0,0\n")
+    connector.add_runtime_switch("FW", name)
+    captured: dict = {}
+
+    connector.executor.run_simulation = _record_window_projection_run(  # type: ignore[assignment]
+        tmp_path, captured
+    )
+    outputs = connector.run()
+
+    assert captured["switches"]["FW"] == name
+    assert "pri_w1" in outputs
+
+
 @pytest.mark.unit
 def test_set_activity_writes_index_25_as_activity_times_time(tmp_path: Path):
     connector = SimindPythonConnector(
