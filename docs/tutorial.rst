@@ -16,20 +16,21 @@ directory. The executor uses ``SIMIND_BIN`` when set and otherwise searches
 
 .. code-block:: bash
 
-    export SIMIND_BIN=/path/to/simind-v9/simind
-    export SMC_DIR=/path/to/simind-v9/smc_dir/
-    export PATH=/path/to/simind-v9:$PATH
-    export SIMIND_VERSION=9
+    export SIMIND_BIN=/path/to/simind-v8/simind
+    export SMC_DIR=/path/to/simind-v8/smc_dir/
+    export PATH=/path/to/simind-v8:$PATH
+    export SIMIND_VERSION=8
     python -m pip install -e '.[examples]'
     python -c 'import shutil; print(shutil.which("simind"))'
 
-Set ``SIMIND_VERSION=8`` for v8. The default is 8. In Python, pass
-``simind_version=8`` or ``simind_version=9`` to the connector or adaptor to
-override the environment. Version selection also controls voxel-map origin
-handling; using the wrong value can displace the source and attenuation map.
+SIMIND v8 is the supported engine for this release, and 8 is the default. In
+Python, pass ``simind_version=8`` to the connector or adaptor to override the
+environment. Version selection also controls voxel-map origin handling; using
+the wrong value can displace the source and attenuation map.
 
-For SCATTWIN, use v8 or the macOS v9 build: the v9.0 Linux build can abort or
-silently return corrupted projections (see :doc:`simind_validation`).
+SIMIND v9 selection remains experimental and unvalidated, and is planned for
+2.1.0. The v9.0 Linux build can abort or silently return corrupted projections
+(see :doc:`simind_validation`).
 
 SIMIND releases may differ in their data files and output components. Check
 your local release manual and the observations in :doc:`simind_validation`
@@ -97,11 +98,9 @@ the budget before interpreting contrast or activity recovery.
 Energy-window bounds and order select the output windows. SCATTWIN and
 PENETRATE score different interaction components. Keep the raw SIMIND outputs
 when comparing routines or releases. Example 05 requests SCATTWIN ``CA=2`` and
-reads its raw total, scatter, and primary components; this mode works in the
-checked v8 build and the macOS ARM v9 build. The checked Linux Intel v9 build
-aborts with an engine error for that mode, so use its total-only ``CA=0`` example
-or PENETRATE workflow there. The output component names depend on scoring
-routine and SIMIND version; see :doc:`simind_validation` for the observed map.
+reads its raw total, scatter, and primary components; this mode is checked in
+the supported v8 build. The output component names depend on scoring routine
+and SIMIND version; see :doc:`simind_validation` for the observed map.
 
 Reconstruct the simulated acquisition
 -------------------------------------

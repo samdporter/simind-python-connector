@@ -66,9 +66,9 @@ Why it is built this way
   smooth_across_views=True)`` for a 360° orbit). Damping below 1 from zero
   lags the estimate; see the SIRF OSEM recipe for the startup transient. The
   trimmed ratio only keeps bins where SIMIND's primary is non-zero, so it
-  drops reference counts but no SIMIND counts and scales low: 0.55 (SIMIND v8)
-  and 0.51 (v9) of the true scale on a 32³ OSEM iterate at a tenth of the
-  default quantization.
+  drops reference counts but no SIMIND counts and scales low: 0.55 of the true
+  scale on a 32³ OSEM iterate at a tenth of the default quantization on SIMIND
+  v8.
 - With 64x those histories the trimmed ratio is still 0.96 of the true scale.
   Keep trimmed for references with outlier bins at high histories.
 

@@ -8,12 +8,27 @@ from pathlib import Path
 BEGIN = "<!-- validation:begin -->"
 END = "<!-- validation:end -->"
 
+# Only supported release engines may reach the published tables. Experimental
+# v9 result files from earlier work can still exist on disk; they must not be
+# republished as release evidence.
+RELEASE_ENGINES = ("v8-linux",)
 
-def _load(out_dir: Path) -> tuple[list[str], dict]:
-    engines = []
+
+def _release_engines(out_dir: Path) -> list[str]:
+    return [
+        engine for engine in RELEASE_ENGINES if (out_dir / f"{engine}.jsonl").is_file()
+    ]
+
+
+def _load(
+    out_dir: Path, engines: tuple[str, ...] | list[str]
+) -> tuple[list[str], dict]:
+    engines = list(engines)
     features: dict[str, dict[str, dict]] = {}
-    for path in sorted(out_dir.glob("*.jsonl")):
-        engines.append(path.stem)
+    for engine in engines:
+        path = out_dir / f"{engine}.jsonl"
+        if not path.is_file():
+            continue
         for line in path.read_text().splitlines():
             record = json.loads(line)
             case = features.setdefault(record["feature"], {}).setdefault(
@@ -58,8 +73,10 @@ def _cell(record: dict | None) -> str:
     return f"{verdict} {record['measured']:.3g}"
 
 
-def render(out_dir: Path) -> str:
-    engines, features = _load(out_dir)
+def render(out_dir: Path, engines: tuple[str, ...] | list[str] | None = None) -> str:
+    if engines is None:
+        engines = _release_engines(out_dir)
+    engines, features = _load(out_dir, engines)
     lines = []
     for feature in sorted(features):
         lines += [f"### {feature}", ""]

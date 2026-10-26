@@ -107,8 +107,7 @@ markers = [
     "requires_cil: tests that require CIL",
     "requires_phantomgen: tests that require phantomgen",
     "validation: SIMIND feature validation with recorded numbers (slow)",
-    "macos_v9: validation that also runs against the native macOS SIMIND v9 binary",
-    "scattwin_data: validation that checks SCATTWIN projection data; not run on v9 Linux (engine defect)",
+    "scattwin_data: validation that checks SCATTWIN projection data",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

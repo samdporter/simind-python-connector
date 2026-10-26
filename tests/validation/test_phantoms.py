@@ -96,7 +96,6 @@ def _projection_checks(case, correlation, centre_gap):
     ]
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 @pytest.mark.parametrize("shape", list(SHAPES))
 def test_analytic_vs_voxel_shape(validate, tmp_path, shape):
@@ -123,7 +122,6 @@ def _jaszczak_like(**insert_mode) -> AnalyticPhantom:
     return AnalyticPhantom(MultipleInserts(water, inserts, **insert_mode), water)
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 @pytest.mark.parametrize("mode", list(INSERT_MODES))
 def test_inserts_mode(validate, tmp_path, mode):
@@ -155,7 +153,6 @@ def test_inserts_mode(validate, tmp_path, mode):
     _validate_all(validate, checks)
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 def test_cardiac_defect_lowers_counts(validate, tmp_path):
     """Fractional drop in the pixels the defect empties, net of a no-op defect.
@@ -208,7 +205,6 @@ def test_cardiac_defect_lowers_counts(validate, tmp_path):
     )
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 @pytest.mark.parametrize("library", list(LibraryPhantom), ids=lambda p: p.name)
 def test_library_phantom(validate, tmp_path, library):
