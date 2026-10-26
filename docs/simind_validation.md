@@ -43,6 +43,11 @@ recorded by the validation suite (see the results at the end).
 
 ## Validation results
 
+> Two v8-linux rows in the `recon` table below —
+> `normalisers_agree_at_high_histories` and `residual_identity` — are retained
+> historical v8 evidence from the 2026-10-18 run, not results of the current
+> 2026-10-26 rerun. See "Provenance of the retained v8 rows" after the tables.
+
 <!-- validation:begin -->
 ### activity
 
@@ -210,3 +215,29 @@ recorded by the validation suite (see the results at the end).
 | point_pair_symmetric_about_centre_bin | ≤ 0.25 | pass 0.0737 | no |
 | timeout_enforced | ≤ 10 | pass 1.01 | no |
 <!-- validation:end -->
+
+## Provenance of the retained v8 rows
+
+The `recon` table above is not from a single run. Six of its eight v8-linux
+rows are fresh results of the current rerun; the two rows
+`normalisers_agree_at_high_histories` (pass 0.959) and `residual_identity`
+(pass 1.87e-08) are **historical v8 evidence retained from the previous run,
+not current rerun results**:
+
+- **Retained records:** they come from `output/validation/v8-linux.jsonl`
+  records 45–46 (an ignored run artifact, not committed), timestamped
+  2026-10-18T13:44:54Z and 2026-10-18T13:45:13Z. They were written by
+  `bash scripts/run_validation.sh --engine v8` (Docker images, default
+  settings) on the validation tree of 2026-10-18 — before the 2.0.1 merge
+  (`ef07477`) and before v8 became the supported release engine (`d9003af`).
+- **Current rerun:** the rerun under the current tree (records timestamped
+  2026-10-26T11:05–11:11Z) reached six of the eight `recon` cases and then
+  timed out. All six reached cases passed, including
+  `trimmed_scale_bias_low_histories` at 0.548 within its 0.3–0.8 band. The two
+  cases above were never reached, so their 2026-10-18 records were retained
+  rather than replaced.
+- **What remains unverified:** `normalisers_agree_at_high_histories` and
+  `residual_identity` have not been reproduced by the current rerun; the table
+  publishes them only as retained 2026-10-18 v8 evidence and they should be
+  re-run before being read as current results.
+
