@@ -1,0 +1,742 @@
+"""
+SIRF CT conversion for Y-90
+===========================
+
+Convert the CT series of a measured Y-90 phantom acquisition into attenuation
+and density maps on the SPECT reconstruction grid with SIRF.
+
+The CT is a 656-slice Mediso acquisition. The slice files are not stored in
+spatial order, so they are sorted by ``ImagePositionPatient`` before the volume
+is built. The reconstruction grid is the vendor ``umap_zoomed`` grid: 128
+voxels of 4.2578 mm. Its attenuation map has no recorded photon energy and is
+used here only as a registration reference, never converted to density.
+
+The route is: read and validate the CT series, build the patient-to-SPECT
+affine from the NM detector position and the CT table height, write the CT as
+a NIfTI image in RAS coordinates, and resample it onto a reference NIfTI image
+in the SPECT frame with a linear identity transform. SIRF's resampler pads
+with zero, so the CT is written as ``HU + 1000`` and ``1000`` is subtracted
+afterwards; padding therefore arrives as -1000 HU, i.e. air.
+"""
+
+# %%
+# Setup
+# -----
+# The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
+# pydicom, matplotlib, SciPy and nibabel.
+
+import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import pydicom
+from scipy.ndimage import binary_erosion
+from scipy.ndimage import shift as shift_image
+
+from simind_python_connector.converters.attenuation import (
+    hu_to_attenuation,
+    hu_to_density_schneider,
+)
+from simind_python_connector.datasets import fetch_y90_phantom
+
+
+VOXEL_SIZE_MM = 4.2578
+MATRIX_SIZE = 128
+GRID_CENTRE = (MATRIX_SIZE - 1) / 2.0
+ENERGY_KEV = 150.0
+LPS_TO_RAS = np.diag([-1.0, -1.0, 1.0, 1.0])
+
+
+def _shown(path):
+    """Show a path relative to the working directory, or just its name."""
+    path = Path(path)
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path.name
+
+
+# %%
+# Read the CT series
+# ------------------
+# A voxel-centre affine maps grid indices ``(i, j, k)`` to patient LPS
+# coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
+# i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted; oblique
+# acquisitions would need a full direction matrix.
+
+
+@dataclass
+class CTSeries:
+    """One DICOM CT series: HU volume, LPS affine and sorted slice metadata."""
+
+    hu: np.ndarray
+    affine: np.ndarray
+    slices: list
+    series_uid: str
+    frame_uid: str
+
+
+def _is_axial(row_direction, column_direction, normal):
+    axes = np.abs(np.vstack([row_direction, column_direction, normal]))
+    cardinal = np.isclose(axes.max(axis=1), 1.0, atol=1e-4) & np.isclose(
+        axes.sum(axis=1), 1.0, atol=1e-4
+    )
+    return bool(cardinal.all() and abs(normal[2]) > 0.999)
+
+
+def read_ct_series(ct_directory):
+    """Read one CT series into a sorted HU volume and a voxel-centre affine."""
+    paths = sorted(Path(ct_directory).glob("*.dcm"))
+    if not paths:
+        raise FileNotFoundError(f"No DICOM files found in {ct_directory}")
+
+    headers = [pydicom.dcmread(path, stop_before_pixels=True) for path in paths]
+    series_uids = {str(header.SeriesInstanceUID) for header in headers}
+    frames = {str(getattr(header, "FrameOfReferenceUID", "")) for header in headers}
+    if len(series_uids) != 1:
+        raise ValueError("CT directory contains more than one series")
+    if len(frames) != 1:
+        raise ValueError("CT slices use different frames of reference")
+    if len({str(header.SOPInstanceUID) for header in headers}) != len(headers):
+        raise ValueError("CT series repeats a SOP Instance UID")
+
+    rows = {int(header.Rows) for header in headers}
+    columns = {int(header.Columns) for header in headers}
+    orientations = {
+        tuple(round(float(value), 6) for value in header.ImageOrientationPatient)
+        for header in headers
+    }
+    spacings = {
+        tuple(round(float(value), 6) for value in header.PixelSpacing)
+        for header in headers
+    }
+    if len(rows) != 1 or len(columns) != 1:
+        raise ValueError("CT slices have different matrix sizes")
+    if len(orientations) != 1:
+        raise ValueError("CT slices have different orientations")
+    if len(spacings) != 1:
+        raise ValueError("CT slices have different pixel spacing")
+
+    rows = rows.pop()
+    columns = columns.pop()
+    orientation = np.array(orientations.pop(), float)
+    row_direction = orientation[:3]
+    column_direction = orientation[3:]
+    normal = np.cross(row_direction, column_direction)
+    if not _is_axial(row_direction, column_direction, normal):
+        raise ValueError("Only axial, axis-aligned CT geometry is supported")
+    pixel_spacing = spacings.pop()
+
+    positions = np.array([header.ImagePositionPatient for header in headers], float)
+    projections = positions @ normal
+    order = np.argsort(projections)
+    paths = [paths[index] for index in order]
+    headers = [headers[index] for index in order]
+    positions = positions[order]
+    projections = projections[order]
+
+    steps = np.diff(projections)
+    if np.any(steps <= 1e-6):
+        raise ValueError("CT series contains duplicate slice positions")
+    slice_spacing = float(np.median(steps))
+    if not np.allclose(steps, slice_spacing, atol=1e-3):
+        raise ValueError("CT slice spacing is not uniform (missing slices?)")
+    expected = positions[0] + np.outer(projections - projections[0], normal)
+    if not np.allclose(positions, expected, atol=1e-3):
+        raise ValueError("CT slices do not share a common axis (mixed origins)")
+
+    hu = np.empty((len(paths), rows, columns), dtype=np.float32)
+    slices = []
+    for index, path in enumerate(paths):
+        dataset = pydicom.dcmread(path)
+        slope = float(getattr(dataset, "RescaleSlope", 1.0))
+        intercept = float(getattr(dataset, "RescaleIntercept", 0.0))
+        hu[index] = dataset.pixel_array.astype(np.float32) * slope + intercept
+        slices.append(
+            {
+                "path": str(path),
+                "position": [float(value) for value in dataset.ImagePositionPatient],
+                "slope": slope,
+                "intercept": intercept,
+                "table_height": float(getattr(dataset, "TableHeight", np.nan)),
+            }
+        )
+        del dataset
+
+    affine = np.eye(4)
+    affine[:3, 0] = row_direction * pixel_spacing[1]
+    affine[:3, 1] = column_direction * pixel_spacing[0]
+    affine[:3, 2] = normal * slice_spacing
+    affine[:3, 3] = slices[0]["position"]
+    return CTSeries(
+        hu=hu,
+        affine=affine,
+        slices=slices,
+        series_uid=series_uids.pop(),
+        frame_uid=frames.pop(),
+    )
+
+
+# %%
+# Patient-to-SPECT frame
+# ----------------------
+# ``peak.dcm`` describes the detector plane, not a patient-coordinate image.
+# The detector centre gives the grid centre in x and z: the image position of
+# the first detector pixel plus half a detector width along each detector
+# axis. The y position is not in the NM header; the CT table height (-140 mm)
+# supplies it in the shared frame of reference. No origin is re-derived from
+# the images and no recentring is applied.
+
+
+def patient_to_spect_affine(nm_file, ct_series):
+    """Return the grid ``(i, j, k)`` -> patient LPS affine for the SPECT frame."""
+    nm = pydicom.dcmread(nm_file, stop_before_pixels=True)
+    if str(nm.FrameOfReferenceUID) != ct_series.frame_uid:
+        raise ValueError("The NM and CT files use different frames of reference")
+    detector = nm.DetectorInformationSequence[0]
+    position = np.array(detector.ImagePositionPatient, float)
+    orientation = np.array(detector.ImageOrientationPatient, float)
+    centre = (
+        position + (orientation[:3] + orientation[3:]) * GRID_CENTRE * VOXEL_SIZE_MM
+    )
+    table_height = ct_series.slices[0]["table_height"]
+    if not np.isfinite(table_height):
+        raise ValueError("The CT series has no TableHeight")
+
+    affine = np.eye(4)
+    affine[0, 0] = VOXEL_SIZE_MM
+    affine[1, 1] = VOXEL_SIZE_MM
+    affine[2, 2] = -VOXEL_SIZE_MM
+    affine[0, 3] = centre[0] - GRID_CENTRE * VOXEL_SIZE_MM
+    affine[1, 3] = table_height - GRID_CENTRE * VOXEL_SIZE_MM
+    affine[2, 3] = centre[2] + GRID_CENTRE * VOXEL_SIZE_MM
+    return affine
+
+
+def read_umap(data_directory):
+    """Read the vendor attenuation map on the SPECT grid, in ``(k, j, i)`` order."""
+    values = np.fromfile(Path(data_directory) / "umap_zoomed.v", dtype="<f4").astype(
+        np.float32
+    )
+    return values.reshape(MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE)
+
+
+def ct_coverage(ct_affine, target_affine, ct_shape):
+    """Return which target voxel centres fall inside the CT field of view."""
+    axes = [np.arange(MATRIX_SIZE) for _ in range(3)]
+    indices = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1)
+    patient = indices[..., ::-1] @ target_affine[:3, :3].T + target_affine[:3, 3]
+    inverse = np.linalg.inv(ct_affine)
+    voxel = inverse[:3, :3] @ patient[..., None]
+    voxel = voxel[..., 0] + inverse[:3, 3]
+    # ``voxel`` is (i, j, k); the volume shape is (k, j, i).
+    limits = np.asarray(ct_shape[::-1], float) - 0.5
+    return np.all((voxel >= -0.5) & (voxel <= limits), axis=-1)
+
+
+# %%
+# Registration report
+# -------------------
+# The metric is computed on the native 4.2578 mm grid before any reduction.
+# Registration is assessed by normalized cross-correlation within a mask defined
+# by CT coverage, CT HU > -400, positive vendor attenuation and finite values. We
+# erode this mask once by one SPECT-grid voxel and keep the resulting mask fixed
+# for every candidate translation. This reduces sensitivity to boundary
+# differences between the sharp CT and the smoothed vendor attenuation map. The
+# exact acceptance criterion remains a Euclidean residual of at most 1.0 voxel;
+# the measured translation is not applied to the CT-derived maps.
+#
+# In this dataset, the vendor map has a thicker table-side body boundary and a
+# fainter table than the CT-derived map. These differences bias the un-eroded
+# correlation metric but cannot be corrected by a global translation. The table
+# is therefore not treated as an anatomical registration landmark. This
+# interior-focused check does not establish agreement of the body boundary or
+# table attenuation.
+#
+# The report contains the zero-offset Pearson correlation, then the highest
+# integer-search normalised cross-correlation (NCC) over a +/-5-voxel search and
+# its signed ``(z, y, x)`` shift. A quadratic fit around the best integer shift
+# refines the peak to subvoxel precision when the fit is negative definite,
+# finite and locally bounded; otherwise the integer estimate is kept. A failed
+# gate stops the tutorial before any accepted map is written.
+
+
+GATE_VOXELS = 1.0
+
+MASK_DEFINITION = (
+    "CT coverage, CT HU > -400, positive vendor attenuation and finite values"
+)
+MASK_EROSION = "one 3-D connectivity-1 binary erosion, one voxel, border_value=0"
+
+
+def _intersection_mask(coverage, hu_grid, umap, ct_map):
+    return (
+        coverage
+        & (hu_grid > -400)
+        & (umap > 0)
+        & np.isfinite(ct_map)
+        & np.isfinite(umap)
+    )
+
+
+def registration_mask(coverage, hu_grid, umap, ct_map):
+    """Return the fixed body region used for every candidate translation."""
+    return binary_erosion(
+        _intersection_mask(coverage, hu_grid, umap, ct_map), iterations=1
+    )
+
+
+def _ncc(first, second, mask):
+    first = first[mask] - first[mask].mean()
+    second = second[mask] - second[mask].mean()
+    denominator = np.sqrt((first * first).sum() * (second * second).sum())
+    return float((first * second).sum() / denominator) if denominator > 0 else np.nan
+
+
+def passes_gate(euclidean_voxels):
+    """Return whether a measured offset meets the one-voxel gate."""
+    return euclidean_voxels <= GATE_VOXELS
+
+
+def quadratic_peak(scores, centre):
+    """Return the subvoxel maximum around ``centre``, or None if the fit fails."""
+    rows, values = [], []
+    for dz in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                key = (centre[0] + dz, centre[1] + dy, centre[2] + dx)
+                if key not in scores:
+                    continue
+                rows.append(
+                    [
+                        1,
+                        dz,
+                        dy,
+                        dx,
+                        dz * dz,
+                        dy * dy,
+                        dx * dx,
+                        dz * dy,
+                        dz * dx,
+                        dy * dx,
+                    ]
+                )
+                values.append(scores[key])
+    if len(values) < 10:
+        return None
+    coefficients, *_ = np.linalg.lstsq(
+        np.array(rows, float), np.array(values, float), rcond=None
+    )
+    if not np.all(np.isfinite(coefficients)):
+        return None
+    hessian = np.array(
+        [
+            [2 * coefficients[4], coefficients[7], coefficients[8]],
+            [coefficients[7], 2 * coefficients[5], coefficients[9]],
+            [coefficients[8], coefficients[9], 2 * coefficients[6]],
+        ]
+    )
+    if not np.all(np.linalg.eigvalsh(hessian) < 0):
+        return None
+    gradient = np.array([coefficients[1], coefficients[2], coefficients[3]])
+    try:
+        subvoxel = -np.linalg.solve(hessian, gradient)
+    except np.linalg.LinAlgError:
+        return None
+    if not np.all(np.isfinite(subvoxel)) or np.max(np.abs(subvoxel)) > 1.0:
+        return None
+    return subvoxel
+
+
+def registration_report(
+    ct_map,
+    reference,
+    mask,
+    voxel_size_mm=VOXEL_SIZE_MM,
+    max_shift=5,
+    min_voxels=1000,
+):
+    """Measure the CT-to-SPECT offset on a fixed mask and apply the gate."""
+    ct_map = np.asarray(ct_map, float)
+    reference = np.asarray(reference, float)
+    mask = np.asarray(mask, bool) & np.isfinite(ct_map) & np.isfinite(reference)
+    report = {
+        "region_voxels": int(mask.sum()),
+        "zero_pearson": None,
+        "best_integer_zyx": None,
+        "best_ncc": None,
+        "best_ncc_definition": "integer-search NCC",
+        "offset_zyx": None,
+        "offset_mm": None,
+        "euclidean_voxels": None,
+        "euclidean_mm": None,
+        "refined_by": "integer",
+        "passed": False,
+        "status": "fail",
+        "reason": "",
+    }
+    if mask.sum() < min_voxels:
+        report["reason"] = "empty registration region"
+        return report
+    if np.std(ct_map[mask]) == 0 or np.std(reference[mask]) == 0:
+        report["reason"] = "flat registration region"
+        return report
+    report["zero_pearson"] = float(np.corrcoef(ct_map[mask], reference[mask])[0, 1])
+
+    # Crop to the mask plus the search margin so the search stays local.
+    occupied = np.argwhere(mask)
+    low = np.maximum(occupied.min(axis=0) - max_shift - 2, 0)
+    high = np.minimum(occupied.max(axis=0) + max_shift + 3, mask.shape)
+    crop = tuple(slice(start, stop) for start, stop in zip(low, high))
+    ct_crop = ct_map[crop]
+    reference_crop = reference[crop]
+    mask_crop = mask[crop]
+
+    scores = {}
+    best = (-np.inf, (0, 0, 0))
+    for dz in range(-max_shift, max_shift + 1):
+        for dy in range(-max_shift, max_shift + 1):
+            for dx in range(-max_shift, max_shift + 1):
+                moved = shift_image(
+                    ct_crop, (dz, dy, dx), order=1, mode="constant", cval=0.0
+                )
+                if not np.all(np.isfinite(moved[mask_crop])):
+                    continue
+                score = _ncc(moved, reference_crop, mask_crop)
+                if not np.isfinite(score):
+                    continue
+                scores[(dz, dy, dx)] = score
+                if score > best[0]:
+                    best = (score, (dz, dy, dx))
+    if not scores:
+        report["reason"] = "no overlap survives the translation search"
+        return report
+
+    best_score, best_shift = best
+    report["best_integer_zyx"] = [int(value) for value in best_shift]
+    report["best_ncc"] = float(best_score)
+    if max(abs(value) for value in best_shift) == max_shift:
+        report["reason"] = "best integer shift reaches the search boundary"
+        return report
+
+    refined = np.array(best_shift, float)
+    subvoxel = quadratic_peak(scores, best_shift)
+    if subvoxel is not None:
+        refined += subvoxel
+        report["refined_by"] = "quadratic"
+
+    distance = float(np.linalg.norm(refined))
+    report.update(
+        {
+            "offset_zyx": refined.tolist(),
+            "offset_mm": (refined * voxel_size_mm).tolist(),
+            "euclidean_voxels": distance,
+            "euclidean_mm": distance * voxel_size_mm,
+            "passed": passes_gate(distance),
+        }
+    )
+    if report["passed"]:
+        report["status"] = "pass"
+    else:
+        report["reason"] = (
+            f"offset {distance:.3f} voxels exceeds the {GATE_VOXELS:.1f}-voxel gate"
+        )
+    return report
+
+
+def accept_registration(report):
+    """Stop the tutorial with diagnostics when the gate fails."""
+    if not report["passed"]:
+        raise RuntimeError(
+            "CT-to-SPECT registration failed: "
+            f"{report['reason'] or report['status']}. Diagnostics were written "
+            "before any map was produced."
+        )
+
+
+# %%
+# SIRF resampling route
+# ---------------------
+# NIfTI arrays are ordered ``(x, y, z)`` and NIfTI affines are RAS. The CT is
+# written with its HU values plus 1000 so the resampler's zero padding becomes
+# -1000 HU after the subtraction. The reference is an empty image with the
+# target SPECT affine. The identity transform is deliberate: the two affines
+# already express the registration. The resampled array is transferred to a
+# clone of the STIR target image and checked for an exact value match, so the
+# same route can feed a reconstruction in the SPECT frame.
+
+
+def resample_to_spect(ct_series, target_affine, umap_file, work_directory):
+    """Resample CT HU onto the SPECT grid and return HU and a STIR clone."""
+    import nibabel as nib
+    import sirf.Reg as Reg
+    import sirf.STIR as STIR
+
+    from simind_python_connector.utils import get_array
+
+    work_directory = Path(work_directory)
+    work_directory.mkdir(parents=True, exist_ok=True)
+    ct_file = work_directory / "ct_hu.nii"
+    reference_file = work_directory / "spect_reference.nii"
+
+    ct_xyz = np.ascontiguousarray(ct_series.hu.transpose(2, 1, 0))
+    ct_positive = np.clip(ct_xyz, -1000.0, 3000.0) + 1000.0
+    nib.save(
+        nib.Nifti1Image(ct_positive.astype(np.float32), LPS_TO_RAS @ ct_series.affine),
+        str(ct_file),
+    )
+    nib.save(
+        nib.Nifti1Image(
+            np.zeros((MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE), np.float32),
+            LPS_TO_RAS @ target_affine,
+        ),
+        str(reference_file),
+    )
+
+    ct_image = Reg.NiftiImageData3D(str(ct_file))
+    reference = Reg.NiftiImageData3D(str(reference_file))
+    resampler = Reg.NiftyResample()
+    resampler.set_reference_image(reference)
+    resampler.set_floating_image(ct_image)
+    resampler.set_interpolation_type_to_linear()
+    resampler.set_padding_value(0)
+    resampler.add_transformation(Reg.AffineTransformation(np.eye(4)))
+    resampled = resampler.forward(ct_image)
+    hu_grid = (
+        np.asarray(resampled.as_array(), dtype=np.float32).transpose(2, 1, 0) - 1000.0
+    )
+
+    clone = STIR.ImageData(str(umap_file)).get_uniform_copy(0.0)
+    clone.fill(np.ascontiguousarray(hu_grid, dtype=np.float32))
+    if not np.allclose(get_array(clone), hu_grid, atol=1e-5):
+        raise RuntimeError("The resampled HU values did not survive the STIR transfer")
+    return hu_grid, clone
+
+
+# %%
+# Figures and summary
+# -------------------
+
+
+def _pyplot():
+    import matplotlib.pyplot as plt
+
+    return plt
+
+
+def _normalise(image, low, high):
+    return np.clip((image - low) / (high - low), 0.0, 1.0)
+
+
+def save_registration_overlay(path, ct_map, umap, report):
+    """Save axial, coronal and sagittal overlays of the CT map and the reference."""
+    plt = _pyplot()
+    ct = _normalise(ct_map, 0.0, 0.25)
+    reference = _normalise(umap, 0.0, 0.25)
+    planes = [
+        ("axial k=64", ct[64], reference[64]),
+        ("coronal j=64", ct[:, 64, :], reference[:, 64, :]),
+        ("sagittal i=64", ct[:, :, 64], reference[:, :, 64]),
+    ]
+    figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    for axis, (title, ct_plane, reference_plane) in zip(axes, planes):
+        axis.imshow(np.dstack([ct_plane, reference_plane, np.zeros_like(ct_plane)]))
+        axis.set_title(title)
+        axis.axis("off")
+    if report["euclidean_voxels"] is None:
+        outcome = report["reason"] or "no registration"
+    else:
+        outcome = (
+            f"{report['euclidean_voxels']:.3f} voxels, "
+            f"{report['euclidean_mm']:.2f} mm ({report['status']})"
+        )
+    figure.suptitle(f"CT (red) and umap (green): {outcome}")
+    figure.tight_layout()
+    figure.savefig(path, dpi=130)
+
+
+def save_maps(path, hu_grid, density, attenuation):
+    """Save one axial slice of the HU, density and attenuation maps."""
+    plt = _pyplot()
+    figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    images = [
+        (hu_grid[64], "CT HU on the SPECT grid", "gray", -1000.0, 1000.0, "HU"),
+        (density[64], "Schneider density", "viridis", 0.0, 1.6, "g/cm³"),
+        (
+            attenuation[64],
+            "Attenuation at 150 keV",
+            "magma",
+            0.0,
+            0.25,
+            "cm⁻¹",
+        ),
+    ]
+    for axis, (image, title, cmap, low, high, label) in zip(axes, images):
+        shown = axis.imshow(image, cmap=cmap, vmin=low, vmax=high)
+        axis.set_title(title)
+        axis.axis("off")
+        figure.colorbar(shown, ax=axis, shrink=0.7, label=label)
+    figure.tight_layout()
+    figure.savefig(path, dpi=130)
+
+
+def save_json(path, payload):
+    with open(path, "w") as stream:
+        json.dump(payload, stream, indent=1)
+
+
+def clear_stale_outputs(output_directory):
+    """Remove earlier accepted results so a rerun cannot present them as current."""
+    for name in (
+        "maps.png",
+        "summary.json",
+        "registration.json",
+        "registration_overlay.png",
+        "UNACCEPTED.txt",
+    ):
+        (Path(output_directory) / name).unlink(missing_ok=True)
+
+
+def write_unaccepted_summary(output_directory, report):
+    """Record that the gate failed and that no accepted maps were published."""
+    summary = {
+        "status": "UNACCEPTED",
+        "reason": report["reason"],
+        "euclidean_voxels": report["euclidean_voxels"],
+        "euclidean_mm": report["euclidean_mm"],
+        "registration": report,
+    }
+    if report["euclidean_voxels"] is None:
+        detail = f"Reason: {report['reason']}\n"
+    else:
+        detail = (
+            f"Residual: {report['euclidean_voxels']:.3f} voxels "
+            f"({report['euclidean_mm']:.2f} mm).\n"
+            f"Reason: {report['reason']}\n"
+        )
+    save_json(Path(output_directory) / "summary.json", summary)
+    (Path(output_directory) / "UNACCEPTED.txt").write_text(
+        "Registration did not meet the one-voxel gate.\n"
+        + detail
+        + "No density or attenuation maps were published.\n"
+    )
+
+
+# %%
+# Run the tutorial
+# ----------------
+
+
+def run():
+    data_directory = fetch_y90_phantom()
+    output_directory = (
+        Path(os.environ.get("SIMIND_EXAMPLES_OUTPUT", "output"))
+        / "real_data"
+        / "ct_conversion"
+        / "sirf"
+    )
+    output_directory.mkdir(parents=True, exist_ok=True)
+    clear_stale_outputs(output_directory)
+
+    ct_series = read_ct_series(data_directory / "ctac")
+    target_affine = patient_to_spect_affine(data_directory / "peak.dcm", ct_series)
+    print(
+        f"CT volume: {ct_series.hu.shape}, HU {ct_series.hu.min():.0f} to "
+        f"{ct_series.hu.max():.0f}"
+    )
+    print(f"CT LPS affine:\n{np.round(ct_series.affine, 4)}")
+    print(f"SPECT LPS affine:\n{np.round(target_affine, 4)}")
+
+    hu_grid, stir_clone = resample_to_spect(
+        ct_series,
+        target_affine,
+        data_directory / "umap_zoomed.hv",
+        output_directory / "work",
+    )
+    coverage = ct_coverage(ct_series.affine, target_affine, ct_series.hu.shape)
+    hu_grid[~coverage] = -1000.0
+    print(f"Target coverage: {coverage.mean():.1%}")
+    print(f"STIR clone verified: {stir_clone.dimensions()}")
+
+    umap = read_umap(data_directory)
+    attenuation = hu_to_attenuation(hu_grid, ENERGY_KEV).astype(np.float32)
+
+    region = registration_mask(coverage, hu_grid, umap, attenuation)
+    report = registration_report(attenuation, umap, region)
+    report["coverage_fraction"] = float(coverage.mean())
+    report["mask"] = {
+        "definition": MASK_DEFINITION,
+        "erosion": MASK_EROSION,
+        "region_voxels": report["region_voxels"],
+    }
+    historical = registration_report(
+        attenuation, umap, _intersection_mask(coverage, hu_grid, umap, attenuation)
+    )
+    historical["role"] = "historical diagnostic only; not the acceptance metric"
+    report["historical_full_mask"] = historical
+    save_json(output_directory / "registration.json", report)
+    save_registration_overlay(
+        output_directory / "registration_overlay.png", attenuation, umap, report
+    )
+    print(
+        "Registration: zero-offset Pearson "
+        f"{report['zero_pearson']:.4f}, best integer NCC {report['best_ncc']:.4f} "
+        f"at {report['best_integer_zyx']}"
+    )
+    print(f"Registration mask: {MASK_DEFINITION}")
+    print(f"Mask erosion: {MASK_EROSION}")
+    print(f"Fixed mask after erosion: {report['region_voxels']} voxels")
+    if historical["euclidean_voxels"] is None:
+        historical_outcome = historical["reason"]
+    else:
+        historical_outcome = (
+            f"{historical['euclidean_voxels']:.3f} voxels = "
+            f"{historical['euclidean_mm']:.2f} mm ({historical['status']})"
+        )
+    print(
+        "Historical un-eroded mask (diagnostic only): "
+        f"{historical['region_voxels']} voxels, {historical_outcome}"
+    )
+    if not report["passed"]:
+        write_unaccepted_summary(output_directory, report)
+    accept_registration(report)
+    density = hu_to_density_schneider(hu_grid).astype(np.float32)
+
+    print(
+        "Offset (z, y, x): "
+        f"{np.round(report['offset_zyx'], 3)} voxels = "
+        f"{np.round(report['offset_mm'], 2)} mm"
+    )
+    print(
+        f"Euclidean: {report['euclidean_voxels']:.3f} voxels = "
+        f"{report['euclidean_mm']:.2f} mm -> {report['status'].upper()}"
+    )
+
+    air = (hu_grid < -900) & coverage
+    summary = {
+        "registration": report,
+        "maps": {
+            "coverage_fraction": float(coverage.mean()),
+            "air_fraction": float(air.sum() / coverage.sum()),
+            "density_range_g_cm3": [
+                float(density[coverage].min()),
+                float(density[coverage].max()),
+            ],
+            "attenuation_range_cm1": [
+                float(attenuation[coverage].min()),
+                float(attenuation[coverage].max()),
+            ],
+            "energy_kev": ENERGY_KEV,
+            "umap_energy": "not recorded; used only as a registration reference",
+        },
+    }
+    save_json(output_directory / "summary.json", summary)
+    save_maps(output_directory / "maps.png", hu_grid, density, attenuation)
+    print(f"Maps written to {_shown(output_directory)}")
+    _pyplot().show()
+
+
+if __name__ == "__main__":
+    run()

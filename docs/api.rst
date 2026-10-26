@@ -27,7 +27,9 @@ Core
 Connectors and Adaptors
 -----------------------
 
-.. automodule:: simind_python_connector.connectors
+The concrete classes are documented once, in the modules that define them.
+
+.. automodule:: simind_python_connector.connectors.base
    :members:
    :undoc-members:
    :show-inheritance:
@@ -99,6 +101,14 @@ Phantoms
 
 .. automodule:: simind_python_connector.phantoms
    :members:
+
+Datasets
+--------
+
+.. automodule:: simind_python_connector.datasets
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Utilities
 ---------

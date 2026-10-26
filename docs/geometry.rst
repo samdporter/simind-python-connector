@@ -17,9 +17,29 @@ At-a-Glance Axis Conventions
 - PyTomography SIMIND projections from ``pytomography.io.SPECT.simind`` are
   ``(theta, r, z)``, which is ``(view, bin, axial)``.
 - ``PyTomographySimindAdaptor`` uses that same ``(view, bin, axial)`` layout
-  even on its fallback path (outputs without a per-key ``.h00``, such as
-  PENETRATE): the core ``(view, axial, bin)`` array is transposed and its axial
-  direction reversed to match the reader.
+  even on its fallback path (without PyTomography installed): the core
+  ``(view, axial, bin)`` array is transposed and its axial direction reversed
+  to match the reader.
+- ``PyTomographySimindAdaptor.get_output_header_path`` is a SIMIND header
+  (start angle in SIMIND's convention) when PyTomography is installed, which is
+  what ``pytomography.io.SPECT.simind.get_metadata`` expects. Without
+  PyTomography it is the converted ``.hs``. SIMIND writes no
+  per-key ``.h00`` for PENETRATE components or derived ``pri_wN``/``sca_wN``,
+  so the adaptor writes ``{prefix}_{key}.h00`` from SIMIND's own header (v8
+  ``{prefix}.h00``, v9 ``{prefix}.hNN``, ``tot_wN`` for derived outputs). Do not
+  give PyTomography the converted ``.hs`` headers: their start angle is STIR's,
+  SIMIND's + 180 degrees, and the reconstruction comes out rotated 180 degrees
+  about z. ``get_output_metadata`` is read from the ``.hs`` and so also reports
+  STIR's start angle.
+- PyTomography DICOM projections (``pytomography.io.SPECT.dicom.get_projections``)
+  are also ``(theta, r, z)``, but the views are sorted by PyTomography's
+  detector angle, ``(gantry angle + 180) mod 360``, and ``z`` runs from the
+  bottom DICOM row upward. For a 360-degree acquisition of ``N`` views,
+  PyTomography view ``k`` is DICOM frame ``(k + N/2) mod N``. STIR/SIRF
+  projections built from the same DICOM (``update_header_from_dicom``) keep
+  the DICOM frame, row and column order: ``arr[0, row, frame, col]``. To
+  display a PyTomography view with the head end up, use
+  ``imshow(proj[k].T, origin="lower")``.
 
 Practical Implication
 ---------------------
@@ -31,6 +51,8 @@ When comparing STIR/SIRF and PyTomography outputs:
   (input -> system matrix -> reconstruction).
 - Connector internals convert object tensors to SIMIND image file order
   ``(z, y, x)`` when writing ``.smi/.dmi`` inputs.
+- PyTomography view 0 and STIR view 0 are generally different physical views;
+  compare by angle, not by index.
 
 Units
 -----
@@ -154,6 +176,19 @@ columns (x, Index 78 and 79) and rows (y, Index 81 and 82) of the maps are set
 separately, and a SIMIND test checks that non-square slices give the same
 projections as the same slices padded to square.
 
+SIMIND v9 uses a different transverse origin for image-based source and density
+maps. Select the matching version explicitly with ``simind_version=9`` or set
+``SIMIND_VERSION=9``; v8 remains the default for existing callers. For v9
+voxel maps, the connector adds the validated source shifts to Indexes 17/18 and
+density-map origin offsets to Indexes 36/37 in the saved run configuration.
+The shifts use the source map's effective ``PX`` and the density pixel size in
+Index 31, preserving the input arrays and the caller's in-memory origin
+offsets. This compensation is validated for the
+default orientation only: ``DI=0``, density Index 32 = 0, and no ``OR`` switch.
+Other v9 voxel-map orientations are rejected before engine launch. Analytic
+phantoms and v8 voxel maps do not receive these offsets.
+
 Mu-maps can be given as attenuation (``mu_map_type="attenuation"``, cm^-1 at
 ``mu_map_energy_kev``, which defaults to ``abs(Index 1)``), density
-(``"density"``, g/cm^3) or CT Hounsfield units (``"hu"``).
+(``"density"``, g/cm^3) or CT Hounsfield units (``"hu"``, converted to density
+with the Schneider2000 model of ``hu_to_density_schneider``).

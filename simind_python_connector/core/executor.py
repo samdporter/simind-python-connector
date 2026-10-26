@@ -71,6 +71,7 @@ class SimindExecutor:
         cwd: Union[str, Path, None] = None,
         mpi_processes: Optional[Union[int, float, str]] = None,
         split_projections: bool = False,
+        timeout: Optional[float] = None,
     ) -> None:
         prefix = self._validate_output_prefix(output_prefix)
 
@@ -131,11 +132,17 @@ class SimindExecutor:
                     cwd=cwd,
                     stdout=stdout_file,
                     stderr=stderr_file,
+                    timeout=timeout,
                 )
             except OSError as exc:
                 self._read_and_replay(stdout_file, stderr_file)
                 raise SimulationError(
                     f"Unable to execute SIMIND command: {exc}"
+                ) from exc
+            except subprocess.TimeoutExpired as exc:
+                self._read_and_replay(stdout_file, stderr_file)
+                raise SimulationError(
+                    f"SIMIND execution timed out after {timeout} seconds."
                 ) from exc
             except subprocess.CalledProcessError as exc:
                 stdout_text, stderr_text = self._read_and_replay(
@@ -190,7 +197,8 @@ class SimindExecutor:
         stdout_text = stdout_file.read()
         stderr_file.seek(0)
         stderr_text = stderr_file.read()
-        sys.stdout.write(stdout_text)
+        # SIMIND's banner starts with a NUL byte, which breaks text consumers
+        sys.stdout.write(stdout_text.replace("\0", ""))
         sys.stderr.write(stderr_text)
         return stdout_text, stderr_text
 

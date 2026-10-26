@@ -17,6 +17,7 @@ from simind_python_connector.recon.diagnostics import (
 from simind_python_connector.recon.projector import (
     SimindComponent,
     SimindProjector,
+    measured_normaliser,
     reference_normaliser,
 )
 from simind_python_connector.recon.updates import (
@@ -36,6 +37,7 @@ __all__ = [
     "UpdateRecord",
     "UpdateSchedule",
     "effective_objective",
+    "measured_normaliser",
     "poisson_nll",
     "reference_normaliser",
 ]

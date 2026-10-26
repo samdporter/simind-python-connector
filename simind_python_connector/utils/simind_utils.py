@@ -11,13 +11,13 @@ MAX_ENERGY_WINDOWS = 99
 MAX_ENERGY_WINDOW_PREFIX_LENGTH = 15
 
 
-def validate_energy_window_prefix(output_prefix: str) -> None:
+def validate_energy_window_prefix(prefix: str) -> None:
     """Reject prefixes SIMIND truncates when reading ``.win`` files."""
-    if len(output_prefix) > MAX_ENERGY_WINDOW_PREFIX_LENGTH:
+    if len(prefix) > MAX_ENERGY_WINDOW_PREFIX_LENGTH:
         raise ValueError(
             "output_prefix must be at most "
             f"{MAX_ENERGY_WINDOW_PREFIX_LENGTH} characters when energy windows "
-            f"are used, got {len(output_prefix)}"
+            f"are used, got {len(prefix)}"
         )
 
 

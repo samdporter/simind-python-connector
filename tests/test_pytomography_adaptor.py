@@ -53,7 +53,7 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
     monkeypatch.setattr(
         connector.python_connector,
         "run",
-        lambda runtime_operator=None: {"tot_w1": fake_result},
+        lambda runtime_operator=None, timeout=None: {"tot_w1": fake_result},
     )
 
     outputs = connector.run()
@@ -150,7 +150,7 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
         ),
     }
 
-    def fake_run(runtime_operator=None):
+    def fake_run(runtime_operator=None, timeout=None):
         captured["runtime_operator"] = runtime_operator
         return raw_outputs
 
@@ -276,6 +276,155 @@ def test_pytomography_simind_smoke_preserves_axial_source_position(
     assert axial_centre == pytest.approx(3.5, abs=1.5)
 
 
+@pytest.mark.integration
+@pytest.mark.requires_simind
+def test_pytomography_penetrate_smoke_reconstructs_off_centre_source(
+    tmp_path: Path,
+) -> None:
+    """Smoke test: OSEM from the PENETRATE header puts the source where it was."""
+    from pytomography import algorithms, likelihoods
+    from pytomography.io.SPECT import simind as pytomo_simind
+    from pytomography.projectors.SPECT import SPECTSystemMatrix
+
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("Example.yaml"),
+        output_dir=tmp_path,
+        output_prefix="penetrate_smoke",
+        voxel_size_mm=4.0,
+        quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
+        scoring_routine=ScoringRoutine.PENETRATE,
+    )
+    source_xyz = torch.zeros((16, 16, 16), dtype=torch.float32)
+    source_xyz[11:13, 3:5, 7:9] = 1.0
+    adaptor.set_source(source_xyz)
+    adaptor.set_mu_map(torch.zeros_like(source_xyz))
+    adaptor.set_energy_windows([126], [154], [0])
+    adaptor.add_config_value(19, 2)
+    adaptor.add_config_value(53, 0)
+    adaptor.add_config_value(29, 8)
+    adaptor.add_config_value(28, 0.4)
+    adaptor.add_config_value(76, 16)
+    adaptor.add_config_value(77, 16)
+    adaptor.add_runtime_switch("CC", "ma-lehr")
+    adaptor.add_runtime_switch("RR", 7)
+    adaptor.run()
+
+    object_meta, proj_meta = pytomo_simind.get_metadata(
+        str(adaptor.get_output_header_path("all_interactions"))
+    )
+    system_matrix = SPECTSystemMatrix([], [], object_meta, proj_meta)
+    likelihood = likelihoods.PoissonLogLikelihood(
+        system_matrix, adaptor.get_outputs()["all_interactions"]
+    )
+    recon = algorithms.OSEM(likelihood)(2, n_subsets=4).cpu()
+
+    weights = recon.sum(dim=2)
+    x, y = torch.meshgrid(torch.arange(16.0), torch.arange(16.0), indexing="ij")
+    centre = ((weights * x).sum() / weights.sum(), (weights * y).sum() / weights.sum())
+    assert centre[0].item() == pytest.approx(11.5, abs=1.0)
+    assert centre[1].item() == pytest.approx(3.5, abs=1.0)
+
+
+def _write_simind_header(path: Path, data_file: str, start_angle: float) -> None:
+    path.write_text(
+        "!INTERFILE :=\n"
+        "program version := V8.0\n"
+        f"!name of data file := {data_file}\n"
+        "!total number of images := 2\n"
+        "!matrix size [1] := 4\n"
+        "!matrix size [2] := 3\n"
+        "!number format := short float\n"
+        "!number of bytes per pixel := 4\n"
+        "scaling factor (mm/pixel) [1] := 4.0\n"
+        "scaling factor (mm/pixel) [2] := 4.0\n"
+        "!extent of rotation := 360\n"
+        "!number of projections := 2\n"
+        "!direction of rotation := CCW\n"
+        f"start angle := {start_angle}\n"
+        "!END OF INTERFILE :=\n"
+    )
+
+
+def _wire_raw_outputs(connector, monkeypatch, raw_outputs) -> None:
+    monkeypatch.setattr(
+        connector.python_connector,
+        "run",
+        lambda runtime_operator=None, timeout=None: raw_outputs,
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("simind_header", ["case01.h00", "case01.h01"])
+def test_pytomography_penetrate_header_keeps_simind_start_angle(
+    tmp_path: Path, monkeypatch, simind_header: str
+):
+    """v8 writes one shared .h00, v9 a .hNN per component; the .hs is STIR's."""
+    from pytomography.io.SPECT import simind as pytomo_simind
+
+    connector = _make_wired_connector(tmp_path, monkeypatch)
+    projection = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    projection.tofile(tmp_path / "case01.b01")
+    _write_simind_header(tmp_path / simind_header, "case01.a00", 0.0)
+    _write_simind_header(tmp_path / "case01_component_01.hs", "case01.b01", 180.0)
+    _wire_raw_outputs(
+        connector,
+        monkeypatch,
+        {
+            "all_interactions": ProjectionResult(
+                projection=projection,
+                header_path=tmp_path / "case01_component_01.hs",
+                data_path=tmp_path / "case01.b01",
+                metadata={},
+            )
+        },
+    )
+
+    outputs = connector.run()
+
+    header = connector.get_output_header_path("all_interactions")
+    _, proj_meta = pytomo_simind.get_metadata(str(header))
+    assert proj_meta.angles[0] == 0
+    expected = torch.from_numpy(projection[:, ::-1, :].transpose(0, 2, 1).copy())
+    assert torch.equal(outputs["all_interactions"].cpu(), expected)
+    assert torch.equal(pytomo_simind.get_projections(str(header)).cpu(), expected)
+
+
+@pytest.mark.unit
+def test_pytomography_derived_primary_header_keeps_simind_start_angle(
+    tmp_path: Path, monkeypatch
+):
+    """A derived pri_wN has only a .hs copied from tot_wN's converted header."""
+    from pytomography.io.SPECT import simind as pytomo_simind
+
+    connector = _make_wired_connector(tmp_path, monkeypatch)
+    total = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    primary = total / 2
+    total.tofile(tmp_path / "case01_tot_w1.a00")
+    primary.tofile(tmp_path / "case01_pri_w1.a00")
+    _write_simind_header(tmp_path / "case01_tot_w1.h00", "case01_tot_w1.a00", 0.0)
+    _write_simind_header(tmp_path / "case01_pri_w1.hs", "case01_pri_w1.a00", 180.0)
+    _wire_raw_outputs(
+        connector,
+        monkeypatch,
+        {
+            "pri_w1": ProjectionResult(
+                projection=primary,
+                header_path=tmp_path / "case01_pri_w1.hs",
+                data_path=tmp_path / "case01_pri_w1.a00",
+                metadata={"derived": "tot - sca"},
+            )
+        },
+    )
+
+    outputs = connector.run()
+
+    header = connector.get_output_header_path("pri_w1")
+    _, proj_meta = pytomo_simind.get_metadata(str(header))
+    assert proj_meta.angles[0] == 0
+    expected = torch.from_numpy(primary[:, ::-1, :].transpose(0, 2, 1).copy())
+    assert torch.equal(outputs["pri_w1"].cpu(), expected)
+
+
 @pytest.mark.unit
 def test_pytomography_h00_branch_uses_pyto_reader(tmp_path: Path, monkeypatch):
     """When a SIMIND .h00 exists the PyTomography reader supplies projections."""
@@ -329,7 +478,7 @@ def test_pytomography_fallback_branch_preserves_projection_values(
 
 @pytest.mark.unit
 def test_pytomography_fallback_branch_matches_real_reader(tmp_path: Path, monkeypatch):
-    """PENETRATE outputs have no per-key .h00, so they take the fallback."""
+    """Without PyTomography the fallback matches its reader."""
     import simind_python_connector.connectors.pytomography_adaptor as pyta
 
     real_reader = pytest.importorskip("pytomography.io.SPECT.simind")
@@ -396,7 +545,7 @@ def _make_wired_connector(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
         connector.python_connector,
         "run",
-        lambda runtime_operator=None: raw_outputs,
+        lambda runtime_operator=None, timeout=None: raw_outputs,
     )
     return connector
 
@@ -430,7 +579,7 @@ def test_pytomography_adaptor_accepts_valid_runtime_operator(
 ) -> None:
     adaptor = _make_preflight_adaptor(tmp_path)
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
 
     outputs = adaptor.run(runtime_operator=RuntimeOperator(switches={"RR": 12345}))
@@ -467,7 +616,7 @@ def test_pytomography_adaptor_accepts_external_orbit_with_an_input_like_basename
     external = outside / "case01_src.smi"
     external.write_bytes(b"external-orbit")
     monkeypatch.setattr(
-        adaptor.python_connector, "run", lambda runtime_operator=None: {}
+        adaptor.python_connector, "run", lambda runtime_operator=None, timeout=None: {}
     )
 
     outputs = adaptor.run(runtime_operator=RuntimeOperator(orbit_file=external))

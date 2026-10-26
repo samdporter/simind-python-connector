@@ -33,7 +33,8 @@ def run(prefix, output_dir, processes=None, split=False):
     connector.set_energy_windows([126], [154], [0])
     connector.add_runtime_switch("FI", "tc99m")
     connector.add_runtime_switch("CC", "ma-lehr")
-    connector.add_runtime_switch("RR", 12345)
+    if not processes or split:
+        connector.add_runtime_switch("RR", 12345)
     connector.add_config_value(29, 24)
     if processes:
         connector.set_mpi(processes, split)

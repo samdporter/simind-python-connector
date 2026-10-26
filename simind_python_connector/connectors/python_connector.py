@@ -5,12 +5,15 @@ Backend-agnostic SIMIND connector returning NumPy projection outputs.
 from __future__ import annotations
 
 import contextlib
+import copy
 import logging
 import math
 import numbers
 import os
+import platform
 import re
 import shutil
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -191,8 +194,17 @@ class SimindPythonConnector(BaseConnector):
         output_dir: PathLike,
         output_prefix: str = "output",
         quantization_scale: float = DEFAULT_QUANTIZATION_SCALE,
+        simind_version: Optional[int] = None,
     ) -> None:
         self.logger = logging.getLogger(__name__)
+        version_value = (
+            os.environ.get("SIMIND_VERSION", "8")
+            if simind_version is None
+            else simind_version
+        )
+        if version_value not in (8, 9, "8", "9"):
+            raise ValueError("simind_version must be 8 or 9")
+        self.simind_version = int(version_value)
         self._validate_output_prefix(output_prefix)
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -224,7 +236,7 @@ class SimindPythonConnector(BaseConnector):
         self._outputs: Optional[dict[str, ProjectionResult]] = None
         self._window_file_path: Optional[Path] = None
         self._mpi: Optional[tuple[int, bool]] = None
-        self._derived_keys: set[str] = set()
+        self._derived_keys: dict[str, str] = {}
         self._acquisition: Optional[ProjectionGeometry] = None
         self._acquisition_radii_cm: Optional[list[float]] = None
         self._phantom_extent_mm: Optional[tuple[float, float]] = None
@@ -293,9 +305,12 @@ class SimindPythonConnector(BaseConnector):
         """Run SIMIND under MPI (mpirun + simind_mpi), or turn MPI off with None.
 
         By default every MPI process simulates all projections and SIMIND
-        sums the results. With split_projections=True, /MP shares the
-        projections out; the number of projections (Index 29) must then be
-        a multiple of processes.
+        sums the results; run() then refuses a fixed RR switch, which would
+        make every process repeat the same histories. With
+        split_projections=True, /MP shares the projections out; the number of
+        projections (Index 29) must then be a multiple of processes, and the
+        PENETRATE scoring routine is refused because simind_mpi writes only
+        the primary process's PENETRATE projections.
         """
         if processes is None:
             if split_projections:
@@ -375,7 +390,8 @@ class SimindPythonConnector(BaseConnector):
             scoring_routine: Optional override for Index 84; None keeps the
                 configuration value.
             mu_map_type: "attenuation" (cm^-1 at mu_map_energy_kev), "density"
-                (g/cm^3) or "hu" (CT Hounsfield units, Schneider conversion).
+                (g/cm^3) or "hu" (CT Hounsfield units, converted to density with
+                the Schneider2000 model).
             mu_map_energy_kev: Energy the attenuation map is defined at;
                 defaults to abs(Index 1).
 
@@ -721,7 +737,12 @@ class SimindPythonConnector(BaseConnector):
         upper_bounds: Union[float, list[float]],
         scatter_orders: Union[int, list[int]],
     ) -> None:
-        """Write a SIMIND window file for this connector run."""
+        """Write the connector-owned window file selected by a later run().
+
+        The file is used automatically when the run has no explicit ``FW``
+        switch; an explicit ``FW`` still takes precedence. Selection happens in
+        run(), so changing ``output_prefix`` afterwards is rejected there.
+        """
         self._validate_output_prefix(self.output_prefix)
         validate_energy_window_prefix(self.output_prefix)
         window_path = self.output_dir / f"{self.output_prefix}.win"
@@ -741,12 +762,12 @@ class SimindPythonConnector(BaseConnector):
     ) -> RuntimeSwitches:
         """Validate the effective switch set and orbit without writing files.
 
-        Builds the same persistent+runtime switch set run() uses (operator
-        values override persistent ones and None removes them), adds the
-        automatic CA=1 for the SCATTWIN routine and serialises it through the
-        executor, so an illegal switch is rejected before phantom inputs, an
-        acquisition orbit or a config are written. Returns the validated
-        holder for run().
+        Builds the persistent+runtime switch set run() starts from (operator
+        values override persistent ones and None removes them) and serialises
+        it through the executor, so an illegal switch is rejected before
+        phantom inputs, an acquisition orbit or a config are written. run()
+        may add a run-local FW for a connector-written window and rechecks the
+        final set before any side effect.
 
         write_paths are the files an adaptor is about to write for this run;
         a supplied orbit that is one of them, or the config destination, is
@@ -773,13 +794,6 @@ class SimindPythonConnector(BaseConnector):
         if runtime_operator is not None:
             for key, value in runtime_operator.switches.items():
                 run_switches_holder.set_switch(key, value)
-
-        # SIMIND writes air, tot and sca with /CA:1 (manual, scattwin routine);
-        # primary is then tot - sca.
-        if self._config_scoring_routine() is ScoringRoutine.SCATTWIN and (
-            "CA" not in run_switches_holder.switches
-        ):
-            run_switches_holder.set_switch("CA", 1)
 
         self.executor._serialize_switches(run_switches_holder.switches)
 
@@ -811,7 +825,10 @@ class SimindPythonConnector(BaseConnector):
                 )
 
     def run(
-        self, runtime_operator: Optional[RuntimeOperator] = None
+        self,
+        runtime_operator: Optional[RuntimeOperator] = None,
+        *,
+        timeout: Optional[float] = None,
     ) -> dict[str, ProjectionResult]:
         """Run SIMIND and return projection outputs as NumPy arrays."""
         self._outputs = None
@@ -821,8 +838,46 @@ class SimindPythonConnector(BaseConnector):
         # orbit, saving the config or clearing stale outputs when the run cannot
         # be supported or the prefix is no longer safe.
         self._validate_output_prefix(self.output_prefix)
-        self._config_scoring_routine()
+        routine = self._config_scoring_routine()
         run_switches_holder = self._validate_runtime_operator(runtime_operator)
+
+        # Resolve the one window file SIMIND and derivation will share before
+        # staging an orbit, saving the config or clearing stale outputs. An
+        # existing default-named scattwin.win is never selected implicitly.
+        window_file = self._resolve_window_file(routine, run_switches_holder)
+
+        if (
+            routine is ScoringRoutine.SCATTWIN
+            and self.simind_version == 9
+            and platform.system() == "Linux"
+        ):
+            warnings.warn(
+                "SIMIND v9.0 on Linux can abort in SCATTWIN or silently return "
+                "corrupted projections. Use SIMIND v8, the macOS v9 build or "
+                "the PENETRATE scoring routine.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+        v9_voxel_offsets = None
+        if self.simind_version == 9 and self._phantom_mode == "voxel":
+            di = run_switches_holder.switches.get("DI", 0)
+            density_direction = self.config.get_value(32)
+            orientation = run_switches_holder.switches.get("OR")
+            if di != 0 or density_direction != 0 or orientation is not None:
+                raise ValueError(
+                    "v9 voxel centring requires DI=0, Index32=0 and default OR"
+                )
+            source_pixel_cm = float(
+                run_switches_holder.switches.get("PX", self.config.get_value(31))
+            )
+            density_pixel_cm = float(self.config.get_value(31))
+            v9_voxel_offsets = (
+                (17, source_pixel_cm),
+                (18, -source_pixel_cm),
+                (36, density_pixel_cm),
+                (37, -density_pixel_cm),
+            )
 
         if self._phantom_mode is None:
             self.logger.warning(
@@ -851,6 +906,22 @@ class SimindPythonConnector(BaseConnector):
                         f"({num_projections}) to be a multiple of the MPI "
                         f"processes ({processes})"
                     )
+                # simind_mpi /MP gathers SCATTWIN images, but PENETRATE writes
+                # only the primary process's share of the projections.
+                if self._is_penetrate_routine():
+                    raise ValueError(
+                        "split_projections does not work with the PENETRATE "
+                        "scoring routine: simind_mpi writes only the primary "
+                        "process's projections"
+                    )
+            elif processes > 1 and "RR" in run_switches_holder.switches:
+                # Every process seeds from the same RR, so all of them repeat
+                # the same histories and the summed result equals a serial run.
+                raise ValueError(
+                    "A fixed RR seed gives every MPI process the same histories, "
+                    "so replicate MPI adds no statistics; remove RR (simind_mpi then "
+                    "seeds process r as RR=r+1) or use split_projections"
+                )
             mpi_kwargs = {"mpi_processes": processes, "split_projections": split}
 
         # The effective switches are validated and serialised above, before an
@@ -893,16 +964,18 @@ class SimindPythonConnector(BaseConnector):
                     fov_length_mm,
                 )
 
-        window_file = self._window_file_for_run(run_switches_holder.switches)
-
-        # Outputs are read from SPECT Interfile headers (.h00), which SIMIND
-        # writes only with Flag 5 (SPECT) and Flag 14 (Interfile) set. A
-        # configuration-defined phantom never goes through configure_phantom,
-        # so set them for every run.
+        # Configuration-defined phantoms also need Interfile SPECT outputs.
         self.config.set_flag(5, True)
         self.config.set_flag(14, True)
+
+        run_config = self.config
+        if v9_voxel_offsets is not None:
+            run_config = copy.deepcopy(self.config)
+            for index, offset in v9_voxel_offsets:
+                run_config.set_value(index, run_config.get_value(index) + offset)
+
         config_path = self.output_dir / self.output_prefix
-        self.config.save_file(config_path)
+        run_config.save_file(config_path)
 
         self._clear_previous_outputs(window_file)
         self.executor.run_simulation(
@@ -910,6 +983,7 @@ class SimindPythonConnector(BaseConnector):
             orbit_file,
             run_switches_holder.switches,
             cwd=self.output_dir,
+            timeout=timeout,
             **mpi_kwargs,
         )
 
@@ -932,7 +1006,13 @@ class SimindPythonConnector(BaseConnector):
     _OUTPUT_SUFFIXES = {".h00", ".hs", ".a00", ".s", ".win"}
 
     def _window_file_for_run(self, switches: dict) -> Optional[Path]:
-        """Return the window file SIMIND reads for this run, if any."""
+        """Select a window file from the run-local switches, if any.
+
+        An explicit ``FW`` wins. Otherwise the file this instance last wrote
+        with set_energy_windows() is selected only while it still belongs to
+        the current output directory. An existing default-named scattwin.win
+        is never selected implicitly.
+        """
         fw = switches.get("FW")
         if fw:
             return self.output_dir / f"{fw}.win"
@@ -941,8 +1021,48 @@ class SimindPythonConnector(BaseConnector):
             and self._window_file_path.parent == self.output_dir
         ):
             return self._window_file_path
-        scattwin = self.output_dir / "scattwin.win"
-        return scattwin if scattwin.is_file() else None
+        return None
+
+    def _resolve_window_file(
+        self,
+        routine: ScoringRoutine,
+        run_switches: RuntimeSwitches,
+    ) -> Optional[Path]:
+        """Resolve and validate the single window file this run will use.
+
+        Runs once per run() before any side effect. An explicit FW is used
+        unchanged; otherwise the connector-written window is selected by
+        injecting FW into the run-local holder, never into persistent or
+        caller-supplied switch objects. An existing scattwin.win with no
+        selection is refused for SCATTWIN so the engine cannot silently reuse
+        it, while other routines leave such a file untouched and unselected.
+        """
+        window_file = self._window_file_for_run(run_switches.switches)
+        if window_file is not None and not run_switches.switches.get("FW"):
+            run_switches.set_switch("FW", self.output_prefix)
+
+        # Re-check the final effective switches, including an injected FW,
+        # before orbit staging, config saving, cleanup or execution.
+        self.executor._serialize_switches(run_switches.switches)
+
+        if window_file is None:
+            stale_default = self.output_dir / "scattwin.win"
+            if routine is ScoringRoutine.SCATTWIN and stale_default.is_file():
+                raise ValueError(
+                    "scattwin.win exists in the output directory but this "
+                    "SCATTWIN run has no selected window file; delete or move "
+                    "the stale file, call set_energy_windows() to select the "
+                    "connector-written window, or pass FW='scattwin' to use the "
+                    "existing file explicitly"
+                )
+            return None
+
+        if not window_file.is_file():
+            raise FileNotFoundError(
+                f"Selected window file not found: {window_file}; call "
+                "set_energy_windows() again or choose an existing FW file"
+            )
+        return window_file
 
     @staticmethod
     def _read_window_orders(window_file: Path) -> list[Optional[int]]:
@@ -966,16 +1086,19 @@ class SimindPythonConnector(BaseConnector):
         """Delete stale outputs from earlier runs sharing this prefix.
 
         Connector-written inputs (``{prefix}_src.smi`` / ``{prefix}_dns.dmi``)
-        are protected because SIMIND still needs them on disk. The
-        caller-supplied orbit source is protected too, by name and by file
-        identity, so cleanup cannot delete it through a symlink, a hardlink or
-        a differently-cased spelling on a case-insensitive filesystem.
+        and the selected window file are protected because SIMIND still needs
+        them on disk. A caller's default-named ``scattwin.win`` is never
+        treated as a deletable output. The caller-supplied orbit source is
+        protected too, by name and by file identity, so cleanup cannot delete
+        it through a symlink, a hardlink or a differently-cased spelling on a
+        case-insensitive filesystem.
         """
         if window_file is None:
             window_file = self._window_file_for_run({})
         protected = {
             f"{self.output_prefix}_src.smi",
             f"{self.output_prefix}_dns.dmi",
+            "scattwin.win",
         }
         if window_file is not None and window_file.parent == self.output_dir:
             protected.add(window_file.name)
@@ -1001,10 +1124,14 @@ class SimindPythonConnector(BaseConnector):
             )
             if not stem_ok:
                 continue
-            if path.suffix in self._OUTPUT_SUFFIXES or (
-                path.suffix.startswith(".b")
-                and path.suffix[2:].isdigit()
-                and path.stem == self.output_prefix
+            if (
+                path.suffix in self._OUTPUT_SUFFIXES
+                or re.fullmatch(r"\.h\d{2}", path.suffix)
+                or (
+                    path.suffix.startswith(".b")
+                    and path.suffix[2:].isdigit()
+                    and path.stem == self.output_prefix
+                )
             ):
                 path.unlink()
 
@@ -1084,10 +1211,15 @@ class SimindPythonConnector(BaseConnector):
         return hs_files
 
     def _derive_primary_headers(
-        self, header_files: list[Path], window_file: Optional[Path]
+        self,
+        header_files: list[Path],
+        window_file: Optional[Path],
     ) -> list[Path]:
-        """Write pri_wN = tot_wN - sca_wN for order-0 windows."""
-        self._derived_keys = set()
+        """Derive the missing order-0 scatter/primary image from available pairs.
+
+        Uses the single window file selected for this run, if any.
+        """
+        self._derived_keys = {}
         if window_file is None or not window_file.is_file():
             return []
         orders = self._read_window_orders(window_file)
@@ -1103,7 +1235,9 @@ class SimindPythonConnector(BaseConnector):
                 continue
             sca_header = tot_header.with_name(f"{self.output_prefix}_sca_w{window}.hs")
             pri_header = tot_header.with_name(f"{self.output_prefix}_pri_w{window}.hs")
-            if pri_header.name in names or sca_header.name not in names:
+            derive_pri = pri_header.name not in names and sca_header.name in names
+            derive_sca = sca_header.name not in names and pri_header.name in names
+            if not (derive_pri or derive_sca):
                 continue
             try:
                 total = load_interfile_array(tot_header).array
@@ -1111,28 +1245,34 @@ class SimindPythonConnector(BaseConnector):
                 raise SimulationError(
                     f"Could not load SIMIND output {tot_header}: {exc}"
                 ) from exc
+            component_header = sca_header if derive_pri else pri_header
             try:
-                scatter = load_interfile_array(sca_header).array
+                component = load_interfile_array(component_header).array
             except Exception as exc:
                 raise SimulationError(
-                    f"Could not load SIMIND output {sca_header}: {exc}"
+                    f"Could not load SIMIND output {component_header}: {exc}"
                 ) from exc
-            if total.shape != scatter.shape:
+            if total.shape != component.shape:
                 raise SimulationError(
-                    f"Could not derive primary from {tot_header} and {sca_header}: "
-                    f"shape mismatch ({total.shape} vs {scatter.shape})"
+                    f"Could not derive an order-0 component from {tot_header} and "
+                    f"{component_header}: shape mismatch ({total.shape} vs "
+                    f"{component.shape})"
                 )
-            pri_data = pri_header.with_suffix(".a00")
-            (total - scatter).astype("<f4").tofile(pri_data)
+            target_header = pri_header if derive_pri else sca_header
+            target_data = target_header.with_suffix(".a00")
+            (total - component).astype("<f4").tofile(target_data)
             header = InterfileHeader.from_file(tot_header)
-            header.set("!name of data file", pri_data.name)
+            header.set("!name of data file", target_data.name)
             header.set("!number format", "float")
             header.set("!number of bytes per pixel", 4)
             header.set("imagedata byte order", "LITTLEENDIAN")
             header.set("!data offset in bytes", 0)
-            header.write(pri_header)
-            derived.append(pri_header)
-        self._derived_keys = {self._extract_output_key(path) for path in derived}
+            header.write(target_header)
+            derived.append(target_header)
+            names.add(target_header.name)
+            self._derived_keys[self._extract_output_key(target_header)] = (
+                "tot - sca" if derive_pri else "tot - pri"
+            )
         return derived
 
     def _load_projection_outputs(
@@ -1154,7 +1294,7 @@ class SimindPythonConnector(BaseConnector):
                 header_path=interfile.header_path,
                 data_path=interfile.data_path,
                 metadata=(
-                    {**interfile.metadata, "derived": "tot - sca"}
+                    {**interfile.metadata, "derived": self._derived_keys[key]}
                     if key in self._derived_keys
                     else interfile.metadata
                 ),

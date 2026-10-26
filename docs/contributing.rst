@@ -43,7 +43,7 @@ If you make changes that affect the documentation:
 
 .. code-block:: bash
 
-    sphinx-build -b html docs docs/_build/html
+    sphinx-build -b html -W --keep-going docs docs/_build/html
 
 Releasing
 ---------
@@ -110,8 +110,17 @@ updates the machine version surfaces.
       gh release create vX.Y.Z --verify-tag --title "X.Y.Z" --notes-file notes.md
 
    Publishing the GitHub release starts ``publish.yml``, which reruns the test
-   suite, checks that the tag matches the package version and uploads to PyPI.
-   Pushing the tag alone does **not** publish to PyPI.
+   suite, builds the documentation at the release tag, checks that the tag
+   matches the package version and uploads to PyPI. Pushing the tag alone does
+   **not** publish to PyPI.
+
+8. Confirm the public documentation. Read the Docs builds the released tag from
+   ``.readthedocs.yaml``: it installs the package, builds ``docs/conf.py`` with
+   ``plot_gallery=False`` (the gallery is rendered from its committed outputs,
+   not executed) and fails on any warning. Activate ``vX.Y.Z`` in the Read the
+   Docs version selector if it is not active yet, wait for the build, then check
+   that the version selector shows ``vX.Y.Z`` and that the gallery pages,
+   example downloads and API pages load without a 404.
 
 You can verify the eight version surfaces without changing anything:
 

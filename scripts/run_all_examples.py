@@ -28,39 +28,39 @@ os.chdir(parent_dir)
 # List of core examples to run (now in ../examples from scripts/)
 EXAMPLES = [
     {
-        "name": "01_basic_simulation.py",
+        "name": "getting_started/plot_01_basic_simulation.py",
         "description": "Basic SIMIND simulation with simple phantom",
-        "module": "examples.01_basic_simulation",
+        "module": "examples.getting_started.plot_01_basic_simulation",
         "estimated_time": "1 minute",
     },
     {
-        "name": "02_runtime_switch_comparison.py",
+        "name": "getting_started/plot_02_runtime_switch_comparison.py",
         "description": "Runtime-switch comparison using pure Python connector",
-        "module": "examples.02_runtime_switch_comparison",
+        "module": "examples.getting_started.plot_02_runtime_switch_comparison",
         "estimated_time": "1 minute",
     },
     {
-        "name": "03_multi_window.py",
+        "name": "getting_started/plot_03_multi_window.py",
         "description": "Multi-energy window simulation (TEW method)",
-        "module": "examples.03_multi_window",
+        "module": "examples.getting_started.plot_03_multi_window",
         "estimated_time": "1 minute",
     },
     {
-        "name": "04_custom_config.py",
+        "name": "getting_started/plot_04_custom_config.py",
         "description": "Custom configuration creation and YAML workflow",
-        "module": "examples.04_custom_config",
+        "module": "examples.getting_started.plot_04_custom_config",
         "estimated_time": "< 1 minute",
     },
     {
-        "name": "05_scattwin_vs_penetrate_comparison.py",
+        "name": "getting_started/plot_05_scattwin_vs_penetrate_comparison.py",
         "description": "Comparison of SCATTWIN vs PENETRATE scoring routines",
-        "module": "examples.05_scattwin_vs_penetrate_comparison",
+        "module": "examples.getting_started.plot_05_scattwin_vs_penetrate_comparison",
         "estimated_time": "3 minutes",
     },
     {
-        "name": "06_schneider_density_conversion.py",
+        "name": "getting_started/plot_06_schneider_density_conversion.py",
         "description": "Schneider2000 density conversion demonstration",
-        "module": "examples.06_schneider_density_conversion",
+        "module": "examples.getting_started.plot_06_schneider_density_conversion",
         "estimated_time": "< 1 minute",
     },
 ]

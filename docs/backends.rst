@@ -52,10 +52,20 @@ Returned projections
      acquisitions are ``(tof, axial, view, bin)``.
    - ``PyTomographySimindAdaptor`` returns torch tensors in
      ``(view, bin, axial)``, matching
-     ``pytomography.io.SPECT.simind.get_projections``. The fallback used for
-     outputs without a per-key ``.h00`` (for example PENETRATE) applies the
-     same layout, so downstream reconstruction code does not need to
-     special-case it.
+     ``pytomography.io.SPECT.simind.get_projections``. Outputs SIMIND wrote
+     no per-key ``.h00`` for (PENETRATE components and derived
+     ``pri_wN``/``sca_wN``) get one written from SIMIND's own header, so they
+     are read the same way. Without PyTomography installed the adaptor builds
+     the same layout from the core array.
+
+Reconstructing with STIR or SIRF SPECTUB
+----------------------------------------
+
+STIR's ``SPECTUB`` projector, up to at least STIR 6.4, mirrors x relative to
+the attenuation map (`UCL/STIR#452 <https://github.com/UCL/STIR/issues/452>`_).
+Until this is fixed upstream, flip the mu map along x (the last axis of a
+``(z, y, x)`` array) before passing it to ``set_attenuation_image``. The
+examples do this. Once STIR fixes the issue, remove the flip.
 
 Replacing Removed Helpers
 -------------------------

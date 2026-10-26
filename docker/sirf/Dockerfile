@@ -15,17 +15,30 @@ ENV PYTHONPATH=/workspace/docker/import_guard:${SIRF_INSTALL_PATH}/python:${PYTH
 ENV LD_LIBRARY_PATH=/opt/conda/lib:${SIRF_INSTALL_PATH}/lib:${SIRF_INSTALL_PATH}/lib64:${LD_LIBRARY_PATH}
 ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${SIRF_INSTALL_PATH}/bin:${PATH}
 
+# MPICH runtime and launcher for SIMIND's MPI binary; the compat script exposes
+# the library names that binary was built against and selects MPICH's mpirun.
+# See docker/python/install_mpich_compat.sh.
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends mpich \
+    && rm -rf /var/lib/apt/lists/*
+COPY docker/python/install_mpich_compat.sh /usr/local/bin/install_mpich_compat.sh
+RUN chmod +x /usr/local/bin/install_mpich_compat.sh \
+    && install_mpich_compat.sh
+USER 1000
+
 WORKDIR /workspace
 
 COPY --chown=1000:100 . /workspace
 
 RUN python -m pip install --upgrade pip \
     && pip install --constraint /workspace/docker/constraints.txt -e ".[dev,examples]" \
+    && pip install "phantomgen @ git+https://github.com/varzakis/phantomgen@d9196118d5caef3f1bd2c27e5732bc03b48aed2a" \
     && python - <<'PY'
 import importlib
-for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner"):
+for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner", "phantomgen", "pooch", "sphinx_gallery"):
     importlib.import_module(module)
 print("SIRF Python modules available")
 PY
 
-CMD ["python", "examples/07B_sirf_adaptor_osem.py"]
+CMD ["python", "examples/backends/plot_07b_sirf_adaptor_osem.py"]

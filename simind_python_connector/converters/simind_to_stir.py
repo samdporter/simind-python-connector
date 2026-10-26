@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -334,11 +335,11 @@ class SimindToStirConverter:
     ) -> None:
         """Convert a SIMIND header file to STIR format."""
 
-        if not input_filename.endswith(".h00"):
-            raise ValueError("Input file must have .h00 extension")
+        if not re.search(r"\.h\d{2}$", input_filename):
+            raise ValueError("Input file must have a SIMIND .hNN extension")
 
         if output_filename is None:
-            output_filename = input_filename.replace(".h00", ".hs")
+            output_filename = re.sub(r"\.h\d{2}$", ".hs", input_filename)
 
         # Set input directory for orbit file resolution
         self.input_file_dir = Path(input_filename).parent
@@ -387,73 +388,52 @@ class SimindToStirConverter:
         self, h00_file: str, output_prefix: str, output_dir: str
     ) -> Dict[str, Path]:
         """
-        Create one STIR header per PENETRATE component from the single .h00 file.
+        Create one STIR header per PENETRATE component.
 
-        The penetrate routine writes one .h00 file pointing to a non-existent
-        .a00, plus one .bXX binary file per component. This writes a .hs
-        header for each .bXX file found.
+        Version 8 writes one .h00 template, while version 9 writes one
+        matching .hNN header per .bNN component. Create connector headers for
+        the component payloads present in either format.
 
         Returns:
             Dictionary mapping component slugs to the written header paths.
         """
-        # Reject the input before any scratch path exists: if the name does
-        # not end in ".h00" the template below would alias the caller's own
-        # file and the cleanup would delete it.
-        if not h00_file.endswith(".h00"):
-            raise ValueError("Input file must have .h00 extension")
+        if not re.search(r"\.h\d{2}$", h00_file):
+            raise ValueError("Input file must have a SIMIND .hNN extension")
 
         output_dir = Path(output_dir)
         outputs: Dict[str, Path] = {}
 
-        h00_path = Path(h00_file)
-        template_hs = str(h00_path.with_name(h00_path.stem + "_template.hs"))
-
-        try:
-            # First convert the template .h00 to .hs format
-            self.convert_file(h00_file, template_hs)
-
-            template_header = InterfileHeader.from_file(template_hs)
-
-            # Look for .bXX files and create headers for each
-            for component in PenetrateOutputType:
-                binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
-
-                if binary_file.exists():
-                    # A failure to write the header is a real I/O error and
-                    # must propagate rather than silently drop a component.
-                    component_hs = output_dir / (
-                        f"{output_prefix}_component_{component.value:02d}.hs"
-                    )
-
-                    component_header = template_header.copy()
-                    study_base = Path(binary_file.name).stem
-                    component_header.set("!name of data file", binary_file.name)
-                    component_header.set(
-                        "patient name", f"{component.slug}_{binary_file.name}"
-                    )
-                    component_header.set("!study ID", study_base)
-                    component_header.set("data description", component.description)
-                    component_header.write(component_hs)
-
-                    outputs[component.slug] = component_hs
-
-                    self.logger.info(
-                        f"Created STIR header for {component.slug}: {component_hs.name}"
-                    )
-        finally:
-            # The converted template is connector-owned scratch. Remove it on
-            # every path, but never let a cleanup failure mask the primary
-            # processing error.
-            try:
-                if os.path.exists(template_hs):
-                    os.remove(template_hs)
-            except Exception as cleanup_error:
-                self.logger.warning(
-                    f"Failed to remove PENETRATE template {template_hs}: "
-                    f"{cleanup_error}"
+        template_path = Path(h00_file)
+        for binary_file in sorted(output_dir.glob(f"{output_prefix}.b[0-9][0-9]")):
+            component_id = int(binary_file.suffix[2:])
+            numbered_header = output_dir / f"{output_prefix}.h{component_id:02d}"
+            source_header = (
+                numbered_header if numbered_header.is_file() else template_path
+            )
+            component_hs = output_dir / (
+                f"{output_prefix}_component_{component_id:02d}.hs"
+            )
+            self.convert_file(str(source_header), str(component_hs))
+            component_header = InterfileHeader.from_file(component_hs)
+            slug = self._penetrate_slug(component_id)
+            component_header.set("!name of data file", binary_file.name)
+            component_header.set("patient name", f"{slug}_{binary_file.name}")
+            component_header.set("!study ID", binary_file.stem)
+            if component_id in PenetrateOutputType._value2member_map_:
+                component_header.set(
+                    "data description", PenetrateOutputType(component_id).description
                 )
-
+            component_header.write(component_hs)
+            outputs[slug] = component_hs
+            self.logger.info(f"Created STIR header for {slug}: {component_hs.name}")
         return outputs
+
+    @staticmethod
+    def _penetrate_slug(component_id: int) -> str:
+        try:
+            return PenetrateOutputType(component_id).slug
+        except ValueError:
+            return f"b{component_id:02d}"
 
     def find_penetrate_h00_file(
         self, output_prefix: str, output_dir: str
@@ -466,28 +446,28 @@ class SimindToStirConverter:
             output_dir: Directory containing output files
 
         Returns:
-            Path to the .h00 file, or None if not found
+            A shared .h00 or one numbered .hNN header, or None if not found.
         """
         output_dir = Path(output_dir)
 
         # Match only the exact name or an underscore-delimited suffix so that
         # prefixes such as "s" and "s2" do not claim each other's outputs.
-        h00_files = sorted(
-            {
-                *output_dir.glob(f"{output_prefix}.h00"),
-                *output_dir.glob(f"{output_prefix}_*.h00"),
-            }
+        templates = sorted(
+            path
+            for pattern in (f"{output_prefix}.h[0-9][0-9]", f"{output_prefix}_*.h00")
+            for path in output_dir.glob(pattern)
+            if path.is_file()
         )
-        h00_files = [h00_file for h00_file in h00_files if h00_file.is_file()]
-
-        if len(h00_files) == 1:
-            return str(h00_files[0])
-        elif len(h00_files) == 0:
+        if not templates:
             self.logger.warning(f"No .h00 file found with prefix {output_prefix}")
             return None
-        else:
+        h00 = [path for path in templates if path.suffix == ".h00"]
+        if len(h00) > 1:
             raise ValueError(
                 f"Multiple .h00 files match prefix {output_prefix!r} in "
-                f"{output_dir}: {[f.name for f in sorted(h00_files)]}. "
-                "Remove stale outputs or use a distinct output prefix."
+                f"{output_dir}: {[f.name for f in h00]}. Remove stale outputs "
+                "or use a distinct output prefix."
             )
+        if h00:
+            return str(h00[0])
+        return str(templates[0])

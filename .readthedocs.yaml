@@ -7,6 +7,9 @@ build:
 
 sphinx:
   configuration: docs/conf.py
+  # Fail the public deployment on any warning (including a duplicate object
+  # description) so it matches the docs job in .github/workflows/docs.yml.
+  fail_on_warning: true
 
 python:
   install:

@@ -97,8 +97,10 @@ posterior: the phantom lies on its flat side.
 Ground truth
 ------------
 
-``voxelise(phantom, shape_zyx, voxel_size_mm, supersample)`` returns the
-activity and the attenuator fraction of an analytic phantom on a centred grid.
+``voxelise(phantom, shape_zyx, voxel_size_mm, supersample)`` returns source
+concentration/relative weights and the attenuator fraction on a centred grid.
+It does not convert source concentration to MBq per voxel. Use
+``VoxelPhantom`` when the source map must carry known MBq-per-voxel activity.
 It supports ellipsoids, boxes, both cylinders, point sources (the nearest
 voxel) and inserts that are spheres, horizontal, rectangular or vertical rods.
 Insert sizes are taken as half-dimensions along x, y and z. Hexagonal rods,
@@ -116,7 +118,7 @@ The adaptors' ``get_ground_truth(image_template)`` returns native images:
      - its own array (the template grid must match)
      - density x water mu
    * - ``AnalyticPhantom``
-     - ``voxelise`` on the template grid
+     - relative concentration from ``voxelise``; not MBq per voxel
      - water mu inside the attenuator
    * - ``LibraryPhantom``
      - not available

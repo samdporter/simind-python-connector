@@ -7,16 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.1] - Unreleased
+## [2.0.1] - 2026-10-24
 
-The supported successor to 1.1.1 and the replacement for the withdrawn 2.0.0 and
-3.0.0. It carries the A0–E next-major work that was published by mistake under
-2.0.0/3.0.0, together with the projection-geometry correction that followed.
+The supported successor to 1.2.0, the current public release, and the
+replacement for the withdrawn 2.0.0 and 3.0.0. It carries the A0–E next-major
+work that was published by mistake under 2.0.0/3.0.0, together with the
+projection-geometry correction that followed. Upgrade from 1.2.0 with
+`pip install -U simind-python-connector`; users of the withdrawn 2.0.0/3.0.0
+releases are covered by the reinstall note below, not by an upgrade through
+those versions.
 
 If you installed the withdrawn 3.0.0, reinstall this release explicitly:
 `pip install "simind-python-connector==2.0.1"` (a 2.x release does not
 auto-supersede an installed 3.0.0, because pip does not downgrade an already
 satisfied requirement).
+
+### Compatibility
+- **Breaking — SCATTWIN window selection:** a SCATTWIN run that relied on an
+  implicit existing `scattwin.win` now raises a `ValueError`. Migrate by calling
+  `set_energy_windows(...)` — the connector-written window is selected and `FW`
+  is injected into that run's run-local switches only, never into persistent or
+  caller-supplied switch objects — or by selecting the file explicitly with
+  `FW="scattwin"`. A selected window file that is missing or not a regular file
+  raises `FileNotFoundError` instead of falling back to another file, and
+  PENETRATE or DUMMY runs never infer a window file from an existing
+  `scattwin.win`.
+- CA/collimator validation is unchanged and routine-independent: `CA` is
+  validated as 0, 1 or 2 whatever the scoring routine, and the connector
+  injects no `/CA`.
+- The connector-written `{prefix}.inp` for analytic phantoms is deliberately
+  retained after phantom reset clears `IF`; nothing downstream reads it.
 
 ### Added
 - `simind_python_connector.utils.interfile`: one Interfile module
@@ -38,13 +58,16 @@ satisfied requirement).
   `converters.attenuation.density_to_attenuation` and the public
   `utils.simind_utils.validate_energy_windows`.
 - Anisotropic voxels: `voxel_size_mm` may be `(z, y, x)` with square in-plane voxels.
-- Runtime switches from the SIMIND 8 manual: `CA`, `FW`, `OU`, `DP`, `BG`, `HO`,
+- Runtime switches from the SIMIND 8 manual: `CA`, `FW`, `BG`, `HO`,
   `CO`, `X1`–`X6`.
 - Optional `simind_python_connector.recon` subpackage: a SIMIND-simulated additive
   term in SIRF and CIL reconstructions, refreshed at chosen intervals.
   - `UpdateSchedule`, `AdditiveUpdater` (damped, floored) and `UpdateRecord`.
   - `SimindProjector` and `reference_normaliser`.
   - `ScatterCorrection` (PENETRATE b01 − b02, or SCATTWIN scatter).
+  - `measured_normaliser` and `ScatterCorrection(measured=..., smooth_across_views=...)`:
+    Dewaraja et al. (2017) global and pixel-wise scaling of the SIMIND scatter estimate to
+    measured data.
   - `recon.cil`: `build_subset_objectives`, `set_subset_additive`,
     `refresh_stochastic_state` and `CorrectionCallback`.
   - `recon.osem.run_osem_with_corrections`.
@@ -56,8 +79,29 @@ satisfied requirement).
   `VoxelPhantom`, `voxelise` and `nema_iec_phantom`. `configure_phantom` on the
   connector and `set_phantom` / `get_ground_truth` on the SIRF/STIR adaptors.
 - Examples 09–12 for the reconstruction and phantom workflows.
+- Real-data Y-90 tutorials, rendered in the documentation's real-data gallery:
+  examples 16A/16B/16C (CT-to-SPECT conversion and registration against the
+  vendor attenuation map in SIRF, PyTomography and STIR), 17 (an
+  effective-energy spectrum derived from a reduced LIST_MODE acquisition) and
+  18 (a SIRF reconstruction with the SIMIND scatter corrections).
+- `simind_python_connector.datasets.fetch_y90_phantom`: the Y-90 phantom data
+  for the tutorials, from the local directory named by
+  `SIMIND_CONNECTOR_Y90_DATA`. The dataset is restricted: there is no public
+  download, and the real-data gallery pages are rendered case studies produced
+  from data available to the authors. The examples fail fast with a clear
+  message when the data are absent.
 
 ### Changed
+- `run()` warns (`RuntimeWarning`) before launching SIMIND v9.0 on Linux with
+  the SCATTWIN routine, which can silently corrupt projections.
+- Docs and examples 09-11 now rescale SIMIND inside the reconstruction loop with
+  the ratio of sums (`reference_normaliser(full_model)`) and smooth the scatter
+  estimate. At quick history counts the trimmed ratio scales low, because it
+  drops bins where SIMIND's primary is zero.
+- Examples 01-08 moved to `examples/getting_started/` and `examples/backends/` as
+  `plot_*` sphinx-gallery files, with their rendered outputs in the documentation.
+  Examples 08A/08B/08C no longer take a DICOM argument; they read the Y-90 dataset
+  (`datasets.fetch_y90_phantom`).
 - Python 3.10 or newer is required.
 - Configuration behaviour: the projection bin size and matrix (Index 28, 76, 77)
   come from the configuration (or `configure_acquisition`/`set_template`), not from
@@ -96,9 +140,9 @@ satisfied requirement).
   and `docs/requirements.txt` is gone. The sdist excludes local-only material
   (`AGENTS.md`, `CLAUDE.md`, `opencode.jsonc`, `simind_manual.pdf`, `simind/` and
   generated docs).
-- The python container image's MPICH provisioning (`mpirun` plus the SONAME compat
-  links) is asserted by the container-script tests, so rebuilding the image cannot
-  silently drop the MPI runtime the MPI tests need.
+- The python container image provisions MPICH (`mpirun` plus the SONAME compat
+  links) for SIMIND's MPI binary, so `set_mpi(n)` runs `simind_mpi` in the
+  container.
 
 ### Removed
 - `simind_python_connector.backends` (`get_backend`, `set_backend`, `reset_backend`,
@@ -119,6 +163,15 @@ satisfied requirement).
   `examples/run_all_examples.sh` and the `requires_setr` marker.
 
 ### Fixed
+- `OU` (list-mode format) and `DP` (forced-collimation plane spacing) are rejected
+  with a `ValueError`: they only act with the list-mode and forced-collimation
+  scoring routines, which the connector refuses to run, so they could never take
+  effect.
+- `STIRSPECTAcquisitionDataBuilder.update_header_from_dicom` mirrored the bin
+  (column) axis of the DICOM projections, so STIR and SIRF data built from DICOM
+  disagreed with the vendor Interfile export and with PyTomography. Rows, frames and
+  columns now keep their DICOM order. The start angle is also rounded to whole
+  degrees, because STIR truncates a value such as 359.999997 to 359.
 - The projection pixel size and matrix set from the phantom image overwrote the
   configured values and gave square projections for cubic phantoms (and cut off the
   axial field of view for slices thicker than the pixels). `configure_voxel_phantom`
@@ -216,8 +269,30 @@ satisfied requirement).
   back to the legacy standalone `stirextra` only when `stir.extra` is genuinely
   absent; a broken dependency inside `stir.extra` propagates instead of being
   masked by the legacy module.
+- MPI runs that could not be loaded or added no statistics are refused before
+  launch. With `set_mpi(n, split_projections=True)` and the PENETRATE scoring
+  routine, `simind_mpi` writes only the primary process's projections (12 of 24
+  views with two processes), so loading failed. With replicate MPI (no split) and a
+  fixed `RR` switch, every process repeated the same histories and the result was
+  bin-for-bin the serial run. Leave `RR` unset for replicate MPI: `simind_mpi` then
+  seeds process `r` (from 0) as `RR = r + 1`.
+- `PyTomographySimindAdaptor.get_output_header_path` returned the converted STIR
+  `.hs` header for PENETRATE components and derived `pri_wN`/`sca_wN` outputs. Its
+  start angle is SIMIND's + 180 degrees, and PyTomography's SIMIND reader takes it as
+  SIMIND's, so reconstructions came out rotated 180 degrees about z. These outputs
+  now get a `{prefix}_{key}.h00` copy of SIMIND's own header (v8 `{prefix}.h00`, v9
+  `{prefix}.hNN`; `tot_wN` for derived outputs) naming the output's data file.
 
 ### Known limitations
+- The real-data gallery's example 18 publishes the audited Y-90 recovery study
+  as a diagnostic negative result: the quality of the tested scatter-correction
+  scaling strategies is not established (the global scaling collapsed, the
+  seed-stability and smoothed-L1 checks failed, and the history-doubling check
+  was inconclusive). The page ranks no strategy and claims no calibrated
+  recovery; every failed or inconclusive check is shown.
+- The Y-90 dataset behind examples 08A/B/C, 16A/B/C, 17 and 18 is restricted
+  and is not redistributed: there is no public download or other access route,
+  so the rendered case-study pages cannot be regenerated without a local copy.
 - The optional SIRF/CIL scatter and residual correction workflows ship with the
   documented [SPECTUB all-views-cache interference](docs/spectub_cache_interference.md):
   two separately set-up SPECTUB models can interfere through the shared all-views

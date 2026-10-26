@@ -1,21 +1,67 @@
+# Source-distribution policy
+# --------------------------
+# The sdist ships the complete source tree needed to install the package, build
+# the documentation, run the examples and run the shipped test suite: package
+# sources and bundled data, Sphinx sources, gallery example sources, release and
+# container scripts, tests and their fixtures, and the CI/docker support files
+# those tests read.
+#
+# Generated output is deliberately excluded. The rendered gallery under
+# docs/auto_examples (pages, images, notebooks, checksums and execution times),
+# Sphinx build trees and generated execution-time files are not shipped.
+# Rendered documentation is built from the tagged repository; the sdist keeps
+# only the sources from which it is generated. Local-only agent notes, audits,
+# build artefacts and simulation data are never shipped.
+
 include README.md
 include LICENSE
-recursive-include simind_python_connector/data *.atn
-recursive-include simind_python_connector/data *.json
+include CHANGELOG.md
+include CITATION.cff
+include .zenodo.json
+include uv.lock
+include .readthedocs.yaml
+
+# Package sources are handled by setuptools; these carry the bundled resources
+# into the sdist as well as the wheel.
+recursive-include simind_python_connector/data *.atn *.json
 recursive-include simind_python_connector/configs *.smc *.yaml
-recursive-include docs *.rst *.py
-include docs/spectub_cache_interference.md
+
+# Documentation sources, not generated gallery output.
+recursive-include docs *.rst *.md *.py LICENSE
 include docs/_static/.gitkeep
-recursive-include tests *.py
-recursive-include examples *.py
+prune docs/auto_examples
+prune docs/examples
+prune docs/_build
+prune docs/_generated
+exclude docs/sg_execution_times.rst
+
+# Example sources and their READMEs/helpers.
+recursive-include examples *.py *.rst
+
+# Release, gallery, validation and container scripts.
+recursive-include scripts *.py *.sh
+
+# Container definitions and the import guard used by the isolation tests.
+recursive-include docker *
+
+# Test suite and its read-only fixtures.
+recursive-include tests *.py *.smc *.hs
+
+# Workflows read by the release tests.
+recursive-include .github/workflows *.yml
+
 exclude AGENTS.md
-exclude opencode.jsonc
 exclude CLAUDE.md
+exclude opencode.jsonc
 exclude simind_manual.pdf
 prune simind
 prune docs/superpowers
-prune docs/_build
-prune docs/_generated
+prune .superpowers
+prune output
+prune tmp
+prune dist
+prune build
+prune simind_python_connector.egg-info
 global-exclude __pycache__
 global-exclude *.py[co]
 global-exclude .DS_Store

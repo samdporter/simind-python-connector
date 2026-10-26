@@ -35,9 +35,11 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      - name: Check gallery outputs are current
+        run: python scripts/check_gallery_current.py
       - name: Run CI-friendly tests
         run: |
-          python -m pytest -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not ci_skip" --cov=simind_python_connector --cov-report=xml
+          python -m pytest -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not ci_skip and not validation and not macos_v9" --cov=simind_python_connector --cov-report=xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -66,12 +68,15 @@ jobs:
       - name: Check package
         run: |
           twine check dist/*
-      - name: Smoke-test wheel resources
+      - name: Smoke-test wheel resources outside the checkout
         run: |
-          python -m venv /tmp/wheel-env
-          /tmp/wheel-env/bin/pip install --quiet dist/*.whl
-          /tmp/wheel-env/bin/python -c 'from simind_python_connector.configs import get; assert get("input.smc").is_file()'
-          /tmp/wheel-env/bin/python -c 'from simind_python_connector.data import data_path; assert data_path("h2o.atn").is_file()'
+          repo="$GITHUB_WORKSPACE"
+          venv="$(mktemp -d)/wheel-env"
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install --quiet dist/*.whl
+          workdir="$(mktemp -d)"
+          cd "$workdir"
+          "$venv/bin/python" "$repo/scripts/check_wheel_resources.py" --repo "$repo"
 
   container-core:
     runs-on: ubuntu-latest

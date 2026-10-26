@@ -44,13 +44,18 @@ dev = [
     "sphinx",
     "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
+    "sphinx-gallery>=0.22,<0.23",
+    "pooch>=1.8",
     "myst-parser",
     "pre-commit",
     "build",
+    "setuptools>=77.0.3",
+    "wheel",
     "twine",
 ]
 examples = [
     "matplotlib>=3.0.0",
+    "pooch>=1.8",
 ]
 recon = [
     "scipy",
@@ -101,6 +106,9 @@ markers = [
     "requires_pytomography: tests that require PyTomography",
     "requires_cil: tests that require CIL",
     "requires_phantomgen: tests that require phantomgen",
+    "validation: SIMIND feature validation with recorded numbers (slow)",
+    "macos_v9: validation that also runs against the native macOS SIMIND v9 binary",
+    "scattwin_data: validation that checks SCATTWIN projection data; not run on v9 Linux (engine defect)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

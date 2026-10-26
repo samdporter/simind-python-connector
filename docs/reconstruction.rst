@@ -57,9 +57,20 @@ Why it is built this way
   use PENETRATE for high-energy isotopes.
 - SIMIND's output does not follow the image magnitude (the source map is
   always scaled to the same number of photon histories), so every update is
-  rescaled: by matching ``b02`` to ``A x`` (``reference_normaliser``, see
+  rescaled: by matching ``b02`` to ``A x``
+  (``reference_normaliser(full_model)``, the ratio of sums, see
   :doc:`normalisation`), or by giving SIMIND the activity when ``x`` is in
   known activity units.
+- At quick history counts, use the ratio of sums and smooth the estimate
+  (``ScatterCorrection(..., smoothing_fwhm_bins=3.0,
+  smooth_across_views=True)`` for a 360° orbit). Damping below 1 from zero
+  lags the estimate; see the SIRF OSEM recipe for the startup transient. The
+  trimmed ratio only keeps bins where SIMIND's primary is non-zero, so it
+  drops reference counts but no SIMIND counts and scales low: 0.55 (SIMIND v8)
+  and 0.51 (v9) of the true scale on a 32³ OSEM iterate at a tenth of the
+  default quantization.
+- With 64x those histories the trimmed ratio is still 0.96 of the true scale.
+  Keep trimmed for references with outlier bins at high histories.
 
 CIL acquisition storage
 -----------------------
@@ -86,9 +97,9 @@ memory storage before creating or loading acquisition data:
     # Create or load acquisition data after selecting the scheme.
 
 Do not change the storage scheme concurrently with driver calls or
-acquisition creation. Examples 09 and 10 select memory storage in their
-shared template setup. The OSEM outer-loop function itself does not change
-the storage scheme.
+acquisition creation. The CIL and SIRF reconstruction tutorials select memory
+storage when they build their templates. The OSEM outer-loop function itself
+does not change the storage scheme.
 
 SIRF OSEM
 ---------
@@ -102,19 +113,34 @@ SIRF OSEM
     from simind_python_connector.recon.osem import run_osem_with_corrections
 
     projector = SimindProjector(adaptor, measured, mu_map,
-                                normalise=reference_normaliser(full_model), seed=1)
-    updater = AdditiveUpdater(ScatterCorrection(projector), UpdateSchedule(every=10),
-                              initial_additive=measured.get_uniform_copy(0))
+                                normalise=reference_normaliser(full_model),
+                                seed=1)
+    correction = ScatterCorrection(projector, smoothing_fwhm_bins=3.0,
+                                   smooth_across_views=True)
+    updater = AdditiveUpdater(correction, UpdateSchedule(every=10),
+                              initial_additive=measured.get_uniform_copy(0),
+                              damping=0.5)
     image = run_osem_with_corrections(measured, make_model, initial, updater,
                                       num_subsets=5, subiterations_per_update=10,
                                       num_updates=3)
 
 ``full_model`` is the full-data linear model (no additive term), set up with
-the measured data and kept separate for reference normalisation.
+the measured data and kept separate for reference normalisation. To scale the
+scatter estimate to the measured data instead, see
+:ref:`scaling-scatter-to-measured-data`.
 ``make_model`` is a zero-argument factory returning a fresh, configured,
 not-yet-set-up acquisition model on every call, with independent model-owned
 state and the same linear operator settings. For a matrix-based model,
 construct a fresh matrix as well.
+
+The tutorials start this term at zero with ``damping=0.5``. From zero the term
+lags the estimate, but their first estimate is made from an image that has not
+been scatter-corrected and is too high, so the lag partly cancels that
+overestimate while the term settles. That is a startup transient within the
+three updates, not a steady-state recipe: for a longer run, or when the first
+estimate is not inflated, start from a non-zero term. Pass a first estimate as
+``initial_additive``, call ``CorrectionCallback.prime(initial)`` for CIL, or
+use ``damping=1`` when the statistics allow.
 
 The OSEM driver calls the factory once per pass, installs the current
 additive term before setup, and builds a fresh objective and reconstructor.
@@ -153,10 +179,10 @@ iterations, i.e. subiterations for algorithms over subsets. ``first=0`` can
 trigger a refresh in the initial callback before the first algorithm update,
 but after initial objective evaluation.
 
-Example 10 uses ``run(40)``, ``every=10`` and ``stop_at=40``, producing
-records at ``[10, 20, 30]``, each consumed by a later iteration. Callers can
-use ``stop_at=N`` to avoid a refresh in a final callback at iteration N; that
-bound is exclusive.
+The CIL scatter tutorial uses ``run(48)``, ``every=12`` and ``stop_at=48``,
+producing records at ``[12, 24, 36]``, each consumed by a later iteration.
+Callers can use ``stop_at=N`` to avoid a refresh in a final callback at
+iteration N; that bound is exclusive.
 
 The OSEM outer loop calls ``update_now`` directly and does not use
 ``updater.schedule``. Its cadence is ``subiterations_per_update``, and
@@ -260,7 +286,10 @@ Schedule guidance:
   term lags the estimate and, with roughly constant statistics, biases the
   scatter low. Use damping 1.0 with the noise-free PSF model.
 
-Example 11 compares the fast model alone, the SIMIND scatter estimate and the
-full residual.
+The :doc:`residual correction tutorial
+<auto_examples/mc_scatter/plot_13_residual_correction>` compares the fast model
+alone, the SIMIND scatter estimate and the full residual.
 
-Examples 09 (SIRF OSEM), 10 (CIL ISTA) and 11 (residual correction) show complete workflows; see :doc:`examples`.
+The :doc:`SIRF OSEM <auto_examples/mc_scatter/plot_11_mc_scatter_osem>`,
+:doc:`CIL ISTA <auto_examples/cil/plot_14_cil_scatter>` and residual correction
+tutorials show complete workflows; see :doc:`examples`.

@@ -32,8 +32,8 @@ def scale_to_reference(
 
     Apply s to every output of the same SIMIND run. Typical uses:
 
-    - component = SIMIND geometric primary (PENETRATE 'geom_coll_primary',
-      or SCATTWIN 'pri_wN' for low-energy isotopes), reference = analytic
+    - component = SIMIND geometric primary (PENETRATE 'geom_coll_primary'),
+      reference = analytic
       linear forward projection of the same (optionally masked) image;
     - component = SIMIND total ('tot_wN' or 'all_interactions'),
       reference = measured data.

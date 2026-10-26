@@ -140,7 +140,7 @@ def test_3_cardiac_with_and_without_a_defect(tmp_path):
 
 @pytest.mark.parametrize("library", list(LibraryPhantom))
 def test_4_library_phantoms_run_and_write_their_density(tmp_path, library):
-    prefix = library.name.lower()
+    prefix = "library"
     connector = _connector(tmp_path, prefix, num_projections=8)
     connector.configure_phantom(library)
     outputs = connector.run()
@@ -199,8 +199,11 @@ def test_5_phantomgen_nema_by_route_1_matches_spectub(tmp_path):
     simind = adaptor.run()["tot_w1"]
     activity, mu = adaptor.get_ground_truth(image_template)
 
+    # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
+    spectub_mu = mu.clone()
+    spectub_mu.fill(mu.as_array()[..., ::-1])
     matrix = sirf.SPECTUBMatrix()
-    matrix.set_attenuation_image(mu)
+    matrix.set_attenuation_image(spectub_mu)
     matrix.set_keep_all_views_in_cache(True)
     matrix.set_resolution_model(0.0, 0.0, False)
     model = sirf.AcquisitionModelUsingMatrix(matrix)

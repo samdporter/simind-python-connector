@@ -21,9 +21,9 @@ docker compose -f docker/compose.yaml run --rm stir
 Run the dedicated connector + OSEM examples directly:
 
 ```bash
-docker compose -f docker/compose.yaml run --rm stir python examples/07A_stir_adaptor_osem.py
-docker compose -f docker/compose.yaml run --rm sirf python examples/07B_sirf_adaptor_osem.py
-docker compose -f docker/compose.yaml run --rm pytomography python examples/07C_pytomography_adaptor_osem.py
+docker compose -f docker/compose.yaml run --rm stir python examples/backends/plot_07a_stir_adaptor_osem.py
+docker compose -f docker/compose.yaml run --rm sirf python examples/backends/plot_07b_sirf_adaptor_osem.py
+docker compose -f docker/compose.yaml run --rm pytomography python examples/backends/plot_07c_pytomography_adaptor_osem.py
 ```
 
 Run the containerized test matrix:
@@ -76,6 +76,8 @@ Notes
 
 - The SIRF container build arg is `SIRF_BASE_IMAGE`.
 - The STIR container build arg is `STIR_BASE_IMAGE`.
+- Every image ships MPICH, so `set_mpi(n)` works with the MPICH-built `simind_mpi`.
+  In the SIRF-based images `mpirun` is switched from Open MPI to MPICH.
 - Install SIMIND by following the official installation instructions on the SIMIND website.
 - For quick local use with these containers, put SIMIND at `./simind` in this repo
   so the executable is available as `./simind/simind`.

@@ -99,6 +99,33 @@ def reference_normaliser(
     return normalise
 
 
+def measured_normaliser(
+    measured: Any,
+    component: str = "all_interactions",
+    method: str = "sum",
+    mask: Any = None,
+    **scale_kwargs: Any,
+) -> Callable[[dict, Any], float]:
+    """Return normalise(outputs, image) for SimindProjector (A2 route 2).
+
+    This is Dewaraja et al. 2017's global scatter-scaling model: one factor
+    b = sum(Y) / sum(Y_SIM) from the measured data Y, applied to every output
+    of the run. It scales SIMIND's component to measured. SCATTWIN users pass
+    component="tot_wN". mask and scale_kwargs are passed on to scale_to_reference.
+    """
+
+    def normalise(outputs: dict, image: Any) -> float:
+        return scale_to_reference(
+            outputs[component].as_array(),
+            measured.as_array(),
+            method=method,
+            mask=mask,
+            **scale_kwargs,
+        )
+
+    return normalise
+
+
 class SimindComponent:
     """One scaled SIMIND output as a callable model, e.g. for ResidualCorrection."""
 

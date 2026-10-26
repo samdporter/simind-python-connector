@@ -386,6 +386,32 @@ def test_executor_replays_captured_diagnostics(
     assert "simind stderr" in captured.err
 
 
+def test_executor_replay_drops_nul_bytes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _capture_run_with_output(monkeypatch, stdout="\0\nbanner\n")
+
+    SimindExecutor().run_simulation("case01")
+
+    assert capsys.readouterr().out == "\nbanner\n"
+
+
+def test_executor_invalid_utf8_does_not_hide_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command, **kwargs):
+        kwargs["stdout"].buffer.write(b"SIMIND error number: 9\n\xff\xfe")
+        kwargs["stdout"].flush()
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(
+        "simind_python_connector.core.executor.subprocess.run", fake_run
+    )
+
+    with pytest.raises(SimulationError, match=r"error number 9"):
+        SimindExecutor().run_simulation("case01")
+
+
 def test_executor_error_excerpt_is_bounded_but_keeps_number(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -526,6 +552,22 @@ def test_executor_accepts_prefix_at_length_cap(
     SimindExecutor().run_simulation(prefix)
 
     assert calls[0][0][1] == prefix
+
+
+@pytest.mark.unit
+def test_executor_forwards_timeout(monkeypatch: pytest.MonkeyPatch):
+    calls = _capture_run(monkeypatch)
+    SimindExecutor().run_simulation("case01", timeout=5)
+    assert calls[0][1]["timeout"] == 5
+
+
+@pytest.mark.unit
+def test_executor_timeout_stops_a_sleeping_process(tmp_path: Path):
+    script = _write_script(tmp_path, "import time\ntime.sleep(30)\n")
+    with pytest.raises(SimulationError, match="timed out after 0.2 seconds"):
+        SimindExecutor(executable=script).run_simulation(
+            "case01", cwd=tmp_path, timeout=0.2
+        )
 
 
 def test_executor_rejects_prefix_over_length_cap(

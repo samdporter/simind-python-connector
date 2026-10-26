@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import datetime
 import os
+import re
 import shutil
 import subprocess
 import sys
+from importlib import metadata
 from pathlib import Path
 
 import docutils.core
@@ -28,6 +30,31 @@ VERSION = "2.0.1"
 DATE = "2026-10-11"
 OLD_VERSION = "3.0.0"
 OLD_DATE = "2026-10-09"
+
+GUIDE = ROOT / "docs" / "contributing.rst"
+
+VERSION_SURFACES = (
+    "pyproject.toml",
+    "uv.lock",
+    "CHANGELOG.md",
+    "docs/changelog.rst",
+    "CITATION.cff",
+    ".zenodo.json",
+    "simind_python_connector/__init__.py",
+    "docs/conf.py",
+)
+
+BLANKET_STAGING = re.compile(
+    r"git\s+add\s+(?:-[A-Za-z]+|--[A-Za-z-]+|\.)(?=\s|$)", re.MULTILINE
+)
+
+# Top-level standard-library modules that did not exist in Python 3.10, the
+# version the docs job and Read the Docs share. Workflows that select an
+# older interpreter must not import these in inline ``python -c`` snippets.
+STDLIB_INTRODUCED_LATER = {
+    "tomllib": (3, 11),
+    "compression": (3, 14),
+}
 
 
 def _changelog_md(version: str = VERSION, date: str = DATE) -> str:
@@ -223,11 +250,85 @@ def _read(path: Path) -> str:
     return path.read_text()
 
 
+def _bash_blocks(text: str) -> list[str]:
+    """Bodies of the ``.. code-block:: bash`` directives in an RST document."""
+    lines = text.splitlines()
+    blocks: list[str] = []
+    i = 0
+    while i < len(lines):
+        if not lines[i].strip().startswith(".. code-block:: bash"):
+            i += 1
+            continue
+        i += 1
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+        body: list[str] = []
+        while i < len(lines) and (not lines[i].strip() or lines[i][0].isspace()):
+            body.append(lines[i])
+            i += 1
+        blocks.append("\n".join(body))
+    return blocks
+
+
+def _staged_paths(instruction: str) -> list[str]:
+    """Arguments of the first ``git add`` command, continuations joined."""
+    command = re.sub(r"\\\n\s*", " ", instruction)
+    match = re.search(r"^\s*git add\s+(.+)$", command, re.MULTILINE)
+    assert match, "no git add command found"
+    return match.group(1).split()
+
+
+def _release_guide_staging() -> str:
+    blocks = [block for block in _bash_blocks(_read(GUIDE)) if "git add" in block]
+    assert len(blocks) == 1, "expected exactly one staging command in the guide"
+    return blocks[0]
+
+
+def _run_release_wrapper(tmp_path: Path) -> str:
+    """Run release.sh in a throwaway project and return its printed instructions."""
+    today = datetime.date.today().isoformat()
+    project = _build_project(
+        tmp_path, markdown=_changelog_md(date=today), rst=_changelog_rst(date=today)
+    )
+    result = subprocess.run(
+        ["bash", "scripts/release.sh", VERSION],
+        cwd=project,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
 def _snapshot(project: Path) -> dict[str, str]:
     return {
         path.relative_to(project).as_posix(): path.read_text()
         for path in sorted(project.rglob("*"))
         if path.is_file() and ".git" not in path.parts
+    }
+
+
+def _on(workflow: dict) -> dict:
+    return workflow.get("on", workflow.get(True))
+
+
+def _needs(job: dict) -> list[str]:
+    needs = job.get("needs", [])
+    return [needs] if isinstance(needs, str) else list(needs)
+
+
+def _inline_python_sources(text: str) -> list[str]:
+    """Python sources passed to ``python -c`` in a workflow's run blocks."""
+    return re.findall(r"""python -c '([^']+)'""", text) + re.findall(
+        r'python -c "([^"]+)"', text
+    )
+
+
+def _imported_modules(source: str) -> set[str]:
+    """Top-level module names imported by an inline Python snippet."""
+    return {
+        match.group(1).split(".")[0]
+        for match in re.finditer(r"(?m)^\s*(?:from|import)\s+([A-Za-z_]\w*)", source)
     }
 
 
@@ -445,6 +546,186 @@ def test_release_wrapper_has_no_git_side_effects(tmp_path: Path) -> None:
     assert f'version = "{VERSION}"' in _read(project / "pyproject.toml")
 
 
+def test_release_guide_stages_exactly_the_eight_version_surfaces() -> None:
+    assert set(_staged_paths(_release_guide_staging())) == set(VERSION_SURFACES)
+
+
+def test_release_wrapper_prints_the_same_staging_paths(tmp_path: Path) -> None:
+    guide = _staged_paths(_release_guide_staging())
+    wrapper = _staged_paths(_run_release_wrapper(tmp_path))
+
+    assert set(wrapper) == set(guide)
+    assert set(wrapper) == set(VERSION_SURFACES)
+
+
+def test_staged_diff_review_precedes_the_commit_instruction(tmp_path: Path) -> None:
+    for text in (_read(GUIDE), _run_release_wrapper(tmp_path)):
+        add = text.index("git add ")
+        diff = text.index("git diff --cached", add)
+        commit = text.index("git commit")
+
+        assert add < diff < commit
+
+
+def test_index_is_inspected_before_staging(tmp_path: Path) -> None:
+    for text in (_read(GUIDE), _run_release_wrapper(tmp_path)):
+        add = text.index("git add ")
+
+        assert text.index("git status") < add
+        assert text.index("git diff --cached") < add
+
+
+def test_corrections_are_committed_before_the_metadata_commit() -> None:
+    guide = _read(GUIDE)
+    corrections = re.search(
+        r"Implementation or test corrections are committed\s+separately[^.]*\.", guide
+    )
+
+    assert corrections
+    assert corrections.start() < guide.index('git commit -m "chore: release')
+
+
+def test_no_blanket_staging_in_instruction_blocks() -> None:
+    guide_blocks = _bash_blocks(_read(GUIDE))
+    wrapper_script = [
+        line
+        for line in _read(SCRIPTS / "release.sh").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+
+    for text in [*guide_blocks, "\n".join(wrapper_script)]:
+        assert not BLANKET_STAGING.search(text)
+
+
+def test_publish_workflow_tests_the_release_tag_then_publishes() -> None:
+    text = _read(WORKFLOWS / "publish.yml")
+    workflow = yaml.safe_load(text)
+    jobs = workflow["jobs"]
+
+    assert jobs["tests"]["uses"] == "./.github/workflows/tests.yml"
+    assert "tests" in _needs(jobs["publish"])
+    assert "tomllib" in text
+    assert 'if [ "$GITHUB_REF_NAME" != "v${version}" ]; then' in text
+    assert "${{ github.event.release.tag_name }}" in text
+
+
+def test_publish_workflow_gates_on_a_docs_build_of_the_release_tag() -> None:
+    workflow = yaml.safe_load(_read(WORKFLOWS / "publish.yml"))
+    jobs = workflow["jobs"]
+
+    assert jobs["docs"]["uses"] == "./.github/workflows/docs.yml"
+    assert jobs["docs"]["with"]["ref"] == "${{ github.event.release.tag_name }}"
+    assert set(_needs(jobs["publish"])) == {"tests", "docs"}
+
+
+def test_docs_workflow_builds_without_execution_and_fails_on_warnings() -> None:
+    text = _read(WORKFLOWS / "docs.yml")
+    workflow = yaml.safe_load(text)
+    steps = workflow["jobs"]["docs"]["steps"]
+
+    assert "workflow_call" in _on(workflow)
+    build = next(
+        step
+        for step in steps
+        if step.get("name") == "Build the documentation without executing examples"
+    )
+    assert build["env"]["SIMIND_GALLERY_BACKEND"] == ""
+    assert "-W" in build["run"]
+    assert "docs/auto_examples" in text
+    assert "actions/upload-artifact" in text
+
+
+def test_docs_workflow_runs_only_python_3_10_compatible_commands(
+    tmp_path: Path,
+) -> None:
+    """The docs job uses Read the Docs' Python 3.10, which has no tomllib."""
+    text = _read(WORKFLOWS / "docs.yml")
+    workflow = yaml.safe_load(text)
+    steps = workflow["jobs"]["docs"]["steps"]
+
+    setup = next(
+        step
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/setup-python")
+    )
+    selected_text = setup["with"]["python-version"]
+    selected = tuple(int(part) for part in selected_text.split("."))
+    rtd = yaml.safe_load(_read(ROOT / ".readthedocs.yaml"))
+    assert selected_text == rtd["build"]["tools"]["python"]
+    assert "tomllib" not in text
+
+    for source in _inline_python_sources(text):
+        for module in _imported_modules(source):
+            introduced = STDLIB_INTRODUCED_LATER.get(module)
+            assert introduced is None or selected >= introduced, (
+                f"inline python imports {module} (Python {introduced[0]}."
+                f"{introduced[1]}+) but the docs job selects {selected_text}"
+            )
+    for name, introduced in STDLIB_INTRODUCED_LATER.items():
+        if sys.version_info >= introduced:
+            assert name in sys.stdlib_module_names
+
+    check = next(
+        step
+        for step in steps
+        if step.get("name") == "Check the tag matches the documented version"
+    )
+    version = metadata.version("simind-python-connector")
+    # The job's setup-python step provides `python`; mirror that locally.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "python").symlink_to(sys.executable)
+    env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+    extracted = subprocess.run(
+        ["bash", "-c", check["run"] + '\nprintf "%s" "$version"'],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert extracted.returncode == 0, extracted.stderr
+    assert extracted.stdout == version
+
+    matched = subprocess.run(
+        ["bash", "-c", check["run"]],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={**env, "GITHUB_REF_NAME": f"v{version}"},
+    )
+    mismatched = subprocess.run(
+        ["bash", "-c", check["run"]],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={**env, "GITHUB_REF_NAME": "v0.0.0"},
+    )
+    assert matched.returncode == 0, matched.stdout
+    assert mismatched.returncode != 0
+    assert "does not match" in mismatched.stdout
+
+
+def test_api_documents_reexported_connector_classes_once() -> None:
+    text = _read(ROOT / "docs" / "api.rst")
+    automodules = re.findall(r"\.\. automodule:: (\S+)", text)
+
+    assert "simind_python_connector.connectors" not in automodules
+    assert "simind_python_connector.connectors.base" in automodules
+    assert "simind_python_connector.connectors.python_connector" in automodules
+    assert len(automodules) == len(set(automodules))
+
+
+def test_readthedocs_fails_on_warnings_with_the_tested_configuration() -> None:
+    config = yaml.safe_load(_read(ROOT / ".readthedocs.yaml"))
+
+    assert config["version"] == 2
+    assert config["sphinx"]["configuration"] == "docs/conf.py"
+    assert config["sphinx"]["fail_on_warning"] is True
+    install = config["python"]["install"]
+    assert install[0]["path"] == "."
+    assert install[0]["extra_requirements"] == ["dev"]
+
+
 def test_publish_workflow_rejects_a_tag_without_the_v_prefix(tmp_path: Path) -> None:
     workflow = yaml.safe_load(_read(WORKFLOWS / "publish.yml"))
     run = next(
@@ -476,3 +757,26 @@ def test_publish_workflow_rejects_a_tag_without_the_v_prefix(tmp_path: Path) -> 
     assert bare.returncode != 0
     assert "does not match" in bare.stdout
     assert prefixed.returncode == 0
+
+
+def test_tests_workflow_preserves_matrix_and_checks() -> None:
+    text = _read(WORKFLOWS / "tests.yml")
+    workflow = yaml.safe_load(text)
+
+    assert "workflow_call" in _on(workflow)
+    matrix = workflow["jobs"]["test"]["strategy"]["matrix"]["python-version"]
+    assert matrix == ["3.10", "3.11", "3.12", "3.13"]
+    assert (
+        "not integration and not requires_sirf and not requires_stir and "
+        "not requires_simind and not requires_pytomography and not requires_cil "
+        "and not ci_skip"
+    ) in text.replace("\n", " ").replace("  ", " ")
+    assert "scripts/check_wheel_resources.py" in text
+    assert 'cd "$workdir"' in text
+    assert '--repo "$repo"' in text
+    assert "scripts/run_container_validation.sh --only-core" in text
+    assert "scripts/run_container_examples.sh --only-core" in text
+
+
+def test_build_requires_spdx_capable_setuptools() -> None:
+    assert re.search(r"setuptools>=77\.0\.3", _read(ROOT / "pyproject.toml"))

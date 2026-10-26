@@ -740,6 +740,54 @@ def test_load_interfile_array_rejects_trailing_payload(tmp_path: Path):
 
 
 @pytest.mark.unit
+def test_load_interfile_array_rejects_trailing_partial_pixel(tmp_path: Path):
+    data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    header_path = tmp_path / "projection.hs"
+    (tmp_path / "projection.a00").write_bytes(data.tobytes() + b"\x00")
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!matrix size [1] := 4",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 2",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+    with pytest.raises(ValueError, match="trailing partial pixel"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
+def test_load_interfile_array_rejects_fractional_data_offset(tmp_path: Path):
+    header_path = tmp_path / "projection.hs"
+    (tmp_path / "projection.a00").write_bytes(b"\0" * 24)
+    header_path.write_text(
+        "\n".join(
+            [
+                "!INTERFILE :=",
+                "!number format := float",
+                "!number of bytes per pixel := 4",
+                "imagedata byte order := LITTLEENDIAN",
+                "!matrix size [1] := 2",
+                "!matrix size [2] := 3",
+                "!matrix size [3] := 1",
+                "!data offset in bytes := 4.5",
+                "!name of data file := projection.a00",
+                "!END OF INTERFILE :=",
+            ]
+        )
+    )
+    with pytest.raises(ValueError, match="finite integer"):
+        load_interfile_array(header_path)
+
+
+@pytest.mark.unit
 def test_load_interfile_array_round_trip(tmp_path: Path):
     data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
     data_path = tmp_path / "projection.a00"

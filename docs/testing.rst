@@ -117,6 +117,9 @@ the official SIMIND site and manual:
 
 The container suite includes ``tests/test_container_library_isolation.py``,
 which asserts that each container can import only its target backend library.
+With SIMIND enabled, ``tests/test_measured_geometry_simind.py`` checks known
+positions, rotation directions, non-circular orbits and anisotropic spacing
+against SPECTUB. These cases generate their own inputs.
 
 Alternative CI Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -156,6 +159,8 @@ SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
 
 * ``tests/test_integration.py`` for full workflow checks.
 * ``tests/test_container_library_isolation.py`` for backend container import isolation.
+* ``tests/test_measured_geometry_simind.py`` for controlled geometry comparisons.
+* ``tests/recon/test_residual_sirf.py`` for interleaved-model cache isolation.
 
 A3 Measured-Geometry Validation Profiles
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -188,6 +193,39 @@ the ``requires_simind`` check passes:
 
     # Full validation profile (standing A3 release gate)
     SIMIND_A3_FULL_VALIDATION=1 pytest tests/test_measured_geometry_simind.py -s
+
+Feature validation
+~~~~~~~~~~~~~~~~~~
+
+``tests/validation`` holds one module per feature. Each case runs a small SIMIND
+simulation, compares the result with a stated tolerance, and appends the
+measured value to ``output/validation/<engine>.jsonl``. The runner executes the
+cases on three engines:
+
+* ``v8``: SIMIND v8 on Linux (Docker, amd64).
+* ``v9``: SIMIND v9 on Linux (Docker, amd64). SCATTWIN cases that check
+  projection data are recorded as not run because of a SIMIND v9 Linux engine
+  defect.
+* ``v9-macos``: the native macOS SIMIND v9 build, for the cases marked
+  ``macos_v9``.
+
+.. code-block:: bash
+
+    bash scripts/run_validation.sh --engine v8
+    bash scripts/run_validation.sh --engine v9
+    bash scripts/run_validation.sh --engine v9-macos
+
+    # Re-run one feature only
+    bash scripts/run_validation.sh --engine v8 --feature recon
+
+The runs take hours. Rebuild the published tables from the recorded results
+with:
+
+.. code-block:: bash
+
+    python scripts/validation_report.py --write docs/simind_validation.md
+
+The results are published in ``docs/simind_validation.md``.
 
 Integration Test
 ~~~~~~~~~~~~~~~~

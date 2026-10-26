@@ -2,7 +2,8 @@
 # SIMIND's Linux binary links against the historical MPICH names
 # libmpi.so.12 / libmpifort.so.12. Debian's mpich package ships
 # libmpich.so.12 / libmpichfort.so.12; expose the expected names when the
-# loader cannot find them.
+# loader cannot find them, and make mpirun the MPICH launcher: an Open MPI
+# mpirun cannot start MPICH ranks.
 set -eu
 
 multiarch="$(python3 -c 'import sysconfig; print(sysconfig.get_config_var("MULTIARCH"))')"
@@ -20,3 +21,4 @@ link_if_missing libmpich.so.12 libmpi.so.12
 link_if_missing libmpichfort.so.12 libmpifort.so.12
 
 ldconfig
+update-alternatives --set mpirun /usr/bin/mpirun.mpich

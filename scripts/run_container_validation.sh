@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker/compose.yaml"
+HOST_UID="${HOST_UID:-$(id -u)}"
+HOST_GID="${HOST_GID:-$(id -g)}"
 
 # Backward-compatible env switch.
 RUN_SIMIND_TESTS="${RUN_SIMIND_TESTS:-0}"
@@ -180,6 +182,9 @@ run_service() {
     shift
     local command="$*"
     local compose_args=(run --rm)
+    if [[ "$service" == "python" ]]; then
+        compose_args+=(--user "$HOST_UID:$HOST_GID" -e HOME=/tmp)
+    fi
     local simind_env_args=()
     if [[ "$SIMIND_AVAILABLE" -eq 1 ]]; then
         local container_bin="/workspace/${SIMIND_PATH#$ROOT_DIR/}"
@@ -317,23 +322,23 @@ fi
 echo "[4/4] Handling SIMIND-dependent examples/tests..."
 if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
     if [[ "$RUN_CORE" -eq 1 ]]; then
-        run_service python "python examples/01_basic_simulation.py"
-        run_service python "python examples/02_runtime_switch_comparison.py"
-        run_service python "python examples/03_multi_window.py"
-        run_service python "python examples/05_scattwin_vs_penetrate_comparison.py"
+        run_service python "python examples/getting_started/plot_01_basic_simulation.py"
+        run_service python "python examples/getting_started/plot_02_runtime_switch_comparison.py"
+        run_service python "python examples/getting_started/plot_03_multi_window.py"
+        run_service python "python examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py"
         run_service python "python -m pytest tests/test_simind_mpi.py -q -s"
     fi
     if [[ "$RUN_STIR" -eq 1 ]]; then
-        run_service stir "python examples/07A_stir_adaptor_osem.py"
+        run_service stir "python examples/backends/plot_07a_stir_adaptor_osem.py"
     fi
     if [[ "$RUN_SIRF" -eq 1 ]]; then
-        run_service sirf "python examples/07B_sirf_adaptor_osem.py"
+        run_service sirf "python examples/backends/plot_07b_sirf_adaptor_osem.py"
         # test_simind_mpi.py runs once in the python service (MPICH); the SIRF
         # image uses OpenMPI and would only re-run it there.
         run_service sirf "python -m pytest -m \"$SIMIND_MARKERS\" -q --ignore=tests/test_simind_mpi.py"
     fi
     if [[ "$RUN_PYTOMO" -eq 1 ]]; then
-        run_service pytomography "python examples/07C_pytomography_adaptor_osem.py"
+        run_service pytomography "python examples/backends/plot_07c_pytomography_adaptor_osem.py"
     fi
 
 else
