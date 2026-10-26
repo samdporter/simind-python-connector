@@ -23,9 +23,13 @@ class ScatterCorrection:
     output, which holds phantom scatter only.
 
     With measured, this is Dewaraja et al. 2017's pixel-wise model: the
-    scatter fraction scatter / total of SIMIND's run, times the measured data.
-    It does not depend on the projector's scalar scale. With smoothing,
-    smoothing_fwhm_bins=3.0 and smooth_across_views=True match the paper.
+    measured data times the scatter-to-total ratio of SIMIND's run. It does not
+    depend on the projector's scalar scale. With smoothing, SIMIND's scatter
+    and total are smoothed with the same Gaussian before the ratio, and the
+    scaled result is smoothed again. smoothing_fwhm_bins=3.0 and
+    smooth_across_views=True match the paper. The final smoothing is retained
+    because the measured noise enters the estimate. The ratio is zero only
+    where the smoothed total is not positive; signed scatter is not clipped.
     smooth_across_views wraps around the view axis, so it assumes the views
     cover 360 degrees.
     """
@@ -79,6 +83,22 @@ class ScatterCorrection:
                 f"scatter shape {scatter_array.shape}"
             )
         total_array = total.as_array()
+        if total_array.shape != scatter_array.shape:
+            raise ValueError(
+                f"total shape {total_array.shape} does not match "
+                f"scatter shape {scatter_array.shape}"
+            )
+        # Smooth the MC scatter and its total before forming the fraction. The
+        # ratio of two noisy fields is biased low, even when both are unbiased;
+        # smoothing first removes most of that bias. The final smoothing in
+        # estimate() is retained.
+        if self.smoothing_fwhm_bins is not None:
+            scatter_array = _smooth_array(
+                scatter_array, self.smoothing_fwhm_bins, self.smooth_across_views
+            )
+            total_array = _smooth_array(
+                total_array, self.smoothing_fwhm_bins, self.smooth_across_views
+            )
         fraction = np.divide(
             scatter_array,
             total_array,
@@ -90,27 +110,34 @@ class ScatterCorrection:
         return out
 
 
-def _smooth_views(data: Any, fwhm_bins: float, across_views: bool = False) -> Any:
-    """Gaussian-smooth each view along its axial and bin axes, keeping the total.
-
-    With across_views, also smooth along the view axis, wrapping round.
-    """
+def _smooth_array(
+    array: Any, fwhm_bins: float, across_views: bool = False
+) -> np.ndarray:
+    """Gaussian-smooth a projection array, keeping its total."""
     from scipy.ndimage import gaussian_filter
 
-    array = np.asarray(data.as_array(), dtype=np.float64)
-    sigma = [0.0] * array.ndim
-    mode = ["reflect"] * array.ndim
+    values = np.asarray(array, dtype=np.float64)
+    sigma = [0.0] * values.ndim
+    mode = ["reflect"] * values.ndim
     # Projection arrays end in (axial, view, bin); SIRF may add a TOF axis first.
     sigma[-3] = sigma[-1] = fwhm_bins / (2.0 * np.sqrt(2.0 * np.log(2.0)))
     if across_views:
         sigma[-2] = sigma[-1]
         mode[-2] = "wrap"
-    smoothed = gaussian_filter(array, sigma, mode=mode)
+    smoothed = gaussian_filter(values, sigma, mode=mode)
     total = smoothed.sum()
     if total != 0.0:
-        smoothed *= array.sum() / total
+        smoothed *= values.sum() / total
+    return smoothed.astype(np.float32)
+
+
+def _smooth_views(data: Any, fwhm_bins: float, across_views: bool = False) -> Any:
+    """Gaussian-smooth each view along its axial and bin axes, keeping the total.
+
+    With across_views, also smooth along the view axis, wrapping round.
+    """
     out = data.clone()
-    out.fill(smoothed.astype(np.float32))
+    out.fill(_smooth_array(data.as_array(), fwhm_bins, across_views))
     return out
 
 

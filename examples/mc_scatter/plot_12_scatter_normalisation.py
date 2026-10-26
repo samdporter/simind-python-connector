@@ -14,8 +14,12 @@ putting that estimate on the scale of the data:
 3. **Reference, trimmed.** The same, with a trimmed mean of the bin ratios.
 4. **Dewaraja, global.** One factor scales SIMIND's total to the measured data
    (Dewaraja et al., Med Phys 44:6364, 2017).
-5. **Dewaraja, pixel-wise.** The scatter fraction of SIMIND's run in each bin,
-   times the measured data, as in the same paper.
+5. **Dewaraja, pixel-wise.** SIMIND's scatter and matching total are smoothed
+   with the same Gaussian, the smoothed scatter-to-total ratio is multiplied
+   by the measured data, and the result is smoothed again, as in the same
+   paper. The final smoothing is retained because the measured noise enters
+   the estimate. The stored pixel-wise numbers below predate this 2.0.2
+   estimator order and need a rerun to refresh them.
 
 .. warning::
    This example takes about 30 minutes, nearly all of it in the SIMIND runs:
@@ -368,7 +372,10 @@ plt.show()
 # The estimates of known activity and of the Dewaraja global model stay within 3%
 # of the true scatter sum (5.692e5) at every update, and the global model's scale
 # stays near 1130. The pixel-wise estimate drifts down to about 27% below the
-# true sum.
+# true sum. That drift predates the 2.0.2 pre-smoothing change and remains
+# unresolved; the change corrects the estimator order but is not claimed to fix
+# it. The next check is a frozen-image comparison with an independent SIMIND
+# seed.
 #
 # The two reference normalisations estimate about 8.2e5, 6.4e5 and 5.9e5. The
 # first is 1.4 times the true scatter, and the reconstruction without correction
@@ -457,8 +464,9 @@ plt.show()
 # Known activity and the Dewaraja global model have a last estimate within 3% of
 # the true sum and follow the true scatter over the views. The reference
 # normalisations are 4 to 5% above it and the pixel-wise model is 27% below.
-# Bin by bin, every strategy differs from the true scatter by about the true sum,
-# including the strategies whose sums agree.
+# These pixel-wise values predate the 2.0.2 estimator change and are superseded
+# by a rerun of this example. Bin by bin, every strategy differs from the true
+# scatter by about the true sum, including the strategies whose sums agree.
 
 # %%
 # Reconstructions

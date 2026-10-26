@@ -126,7 +126,8 @@ either pixel by pixel,
 
 .. math::
 
-    s_i = s^{\mathrm{SIM}}_i \, \frac{Y_i}{Y^{\mathrm{SIM}}_i},
+    s_i = G\left[ Y_i \,
+    \frac{G(S^{\mathrm{SIM}})_i}{G(T^{\mathrm{SIM}})_i} \right],
 
 or with one global factor,
 
@@ -142,6 +143,17 @@ simulated all-interactions projection. The global factor is a normaliser:
     from simind_python_connector.recon import SimindProjector, measured_normaliser
 
     projector = SimindProjector(..., normalise=measured_normaliser(measured))
+
+Here :math:`G` is the Gaussian smoothing operator, :math:`S^{\mathrm{SIM}}`
+the simulated scatter component and :math:`T^{\mathrm{SIM}}` the matching
+simulated total: ``all_interactions - geom_coll_primary`` and
+``all_interactions`` with PENETRATE, or ``sca_wN`` and ``tot_wN`` with
+SCATTWIN. The same :math:`G` is applied to both simulated fields before the
+division, and to the scaled result afterwards. This order matters because the
+ratio of two noisy fields is biased low; smoothing first removes most of that
+bias, while the final smoothing remains because the measured noise enters the
+estimate. The division is defined only where the smoothed total is positive
+and is zero elsewhere; signed scatter is not clipped.
 
 The pixel-wise scaling is done by the correction:
 
@@ -162,3 +174,10 @@ reconstruction with Monte Carlo scatter modeling", Med Phys 44(12):6364-6376,
 2017, doi:10.1002/mp.12597. The authors found the pixel-wise scaling better in
 their simulations. It multiplies the measured noise into the scatter estimate,
 hence the smoothing.
+
+.. note::
+   The Y-90 tutorial's pixel-wise arm still sits about 27% below the true
+   scatter sum. Pre-smoothing the simulated scatter and total changes the
+   estimator but does not resolve that drift. The next check is a frozen-image
+   comparison with an independent SIMIND seed, which separates estimator bias
+   from image- and source-dependence.

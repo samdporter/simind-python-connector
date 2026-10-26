@@ -8,10 +8,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from simind_python_connector.core.types import ScoringRoutine
+from simind_python_connector.recon.corrections import ScatterCorrection
 from simind_python_connector.utils.interfile import (
     read_header,
     read_projection_geometry,
 )
+from tests.recon.fakes import FakeData
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -770,3 +773,261 @@ def test_sparse_real_engine_density_and_template_integration(tmp_path):
     assert raw["geom_coll_primary"].shape == (1, grid, 2, grid)
     assert float(raw["all_interactions"].sum()) > 0.0
     assert float(raw["geom_coll_primary"].sum()) > 0.0
+
+
+def _gaussian_smooth(array, fwhm_bins=script.SMOOTHING_FWHM_BINS, across_views=True):
+    """Independent NumPy/SciPy reference for the tutorial's smoothing."""
+    from scipy.ndimage import gaussian_filter
+
+    values = np.asarray(array, dtype=np.float64)
+    sigma = [0.0] * values.ndim
+    mode = ["reflect"] * values.ndim
+    sigma[-3] = sigma[-1] = fwhm_bins / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+    if across_views:
+        sigma[-2] = sigma[-1]
+        mode[-2] = "wrap"
+    smoothed = gaussian_filter(values, sigma, mode=mode)
+    total = smoothed.sum()
+    if total != 0.0:
+        smoothed *= values.sum() / total
+    return smoothed
+
+
+def _smoothed_pixelwise_reference(scatter, total, measured, fwhm_bins):
+    smoothed_scatter = _gaussian_smooth(scatter, fwhm_bins)
+    smoothed_total = _gaussian_smooth(total, fwhm_bins)
+    fraction = np.divide(
+        smoothed_scatter,
+        smoothed_total,
+        out=np.zeros_like(smoothed_scatter),
+        where=smoothed_total > 0.0,
+    )
+    return _gaussian_smooth(np.asarray(measured, float) * fraction, fwhm_bins)
+
+
+class _CoreProjector:
+    def __init__(self, raw):
+        self.outputs = raw
+        self.adaptor = type(
+            "Adaptor",
+            (),
+            {"get_scoring_routine": lambda self: ScoringRoutine.PENETRATE},
+        )()
+        self.last_scale = None
+
+    def project(self, image):
+        return {key: FakeData(value) for key, value in self.outputs.items()}
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_pre_smooths_the_mc_fields_before_dividing():
+    rng = np.random.default_rng(31)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    scatter = total - primary
+    measured = rng.uniform(100.0, 200.0, shape)
+    raw = {
+        "all_interactions": total.copy(),
+        "geom_coll_primary": primary.copy(),
+    }
+
+    additive = script.build_additive(raw, measured, "pixelwise")
+    expected = _smoothed_pixelwise_reference(scatter, total, measured, 3.0)
+    legacy = _gaussian_smooth(measured * (scatter / total), 3.0)
+
+    np.testing.assert_allclose(additive.values, expected, rtol=1e-5, atol=1e-4)
+    assert not np.allclose(additive.values, legacy, rtol=1e-4, atol=1e-3)
+    # The final smoothing is still applied after the measured scaling.
+    unsmoothed_fraction = _gaussian_smooth(scatter, 3.0) / _gaussian_smooth(total, 3.0)
+    assert not np.allclose(
+        additive.values, measured * unsmoothed_fraction, rtol=1e-4, atol=1e-3
+    )
+
+
+@pytest.mark.unit
+def test_core_and_tutorial_pixelwise_estimators_agree():
+    rng = np.random.default_rng(37)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    measured = rng.uniform(100.0, 200.0, shape)
+    raw = {
+        "all_interactions": total.copy(),
+        "geom_coll_primary": primary.copy(),
+    }
+
+    tutorial = script.build_additive(raw, measured, "pixelwise")
+    core = ScatterCorrection(
+        _CoreProjector(raw),
+        measured=FakeData(measured),
+        smoothing_fwhm_bins=3.0,
+        smooth_across_views=True,
+    ).estimate("image")
+
+    np.testing.assert_allclose(tutorial.values, core.as_array(), rtol=1e-5, atol=1e-4)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_is_the_same_for_3d_and_singleton_4d_arrays():
+    rng = np.random.default_rng(41)
+    total = rng.uniform(20.0, 40.0, (4, 6, 8))
+    primary = rng.uniform(10.0, 30.0, (4, 6, 8))
+    measured = rng.uniform(100.0, 200.0, (4, 6, 8))
+
+    three = script.build_additive(
+        {"all_interactions": total, "geom_coll_primary": primary},
+        measured,
+        "pixelwise",
+    )
+    four = script.build_additive(
+        {
+            "all_interactions": total[None],
+            "geom_coll_primary": primary[None],
+        },
+        measured[None],
+        "pixelwise",
+    )
+
+    np.testing.assert_allclose(four.values[0], three.values, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_returns_zero_for_an_all_zero_denominator():
+    shape = (1, 3, 4)
+    raw = {
+        "all_interactions": np.zeros(shape),
+        "geom_coll_primary": np.zeros(shape),
+    }
+    additive = script.build_additive(raw, np.ones(shape), "pixelwise")
+    np.testing.assert_array_equal(additive.values, 0.0)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_rescues_a_raw_zero_bin_from_its_neighbours():
+    shape = (1, 5, 7)
+    total = np.ones(shape)
+    total[0, 2, 3] = 0.0
+    raw = {"all_interactions": total, "geom_coll_primary": np.zeros(shape)}
+    additive = script.build_additive(raw, np.ones(shape), "pixelwise")
+    assert additive.values[0, 2, 3] > 0.0
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_accepts_tiny_positive_denominators():
+    shape = (1, 1, 2)
+    raw = {
+        "all_interactions": np.full(shape, 1e-30),
+        "geom_coll_primary": np.full(shape, -1e-30),
+    }
+    additive = script.build_additive(raw, np.full(shape, 7.0), "pixelwise")
+    assert np.isfinite(additive.values).all()
+    np.testing.assert_allclose(additive.values, 14.0, rtol=1e-5)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_is_invariant_to_a_common_mc_scale():
+    rng = np.random.default_rng(43)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    measured = rng.uniform(100.0, 200.0, shape)
+    reference = script.build_additive(
+        {"all_interactions": total, "geom_coll_primary": primary},
+        measured,
+        "pixelwise",
+    )
+    for scale in (1e-9, 1e6):
+        scaled = script.build_additive(
+            {
+                "all_interactions": total * scale,
+                "geom_coll_primary": primary * scale,
+            },
+            measured,
+            "pixelwise",
+        )
+        np.testing.assert_allclose(
+            scaled.values, reference.values, rtol=1e-6, atol=1e-6
+        )
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_does_not_mutate_its_inputs():
+    rng = np.random.default_rng(47)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    measured = rng.uniform(100.0, 200.0, shape)
+    before = (total.copy(), primary.copy(), measured.copy())
+
+    script.build_additive(
+        {"all_interactions": total, "geom_coll_primary": primary},
+        measured,
+        "pixelwise",
+    )
+
+    np.testing.assert_array_equal(total, before[0])
+    np.testing.assert_array_equal(primary, before[1])
+    np.testing.assert_array_equal(measured, before[2])
+
+
+@pytest.mark.unit
+def test_unsmoothed_pixelwise_additive_keeps_the_legacy_algebra_and_signed_values():
+    shape = (1, 1, 2)
+    raw = {
+        "all_interactions": np.full(shape, 10.0),
+        "geom_coll_primary": np.full(shape, 12.0),
+    }
+    measured = np.full(shape, 5.0)
+    additive = script.build_additive(
+        raw, measured, "pixelwise", smoothing_fwhm_bins=None
+    )
+    np.testing.assert_allclose(additive.values, -1.0)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_rejects_measured_data_of_another_shape():
+    shape = (1, 3, 4)
+    raw = {
+        "all_interactions": np.ones(shape),
+        "geom_coll_primary": np.zeros(shape),
+    }
+    with pytest.raises(ValueError, match=r"measured shape.*all_interactions shape"):
+        script.build_additive(raw, np.ones((1, 3, 5)), "pixelwise")
+
+
+@pytest.mark.unit
+def test_non_pixelwise_additives_are_numerically_unchanged():
+    rng = np.random.default_rng(53)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    scatter = total - primary
+    measured = rng.uniform(100.0, 200.0, shape)
+    reference = rng.uniform(80.0, 120.0, shape)
+    raw = {
+        "all_interactions": total.copy(),
+        "geom_coll_primary": primary.copy(),
+    }
+
+    known = script.build_additive(raw, measured, "known")
+    reference_sum = script.build_additive(
+        raw, measured, "reference_sum", reference_projection=reference
+    )
+    global_scaled = script.build_additive(raw, measured, "dewaraja_global")
+
+    np.testing.assert_allclose(
+        known.values, _gaussian_smooth(scatter), rtol=1e-6, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        reference_sum.values,
+        _gaussian_smooth(scatter * float(reference.sum() / primary.sum())),
+        rtol=1e-6,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        global_scaled.values,
+        _gaussian_smooth(scatter * float(measured.sum() / total.sum())),
+        rtol=1e-6,
+        atol=1e-5,
+    )
