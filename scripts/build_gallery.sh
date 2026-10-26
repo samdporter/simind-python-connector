@@ -76,4 +76,4 @@ done
 
 DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
     --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    python bash -lc "python scripts/check_gallery_current.py ${BACKENDS[*]/#/--backend }"
+    python bash -lc "python scripts/check_gallery_current.py ${BACKENDS[*]/#/--backend } --html-dir /workspace/docs/_build/html"

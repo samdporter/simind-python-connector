@@ -1,0 +1,53 @@
+{
+ "reported_from": "docs/auto_examples/real_data/plot_18_y90_mc_scatter.rst",
+ "note": "Reported summary from the reviewed gallery run; the gate does not re-run the simulation. Replace this file with the summary.json produced by the next reviewed run.",
+ "status": "quality_not_established",
+ "engine": {
+  "version": "8.0",
+  "binary": "simind",
+  "root": null,
+  "smc_dir": null,
+  "history_multiplier": 1,
+  "probe_geometry": "reduced 60-view geometry",
+  "seeds": [101, 202],
+  "platform": "linux"
+ },
+ "history_multiplier": 1,
+ "schedule": {
+  "passes": 3,
+  "num_updates": 2,
+  "num_subsets": 12,
+  "subiterations_per_pass": 48,
+  "total_subiterations": 144,
+  "damping": 0.5,
+  "simind_runs": 6,
+  "simind_probe_runs": 4,
+  "history_multiplier": 1,
+  "history_multiplier_probe": 2,
+  "probe_geometry": "reduced 60-view geometry",
+  "shared_refresh_seconds": 1092.0,
+  "shared_quantization_scale": 0.75
+ },
+ "gates": {
+  "registration": true,
+  "registration_voxels": 0.296,
+  "max_quantization_loss": 0.0018,
+  "quantization_passed": true,
+  "seed_scatter_total_difference": 0.0006,
+  "seed_scatter_l1": 0.0624,
+  "seed_passed": false,
+  "nn_max_ratio_change": 1.7948,
+  "nn_passed": false,
+  "iteration_max_ratio_change": 0.0091,
+  "iteration_passed": true,
+  "stability_max_ratio_change": 0.0622,
+  "stability_passed": false,
+  "valid_strategies": [
+   "Known activity",
+   "Reference, sum",
+   "Reference, trimmed",
+   "Dewaraja, pixel-wise"
+  ],
+  "collapsed_strategies": ["Dewaraja, global"]
+ }
+}
