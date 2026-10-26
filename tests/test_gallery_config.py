@@ -687,3 +687,60 @@ def test_example18_gate_rejects_a_missing_required_panel(tmp_path, layout, role)
         "ambiguous_figure_roles",
         "figure_count",
     }, _codes(problems)
+
+
+def _html18(tmp_path: Path, layout: str, *, drop: int | None = None) -> Path:
+    """Render example 18's HTML page with one optional panel dropped."""
+
+    spec = _18_LAYOUTS[layout]
+    page = (
+        tmp_path
+        / "html"
+        / "auto_examples"
+        / "real_data"
+        / "plot_18_y90_mc_scatter.html"
+    )
+    tags = [
+        f'<img src="../../../docs/auto_examples/real_data/images/'
+        f'sphx_glr_plot_18_y90_mc_scatter_{number:03d}.png" alt="{alt}"/>'
+        for number, alt in spec["panels"]
+        if number != drop
+    ]
+    _write(page, "".join(tags))
+    return page
+
+
+@pytest.mark.unit
+def test_html_gate_accepts_the_seven_panel_example18_page(tmp_path):
+    root, _, docs, gallery_dir = _gallery18(tmp_path, "global_arm_panel")
+    _html18(tmp_path, "global_arm_panel")
+    assert (
+        gallery.check_gallery(
+            root / "examples",
+            gallery_dir,
+            docs,
+            root=root,
+            html_dir=tmp_path / "html",
+        )
+        == []
+    )
+
+
+@pytest.mark.unit
+def test_html_gate_rejects_a_ratios_panel_missing_from_example18(tmp_path):
+    root, _, docs, gallery_dir = _gallery18(tmp_path, "global_arm_panel")
+    # Only the ratios image disappears from the rendered page: the optional
+    # global reconstruction must not stand in for it.
+    _html18(tmp_path, "global_arm_panel", drop=5)
+    problems = gallery.check_gallery(
+        root / "examples",
+        gallery_dir,
+        docs,
+        root=root,
+        html_dir=tmp_path / "html",
+    )
+    assert _codes(problems) & {
+        "html_missing_figure",
+        "html_ambiguous_figure_roles",
+    }, _codes(problems)
+    assert any("ratios" in problem.detail for problem in problems)

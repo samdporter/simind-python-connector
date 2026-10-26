@@ -33,7 +33,8 @@ _ADAPTOR_ROOTS = {
 }
 _IMAGE_DIRECTIVE = re.compile(r"^\s*\.\. image-sg::\s+(?P<path>\S+)\s*$")
 _ALT_DIRECTIVE = re.compile(r"^\s+:alt:\s*(?P<alt>.*)$")
-_IMAGE_SRC = re.compile(r'<img[^>]+src="([^"]+)"')
+_IMAGE_TAG = re.compile(r"<img\b([^>]*)>")
+_IMAGE_ATTR = re.compile(r'([\w-]+)="([^"]*)"')
 _MISSING = object()
 
 # Mirrors of the sphinx-gallery parser rules that turn a source file into
@@ -783,14 +784,25 @@ def _check_run_summary(
 
 def _broken_html_images(page: Path, label: str) -> list[GalleryProblem]:
     problems = []
-    text = page.read_text(encoding="utf-8", errors="replace")
-    for source in _IMAGE_SRC.findall(text):
+    for source, _alt in _html_images(page):
         if source.startswith(("http:", "https:", "data:")):
             continue
         target = (page.parent / source.split("?")[0].split("#")[0]).resolve()
         if not target.exists():
             problems.append(_flatten_problem(label, "broken_html_image", source))
     return problems
+
+
+def _html_images(page: Path) -> list[tuple[str, str | None]]:
+    """Return each embedded image's ``(src, alt)`` on a rendered page."""
+
+    text = page.read_text(encoding="utf-8", errors="replace")
+    images = []
+    for attributes in _IMAGE_TAG.findall(text):
+        attrs = dict(_IMAGE_ATTR.findall(attributes))
+        if "src" in attrs:
+            images.append((attrs["src"], attrs.get("alt")))
+    return images
 
 
 def _check_html(
@@ -806,21 +818,31 @@ def _check_html(
             problems.append(_flatten_problem(key, "html_page_missing", page.name))
             continue
         problems.extend(_broken_html_images(page, key))
-        sources = _IMAGE_SRC.findall(page.read_text(encoding="utf-8", errors="replace"))
+        resolved = [(Path(source).name, alt) for source, alt in _html_images(page)]
         entry = entries.get(key, {})
         if entry.get("intentional_zero_figures"):
             continue
-        for spec in _config_roles(entry):
-            if spec.get("optional"):
-                continue
-            if not any(
-                _matches_spec(spec, Path(source).name, None) for source in sources
-            ):
+        required = [spec for spec in _config_roles(entry) if not spec.get("optional")]
+        reserved = _reserved_figure_names(entry, resolved)
+        candidates = [
+            [
+                name
+                for name, alt in resolved
+                if name not in reserved and _matches_spec(spec, name, alt)
+            ]
+            for spec in required
+        ]
+        assigned = _assign_required_roles(candidates)
+        for spec, names, image in zip(required, candidates, assigned):
+            role = spec.get("role", "unnamed")
+            if not names:
+                problems.append(_flatten_problem(key, "html_missing_figure", role))
+            elif image is None:
                 problems.append(
                     _flatten_problem(
                         key,
-                        "html_missing_figure",
-                        spec.get("role", "unnamed"),
+                        "html_ambiguous_figure_roles",
+                        f"{role}: no distinct image among {', '.join(names)}",
                     )
                 )
     for page in sorted(gallery_root.rglob("index.html")):
