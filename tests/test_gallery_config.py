@@ -148,6 +148,27 @@ def _placeholder(path: Path) -> Path:
     return path
 
 
+def _notebook(source: str) -> str:
+    """A structurally valid notebook holding the example's code as one cell."""
+
+    return json.dumps(
+        {
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": [source.strip()],
+                }
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+    )
+
+
 def _gallery_fixture(
     tmp_path: Path,
     *,
@@ -158,32 +179,42 @@ def _gallery_fixture(
     manifest_extra: dict | None = None,
     summary: dict | None = None,
     page_extra: str = "",
+    section: str = "s",
+    stem: str = "plot_01_demo",
+    source: str = "x = 1\n",
+    panels: list[tuple[int, str]] | None = None,
+    roles: list[dict] | None = None,
+    manifest_count: int | list[int] | None = None,
 ):
-    """Build one synthetic example, gallery page, manifest and provenance."""
+    """Build one synthetic example, gallery page, manifest and provenance.
+
+    ``panels`` lists ``(figure number, alt text)`` pairs to embed; ``roles``
+    and ``manifest_count`` override the generated figure expectations.
+    """
 
     root = tmp_path
-    section = "s"
-    stem = "plot_01_demo"
-    example = _write(root / "examples" / section / f"{stem}.py", "x = 1\n")
+    if panels is None:
+        panels = [(number, f"panel {number}") for number in range(1, figure_count + 1)]
     docs = root / "docs"
     base = docs / "auto_examples" / section
+    example = _write(root / "examples" / section / f"{stem}.py", source)
     _write(base / f"{stem}.py.md5", get_md5sum(example, mode="t"))
 
     blocks = []
-    for number in range(1, figure_count + 1):
+    for number, alt in panels:
         name = f"sphx_glr_{stem}_{number:03d}.png"
         if create_images:
             _png(base / "images" / name)
         if embed:
             blocks.append(
                 f".. image-sg:: /auto_examples/{section}/images/{name}\n"
-                f"   :alt: panel {number}\n"
+                f"   :alt: {alt}\n"
             )
     _write(base / f"{stem}.rst", f"Title\n=====\n\n{''.join(blocks)}{page_extra}")
-    _write(base / f"{stem}.py", "x = 1\n")
-    _write(base / f"{stem}.ipynb", "{}")
+    _write(base / f"{stem}.py", source)
+    _write(base / f"{stem}.ipynb", _notebook(source))
     with zipfile.ZipFile(base / f"{stem}.zip", "w") as archive:
-        archive.writestr(f"{stem}.py", "x = 1\n")
+        archive.writestr(f"{stem}.py", source)
 
     thumb = base / "images" / "thumb" / f"sphx_glr_{stem}_thumb.png"
     if thumbnail == "real":
@@ -191,16 +222,17 @@ def _gallery_fixture(
     elif thumbnail == "placeholder":
         _placeholder(thumb)
 
-    roles = [
-        {
-            "role": f"panel{number}",
-            "accepts": [f"sphx_glr_{stem}_{number:03d}.png"],
-        }
-        for number in range(1, figure_count + 1)
-    ]
+    if roles is None:
+        roles = [
+            {
+                "role": f"panel{number}",
+                "accepts": [f"sphx_glr_{stem}_{number:03d}.png"],
+            }
+            for number, _ in panels
+        ]
     entry = {
         "figures": roles,
-        "figure_count": figure_count,
+        "figure_count": figure_count if manifest_count is None else manifest_count,
         "thumbnail": (
             "placeholder"
             if manifest_extra and manifest_extra.get("intentional_zero_figures")
@@ -447,3 +479,211 @@ def test_html_gate_requires_expected_figures_and_working_links(tmp_path):
     )
     assert "broken_html_image" in _codes(problems)
     assert "html_missing_figure" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_cached_backend_build_keeps_the_stale_dependency_digest(tmp_path):
+    root, example, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(root / "simind_python_connector" / "helpers.py", "VALUE = 1\n")
+    # Sphinx-gallery reused its cached output, so nothing was executed: the
+    # recorded digest must stay stale and the gate must keep rejecting.
+    gallery.record_gallery_build(root, docs, "python", None, executed=set())
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "dependency_changed" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_prepared_backend_build_owns_the_examples_it_reexecutes(tmp_path):
+    root, example, docs, gallery_dir = _gallery_fixture(tmp_path)
+    sidecar = gallery_dir / "s" / f"{example.name}.md5"
+    assert gallery.prepare_backend_build(root, docs, ("python",)) == set()
+    assert sidecar.exists()
+
+    _write(root / "simind_python_connector" / "helpers.py", "VALUE = 1\n")
+    executed = gallery.prepare_backend_build(root, docs, ("python",))
+    assert executed == {gallery.example_key(example)}
+    assert not sidecar.exists()
+    assert gallery.load_build_plan(root, docs, "python") == executed
+
+    # The build executed it (sphinx-gallery rewrites the sidecar), so the
+    # provenance the plan refreshes lets the gate pass again.
+    _write(sidecar, get_md5sum(example, mode="t"))
+    gallery.record_gallery_build(root, docs, "python", None)
+    assert not gallery.build_plan_path(docs).exists()
+    assert gallery.check_gallery(root / "examples", gallery_dir, docs, root=root) == []
+
+
+@pytest.mark.unit
+def test_backend_build_without_a_prepare_plan_records_nothing(tmp_path):
+    root, example, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(root / "simind_python_connector" / "helpers.py", "VALUE = 1\n")
+    # No prepare step ran, so nothing proves the cached figures were rebuilt:
+    # the build-finished hook must not stamp them with the new digest.
+    gallery.record_gallery_build(root, docs, "python", None)
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "dependency_changed" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_record_gallery_build_ignores_a_plan_moved_under_it(tmp_path):
+    root, example, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(root / "simind_python_connector" / "helpers.py", "VALUE = 1\n")
+    gallery.prepare_backend_build(root, docs, ("python",))
+    # The shared dependency changes again while the build is running: the plan
+    # no longer describes this tree, so it may not refresh anything.
+    _write(root / "simind_python_connector" / "helpers.py", "VALUE = 2\n")
+    gallery.record_gallery_build(root, docs, "python", None)
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "dependency_changed" in _codes(problems)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "content",
+    [
+        "{}",
+        "[1, 2, 3]",
+        '{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}',
+        '{"cells": [{"cell_type": "markdown", "metadata": {}, "source": ["# hi"]}],'
+        ' "metadata": {}, "nbformat": 4, "nbformat_minor": 5}',
+        '{"cells": [{"cell_type": "code", "metadata": {}, "source": ["x = 1"]}],'
+        ' "metadata": {}, "nbformat": 3}',
+        '{"cells": "x = 1", "metadata": {}, "nbformat": 4}',
+    ],
+)
+def test_gate_rejects_an_invalid_notebook(tmp_path, content):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    assert gallery.check_gallery(root / "examples", gallery_dir, docs, root=root) == []
+    _write(gallery_dir / "s" / "plot_01_demo.ipynb", content)
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "notebook_invalid" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_rejects_a_corrupt_notebook(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(gallery_dir / "s" / "plot_01_demo.ipynb", "not json at all")
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "download_corrupt" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_rejects_a_notebook_of_another_source(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(gallery_dir / "s" / "plot_01_demo.ipynb", _notebook("x = 2\n"))
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "notebook_stale" in _codes(problems)
+
+
+_18_KEY = "real_data/plot_18_y90_mc_scatter"
+
+# The two layouts example 18 can produce: with or without the collapsed
+# global-arm reconstruction panel.  The alt texts follow the expectations the
+# committed manifest already declares for each role.
+_18_LAYOUTS = {
+    "global_arm_panel": {
+        "panels": [
+            (
+                1,
+                "CT attenuation (red) and vendor umap (green): 0.000 voxels "
+                "(PASSED), axial k=64, coronal j=64, sagittal i=64",
+            ),
+            (
+                2,
+                "Frozen liver (green) and sphere (red) VOIs, axial k=64, "
+                "coronal j=54, sagittal i=46",
+            ),
+            (
+                3,
+                "Reference, sum, Reference, trimmed, Corrected, CT-based, "
+                "Corrected, SPECT-based",
+            ),
+            (
+                4,
+                "Global scaling — collapsed; diagnostic only, not "
+                "quantitatively interpretable, Reference, sum",
+            ),
+            (5, "plot 18 y90 mc scatter"),
+            (6, "plot 18 y90 mc scatter"),
+            (7, "Profiles through the hot-sphere column, Reference, sum"),
+        ],
+        "required": {
+            "registration": 1,
+            "vois": 2,
+            "reconstructions": 3,
+            "ratios": 5,
+            "scatter": 6,
+            "profiles": 7,
+        },
+    },
+    "no_global_arm_panel": {
+        "panels": [
+            (
+                1,
+                "CT attenuation (red) and vendor umap (green): 0.000 voxels "
+                "(PASSED), axial k=64, coronal j=64, sagittal i=64",
+            ),
+            (
+                2,
+                "Frozen liver (green) and sphere (red) VOIs, axial k=64, "
+                "coronal j=54, sagittal i=46",
+            ),
+            (
+                3,
+                "Reference, sum, Reference, trimmed, Corrected, CT-based, "
+                "Corrected, SPECT-based",
+            ),
+            (4, "plot 18 y90 mc scatter"),
+            (5, "plot 18 y90 mc scatter"),
+            (6, "Profiles through the hot-sphere column, Reference, sum"),
+        ],
+        "required": {
+            "registration": 1,
+            "vois": 2,
+            "reconstructions": 3,
+            "ratios": 4,
+            "scatter": 5,
+            "profiles": 6,
+        },
+    },
+}
+
+
+def _gallery18(tmp_path: Path, layout: str, *, drop: int | None = None):
+    """Build example 18 in one supported layout, optionally without a panel."""
+
+    spec = _18_LAYOUTS[layout]
+    manifest = gallery.load_manifest(ROOT / "docs")["examples"][_18_KEY]
+    return _gallery_fixture(
+        tmp_path,
+        section="real_data",
+        stem="plot_18_y90_mc_scatter",
+        panels=[pair for pair in spec["panels"] if pair[0] != drop],
+        roles=manifest["figures"],
+        manifest_count=manifest["figure_count"],
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("layout", sorted(_18_LAYOUTS))
+def test_example18_supported_layouts_pass_the_gate(tmp_path, layout):
+    root, _, docs, gallery_dir = _gallery18(tmp_path, layout)
+    assert gallery.check_gallery(root / "examples", gallery_dir, docs, root=root) == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("layout", sorted(_18_LAYOUTS))
+@pytest.mark.parametrize(
+    "role",
+    ["registration", "vois", "reconstructions", "ratios", "scatter", "profiles"],
+)
+def test_example18_gate_rejects_a_missing_required_panel(tmp_path, layout, role):
+    drop = _18_LAYOUTS[layout]["required"][role]
+    root, _, docs, gallery_dir = _gallery18(tmp_path, layout, drop=drop)
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert problems, f"the gate must reject layout {layout} without {role}"
+    assert _codes(problems) & {
+        "missing_required_figure",
+        "ambiguous_figure_roles",
+        "figure_count",
+    }, _codes(problems)
