@@ -787,9 +787,14 @@ def _gaussian_smooth(array, fwhm_bins=script.SMOOTHING_FWHM_BINS, across_views=T
         sigma[-2] = sigma[-1]
         mode[-2] = "wrap"
     smoothed = gaussian_filter(values, sigma, mode=mode)
-    total = smoothed.sum()
-    if total != 0.0:
-        smoothed *= values.sum() / total
+    # Rescale only for a sum that stands clear of its rounding floor: a
+    # cancelling signed field would otherwise be scaled by an arbitrary factor
+    # (often zero) drawn from two floor-level residuals.
+    original_sum = values.sum()
+    if abs(original_sum) > 1e-9 * np.abs(values).sum():
+        total = smoothed.sum()
+        if total != 0.0:
+            smoothed *= original_sum / total
     return smoothed
 
 
@@ -911,6 +916,58 @@ def test_pixelwise_additive_rescues_a_raw_zero_bin_from_its_neighbours():
     raw = {"all_interactions": total, "geom_coll_primary": np.zeros(shape)}
     additive = script.build_additive(raw, np.ones(shape), "pixelwise")
     assert additive.values[0, 2, 3] > 0.0
+
+
+@pytest.mark.unit
+def test_smooth_scatter_keeps_a_zero_sum_signed_field():
+    """The tutorial's smoothing must not erase a cancelling signed field."""
+    field = np.zeros((1, 5, 7, 7))  # (leading, axial, view, bin)
+    field[0, 1, 1, 1] = 6.0
+    field[0, 3, 1, 5] = -6.0
+    assert field.sum() == 0.0
+
+    result = script.smooth_scatter(field)
+
+    np.testing.assert_allclose(result, _gaussian_smooth(field), rtol=1e-5, atol=1e-6)
+    assert np.isfinite(result).all()
+    assert result.sum() == pytest.approx(0.0, abs=1e-4)
+    assert result[0, 1, 1, 1] > 0.0
+    assert result[0, 3, 1, 5] < 0.0
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_keeps_a_zero_sum_signed_scatter():
+    """A zero-sum signed scatter survives pre-smoothing, the division and the
+    final smoothing; the export keeps counting raw non-positive bins."""
+    shape = (1, 5, 7, 7)
+    scatter = np.zeros(shape)
+    scatter[0, 1, 1, 1] = 6.0
+    scatter[0, 3, 1, 5] = -6.0
+    assert scatter.sum() == 0.0
+    total = np.full(shape, 10.0)
+    total[0, 4, 6, 6] = 0.0  # raw zero bin, positive once smoothed
+    primary = total - scatter
+    measured = np.full(shape, 100.0)
+    raw = {"all_interactions": total, "geom_coll_primary": primary}
+
+    additive = script.build_additive(raw, measured, "pixelwise")
+
+    np.testing.assert_allclose(
+        additive.values,
+        _smoothed_pixelwise_reference(
+            scatter, total, measured, script.SMOOTHING_FWHM_BINS
+        ),
+        rtol=1e-4,
+        atol=1e-5,
+    )
+    assert np.isfinite(additive.values).all()
+    # The signed field survives: not clipped and not scaled to zero.
+    assert additive.values[0, 1, 1, 1] > 0.0
+    assert additive.values[0, 3, 1, 5] < 0.0
+    # The export reports raw non-positive bins; the division uses the
+    # smoothed total, which rescues that bin.
+    assert additive.zero_denominator_fraction == pytest.approx(1.0 / (5 * 7 * 7))
+    assert additive.values[0, 4, 6, 6] < 0.0
 
 
 @pytest.mark.unit

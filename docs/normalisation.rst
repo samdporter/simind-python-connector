@@ -149,11 +149,16 @@ the simulated scatter component and :math:`T^{\mathrm{SIM}}` the matching
 simulated total: ``all_interactions - geom_coll_primary`` and
 ``all_interactions`` with PENETRATE, or ``sca_wN`` and ``tot_wN`` with
 SCATTWIN. The same :math:`G` is applied to both simulated fields before the
-division, and to the scaled result afterwards. This order matters because the
-ratio of two noisy fields is biased low; smoothing first removes most of that
-bias, while the final smoothing remains because the measured noise enters the
-estimate. The division is defined only where the smoothed total is positive
-and is zero elsewhere; signed scatter is not clipped.
+division, and to the scaled result afterwards. In the fixed-primary,
+noisy-scatter control used to check this order, forming the ratio first and
+smoothing afterwards came out low against the truth, while pre-smoothing
+reduced the ratio noise of the summed estimate. That is an observation about
+this control and its fixture: the direction and size of a noisy ratio's error
+depend on the covariance between the numerator and the denominator, so it is
+not a general result for Monte Carlo ratios, and it does not account for the
+pixel-wise drift noted below. The final smoothing remains because the measured
+noise enters the estimate. The division is defined only where the smoothed
+total is positive and is zero elsewhere; signed scatter is not clipped.
 
 The pixel-wise scaling is done by the correction:
 
@@ -176,8 +181,10 @@ their simulations. It multiplies the measured noise into the scatter estimate,
 hence the smoothing.
 
 .. note::
-   The Y-90 tutorial's pixel-wise arm still sits about 27% below the true
-   scatter sum. Pre-smoothing the simulated scatter and total changes the
-   estimator but does not resolve that drift. The next check is a frozen-image
-   comparison with an independent SIMIND seed, which separates estimator bias
-   from image- and source-dependence.
+   The Y-90 tutorial's pixel-wise arm sat about 27% below the true scatter
+   sum in the stored run, which used the pre-fix ratio-first estimator. That
+   figure is a legacy observation: the examples have not been re-run with the
+   corrected estimator, so its effect on the 27% is unmeasured, and the drift
+   investigation is unresolved. The next check is a frozen-image comparison
+   with an independent SIMIND seed, which separates estimator bias from
+   image- and source-dependence.

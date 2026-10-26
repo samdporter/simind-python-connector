@@ -369,13 +369,14 @@ axes[1].legend()
 plt.show()
 
 # %%
-# The estimates of known activity and of the Dewaraja global model stay within 3%
-# of the true scatter sum (5.692e5) at every update, and the global model's scale
-# stays near 1130. The pixel-wise estimate drifts down to about 27% below the
-# true sum. That drift predates the 2.0.2 pre-smoothing change and remains
-# unresolved; the change corrects the estimator order but is not claimed to fix
-# it. The next check is a frozen-image comparison with an independent SIMIND
-# seed.
+# The stored run's estimates of known activity and of the Dewaraja global model
+# stay within 3% of the true scatter sum (5.692e5) at every update, and the
+# global model's scale stays near 1130. Its pixel-wise estimate drifts down to
+# about 27% below the true sum. That 27% figure is a legacy observation from
+# the pre-fix ratio-first estimator: this example has not been re-run with the
+# corrected estimator, so its effect on the figure is unmeasured and the drift
+# investigation is unresolved. The next check is a frozen-image comparison with
+# an independent SIMIND seed.
 #
 # The two reference normalisations estimate about 8.2e5, 6.4e5 and 5.9e5. The
 # first is 1.4 times the true scatter, and the reconstruction without correction
@@ -464,9 +465,12 @@ plt.show()
 # Known activity and the Dewaraja global model have a last estimate within 3% of
 # the true sum and follow the true scatter over the views. The reference
 # normalisations are 4 to 5% above it and the pixel-wise model is 27% below.
-# These pixel-wise values predate the 2.0.2 estimator change and are superseded
-# by a rerun of this example. Bin by bin, every strategy differs from the true
-# scatter by about the true sum, including the strategies whose sums agree.
+# These pixel-wise values are a legacy observation from the pre-fix
+# ratio-first estimator, superseded by the estimator change; the rerun that
+# would replace them has not been done, so the corrected estimator's effect on
+# them is unmeasured and the drift is unresolved. Bin by bin, every strategy
+# differs from the true scatter by about the true sum, including the strategies
+# whose sums agree.
 
 # %%
 # Reconstructions

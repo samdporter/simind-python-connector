@@ -20,8 +20,10 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
    and then smooths the result again. Those stored pixel-wise results are kept
    for continuity but are superseded by the estimator change. The global
    diagnostic is unaffected and stays separate. The roughly 27% pixel-wise
-   drift remains unresolved; the next check is a frozen-image comparison with
-   an independent SIMIND seed, not a claim that pre-smoothing fixes it.
+   drift is a legacy observation from those pre-fix stored results; the
+   corrected estimator's effect on it has not been measured, and the drift
+   remains unresolved. The next check is a frozen-image comparison with an
+   independent SIMIND seed, not a claim that pre-smoothing fixes it.
 
 The history-doubling probe uses a reduced 60-view geometry to keep its cost
 down. The reference-sum and reference-trimmed arms collapsed in that probe
@@ -989,8 +991,10 @@ def source_quantization_scale(source):
 def smooth_scatter(array, fwhm_bins=SMOOTHING_FWHM_BINS, across_views=True):
     """Gaussian-smooth a projection along axial, bin and optionally view axes.
 
-    The total is preserved. With ``across_views`` the view axis wraps, which
-    assumes the views cover 360 degrees.
+    The total is preserved when it stands clear of the rounding floor of the
+    sum; a zero-sum signed field keeps its smoothed values. With
+    ``across_views`` the view axis wraps, which assumes the views cover 360
+    degrees.
     """
     values = np.asarray(array, dtype=np.float64)
     sigma = [0.0] * values.ndim
@@ -1000,9 +1004,15 @@ def smooth_scatter(array, fwhm_bins=SMOOTHING_FWHM_BINS, across_views=True):
         sigma[-2] = sigma[-1]
         mode[-2] = "wrap"
     smoothed = gaussian_filter(values, sigma, mode=mode)
-    total = smoothed.sum()
-    if total != 0.0:
-        smoothed *= values.sum() / total
+    # Keep the original total, but only when it stands clear of the rounding
+    # floor of the sum: a cancelling signed field sums to about zero, and so
+    # does its smoothed version, so their ratio would be an arbitrary factor
+    # (zero erases the field).
+    original_sum = values.sum()
+    if abs(original_sum) > 1e-9 * np.abs(values).sum():
+        total = smoothed.sum()
+        if total != 0.0:
+            smoothed *= original_sum / total
     return smoothed.astype(np.float32)
 
 
@@ -1084,9 +1094,13 @@ def build_additive(
         numerator = scatter
         denominator_values = total
         if smoothing_fwhm_bins is not None:
-            # Smooth the MC scatter and its total before dividing. The ratio of
-            # two noisy fields is biased low; smoothing first removes most of
-            # that bias. The final smoothing below is retained.
+            # Smooth the MC scatter and its total before dividing. In the
+            # fixed-primary, noisy-scatter control, this pre-smoothing reduced
+            # the ratio noise of the summed estimate; how a noisy ratio behaves
+            # in general depends on the covariance between numerator and
+            # denominator, so that is an observation about the control, not a
+            # general claim about MC ratios, and it does not explain the
+            # unresolved 27% drift. The final smoothing below is retained.
             numerator = smooth_scatter(numerator, smoothing_fwhm_bins)
             denominator_values = smooth_scatter(denominator_values, smoothing_fwhm_bins)
         fraction = np.divide(

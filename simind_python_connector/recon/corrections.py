@@ -88,10 +88,14 @@ class ScatterCorrection:
                 f"total shape {total_array.shape} does not match "
                 f"scatter shape {scatter_array.shape}"
             )
-        # Smooth the MC scatter and its total before forming the fraction. The
-        # ratio of two noisy fields is biased low, even when both are unbiased;
-        # smoothing first removes most of that bias. The final smoothing in
-        # estimate() is retained.
+        # Smooth the MC scatter and its total before forming the fraction. In
+        # the fixed-primary, noisy-scatter control used to check this order,
+        # pre-smoothing reduced the ratio noise in the summed estimate. The
+        # direction and size of a noisy ratio's error depend on the covariance
+        # between numerator and denominator, so this is an observation about
+        # that control, not a general theorem about Monte Carlo ratios, and it
+        # does not account for the unresolved pixel-wise drift. The final
+        # smoothing in estimate() is retained.
         if self.smoothing_fwhm_bins is not None:
             scatter_array = _smooth_array(
                 scatter_array, self.smoothing_fwhm_bins, self.smooth_across_views
@@ -113,7 +117,12 @@ class ScatterCorrection:
 def _smooth_array(
     array: Any, fwhm_bins: float, across_views: bool = False
 ) -> np.ndarray:
-    """Gaussian-smooth a projection array, keeping its total."""
+    """Gaussian-smooth a projection array, keeping its total.
+
+    The total is restored by rescaling only when the input sum stands clear
+    of the rounding floor of that sum, so a zero-sum signed field keeps its
+    smoothed values instead of being multiplied by an arbitrary factor.
+    """
     from scipy.ndimage import gaussian_filter
 
     values = np.asarray(array, dtype=np.float64)
@@ -125,9 +134,15 @@ def _smooth_array(
         sigma[-2] = sigma[-1]
         mode[-2] = "wrap"
     smoothed = gaussian_filter(values, sigma, mode=mode)
-    total = smoothed.sum()
-    if total != 0.0:
-        smoothed *= values.sum() / total
+    # Keep the original total, but only when it stands clear of the rounding
+    # floor of the sum. A cancelling signed field sums to about zero, and so
+    # does its smoothed version: their ratio is then an arbitrary factor (and
+    # zero erases the field), so such a field is left exactly as smoothed.
+    original_sum = values.sum()
+    if abs(original_sum) > 1e-9 * np.abs(values).sum():
+        total = smoothed.sum()
+        if total != 0.0:
+            smoothed *= original_sum / total
     return smoothed.astype(np.float32)
 
 

@@ -179,6 +179,29 @@ def test_smoothing_across_views_keeps_the_total_and_wraps_round():
     assert scatter[:, 5, :].sum() == pytest.approx(scatter[:, 1, :].sum())
 
 
+def test_smoothing_keeps_a_zero_sum_signed_field():
+    """A cancelling signed field must not be erased by its smoothed residual."""
+    array = np.zeros((5, 3, 7))  # (axial, view, bin)
+    array[1, 1, 1] = 6.0
+    array[3, 1, 5] = -6.0
+    assert array.sum() == 0.0
+    projector = _Projector({"sca_w1": FakeData(array)}, ScoringRoutine.SCATTWIN)
+
+    result = (
+        ScatterCorrection(projector, smoothing_fwhm_bins=2.0, smooth_across_views=True)
+        .estimate("image")
+        .as_array()
+    )
+
+    np.testing.assert_allclose(
+        result, _gaussian_smooth(array, 2.0, True), rtol=1e-5, atol=1e-6
+    )
+    assert np.isfinite(result).all()
+    assert result.sum() == pytest.approx(0.0, abs=1e-5)
+    assert result[1, 1, 1] > 0.0
+    assert result[3, 1, 5] < 0.0
+
+
 def _gaussian_smooth(array, fwhm_bins, across_views=False):
     """Independent NumPy/SciPy reference for the correction's smoothing."""
     from scipy.ndimage import gaussian_filter
@@ -191,9 +214,14 @@ def _gaussian_smooth(array, fwhm_bins, across_views=False):
         sigma[-2] = sigma[-1]
         mode[-2] = "wrap"
     smoothed = gaussian_filter(values, sigma, mode=mode)
-    total = smoothed.sum()
-    if total != 0.0:
-        smoothed *= values.sum() / total
+    # Rescale only for a sum that stands clear of its rounding floor: a
+    # cancelling signed field would otherwise be scaled by an arbitrary factor
+    # (often zero) drawn from two floor-level residuals.
+    original_sum = values.sum()
+    if abs(original_sum) > 1e-9 * np.abs(values).sum():
+        total = smoothed.sum()
+        if total != 0.0:
+            smoothed *= original_sum / total
     return smoothed.astype(np.float32)
 
 
@@ -397,6 +425,45 @@ def test_pixelwise_smoothing_rescues_a_raw_zero_bin_from_its_neighbours():
         .as_array()
     )
     assert result[0, 2, 3] > 0.0
+
+
+def test_pixelwise_smoothing_keeps_a_zero_sum_signed_scatter():
+    """A zero-sum signed scatter survives pre-smoothing, division and the
+    final smoothing, with the smoothed denominator deciding the division."""
+    shape = (5, 3, 7)  # (axial, view, bin)
+    scatter = np.zeros(shape)
+    scatter[1, 1, 1] = 6.0
+    scatter[3, 1, 5] = -6.0
+    assert scatter.sum() == 0.0
+    total = np.full(shape, 10.0)
+    total[2, 1, 2] = 0.0  # raw zero bin, positive once smoothed
+    primary = total - scatter
+    measured = np.full(shape, 100.0)
+    projector = _Projector(_penetrate(total, primary), ScoringRoutine.PENETRATE)
+
+    result = (
+        ScatterCorrection(
+            projector,
+            measured=FakeData(measured),
+            smoothing_fwhm_bins=2.0,
+            smooth_across_views=True,
+        )
+        .estimate("image")
+        .as_array()
+    )
+
+    np.testing.assert_allclose(
+        result,
+        _smoothed_pixelwise(scatter, total, measured, 2.0, across_views=True),
+        rtol=1e-4,
+        atol=1e-5,
+    )
+    assert np.isfinite(result).all()
+    # Signed scatter is kept, not clipped and not scaled to zero.
+    assert result[1, 1, 1] > 0.0
+    assert result[3, 1, 5] < 0.0
+    # Division uses the smoothed total: the raw-zero bin is rescued.
+    assert result[2, 1, 2] > 0.0
 
 
 def test_pixelwise_smoothing_accepts_tiny_positive_denominators():
