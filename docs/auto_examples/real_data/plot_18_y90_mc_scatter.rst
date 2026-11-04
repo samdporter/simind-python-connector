@@ -23,21 +23,33 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
 
 .. important::
    This tutorial reports an audited negative result. Statistical adequacy was
-   not established: the smoothed-scatter seed L1 was 6.24% against a 5% gate,
-   the known-activity two-refresh change was 6.22% against 5%, and the
-   history-doubling check did not establish native-geometry convergence. The
-   Dewaraja global arm collapsed in this configuration and is shown only as a
+   not established: the native-geometry history-doubling gate failed at 80.1%.
+   The reference-sum and reference-trimmed probe arms nearly collapsed
+   (sphere/liver ratios 0.042 and 0.070 at NN=4, 0.002 and 0.003 at NN=8), so
+   that gate is dominated by those arms and does not establish convergence.
+   The known-activity ratio changed from 1.61 to 1.67 (3.45%, above the 2%
+   gate) and the pixel-wise ratio from 1.74 to 1.72 (0.96%, within it), both
+   far below the collapsed-arm changes. The independent-seed check passed
+   (smoothed scatter L1 3.19%, gate 5%), as did the two-refresh stability check
+   (4.79%, gate 5%) and the two-iteration extension (0.89%, gate 2%). The
+   Dewaraja
+   global arm collapsed in this configuration and is shown only as a
    diagnostic; it is not quantitatively interpretable and it is not ranked
    against the other strategies. The primary ratios are sensitive to the
    frozen sphere centre, and the results do not support a robust strategy
    ranking or a quantitative superiority claim.
 
-The history-doubling probe uses a reduced 60-view geometry to keep its cost
-down. The reference-sum and reference-trimmed arms collapsed in that probe
-(NN=1/NN=2 ratios 0.107/0.218 and 0.008/0.023), so the 179.48% largest change
-is a probe artefact rather than native-geometry evidence. The known-activity
-(+10.2%) and pixel-wise (+1.6%) changes are usable. A native-geometry history
-check was not established.
+The history-doubling and independent-seed probes run on the native 120-view
+geometry at the same higher history multiplier as the main runs, so they test
+convergence rather than a reduced-geometry surrogate. The run still does not
+establish statistical adequacy where a gate fails, and no strategy ranking or
+calibrated recovery is claimed.
+
+The figures below are published by Sphinx-Gallery: the uncorrected baseline
+and the four noncollapsed strategies on one shared display scale, the collapsed
+global arm in a separate diagnostic panel, the profiles through the physical
+hot-sphere centre, the scatter estimates and the primary ratio, and the
+registration and volume-of-interest overlays.
 
 Reconstruct a measured Y-90 phantom acquisition with SIRF OSEM and a SIMIND
 Monte Carlo scatter estimate, and compare four usable ways of putting that
@@ -84,28 +96,36 @@ halved and the second is a damped average. The five second-refresh runs are
 executed in parallel, each with its own output directory.
 
 .. warning::
-   This example takes several hours. Nearly all of it is in six SIMIND runs at
-   120 views, two more for the independent-seed check and two for the
-   history-doubling check. A source map is quantized at a scale that keeps the
-   activity lost to integer rounding below 1%, so the run time is set by the
-   statistics rather than by the reconstruction.
+   A fresh run takes many hours. Nearly all of it is in six SIMIND runs at
+   120 views, two more for the independent-seed check and up to two for the
+   native-geometry history-doubling check. Every run uses the same history
+   multiplier (four by default). A source map is quantized at a scale that
+   keeps the activity lost to integer rounding below 1%, so the run time is set
+   by the statistics rather than by the reconstruction. Completed realizations
+   are recorded with a source/map/settings manifest and reused on a later run
+   at the same settings, so the reconstruction and figures can be redone
+   without repeating the Monte Carlo simulation. Set
+   ``SIMIND_Y90_REFRESH_SIMULATIONS=1`` to force a fresh simulation.
 
 The Y-90 phantom data are not published for download yet. Set
 ``SIMIND_CONNECTOR_Y90_DATA`` to a directory holding ``peak.dcm``,
 ``peak.hs``, ``peak.s``, ``umap_zoomed.hv``, ``umap_zoomed.v`` and ``ctac/``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 80-82
+.. GENERATED FROM PYTHON SOURCE LINES 97-99
 
 Setup
 -----
 
-.. GENERATED FROM PYTHON SOURCE LINES 82-201
+.. GENERATED FROM PYTHON SOURCE LINES 99-254
 
 .. code-block:: Python
 
 
+    import hashlib
     import json
     import os
+    import shutil
+    import sys
     import time
     import warnings
     from concurrent.futures import ProcessPoolExecutor
@@ -169,6 +189,23 @@ Setup
     TOTAL_SUBITERATIONS = SUBITERATIONS_PER_PASS * PASSES
     REFERENCE_SUBITERATIONS = 12
 
+    # Effective histories per source photon. Four times the previous smoke level is
+    # the published baseline for this page; the native-geometry history-doubling
+    # probe then compares this multiplier with twice this multiplier. The
+    # environment override exists for smoke tests and must not be used for a
+    # published run.
+    HISTORY_MULTIPLIER = int(os.environ.get("SIMIND_Y90_HISTORY_MULTIPLIER", "4"))
+    if HISTORY_MULTIPLIER < 1:
+        raise ValueError("SIMIND_Y90_HISTORY_MULTIPLIER must be a positive integer")
+
+    # Completed realizations are kept on disk with their source map, density map and
+    # job settings. A later run at the same settings reloads them instead of
+    # repeating the Monte Carlo simulation; the reconstruction and figures still run
+    # from scratch. Bump the version when the simulator configuration changes in a
+    # way that the recorded settings do not capture.
+    SIMULATION_CACHE_VERSION = 1
+    REFRESH_SIMULATIONS = os.environ.get("SIMIND_Y90_REFRESH_SIMULATIONS") == "1"
+
     # Starting source scale. Each run is raised in 1.25x steps only when more than
     # 1% of its source activity would be lost to integer quantization; the measured
     # scale and loss are reported for every run.
@@ -222,6 +259,20 @@ Setup
             return path.name
 
 
+    def engine_identity():
+        """Record which SIMIND installation produced the Monte Carlo data."""
+        binary = os.environ.get("SIMIND_BIN") or shutil.which("simind") or ""
+        return {
+            "version": os.environ.get("SIMIND_VERSION"),
+            "binary": binary,
+            "root": os.environ.get("SIMIND_ROOT"),
+            "smc_dir": os.environ.get("SIMIND_SMC_DIR")
+            or os.environ.get("SIMIND_DATA_DIR"),
+            "history_multiplier": HISTORY_MULTIPLIER,
+            "probe_geometry": "native 120-view measured geometry",
+            "seeds": [101, 202],
+            "platform": sys.platform,
+        }
 
 
 
@@ -229,7 +280,9 @@ Setup
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 202-208
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 255-261
 
 CT series and patient-to-SPECT frame
 ------------------------------------
@@ -238,7 +291,7 @@ The CT slices are not stored in spatial order and are sorted by
 patient-to-SPECT affine uses the NM detector centre in x and z and the CT
 table height in y; no origin is re-derived from the images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 208-359
+.. GENERATED FROM PYTHON SOURCE LINES 261-412
 
 .. code-block:: Python
 
@@ -400,7 +453,7 @@ table height in y; no origin is re-derived from the images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 360-367
+.. GENERATED FROM PYTHON SOURCE LINES 413-420
 
 Registration
 ------------
@@ -410,7 +463,7 @@ finite values, eroded once to keep the body/table boundary out of the edge
 correlation. The acceptance criterion is a Euclidean offset of at most one
 voxel. The measured offset is reported, not applied to the maps.
 
-.. GENERATED FROM PYTHON SOURCE LINES 367-552
+.. GENERATED FROM PYTHON SOURCE LINES 420-605
 
 .. code-block:: Python
 
@@ -606,7 +659,7 @@ voxel. The measured offset is reported, not applied to the maps.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 553-559
+.. GENERATED FROM PYTHON SOURCE LINES 606-612
 
 SIRF resampling
 ---------------
@@ -615,7 +668,7 @@ resampler's zero padding becomes -1000 HU. The reference is an empty image
 with the target SPECT affine and the identity transform is deliberate. The
 resampled array is transferred to a STIR image on the vendor grid.
 
-.. GENERATED FROM PYTHON SOURCE LINES 559-608
+.. GENERATED FROM PYTHON SOURCE LINES 612-661
 
 .. code-block:: Python
 
@@ -675,7 +728,7 @@ resampled array is transferred to a STIR image on the vendor grid.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 609-615
+.. GENERATED FROM PYTHON SOURCE LINES 662-668
 
 Liver VOI
 ---------
@@ -684,7 +737,7 @@ closed component of the wall on each CT slice, excluding the wall itself, air,
 the lung domes and other compartments. The mask is generated once from the CT,
 before any reconstruction, and is never changed by a strategy.
 
-.. GENERATED FROM PYTHON SOURCE LINES 615-761
+.. GENERATED FROM PYTHON SOURCE LINES 668-814
 
 .. code-block:: Python
 
@@ -841,7 +894,7 @@ before any reconstruction, and is never changed by a strategy.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 762-775
+.. GENERATED FROM PYTHON SOURCE LINES 815-828
 
 Metrics
 -------
@@ -857,7 +910,7 @@ and sphere. It is affected by recovery, spillover and the VOI uncertainty.
 The activities are those at the scan; no decay correction is applied, and
 +-2% is the supplied activity uncertainty only.
 
-.. GENERATED FROM PYTHON SOURCE LINES 775-1008
+.. GENERATED FROM PYTHON SOURCE LINES 828-1061
 
 .. code-block:: Python
 
@@ -1101,12 +1154,12 @@ The activities are those at the scan; no decay correction is applied, and
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1009-1011
+.. GENERATED FROM PYTHON SOURCE LINES 1062-1064
 
 Scatter strategies
 ------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1011-1090
+.. GENERATED FROM PYTHON SOURCE LINES 1064-1143
 
 .. code-block:: Python
 
@@ -1196,12 +1249,12 @@ Scatter strategies
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1091-1093
+.. GENERATED FROM PYTHON SOURCE LINES 1144-1146
 
 Reconstruction schedule
 -----------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1093-1199
+.. GENERATED FROM PYTHON SOURCE LINES 1146-1252
 
 .. code-block:: Python
 
@@ -1318,12 +1371,12 @@ Reconstruction schedule
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1200-1202
+.. GENERATED FROM PYTHON SOURCE LINES 1253-1255
 
 SIRF and SIMIND run-time helpers
 --------------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1202-1292
+.. GENERATED FROM PYTHON SOURCE LINES 1255-1348
 
 .. code-block:: Python
 
@@ -1395,6 +1448,9 @@ SIRF and SIMIND run-time helpers
             reconstructor.set_objective_function(objective)
             reconstructor.set_num_subsets(NUM_SUBSETS)
             reconstructor.set_num_subiterations(subiterations)
+            # Do not write per-subiteration Interfile images into the working
+            # directory.
+            reconstructor.disable_output()
             reconstructor.set_input(acquisition_data)
             reconstructor.set_up(image)
             reconstructor.reconstruct(image)
@@ -1424,12 +1480,12 @@ SIRF and SIMIND run-time helpers
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1293-1295
+.. GENERATED FROM PYTHON SOURCE LINES 1349-1351
 
 SIMIND job
 ----------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1295-1496
+.. GENERATED FROM PYTHON SOURCE LINES 1351-1644
 
 .. code-block:: Python
 
@@ -1446,12 +1502,75 @@ SIMIND job
         adaptor.add_runtime_switch("CC", "ma-mlegp")
 
 
+    def _array_digest(array):
+        """Return a stable digest for a float32 array."""
+        contiguous = np.ascontiguousarray(array, dtype=np.float32)
+        return hashlib.sha256(contiguous.tobytes()).hexdigest()
+
+
+    def _simulation_settings(job, density):
+        """Describe everything a cached realization depends on."""
+        return {
+            "cache_version": SIMULATION_CACHE_VERSION,
+            "prefix": job["prefix"],
+            "nn": job.get("nn", 1),
+            "seed": job.get("seed"),
+            "activity_mbq": job["activity_mbq"],
+            "time_per_projection_s": job["time_per_projection_s"],
+            "quantization_scale": job["quantization_scale"],
+            "density_digest": _array_digest(density),
+            "engine": {
+                "version": os.environ.get("SIMIND_VERSION"),
+                "root": os.environ.get("SIMIND_ROOT"),
+                "binary": os.environ.get("SIMIND_BIN"),
+            },
+        }
+
+
+    def _cached_simulation(output_dir, settings, source):
+        """Reload a completed realization when its recorded inputs still match.
+
+        The saved ``source.npy`` is the source map the simulation actually used.
+        It should match the freshly reconstructed source exactly; a small tolerance
+        absorbs only last-bit differences from the reconstruction. The settings
+        record the history multiplier, seed, activity and density so a changed
+        experiment cannot silently reuse old counts.
+        """
+        if REFRESH_SIMULATIONS:
+            return None
+        manifest_file = output_dir / "manifest.json"
+        if not manifest_file.is_file():
+            return None
+        for name in ("all_interactions.npy", "geom_coll_primary.npy", "components.json"):
+            if not (output_dir / name).is_file():
+                return None
+        try:
+            manifest = json.loads(manifest_file.read_text())
+        except (OSError, ValueError):
+            return None
+        if manifest.get("settings") != settings:
+            return None
+        previous_file = output_dir / "source.npy"
+        if not previous_file.is_file():
+            return None
+        try:
+            previous = np.load(previous_file)
+        except (OSError, ValueError):
+            return None
+        if previous.shape != source.shape or not np.allclose(
+            previous, source, rtol=1e-5, atol=1e-6
+        ):
+            return None
+        return manifest.get("result", {})
+
+
     def simulate_job(job):
         """Run one SIMIND simulation and save its raw components.
 
         This is a top-level function so a process pool can run several independent
         second-refresh realizations in parallel. Every job has its own output
-        directory and output prefix.
+        directory and output prefix. A completed realization whose recorded inputs
+        still match is reloaded rather than simulated again.
         """
         from simind_python_connector import SirfSimindAdaptor, configs
 
@@ -1467,6 +1586,21 @@ SIMIND job
         density = np.load(job["density"])
         output_dir = Path(job["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
+        loss = quantization_loss(source, job["quantization_scale"])
+        settings = _simulation_settings(job, density)
+        cached = _cached_simulation(output_dir, settings, source)
+        if cached is not None:
+            Path(job["source"]).unlink(missing_ok=True)
+            return {
+                "name": job["name"],
+                "dir": str(output_dir),
+                "seconds": float(cached.get("seconds", 0.0)),
+                "sums": cached["sums"],
+                "source_sum": float(source.sum()),
+                "quantization_loss": loss,
+                "quantization_scale": job["quantization_scale"],
+                "cached": True,
+            }
         source_image = _image_from_array(source)
         density_image = _image_from_array(density)
         adaptor = SirfSimindAdaptor(
@@ -1491,7 +1625,6 @@ SIMIND job
         start = time.perf_counter()
         outputs = projector.project(source_image)
         seconds = time.perf_counter() - start
-        loss = quantization_loss(source, job["quantization_scale"])
         sums = {}
         for key, value in outputs.items():
             sums[key] = float(value.sum())
@@ -1500,6 +1633,14 @@ SIMIND job
                     output_dir / f"{key}.npy",
                     np.asarray(value.as_array(), dtype=np.float32),
                 )
+        np.save(output_dir / "source.npy", source)
+        (output_dir / "manifest.json").write_text(
+            json.dumps(
+                {"settings": settings, "result": {"seconds": seconds, "sums": sums}},
+                indent=1,
+            )
+        )
+        Path(job["source"]).unlink(missing_ok=True)
         return {
             "name": job["name"],
             "dir": str(output_dir),
@@ -1508,6 +1649,7 @@ SIMIND job
             "source_sum": float(source.sum()),
             "quantization_loss": loss,
             "quantization_scale": job["quantization_scale"],
+            "cached": False,
         }
 
 
@@ -1534,7 +1676,9 @@ SIMIND job
         prefix = overrides.get("prefix", name.lower())
         output_dir = Path(output_root) / prefix
         output_dir.mkdir(parents=True, exist_ok=True)
-        source_file = output_dir / "source.npy"
+        # The candidate is compared with the source saved by a previous run before
+        # it replaces it, so a cache hit never overwrites the recorded input.
+        source_file = output_dir / "source_candidate.npy"
         source = np.asarray(image, dtype=np.float32)
         np.save(source_file, source)
         scale, loss = source_quantization_scale(source)
@@ -1566,6 +1710,8 @@ SIMIND job
                 "is lost to quantization even at the maximum scale"
             )
         result = simulate_job(job)
+        if result.get("cached"):
+            print(f"  reusing cached SIMIND realization {name}")
         _write_raw_sums(result)
         raw = _load_raw(result["dir"])
         raw["result"] = result
@@ -1624,6 +1770,8 @@ SIMIND job
             results = [future.result() for future in futures]
         outputs = {}
         for result in results:
+            if result.get("cached"):
+                print(f"  reusing cached SIMIND realization {result['name']}")
             _write_raw_sums(result)
             raw = _load_raw(result["dir"])
             raw["result"] = result
@@ -1641,12 +1789,12 @@ SIMIND job
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1497-1499
+.. GENERATED FROM PYTHON SOURCE LINES 1645-1647
 
 Templates and measured data
 ---------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1499-1551
+.. GENERATED FROM PYTHON SOURCE LINES 1647-1699
 
 .. code-block:: Python
 
@@ -1709,11 +1857,11 @@ Templates and measured data
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1552-1553
+.. GENERATED FROM PYTHON SOURCE LINES 1700-1701
 
 Figures
 
-.. GENERATED FROM PYTHON SOURCE LINES 1553-1770
+.. GENERATED FROM PYTHON SOURCE LINES 1701-1933
 
 .. code-block:: Python
 
@@ -1729,12 +1877,13 @@ Figures
         return np.clip((image - low) / (high - low), 0.0, 1.0)
 
 
-    def save_registration_overlay(path, ct_map, umap, report):
+    def save_registration_overlay(path, ct_map, umap, report, slice_index):
         plt = _pyplot()
         ct = _normalise(ct_map, 0.0, 0.25)
         reference = _normalise(umap, 0.0, 0.25)
+        slice_index = int(slice_index)
         planes = [
-            ("axial k=64", ct[64], reference[64]),
+            (f"axial k={slice_index}", ct[slice_index], reference[slice_index]),
             ("coronal j=64", ct[:, 64, :], reference[:, 64, :]),
             ("sagittal i=64", ct[:, :, 64], reference[:, :, 64]),
         ]
@@ -1750,41 +1899,47 @@ Figures
         )
         figure.tight_layout()
         figure.savefig(path, dpi=130)
-        plt.close(figure)
+        return figure
 
 
-    def save_voi_overlay(path, reference, liver, sphere):
+    def save_voi_overlay(path, reference, liver, sphere, centre_voxel):
         plt = _pyplot()
         contours = [(liver, "lime", "liver"), (sphere, "red", "sphere")]
+        k = int(round(float(centre_voxel[0])))
+        j = int(round(float(centre_voxel[1])))
+        i = int(round(float(centre_voxel[2])))
         planes = [
-            ("axial k=64", 0, 64),
-            ("coronal j=54", 1, 54),
-            ("sagittal i=46", 2, 46),
+            (f"axial k={k}", 0, k),
+            (f"coronal j={j}", 1, j),
+            (f"sagittal i={i}", 2, i),
         ]
         figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
         for axis, (title, orientation, index) in zip(axes, planes):
             if orientation == 0:
-                image = reference[64]
-                lines = [(mask[64], colour) for mask, colour, _ in contours]
+                image = reference[index]
+                lines = [(mask[index], colour) for mask, colour, _ in contours]
             elif orientation == 1:
-                image = reference[:, 54, :]
-                lines = [(mask[:, 54, :], colour) for mask, colour, _ in contours]
+                image = reference[:, index, :]
+                lines = [(mask[:, index, :], colour) for mask, colour, _ in contours]
             else:
-                image = reference[:, :, 46]
-                lines = [(mask[:, :, 46], colour) for mask, colour, _ in contours]
+                image = reference[:, :, index]
+                lines = [(mask[:, :, index], colour) for mask, colour, _ in contours]
             axis.imshow(image, cmap="gray")
             for mask, colour in lines:
                 axis.contour(mask > 0.5, levels=[0.5], colors=[colour], linewidths=1.2)
             axis.set_title(title)
             axis.axis("off")
-        figure.suptitle("Frozen liver (green) and sphere (red) VOIs")
+        figure.suptitle(
+            "Frozen liver (green) and sphere (red) VOIs at the physical hot-sphere location"
+        )
         figure.tight_layout()
         figure.savefig(path, dpi=130)
-        plt.close(figure)
+        return figure
 
 
     def save_reconstructions(path, images, titles, slice_index, vmax=None, title=None):
         plt = _pyplot()
+        slice_index = int(slice_index)
         values = [image[slice_index] for image in images]
         shared = vmax is not None
         if vmax is None:
@@ -1805,10 +1960,9 @@ Figures
             shrink=0.7,
             label=f"activity (0 to {vmax:.3g}; {scale})",
         )
-        if title is not None:
-            figure.suptitle(title)
+        heading = f"axial k={slice_index} through the physical hot-sphere position"
+        figure.suptitle(heading if title is None else f"{title}\n{heading}")
         figure.savefig(path, dpi=130, bbox_inches="tight")
-        plt.close(figure)
         return vmax
 
 
@@ -1824,7 +1978,7 @@ Figures
         axis.legend()
         figure.tight_layout()
         figure.savefig(path, dpi=130)
-        plt.close(figure)
+        return figure
 
 
     def save_scatter(path, additives):
@@ -1838,7 +1992,7 @@ Figures
         axis.legend()
         figure.tight_layout()
         figure.savefig(path, dpi=130)
-        plt.close(figure)
+        return figure
 
 
     def save_profiles(path, images, centre_voxel):
@@ -1848,12 +2002,21 @@ Figures
         column = int(round(float(centre_voxel[2])))
         for index, (name, image) in enumerate(images.items()):
             axis.plot(image[:, row, column], color=f"C{index}", label=name)
+        axis.axvline(
+            int(round(float(centre_voxel[0]))),
+            color="0.5",
+            linestyle=":",
+            linewidth=1,
+            label="physical sphere slice",
+        )
         axis.set_xlabel("z voxel")
         axis.set_ylabel("activity")
+        axis.set_title(f"Profiles through the hot-sphere column j={row}, i={column}")
+
         axis.legend()
         figure.tight_layout()
         figure.savefig(path, dpi=130)
-        plt.close(figure)
+        return figure
 
 
     def main_and_diagnostic_names(valid_names):
@@ -1941,12 +2104,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1771-1773
+.. GENERATED FROM PYTHON SOURCE LINES 1934-1936
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1773-2585
+.. GENERATED FROM PYTHON SOURCE LINES 1936-2796
 
 .. code-block:: Python
 
@@ -1987,6 +2150,13 @@ Run the tutorial
         clear_stale_outputs(output_directory)
 
         print("Reading the CT and building the patient-to-SPECT affine")
+        identity = engine_identity()
+        print(
+            "Engine: SIMIND version "
+            f"{identity['version'] or 'unset'} at {identity['binary'] or 'not found'}; "
+            f"history multiplier {HISTORY_MULTIPLIER}; "
+            f"probe seeds {identity['seeds']}"
+        )
         ct_series = read_ct_series(data_directory / "ctac")
         target_affine = patient_to_spect_affine(data_directory / "peak.dcm", ct_series)
         print(
@@ -2011,8 +2181,16 @@ Run the tutorial
             "region_voxels": registration["region_voxels"],
         }
         _save_json(output_directory / "registration.json", registration)
+        frozen_sphere_voxel = np.linalg.solve(
+            target_affine, np.append(np.asarray(SPHERE_CENTRE_MM, float), 1.0)
+        )[:3]
+        registration_slice = int(round(float(frozen_sphere_voxel[2])))
         save_registration_overlay(
-            output_directory / "registration.png", attenuation, umap, registration
+            output_directory / "registration.png",
+            attenuation,
+            umap,
+            registration,
+            registration_slice,
         )
         print(
             "Registration: zero-offset Pearson "
@@ -2133,7 +2311,9 @@ Run the tutorial
             f"would inflate the ratio by {LIVER_MASS_G / liver_ml:.3f}x "
             f"(4.0 -> {TRUTH_RATIO * LIVER_MASS_G / liver_ml:.2f})"
         )
-        save_voi_overlay(output_directory / "vois.png", reference, liver, sphere)
+        save_voi_overlay(
+            output_directory / "vois.png", reference, liver, sphere, centre_voxel
+        )
         _save_json(
             output_directory / "vois.json",
             {
@@ -2177,7 +2357,12 @@ Run the tutorial
             source = np.asarray(image, float) * activity_support
             shared_source_total[0] = float(source.sum())
             raw = simulate_single(
-                "shared_refresh", source, template, density_file, simulations
+                "shared_refresh",
+                source,
+                template,
+                density_file,
+                simulations,
+                nn=HISTORY_MULTIPLIER,
             )
             return raw
 
@@ -2192,7 +2377,7 @@ Run the tutorial
                         template,
                         density_file,
                         schedule_dir,
-                        {"prefix": SLUGS[name]},
+                        {"prefix": SLUGS[name], "nn": HISTORY_MULTIPLIER},
                     )
                 )
             return simulate_many(
@@ -2389,23 +2574,18 @@ Run the tutorial
             f"(gate < {100 * MAX_QUANTIZATION_LOSS:.0f}%)"
         )
 
-        probe_step = 2
-        probe_template = reduced_template(
-            data_directory / "peak.hs",
-            simulations / "probes" / "probe_template.hs",
-            probe_step,
-        )
-        probe_measured = measured_subset(
-            measured,
-            data_directory / "peak.hs",
-            probe_step,
-            simulations / "probes" / "probe_measured",
-        )
+        # Native-geometry probes: the measured 120-view acquisition is used exactly
+        # as in the main schedule, so the convergence checks test the published
+        # geometry rather than a reduced surrogate.
+        probe_measured = measured
         probe_model = _make_model(probe_measured, ct_mu_image)
         probe_model.set_up(probe_measured, _image_from_array(initial_image, template_clone))
 
         frozen_source = common_image * activity_support
-        print("  independent-seed and history-doubling probes on the frozen source")
+        print(
+            "  independent-seed and history-doubling probes on the frozen source "
+            "(native 120-view geometry)"
+        )
         seed_jobs = [
             (
                 f"seed_{seed}",
@@ -2413,7 +2593,7 @@ Run the tutorial
                 template,
                 density_file,
                 simulations / "probes",
-                {"seed": seed},
+                {"seed": seed, "nn": HISTORY_MULTIPLIER},
             )
             for seed in (101, 202)
         ]
@@ -2421,18 +2601,18 @@ Run the tutorial
             (
                 "nn_1",
                 frozen_source,
-                probe_template,
+                template,
                 density_file,
                 simulations / "probes",
-                {"nn": 1},
+                {"nn": HISTORY_MULTIPLIER},
             ),
             (
                 "nn_2",
                 frozen_source,
-                probe_template,
+                template,
                 density_file,
                 simulations / "probes",
-                {"nn": 2},
+                {"nn": 2 * HISTORY_MULTIPLIER},
             ),
         ]
         probe_raws = simulate_many(seed_jobs + nn_jobs, workers=4)
@@ -2495,9 +2675,9 @@ Run the tutorial
             for name in valid_names
         }
         print(
-            "  NN=1 / NN=2 final-pass ratios (history-doubling probe; reduced "
-            "60-view geometry, reference arms collapsed there; not native-geometry "
-            "evidence): "
+            "  base / doubled-history final-pass ratios (history-doubling probe; "
+            "native 120-view geometry at "
+            f"NN={HISTORY_MULTIPLIER}/{2 * HISTORY_MULTIPLIER}): "
             + ", ".join(
                 f"{name} {nn_ratios[1][name]:.3f}/{nn_ratios[2][name]:.3f}"
                 for name in valid_names
@@ -2572,18 +2752,19 @@ Run the tutorial
 
         # %%
         # Figures
+        sphere_slice = int(round(float(centre_voxel[0])))
         main_high = save_reconstructions(
             output_directory / "reconstructions.png",
             [final_images[name] for name in main_names],
             main_names,
-            64,
+            sphere_slice,
         )
         if collapsed_names:
             save_reconstructions(
                 output_directory / "reconstructions_global.png",
                 [final_images[name] for name in collapsed_names],
                 [name for name in collapsed_names],
-                64,
+                sphere_slice,
                 vmax=main_high,
                 title=GLOBAL_HEADING,
             )
@@ -2637,9 +2818,14 @@ Run the tutorial
         # modelling are candidate contributors; no causal allocation or independent
         # absolute-sensitivity validation was established.
         #
-        # Statistical adequacy was not established: smoothed-scatter seed L1 was
-        # 6.24% against 5%; known-activity two-refresh change was 6.22% against 5%;
-        # the history-doubling check did not establish native-geometry convergence.
+        # Statistical adequacy was not established. The independent-seed check
+        # passed (smoothed-scatter L1 3.19%, gate 5%), the two-refresh stability
+        # check passed (4.79%, gate 5%) and the two-iteration extension passed
+        # (0.89%, gate 2%). The native-geometry history-doubling gate failed at
+        # 80.1% because the reference-sum and reference-trimmed probe arms nearly
+        # collapsed (0.042 versus 0.070 and 0.002 versus 0.003). The known-activity
+        # arm changed by 3.45% (above the 2% gate) and the pixel-wise arm by 0.96%
+        # (within it), far below the collapsed-arm changes.
         #
         # The tutorial reproduces the paper's normalisation algebra, not its full
         # physical experiment: the measured window is 75–225 keV rather than
@@ -2696,11 +2882,33 @@ Run the tutorial
             )
         )
 
+        all_realizations = [
+            result.shared_raw,
+            *result.second_raws.values(),
+            *probe_raws.values(),
+        ]
+        cached_realizations = sum(
+            bool(raw["result"].get("cached")) for raw in all_realizations
+        )
+        print(
+            f"SIMIND realizations: {cached_realizations} of {len(all_realizations)} "
+            "loaded from a matching cached run (timings below are the recorded "
+            "original runs)"
+        )
+
         elapsed = time.perf_counter() - started
         summary = {
             "status": "accepted" if all_passed else "quality_not_established",
             "elapsed_s": elapsed,
             "quantization_scale": QUANTIZATION_SCALE,
+            "engine": engine_identity(),
+            "simulation_reuse": {
+                "cache_version": SIMULATION_CACHE_VERSION,
+                "forced_refresh": REFRESH_SIMULATIONS,
+                "cached_realizations": cached_realizations,
+                "total_realizations": len(all_realizations),
+            },
+            "history_multiplier": HISTORY_MULTIPLIER,
             "registration": registration,
             "vois": json.load(open(output_directory / "vois.json")),
             "schedule": {
@@ -2712,6 +2920,9 @@ Run the tutorial
                 "damping": DAMPING,
                 "simind_runs": 6,
                 "simind_probe_runs": 4,
+                "history_multiplier": HISTORY_MULTIPLIER,
+                "history_multiplier_probe": 2 * HISTORY_MULTIPLIER,
+                "probe_geometry": "native 120-view measured geometry",
                 "shared_refresh_seconds": first_refresh_seconds,
                 "shared_quantization_scale": result.shared_raw.get(
                     "quantization_scale", QUANTIZATION_SCALE
@@ -2765,12 +2976,65 @@ Run the tutorial
 
 
 
+.. rst-class:: sphx-glr-horizontal
+
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_001.png
+         :alt: CT attenuation (red) and vendor umap (green): 0.296 voxels, 1.26 mm (pass), axial k=65, coronal j=64, sagittal i=64
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_001.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_002.png
+         :alt: Frozen liver (green) and sphere (red) VOIs at the physical hot-sphere location, axial k=65, coronal j=54, sagittal i=46
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_002.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_003.png
+         :alt: axial k=65 through the physical hot-sphere position, Known activity, Reference, sum, Reference, trimmed, Dewaraja, pixel-wise, Baseline
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_003.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_004.png
+         :alt: Global scaling — collapsed; diagnostic only, not quantitatively interpretable axial k=65 through the physical hot-sphere position, Dewaraja, global
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_004.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_005.png
+         :alt: plot 18 y90 mc scatter
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_005.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_006.png
+         :alt: plot 18 y90 mc scatter
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_006.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_007.png
+         :alt: Profiles through the hot-sphere column j=54, i=46
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_18_y90_mc_scatter_007.png
+         :class: sphx-glr-multi-img
+
 
 .. rst-class:: sphx-glr-script-out
 
  .. code-block:: none
 
     Reading the CT and building the patient-to-SPECT affine
+    Engine: SIMIND version 8 at /workspace/simind/simind; history multiplier 4; probe seeds [101, 202]
     CT volume: (656, 512, 512), HU -1024 to 1279
     SPECT LPS affine:
     [[   4.2578    0.        0.     -272.3695]
@@ -2786,203 +3050,93 @@ Run the tutorial
     SIMIND source support: 15948 voxels, 1231.0 mL
     Measured projections: (1, 128, 120, 128), sum 3783028.0
     Generating the independent attenuation-only reference reconstruction
-    Reference: 100.5 s, max 4.440, sum 95176.0
+    Reference: 94.1 s, max 4.440, sum 95176.0
     Reference hot-sphere centroid: [ -77.43 -181.69 -576.2 ] mm at voxel [64.52 53.71 45.78] (peak (63, 52, 45)); accepted centre (-77.43, -181.69, -576.2), difference 0.00 mm
     Sphere: 8.092 mL, centroid [ -77.43 -181.7  -576.21] mm
     Liver ex sphere: 978.17 mL, centroid [ -31.97 -172.15 -596.65] mm
     True liver mass 1149.49 g; the CT VOI is 14.9% smaller under the 1 g/mL approximation
     Dividing sampled liver activity by 1149.49 g instead of the VOI volume would inflate the ratio by 1.175x (4.0 -> 4.70)
     Building the reconstruction model and running the common pass
-    The phantom (545.0 mm across) is wider than the projection field of view (545.0 mm)
-    The phantom (545.0 mm axially) is longer than the projection field of view (545.0 mm)
-    
-
-
-
-                  SIMIND Monte Carlo Simulation Program    V8.0  
-    ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: shared_refresh    
-     Phantom B : bone      BackScatt.: pmt       OutputFile: shared_refresh    
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: shared_refresh_src
-     Cover.....: al        ScoreRout.: penetrate DensityImg: shared_refresh_dns
-    ------------------------------------------------------------------------------
-     PhotonEnergy.......: 150          y90       PhotonsPerProj....: 554429         
-     EnergyResolution...: 9.2          ma-mleg   Activity..........: 6432           
-     MaxScatterOrder....: 3            SPECT     DetectorLenght....: 21.25          
-     DetectorWidth......: 27           x-rays    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 225          BScatt    Distance to det...: 30             
-     LowerEneWindowTresh: 75           Random    ShiftSource X.....: 0              
-     PixelSize  I.......: 0.42578      Cover     ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.42578      Phantom   ShiftSource Z.....: 0              
-     HalfLength S.......: 27.249       Resolut   HalfLength P......: 27.249         
-     HalfWidth  S.......: 27.249       Forced    HalfWidth  P......: 27.249         
-     HalfHeight S.......: 27.249       Header    HalfHeight P......: 27.249         
-     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
-    ------------------------------------------------------------------------------
-                   Projection          Hits       Scatt/Tot    Progress
-  
-  
-    ------------------------------------------------------------------------------
-     GENERAL DATA
-     keV/channel........: 4                      CutoffEnergy......: 0              
-     Photons/Bq.........: 0.03968                StartingAngle.....: 180            
-     CameraOffset X.....: 0                      CoverThickness....: 0.1            
-     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
-     MatrixSize I.......: 128                    IntrinsicResolut..: 0.32           
-     MatrixSize J.......: 128                    AcceptanceAngle...: 5.10217        
-     Emission type......: 2                      Initial Weight....: 460.36353      
-     NN ScalingFactor...: 1                      Energy Channels...: 512            
-                                                                              
-     SPECT DATA
-     RotationMode.......: -360                   Nr of Projections.: 120            
-     RotationAngle......: 3                      Projection.[start]: 1              
-     Orbital fraction...: 1                      Projection...[end]: 120            
-                                                                              
-     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
-     CollimatorCode.....: ma-mleg                CollimatorType....: Parallel 
-     HoleSize X.........: 0.19                   Distance X........: 0.05           
-     HoleSize Y.........: 0.21939                Distance Y........: 0.153          
-     CenterShift X......: 0.12                   X-Ray flag........: T              
-     CenterShift Y......: 0.20785                CollimThickness...: 2.8            
-     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
-     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
-     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
-
-     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  83.04 %          83.72 %
-     Penetration........:  10.40 %           9.78 %
-     Scatter in collim..:   4.75 %           4.68 %
-     X-rays in collim...:   1.81 %           1.82 %
-                                                                              
-     K-photon1 74.16 keV:  40.24 %          50.78 %
-     K-photon2 85.36 keV:  15.38 %          49.22 %
-     K-photon3 26.27 keV:  35.82 %           0.00 %
-     K-photon4 29.83 keV:   8.55 %           0.00 %
-                                                                              
-     IMAGE-BASED PHANTOM DATA
-     RotationCentre.....:  65, 65                Bone definition...: 1170           
-     CT-Pixel size......: 0.42578                Slice thickness...: 0.42577        
-     StartImage.........: 1                      No of CT-Images...: 128            
-     MatrixSize I.......: 128                    CTmapOrientation..: 0              
-     MatrixSize J.......: 128                    StepSize..........: 0.1            
-     CenterPoint I......: 65                     ShiftPhantom X....: 0              
-     CenterPoint J......: 65                     ShiftPhantom Y....: 0              
-     CenterPoint K......: 65                     ShiftPhantom Z....: 0              
-                                                                              
-  
-    ------------------------------------------------------------------------------
-    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
-
-                           Energy Window %      :      Total Spectrum %
-                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  21.23  56.05   3.35   3.79  20.21  55.44   2.50   2.62
-     penetration..:   1.69   2.76   3.00   1.97   3.65   3.57   2.67   1.52
-     collim scatt.:   0.88   1.42   1.28   0.72   1.92   2.11   1.08   0.55
-     collim x-rays:   0.69   1.16   0.00   0.00   0.76   1.42   0.00   0.00
-                                                                              
-     INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 0.6803E+05     
-     MaxValue projection: 11.42          
-     CountRate spectrum.: 0.1706E+05     
-     CountRate E-Window.: 8479.          
-                                                                              
-     SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 2.11301        
-     Scatter/Total......: 0.67877        
-     Scatter order 1....: 45.66 %        
-     Scatter order 2....: 33.06 %        
-     Scatter order 3....: 21.28 %        
-                                                                              
-     CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.3606         
-     Efficiency spectrum: 0.7255         
-     Sensitivity Cps/MBq: 1.3183         
-     Sensitivity Cpm/uCi: 2.9265         
-                                                                              
-     Simulation started.: 2026:10:23 22:24:48
-     Simulation stopped.: 2026:10:23 22:42:59
-     Elapsed time.......: 0 h, 18 m and 11 s
-     DetectorHits.......: 351808         
-     DetectorHits/CPUsec: 323            
-                                                                              
-     OTHER INFORMATION
-     Test simulation
-     Compiled 2025:10:06 with intel Linux 
-     Current random number generator: ranmar
-     Energy resolution as function of 1/sqrt(E)
-     Header file: shared_refresh.h00
-     Linear angle sampling within acceptance angle
-     Inifile: simind.ini
-     Command: shared_refresh shared_refresh /NN:1/FI:y90/CC:ma-mlegp/PX:0.4257800102233887
-    Shared first-refresh SIMIND run: 1092 s, quantization loss 0.00%
+      reusing cached SIMIND realization shared_refresh
+      reusing cached SIMIND realization Known activity
+      reusing cached SIMIND realization Reference, sum
+      reusing cached SIMIND realization Reference, trimmed
+      reusing cached SIMIND realization Dewaraja, global
+      reusing cached SIMIND realization Dewaraja, pixel-wise
+    Shared first-refresh SIMIND run: 4791 s, quantization loss 0.00%
     Second-refresh SIMIND runs (parallel):
-      Known activity: 610 s
-      Reference, sum: 512 s
-      Reference, trimmed: 486 s
-      Dewaraja, global: 66 s
-      Dewaraja, pixel-wise: 721 s
+      Known activity: 3465 s
+      Reference, sum: 2790 s
+      Reference, trimmed: 2614 s
+      Dewaraja, global: 308 s
+      Dewaraja, pixel-wise: 4233 s
     Schedule: six SIMIND runs, two updates per corrected strategy, none for the baseline, 144 subiterations each
     Primary activity-concentration ratio (sphere/liver, truth 4.0):
       | Strategy | First corrected pass | Final ratio | Change |
       |---|---|---|---|
-      | Known activity | 1.667 | 1.771 | +6.22% |
-      | Reference, sum | 1.722 | 1.720 | -0.07% |
-      | Reference, trimmed | 1.735 | 1.733 | -0.13% |
-      | Dewaraja, pixel-wise | 1.619 | 1.664 | +2.78% |
+      | Known activity | 1.640 | 1.719 | +4.79% |
+      | Reference, sum | 1.671 | 1.703 | +1.90% |
+      | Reference, trimmed | 1.676 | 1.699 | +1.39% |
+      | Dewaraja, pixel-wise | 1.610 | 1.658 | +2.95% |
       | Baseline | no refresh | 1.579 | - |
     Diagnostic arm (not quantitatively interpretable):
       | Diagnostic arm | First corrected-pass ratio | Final ratio | Interpretation |
       |---|---|---|---|
-      | Global scaling | 0.00175 | 0.0713 | Collapsed; not quantitatively interpretable |
+      | Global scaling | 0.00111 | 0.0559 | Collapsed; not quantitatively interpretable |
     Relative calibration (body total set to 160.8 MBq):
       | Strategy | Sphere MBq | Sphere kBq/g | Liver MBq | Liver kBq/g | Total MBq |
       |---|---|---|---|---|---|
-      | Known activity | 0.354 | 43.8 | 24.20 | 24.7 | 160.80 |
-      | Reference, sum | 0.414 | 51.1 | 29.06 | 29.7 | 160.80 |
-      | Reference, trimmed | 0.410 | 50.6 | 28.58 | 29.2 | 160.80 |
-      | Dewaraja, pixel-wise | 0.959 | 118.5 | 69.64 | 71.2 | 160.80 |
+      | Known activity | 0.344 | 42.5 | 24.20 | 24.7 | 160.80 |
+      | Reference, sum | 0.408 | 50.5 | 29.00 | 29.6 | 160.80 |
+      | Reference, trimmed | 0.404 | 49.9 | 28.72 | 29.4 | 160.80 |
+      | Dewaraja, pixel-wise | 0.938 | 116.0 | 68.42 | 70.0 | 160.80 |
       | Baseline | 0.533 | 65.8 | 40.78 | 41.7 | 160.80 |
       | Truth | 4.40 | 544.4 | 156.40 | 136.1 | 160.8 |
       The collapsed arm's calibrated values are retained in summary.json for diagnostics and are not compared with these compartment estimates.
-      Reference, sum with the old whole-organ 1149.49 g denominator: 2.02
+      Reference, sum with the old whole-organ 1149.49 g denominator: 2.00
     125-centre sensitivity for the four corrected strategies (native-voxel centre offsets; ranges, not confidence intervals; the baseline is not included):
-      Known activity: nominal 1.771, 125-centre 0.961-2.127, ±1 1.352-2.089, ±2 0.961-2.127
-      Reference, trimmed: nominal 1.733, 125-centre 1.051-1.970, ±1 1.360-1.970, ±2 1.051-1.970
-      Reference, sum: nominal 1.720, 125-centre 1.020-1.960, ±1 1.373-1.960, ±2 1.020-1.960
-      Dewaraja, pixel-wise: nominal 1.664, 125-centre 1.182-1.811, ±1 1.415-1.811, ±2 1.182-1.811
-      combined: nominal 1.664-1.771, 125-centre 0.961-2.127, ±1 1.352-2.089, ±2 0.961-2.127
-      strategy ordering among the four corrected strategies changed in 86 of 125 centres; the baseline is not part of this count; no centre was selected
+      Known activity: nominal 1.719, 125-centre 0.986-2.051, ±1 1.295-2.022, ±2 0.986-2.051
+      Reference, sum: nominal 1.703, 125-centre 1.050-1.923, ±1 1.353-1.923, ±2 1.050-1.923
+      Reference, trimmed: nominal 1.699, 125-centre 1.042-1.922, ±1 1.349-1.922, ±2 1.042-1.922
+      Dewaraja, pixel-wise: nominal 1.658, 125-centre 1.188-1.791, ±1 1.404-1.791, ±2 1.188-1.791
+      combined: nominal 1.658-1.719, 125-centre 0.986-2.051, ±1 1.295-2.022, ±2 0.986-2.051
+      strategy ordering among the four corrected strategies changed in 108 of 125 centres; the baseline is not part of this count; no centre was selected
     Statistical adequacy
       collapsed source(s), quantization gate not applicable: Dewaraja, global
       maximum source quantization loss: 0.18% (gate < 1%)
-      independent-seed and history-doubling probes on the frozen source
-      seed scatter total difference: 0.06% (gate <= 2%)
-      seed smoothed-scatter relative L1: 6.24% (gate <= 5%)
-      NN=1 / NN=2 final-pass ratios (history-doubling probe; reduced 60-view geometry, reference arms collapsed there; not native-geometry evidence): Known activity 1.721/1.896, Reference, sum 0.107/0.218, Reference, trimmed 0.008/0.023, Dewaraja, pixel-wise 1.898/1.928
-      largest NN ratio change: 179.48% (gate <= 2%)
+      independent-seed and history-doubling probes on the frozen source (native 120-view geometry)
+      reusing cached SIMIND realization seed_101
+      reusing cached SIMIND realization seed_202
+      reusing cached SIMIND realization nn_1
+      reusing cached SIMIND realization nn_2
+      seed scatter total difference: 0.04% (gate <= 2%)
+      seed smoothed-scatter relative L1: 3.19% (gate <= 5%)
+      base / doubled-history final-pass ratios (history-doubling probe; native 120-view geometry at NN=4/8): Known activity 1.614/1.670, Reference, sum 0.042/0.070, Reference, trimmed 0.002/0.003, Dewaraja, pixel-wise 1.740/1.723
+      largest NN ratio change: 80.12% (gate <= 2%)
       collapsed arm excluded from the history-doubling gate: Dewaraja, global
       iteration-extension probe (two full iterations with the final term)
-      largest ratio change after two more iterations: 0.91% (gate <= 2%)
+      largest ratio change after two more iterations: 0.89% (gate <= 2%)
       two-refresh stability (first versus second refresh):
-        Known activity: 6.22% (gate <= 5%)
-        Reference, sum: 0.07% (gate <= 5%)
-        Reference, trimmed: 0.13% (gate <= 5%)
-        Dewaraja, pixel-wise: 2.78% (gate <= 5%)
-        Dewaraja, global: 3975.04% (diagnostic only; excluded from the gate)
+        Known activity: 4.79% (gate <= 5%)
+        Reference, sum: 1.90% (gate <= 5%)
+        Reference, trimmed: 1.39% (gate <= 5%)
+        Dewaraja, pixel-wise: 2.95% (gate <= 5%)
+        Dewaraja, global: 4945.47% (diagnostic only; excluded from the gate)
     Scatter fractions of the measured counts:
       Known activity: first 10.6%, final 15.9%
       Reference, sum: first 14.5%, final 12.9%
-      Reference, trimmed: first 15.5%, final 13.2%
-      Dewaraja, pixel-wise: first 25.1%, final 35.7%
+      Reference, trimmed: first 15.5%, final 13.1%
+      Dewaraja, pixel-wise: first 31.3%, final 45.0%
       Dewaraja, global (diagnostic only): first 39.4%, final 59.5%
     Normalised final scatter-estimate differences (relative L1):
       Known acti Reference, Reference, Dewaraja, 
-      Known activity          0.000      0.050      0.050      0.672
-      Reference, sum          0.050      0.000      0.039      0.671
-      Reference, trimmed      0.050      0.039      0.000      0.670
-      Dewaraja, pixel-wi      0.672      0.671      0.670      0.000
-    Diagnostic scale: shared/measured 0.269, global factor 3.718, measured counts in zero-SIMIND bins 44.0%
-    Total wall time: 134.0 min
+      Known activity          0.000      0.025      0.026      0.823
+      Reference, sum          0.025      0.000      0.020      0.822
+      Reference, trimmed      0.026      0.020      0.000      0.822
+      Dewaraja, pixel-wi      0.823      0.822      0.822      0.000
+    Diagnostic scale: shared/measured 0.269, global factor 3.716, measured counts in zero-SIMIND bins 31.6%
+    SIMIND realizations: 10 of 10 loaded from a matching cached run (timings below are the recorded original runs)
+    Total wall time: 120.1 min
     Summary written to y90_mc_scatter
     WARNING: Statistical adequacy was not established; see UNACCEPTED.txt
 
@@ -2992,7 +3146,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (134 minutes 1.688 seconds)
+   **Total running time of the script:** (120 minutes 8.844 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_18_y90_mc_scatter.py:

@@ -86,6 +86,45 @@ def test_run_osem_with_corrections_sets_each_additive_term(sirf_scene, monkeypat
     np.testing.assert_array_equal(initial.as_array(), 1.0)
 
 
+def test_run_osem_with_corrections_disables_intermediate_images(
+    sirf_scene, monkeypatch
+):
+    """Every pass must stop STIR writing per-subiteration images to disk."""
+    import sirf.STIR as sirf
+
+    from simind_python_connector.recon.osem import run_osem_with_corrections
+    from simind_python_connector.recon.updates import AdditiveUpdater, UpdateSchedule
+
+    measured, image, make_model = sirf_scene
+    created = []
+    base = sirf.OSMAPOSLReconstructor
+
+    class RecordingReconstructor(base):
+        def __init__(self):
+            super().__init__()
+            self.output_disabled = False
+            created.append(self)
+
+        def disable_output(self):
+            self.output_disabled = True
+            return base.disable_output(self)
+
+    monkeypatch.setattr(sirf, "OSMAPOSLReconstructor", RecordingReconstructor)
+    zero = measured.get_uniform_copy(0)
+    updater = AdditiveUpdater(FixedCorrection(zero), UpdateSchedule(every=1), zero)
+    run_osem_with_corrections(
+        measured,
+        make_model,
+        image.get_uniform_copy(1.0),
+        updater,
+        num_subsets=1,
+        subiterations_per_update=1,
+        num_updates=0,
+    )
+    assert created
+    assert all(reconstructor.output_disabled for reconstructor in created)
+
+
 def test_run_osem_with_corrections_rejects_non_multiple_subiterations(sirf_scene):
     from simind_python_connector.recon.osem import run_osem_with_corrections
     from simind_python_connector.recon.updates import AdditiveUpdater, UpdateSchedule

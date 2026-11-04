@@ -144,6 +144,15 @@
    "name": "float"
   }
  ],
+ "HISTORY_MULTIPLIER": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
  "LIVER_CT_VOLUME_ML": [
   {
    "is_class": false,
@@ -392,6 +401,15 @@
    "name": "int"
   }
  ],
+ "REFRESH_SIMULATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "bool"
+  }
+ ],
  "Reg.AffineTransformation": [
   {
    "is_class": false,
@@ -417,6 +435,15 @@
    "module": "sirf.Reg",
    "module_short": "sirf.Reg",
    "name": "NiftyResample"
+  }
+ ],
+ "SIMULATION_CACHE_VERSION": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
   }
  ],
  "SLUGS": [
@@ -725,6 +752,24 @@
    "name": "function"
   }
  ],
+ "_array_digest": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "_cached_simulation": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "_image_from_array": [
   {
    "is_class": false,
@@ -825,6 +870,15 @@
   }
  ],
  "_shown": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "_simulation_settings": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -973,6 +1027,15 @@
    "name": "dataclass"
   }
  ],
+ "engine_identity": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "fetch_y90_phantom": [
   {
    "is_class": false,
@@ -1044,6 +1107,22 @@
    "module": "multiprocessing",
    "module_short": "multiprocessing",
    "name": "get_context"
+  }
+ ],
+ "hashlib.sha256": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "hashlib",
+   "module_short": "hashlib",
+   "name": "sha256"
   }
  ],
  "hot_sphere_centroid": [
@@ -1135,6 +1214,22 @@
    "name": "load"
   }
  ],
+ "json.loads": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "json",
+   "module_short": "json",
+   "name": "loads"
+  }
+ ],
  "liver_cov": [
   {
    "is_class": false,
@@ -1181,15 +1276,6 @@
   }
  ],
  "mask_volume_ml": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "function"
-  }
- ],
- "measured_subset": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -1406,6 +1492,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "any"
+  }
+ ],
+ "np.append": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "append"
   }
  ],
  "np.arange": [
@@ -2596,15 +2698,6 @@
    "name": "pyplot"
   }
  ],
- "plt.close": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib.pyplot",
-   "module_short": "matplotlib.pyplot",
-   "name": "close"
-  }
- ],
  "plt.subplots": [
   {
    "is_class": false,
@@ -2851,6 +2944,22 @@
    "name": "shift"
   }
  ],
+ "shutil.which": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "shutil",
+   "module_short": "shutil",
+   "name": "which"
+  }
+ ],
  "simulate_job": [
   {
    "is_class": false,
@@ -2966,6 +3075,22 @@
    "module": "builtins",
    "module_short": "builtins",
    "name": "function"
+  }
+ ],
+ "sys.platform": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sys",
+   "module_short": "sys",
+   "name": "platform"
   }
  ],
  "time.perf_counter": [

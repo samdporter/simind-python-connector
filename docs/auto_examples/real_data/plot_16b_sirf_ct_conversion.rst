@@ -37,20 +37,29 @@ in the SPECT frame with a linear identity transform. SIRF's resampler pads
 with zero, so the CT is written as ``HU + 1000`` and ``1000`` is subtracted
 afterwards; padding therefore arrives as -1000 HU, i.e. air.
 
-.. GENERATED FROM PYTHON SOURCE LINES 23-27
+The page ends with a small matched reconstruction: the measured acquisition is
+reconstructed with no attenuation correction and with the CT-derived 150 keV
+map. The acquisition, initial support, subsets, subiterations and zero scatter
+are identical. This is a conversion sanity check, not an accuracy or ranking
+study. See :doc:`plot_17_y90_effective_energy` for the attenuation-energy
+comparison and :doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case
+study.
+
+.. GENERATED FROM PYTHON SOURCE LINES 31-35
 
 Setup
 -----
 The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
 pydicom, matplotlib, SciPy and nibabel.
 
-.. GENERATED FROM PYTHON SOURCE LINES 27-61
+.. GENERATED FROM PYTHON SOURCE LINES 35-77
 
 .. code-block:: Python
 
 
     import json
     import os
+    import time
     from dataclasses import dataclass
     from pathlib import Path
 
@@ -71,6 +80,13 @@ pydicom, matplotlib, SciPy and nibabel.
     GRID_CENTRE = (MATRIX_SIZE - 1) / 2.0
     ENERGY_KEV = 150.0
     LPS_TO_RAS = np.diag([-1.0, -1.0, 1.0, 1.0])
+    # Small matched reconstruction endpoint: the same measured acquisition, initial
+    # support, subset count and subiteration budget in both arms. The only change is
+    # the CT-derived 150 keV attenuation map. No scatter and no PSF are modelled.
+    RECON_SUBSETS = 12
+    RECON_ITERATIONS = 4
+    RECON_SUBITERATIONS = RECON_SUBSETS * RECON_ITERATIONS
+    HOT_SPHERE_CENTRE_MM = (-77.43, -181.69, -576.20)
 
 
     def _shown(path):
@@ -89,7 +105,7 @@ pydicom, matplotlib, SciPy and nibabel.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 62-68
+.. GENERATED FROM PYTHON SOURCE LINES 78-84
 
 Read the CT series
 ------------------
@@ -98,7 +114,7 @@ coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
 i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted; oblique
 acquisitions would need a full direction matrix.
 
-.. GENERATED FROM PYTHON SOURCE LINES 68-182
+.. GENERATED FROM PYTHON SOURCE LINES 84-198
 
 .. code-block:: Python
 
@@ -223,7 +239,7 @@ acquisitions would need a full direction matrix.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 183-191
+.. GENERATED FROM PYTHON SOURCE LINES 199-207
 
 Patient-to-SPECT frame
 ----------------------
@@ -234,7 +250,7 @@ axis. The y position is not in the NM header; the CT table height (-140 mm)
 supplies it in the shared frame of reference. No origin is re-derived from
 the images and no recentring is applied.
 
-.. GENERATED FROM PYTHON SOURCE LINES 191-239
+.. GENERATED FROM PYTHON SOURCE LINES 207-255
 
 .. code-block:: Python
 
@@ -293,7 +309,7 @@ the images and no recentring is applied.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 240-264
+.. GENERATED FROM PYTHON SOURCE LINES 256-280
 
 Registration report
 -------------------
@@ -320,7 +336,7 @@ refines the peak to subvoxel precision when the fit is negative definite,
 finite and locally bounded; otherwise the integer estimate is kept. A failed
 gate stops the tutorial before any accepted map is written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 264-459
+.. GENERATED FROM PYTHON SOURCE LINES 280-475
 
 .. code-block:: Python
 
@@ -526,7 +542,7 @@ gate stops the tutorial before any accepted map is written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 460-469
+.. GENERATED FROM PYTHON SOURCE LINES 476-485
 
 SIRF resampling route
 ---------------------
@@ -538,7 +554,7 @@ already express the registration. The resampled array is transferred to a
 clone of the STIR target image and checked for an exact value match, so the
 same route can feed a reconstruction in the SPECT frame.
 
-.. GENERATED FROM PYTHON SOURCE LINES 469-518
+.. GENERATED FROM PYTHON SOURCE LINES 485-534
 
 .. code-block:: Python
 
@@ -598,12 +614,12 @@ same route can feed a reconstruction in the SPECT frame.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 519-521
+.. GENERATED FROM PYTHON SOURCE LINES 535-537
 
 Figures and summary
 -------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 521-627
+.. GENERATED FROM PYTHON SOURCE LINES 537-724
 
 .. code-block:: Python
 
@@ -671,6 +687,86 @@ Figures and summary
         figure.savefig(path, dpi=130)
 
 
+    def reconstruct_pair(acquisition_file, reference, hu_grid, attenuation):
+        """Reconstruct the measured data without and with the CT attenuation map.
+
+        Both arms use the same acquisition, initial body support, 12 subsets and
+        48 subiterations. The only difference is the SPECTUB attenuation image.
+        """
+        import sirf.STIR as sirf
+
+        from simind_python_connector.utils import get_array
+
+        acquisition = sirf.AcquisitionData(str(acquisition_file))
+        support = np.ascontiguousarray((hu_grid > -400.0).astype(np.float32))
+        attenuation_image = reference.get_uniform_copy(0.0)
+        attenuation_image.fill(
+            np.ascontiguousarray(np.asarray(attenuation, dtype=np.float32)[..., ::-1])
+        )
+
+        def reconstruct(use_attenuation):
+            matrix = sirf.SPECTUBMatrix()
+            matrix.set_resolution_model(0.0, 0.0, False)
+            if use_attenuation:
+                matrix.set_attenuation_image(attenuation_image)
+            model = sirf.AcquisitionModelUsingMatrix(matrix)
+            objective = sirf.make_Poisson_loglikelihood(acquisition)
+            objective.set_acquisition_model(model)
+            objective.set_num_subsets(RECON_SUBSETS)
+            reconstruction = sirf.OSMAPOSLReconstructor()
+            reconstruction.set_objective_function(objective)
+            reconstruction.set_num_subsets(RECON_SUBSETS)
+            reconstruction.set_num_subiterations(RECON_SUBITERATIONS)
+            # Do not write per-subiteration Interfile images into the working
+            # directory; only the arrays below are needed.
+            reconstruction.disable_output()
+            reconstruction.set_input(acquisition)
+            image = reference.get_uniform_copy(0.0)
+            image.fill(support)
+            reconstruction.set_up(image)
+            reconstruction.reconstruct(image)
+            return np.asarray(get_array(image), dtype=np.float32)
+
+        return {
+            "No attenuation correction": reconstruct(False),
+            "CT 150 keV attenuation": reconstruct(True),
+        }
+
+
+    def save_reconstruction_comparison(path, images, target_affine):
+        """Save the two matched reconstructions and a profile through the sphere."""
+        plt = _pyplot()
+        centre_index = np.linalg.solve(
+            target_affine, np.append(np.asarray(HOT_SPHERE_CENTRE_MM, float), 1.0)
+        )
+        k = int(round(centre_index[2]))
+        j = int(round(centre_index[1]))
+        names = list(images)
+        arrays = [images[name] for name in names]
+        limit = max(
+            float(np.percentile(array[array > 0], 99.5)) for array in arrays if array.any()
+        )
+        figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+        for axis, name, array in zip(axes[:2], names, arrays):
+            shown = axis.imshow(array[k], cmap="viridis", vmin=0.0, vmax=limit)
+            axis.set_title(name)
+            axis.axis("off")
+            figure.colorbar(shown, ax=axis, shrink=0.7, label="reconstructed value")
+        axes[2].plot(arrays[0][k, j], color="C0", label=names[0])
+        axes[2].plot(arrays[1][k, j], color="C1", label=names[1])
+        axes[2].set_xlabel("x (voxel)")
+        axes[2].set_ylabel("reconstructed value")
+        axes[2].set_title(f"Profile through the hot-sphere centre, k={k}")
+        axes[2].legend(fontsize=8)
+        figure.suptitle(
+            f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
+            "zero scatter, no PSF"
+        )
+        figure.tight_layout()
+        figure.savefig(path, dpi=130)
+        return figure
+
+
     def save_json(path, payload):
         with open(path, "w") as stream:
             json.dump(payload, stream, indent=1)
@@ -680,6 +776,7 @@ Figures and summary
         """Remove earlier accepted results so a rerun cannot present them as current."""
         for name in (
             "maps.png",
+            "reconstruction_comparison.png",
             "summary.json",
             "registration.json",
             "registration_overlay.png",
@@ -720,12 +817,12 @@ Figures and summary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 628-630
+.. GENERATED FROM PYTHON SOURCE LINES 725-727
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 630-743
+.. GENERATED FROM PYTHON SOURCE LINES 727-863
 
 .. code-block:: Python
 
@@ -836,6 +933,29 @@ Run the tutorial
         }
         save_json(output_directory / "summary.json", summary)
         save_maps(output_directory / "maps.png", hu_grid, density, attenuation)
+        print("Running the matched no-attenuation and CT-attenuation reconstructions")
+        recon_start = time.perf_counter()
+        reconstructions = reconstruct_pair(
+            data_directory / "peak.hs", stir_clone, hu_grid, attenuation
+        )
+        recon_seconds = time.perf_counter() - recon_start
+        save_reconstruction_comparison(
+            output_directory / "reconstruction_comparison.png",
+            reconstructions,
+            target_affine,
+        )
+        summary["reconstruction"] = {
+            "subsets": RECON_SUBSETS,
+            "iterations": RECON_ITERATIONS,
+            "subiterations": RECON_SUBITERATIONS,
+            "initial": "unit body support (HU > -400)",
+            "additive_scatter": "zero in both",
+            "resolution_model": "none",
+            "attenuation_arms": list(reconstructions),
+            "seconds": recon_seconds,
+        }
+        save_json(output_directory / "summary.json", summary)
+        print(f"Matched reconstruction: {recon_seconds:.1f} s")
         print(f"Maps written to {_shown(output_directory)}")
         _pyplot().show()
 
@@ -860,6 +980,13 @@ Run the tutorial
       .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_16b_sirf_ct_conversion_002.png
          :alt: CT HU on the SPECT grid, Schneider density, Attenuation at 150 keV
          :srcset: /auto_examples/real_data/images/sphx_glr_plot_16b_sirf_ct_conversion_002.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_16b_sirf_ct_conversion_003.png
+         :alt: Matched OSEM, 12 subsets x 4 iterations, zero scatter, no PSF, No attenuation correction, CT 150 keV attenuation, Profile through the hot-sphere centre, k=65
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_16b_sirf_ct_conversion_003.png
          :class: sphx-glr-multi-img
 
 
@@ -887,6 +1014,8 @@ Run the tutorial
     Historical un-eroded mask (diagnostic only): 226014 voxels, 1.540 voxels = 6.56 mm (fail)
     Offset (z, y, x): [0.215 0.144 0.145] voxels = [0.92 0.61 0.62] mm
     Euclidean: 0.296 voxels = 1.26 mm -> PASS
+    Running the matched no-attenuation and CT-attenuation reconstructions
+    Matched reconstruction: 373.9 s
     Maps written to sirf
 
 
@@ -895,7 +1024,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (2 minutes 43.669 seconds)
+   **Total running time of the script:** (9 minutes 6.648 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16b_sirf_ct_conversion.py:

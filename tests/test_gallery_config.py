@@ -112,3 +112,78 @@ def test_real_data_examples_run_in_exactly_one_backend_build():
             name for name, pattern in patterns.items() if re.search(pattern, path_str)
         ]
         assert matched == [gallery.example_backend(path)], path.name
+
+
+@pytest.mark.unit
+def test_sphinx_gallery_publishes_figures_that_are_not_closed(tmp_path):
+    """A saved-but-open figure must become a page image, not only a thumbnail."""
+    pytest.importorskip("sphinx")
+    pytest.importorskip("sphinx_gallery")
+    from sphinx.application import Sphinx
+
+    src = tmp_path / "docs"
+    examples = src / "examples"
+    _write(examples / "GALLERY_HEADER.rst", "Gallery examples\n================\n")
+    _write(
+        examples / "plot_demo.py",
+        "\n".join(
+            [
+                '"""Synthetic gallery figure lifecycle check."""',
+                "",
+                "import numpy as np",
+                "import matplotlib",
+                "matplotlib.use('Agg')",
+                "import matplotlib.pyplot as plt",
+                "figure, axis = plt.subplots()",
+                "axis.imshow(np.arange(16).reshape(4, 4))",
+                "figure.savefig('demo_panel.png')",
+                "figure, axis = plt.subplots()",
+                "axis.plot(np.arange(8))",
+                "figure.savefig('demo_curve.png')",
+            ]
+        ),
+    )
+    _write(
+        src / "conf.py",
+        "\n".join(
+            [
+                "extensions = ['sphinx_gallery.gen_gallery']",
+                "sphinx_gallery_conf = {",
+                "    'examples_dirs': ['examples'],",
+                "    'gallery_dirs': ['auto_examples'],",
+                "    'filename_pattern': r'.*',",
+                "    'plot_gallery': True,",
+                "    'image_scrapers': ('matplotlib',),",
+                "    'abort_on_example_error': True,",
+                "}",
+                "project = 'gallery regression'",
+                "master_doc = 'index'",
+            ]
+        ),
+    )
+    _write(src / "index.rst", "Gallery\n=======\n")
+    app = Sphinx(
+        srcdir=str(src),
+        confdir=str(src),
+        outdir=str(tmp_path / "html"),
+        doctreedir=str(tmp_path / "doctrees"),
+        buildername="html",
+        freshenv=True,
+        warningiserror=False,
+        status=None,
+    )
+    app.build()
+    page = (src / "auto_examples" / "plot_demo.rst").read_text()
+    assert ".. image-sg::" in page
+    assert "sphx_glr_plot_demo_001.png" in page
+    assert "sphx_glr_plot_demo_002.png" in page
+    assert "_thumb.png" not in page
+
+
+@pytest.mark.unit
+def test_y90_scatter_page_publishes_non_thumbnail_reconstruction_figures():
+    """The committed page must reference the figures, not only the thumbnail."""
+    page = ROOT / "docs" / "auto_examples" / "real_data" / "plot_18_y90_mc_scatter.rst"
+    images = re.findall(r"image-sg:: (\S+)", page.read_text())
+    assert len(images) >= 6, images
+    assert all("thumb" not in image for image in images)

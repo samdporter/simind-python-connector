@@ -16,6 +16,14 @@ physical frame as the target, then calls ``zoom_image`` with
 ``preserve_values``. HU values must not be scaled like counts. Only axial,
 axis-aligned CT geometry is accepted; an oblique series is rejected rather
 than silently resampled.
+
+The page ends with a small matched reconstruction: the measured acquisition is
+reconstructed with no attenuation correction and with the CT-derived 150 keV
+map. The acquisition, initial support, subsets, subiterations and zero scatter
+are identical. This is a conversion sanity check, not an accuracy or ranking
+study. See :doc:`plot_17_y90_effective_energy` for the attenuation-energy
+comparison and :doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case
+study.
 """
 
 # %%
@@ -26,6 +34,7 @@ than silently resampled.
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,6 +54,15 @@ VOXEL_SIZE_MM = 4.2578
 MATRIX_SIZE = 128
 GRID_CENTRE = (MATRIX_SIZE - 1) / 2.0
 ENERGY_KEV = 150.0
+# Small matched reconstruction endpoint: the same measured acquisition, initial
+# support, subset count and subiteration budget in both arms. The only change is
+# the CT-derived 150 keV attenuation map. No scatter and no PSF are modelled.
+RECON_SUBSETS = 12
+RECON_ITERATIONS = 4
+RECON_SUBITERATIONS = RECON_SUBSETS * RECON_ITERATIONS
+# Frozen hot-sphere centre from the independent attenuation-only reconstruction;
+# it is used to choose the displayed slice, not to fit anything.
+HOT_SPHERE_CENTRE_MM = (-77.43, -181.69, -576.20)
 
 
 def _shown(path):
@@ -594,6 +612,87 @@ def save_maps(path, hu_grid, density, attenuation):
     figure.savefig(path, dpi=130)
 
 
+def reconstruct_pair(acquisition_file, target_header, hu_grid, attenuation):
+    """Reconstruct the measured data without and with the CT attenuation map.
+
+    Both arms use the same acquisition, initial body support, 12 subsets and
+    48 subiterations. The only difference is the SPECTUB attenuation image.
+    """
+    import stir
+
+    stir.Verbosity.set(0)
+    acquisition = stir.ProjData.read_from_file(str(acquisition_file))
+    target = stir.FloatVoxelsOnCartesianGrid.read_from_file(str(target_header))
+    support = np.ascontiguousarray((hu_grid > -400.0).astype(np.float32))
+    attenuation_image = target.get_empty_copy()
+    attenuation_image.fill(
+        np.ascontiguousarray(np.asarray(attenuation, dtype=np.float32)[..., ::-1])
+    )
+
+    def reconstruct(use_attenuation):
+        matrix = stir.ProjMatrixByBinSPECTUB()
+        matrix.set_resolution_model(0.0, 0.0, False)
+        if use_attenuation:
+            matrix.set_attenuation_image_sptr(attenuation_image)
+        projector = stir.ProjectorByBinPairUsingProjMatrixByBin()
+        projector.set_proj_matrix_sptr(matrix)
+        objective = stir.PoissonLogLikelihoodWithLinearModelForMeanAndProjData3DFloat()
+        objective.set_proj_data_sptr(acquisition)
+        objective.set_projector_pair_sptr(projector)
+        objective.set_num_subsets(RECON_SUBSETS)
+        reconstruction = stir.OSMAPOSLReconstruction3DFloat()
+        reconstruction.set_objective_function(objective)
+        reconstruction.set_num_subsets(RECON_SUBSETS)
+        reconstruction.set_num_subiterations(RECON_SUBITERATIONS)
+        # Do not write per-subiteration Interfile images into the working
+        # directory; only the arrays below are needed.
+        reconstruction.set_disable_output(True)
+        image = target.get_empty_copy()
+        image.fill(support)
+        reconstruction.set_up(image)
+        reconstruction.reconstruct(image)
+        return np.asarray(image.as_array(), dtype=np.float32)
+
+    return {
+        "No attenuation correction": reconstruct(False),
+        "CT 150 keV attenuation": reconstruct(True),
+    }
+
+
+def save_reconstruction_comparison(path, images, target_affine):
+    """Save the two matched reconstructions and a profile through the sphere."""
+    plt = _pyplot()
+    centre_index = np.linalg.solve(
+        target_affine, np.append(np.asarray(HOT_SPHERE_CENTRE_MM, float), 1.0)
+    )
+    k = int(round(centre_index[2]))
+    j = int(round(centre_index[1]))
+    names = list(images)
+    arrays = [images[name] for name in names]
+    limit = max(
+        float(np.percentile(array[array > 0], 99.5)) for array in arrays if array.any()
+    )
+    figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    for axis, name, array in zip(axes[:2], names, arrays):
+        shown = axis.imshow(array[k], cmap="viridis", vmin=0.0, vmax=limit)
+        axis.set_title(name)
+        axis.axis("off")
+        figure.colorbar(shown, ax=axis, shrink=0.7, label="reconstructed value")
+    axes[2].plot(arrays[0][k, j], color="C0", label=names[0])
+    axes[2].plot(arrays[1][k, j], color="C1", label=names[1])
+    axes[2].set_xlabel("x (voxel)")
+    axes[2].set_ylabel("reconstructed value")
+    axes[2].set_title(f"Profile through the hot-sphere centre, k={k}")
+    axes[2].legend(fontsize=8)
+    figure.suptitle(
+        f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
+        "zero scatter, no PSF"
+    )
+    figure.tight_layout()
+    figure.savefig(path, dpi=130)
+    return figure
+
+
 def save_json(path, payload):
     with open(path, "w") as stream:
         json.dump(payload, stream, indent=1)
@@ -603,6 +702,7 @@ def clear_stale_outputs(output_directory):
     """Remove earlier accepted results so a rerun cannot present them as current."""
     for name in (
         "maps.png",
+        "reconstruction_comparison.png",
         "summary.json",
         "registration.json",
         "registration_overlay.png",
@@ -764,6 +864,32 @@ def run():
     }
     save_json(output_directory / "summary.json", summary)
     save_maps(output_directory / "maps.png", hu_grid, density, attenuation)
+    print("Running the matched no-attenuation and CT-attenuation reconstructions")
+    recon_start = time.perf_counter()
+    reconstructions = reconstruct_pair(
+        data_directory / "peak.hs",
+        data_directory / "umap_zoomed.hv",
+        hu_grid,
+        attenuation,
+    )
+    recon_seconds = time.perf_counter() - recon_start
+    save_reconstruction_comparison(
+        output_directory / "reconstruction_comparison.png",
+        reconstructions,
+        target_affine,
+    )
+    summary["reconstruction"] = {
+        "subsets": RECON_SUBSETS,
+        "iterations": RECON_ITERATIONS,
+        "subiterations": RECON_SUBITERATIONS,
+        "initial": "unit body support (HU > -400)",
+        "additive_scatter": "zero in both",
+        "resolution_model": "none",
+        "attenuation_arms": list(reconstructions),
+        "seconds": recon_seconds,
+    }
+    save_json(output_directory / "summary.json", summary)
+    print(f"Matched reconstruction: {recon_seconds:.1f} s")
     print(f"Maps written to {_shown(output_directory)}")
     _pyplot().show()
 
