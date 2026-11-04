@@ -115,15 +115,18 @@ NEMA/IEC phantom and reconstructs it with SIRF OSEM:
     python examples/phantoms/plot_10_nema_osem.py
 
 Install SIRF and phantomgen; see :doc:`installation`. The tutorial simulates 60
-views with 8 MPI processes, adds seeded Poisson noise, and reconstructs with
-SPECTUB attenuation but no collimator blur or scatter. That model is close to
-the one that made the data by construction, so the reported sphere recovery is
-a best case. Inspect the measured counts, the reconstruction and truth slices,
-and the contrast-recovery bars under ``output/nema_osem``. It scores the 17-37
-mm hot spheres only; the 10 and 13 mm spheres are cold. The run takes a few
-minutes, nearly all of it in SIMIND. Matching dimensions do not verify axis,
-view-angle, or orbit alignment, and a finite image is not evidence of absolute
-sensitivity. For quantitative work, increase histories and iterations and
+views with 8 MPI processes at the default quantization and four times the
+histories, adds seeded Poisson noise at 2 s per view, and reconstructs with
+SPECTUB attenuation but no collimator blur or scatter. The four histories per
+measured count put the Monte Carlo variance below the Poisson variance, so the
+tutorial can separate the two noise sources. Inspect the measured counts, the
+reconstruction and truth slices, and the contrast-recovery bars under
+``output/nema_osem``. It scores the 17-37 mm hot spheres only; the 10 and
+13 mm spheres are cold, and every score is shown against the truth's own
+masked score. The first run takes about an hour, nearly all of it in SIMIND;
+the other reconstruction tutorials reuse the cached expectation.
+Matching dimensions do not verify axis, view-angle, or orbit alignment, and a
+finite image is not evidence of absolute sensitivity. For quantitative work,
 validate voxel spacing, view angles, center of rotation, axis orientation, and
 absolute calibration.
 
@@ -131,7 +134,9 @@ Monte Carlo scatter and residual correction
 -------------------------------------------
 
 The Monte Carlo tutorials simulate the NEMA/IEC phantom and reconstruct it with
-SIRF or CIL. Each takes about 10–40 minutes, nearly all of it in SIMIND:
+SIRF or CIL. The shared expectation is simulated once per output directory;
+the first tutorial pays for it and the rest reuse it. Each tutorial then takes
+between about half an hour and an hour, dominated by the scatter estimates:
 
 - :doc:`Monte Carlo scatter correction in OSEM
   <auto_examples/mc_scatter/plot_11_mc_scatter_osem>`
@@ -146,8 +151,9 @@ SIRF or CIL. Each takes about 10–40 minutes, nearly all of it in SIMIND:
 
 The CIL tutorials additionally need CIL. Inspect the update records and
 reconstruction metrics printed by each run. These tutorials use a fast SPECTUB
-model and small Monte Carlo runs. The objective, noise, and update cadence are
-demonstration choices, not evidence of quantitative accuracy. See
+model; the expectation is high precision, while the scatter estimates use a
+tenth of its history budget and are smoothed. The objective, noise, and update
+cadence are demonstration choices, not evidence of quantitative accuracy. See
 :doc:`reconstruction` for the model, damping, floor, and calibration details.
 For quantitative work, establish an accurate reference and validate the
 scatter or residual estimate against it; a faster objective remains an

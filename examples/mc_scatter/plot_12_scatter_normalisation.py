@@ -17,10 +17,19 @@ putting that estimate on the scale of the data:
 5. **Dewaraja, pixel-wise.** The scatter fraction of SIMIND's run in each bin,
    times the measured data, as in the same paper.
 
+The expectation is simulated once with four histories per measured count, so
+its Monte Carlo variance is a quarter of the Poisson variance. Each strategy is
+run on the same three independent Poisson realisations of it, with the same
+OSEM schedule, smoothing and damping, so the comparison is paired. The scatter
+estimates use a fortieth of the expectation's history budget; the smoothing
+over 3 bins and across views suppresses their Monte Carlo noise.
+
 .. warning::
-   This example takes about 30 minutes, nearly all of it in the SIMIND runs:
-   the simulation of the data and one scatter estimate per update for each of
-   the five strategies. Every run uses 8 MPI processes.
+   The first tutorial run simulates the shared expectation and takes about an
+   hour with 8 MPI processes. Each of the five strategies makes three scatter
+   estimates on each of three realisations, at about a minute each; this
+   example takes about two hours in all. Later tutorials reuse the cached
+   expectation.
 
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
@@ -39,17 +48,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sirf.STIR as sirf
 
-from simind_python_connector import SirfSimindAdaptor, configs
-from simind_python_connector.builders import (
-    STIRSPECTAcquisitionDataBuilder,
-    STIRSPECTImageDataBuilder,
-)
-from simind_python_connector.converters.attenuation import get_attenuation_coefficient
-from simind_python_connector.core.types import (
-    DEFAULT_QUANTIZATION_SCALE,
-    ScoringRoutine,
-)
-from simind_python_connector.phantoms import nema_iec_phantom
+from examples import _nema
 from simind_python_connector.recon import (
     AdditiveUpdater,
     ScatterCorrection,
@@ -71,9 +70,8 @@ output_dir = (
     Path(os.environ.get("SIMIND_EXAMPLES_OUTPUT", "output")) / "scatter_normalisation"
 )
 output_dir.mkdir(parents=True, exist_ok=True)
-
-GRID = (48, 48, 48)
-VOXEL_MM = 7.0
+estimate_dir = output_dir / "estimates"
+estimate_dir.mkdir(exist_ok=True)
 
 # %%
 # NEMA/IEC phantom
@@ -83,33 +81,13 @@ VOXEL_MM = 7.0
 # 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 # the density times the attenuation coefficient of water at 140 keV.
 
-nema = nema_iec_phantom(GRID, (VOXEL_MM,) * 3, preset="pet", supersample=4)
-mu = nema.density_g_cm3 * get_attenuation_coefficient("water", 140.0)
-slice_z, profile_row = (
-    np.argwhere(nema.masks["sphere_6"]).mean(axis=0).round().astype(int)[:2]
-)
+nema_phantom = _nema.phantom()
+nema = nema_phantom.nema
 
-
-def to_sirf_image(array):
-    builder = STIRSPECTImageDataBuilder(
-        {
-            "!matrix size [1]": str(GRID[2]),
-            "!matrix size [2]": str(GRID[1]),
-            "!matrix size [3]": str(GRID[0]),
-            "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-            "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-            "scaling factor (mm/pixel) [3]": str(VOXEL_MM),
-        },
-        backend="sirf",
-    )
-    builder.set_pixel_array(array.astype(np.float32))
-    return builder.build()
-
-
-activity_image = to_sirf_image(nema.activity_mbq)
-mu_image = to_sirf_image(mu)
+activity_image = _nema.to_sirf_image(nema.activity_mbq)
+mu_image = _nema.to_sirf_image(nema_phantom.mu)
 # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
-spectub_mu_image = to_sirf_image(mu[..., ::-1])
+spectub_mu_image = _nema.to_sirf_image(nema_phantom.mu[..., ::-1])
 
 # %%
 # Template
@@ -118,20 +96,7 @@ spectub_mu_image = to_sirf_image(mu[..., ::-1])
 # over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 # reconstruction take their geometry from it.
 
-sirf.AcquisitionData.set_storage_scheme("memory")
-template = STIRSPECTAcquisitionDataBuilder(
-    header_overrides={
-        "!matrix size [1]": "48",
-        "!matrix size [2]": "48",
-        "!number of projections": "60",
-        "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-        "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-        "!direction of rotation": "CW",
-        "start angle": "180",
-        "Radius": "250",
-    },
-    backend="sirf",
-).build(output_path=output_dir / "template")
+template = _nema.template(output_dir)
 
 # %%
 # "Measured" data
@@ -143,56 +108,33 @@ template = STIRSPECTAcquisitionDataBuilder(
 # Poisson noise from a seeded generator is added to the expectation. The true
 # scatter is the expectation's all interactions minus its geometric primary.
 
-TOTAL_MBQ = float(nema.activity_mbq.sum())
-TIME_PER_VIEW_S = 2.0
-QUANTIZATION_SCALE = 0.06 * DEFAULT_QUANTIZATION_SCALE
-
-
-def make_adaptor(name, quantization_scale=QUANTIZATION_SCALE):
-    adaptor = SirfSimindAdaptor(
-        configs.get("Example.yaml"),
-        str(output_dir),
-        name,
-        scoring_routine=ScoringRoutine.PENETRATE,
-        quantization_scale=quantization_scale,
-    )
-    # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
-    adaptor.add_config_value(20, 154.0)
-    adaptor.add_config_value(21, 126.0)
-    adaptor.add_runtime_switch("CC", "ma-lehr")
-    adaptor.set_mpi(8)
-    adaptor.add_config_value(1, 140.0)
-    return adaptor
-
-
-adaptor = make_adaptor("measured")
-adaptor.set_template(template)
-adaptor.set_source(activity_image)
-adaptor.set_mu_map(mu_image)
-adaptor.set_activity(TOTAL_MBQ, TIME_PER_VIEW_S)
-outputs = adaptor.run()
-expected = outputs["all_interactions"]
-true_scatter = expected - outputs["geom_coll_primary"]
-
-rng = np.random.default_rng(12345)
-measured = expected.clone()
-measured.fill(rng.poisson(np.maximum(expected.as_array(), 0)).astype(np.float32))
-print(f"Measured counts: {measured.sum():.4g}, true scatter: {true_scatter.sum():.4g}")
+expectation = _nema.simulate_expectation(nema_phantom, template)
+TOTAL_MBQ = nema_phantom.total_mbq
+TIME_PER_VIEW_S = _nema.REFERENCE_TIME_S
+realisations = dict(_nema.paired_realisations(expectation, template))
+true_scatter = expectation.true_scatter
+print(
+    f"Expectation: {expectation.total:.4g} counts, true scatter "
+    f"{true_scatter.sum():.4g}, quantization loss "
+    f"{expectation.quantization_loss:.2%}"
+)
+for seed, measured in realisations.items():
+    print(f"Seed {seed}: {measured.sum():.4g} measured counts")
 
 # %%
 # The fast model
 # --------------
 # The reconstruction model is SPECTUB with the flipped attenuation map and no
-# PSF. It has no collimator blur and no scatter. OSEM runs with 6 subsets of 10
-# views each. ``run_osem_with_corrections`` runs OSEM in passes and calls the
-# updater between them; with a zero additive term and no updates it is plain
-# OSEM. Every reconstruction uses 48 subiterations, 8 full iterations.
+# PSF. It has no collimator blur and no scatter. ``run_osem_with_corrections``
+# runs OSEM in passes and calls the updater between them; with a zero additive
+# term and no updates it is plain OSEM. Every arm uses 6 subsets, 12
+# subiterations per pass and three updates (8 full iterations).
 
-NUM_SUBSETS = 6
+NUM_SUBSETS = _nema.NUM_SUBSETS
 SUBITERATIONS_PER_UPDATE = 12
 NUM_UPDATES = 3
 initial_image = activity_image.get_uniform_copy(1.0)
-zero_additive = measured.get_uniform_copy(0)
+zero_additive = next(iter(realisations.values())).get_uniform_copy(0)
 
 
 def make_acq_model():
@@ -203,17 +145,20 @@ def make_acq_model():
 
 
 full_model = make_acq_model()
-full_model.set_up(measured, activity_image)
+full_model.set_up(next(iter(realisations.values())), activity_image)
 
-uncorrected = run_osem_with_corrections(
-    measured,
-    make_acq_model,
-    initial_image,
-    AdditiveUpdater(None, UpdateSchedule(every=1), zero_additive),
-    NUM_SUBSETS,
-    SUBITERATIONS_PER_UPDATE * (NUM_UPDATES + 1),
-    num_updates=0,
-)
+uncorrected = {
+    seed: run_osem_with_corrections(
+        measured,
+        make_acq_model,
+        initial_image,
+        AdditiveUpdater(None, UpdateSchedule(every=1), zero_additive),
+        NUM_SUBSETS,
+        SUBITERATIONS_PER_UPDATE * (NUM_UPDATES + 1),
+        num_updates=0,
+    )
+    for seed, measured in realisations.items()
+}
 
 # %%
 # Five normalisations
@@ -227,6 +172,8 @@ uncorrected = run_osem_with_corrections(
 #
 # ``RecordedScatter`` keeps every raw estimate, before the damping, the image it
 # was made from, and the total of each SIMIND run before it is scaled.
+
+ESTIMATE_QUANTIZATION_SCALE = 0.1 * _nema.QUANTIZATION_SCALE
 
 
 class RecordedScatter(ScatterCorrection):
@@ -245,34 +192,53 @@ class RecordedScatter(ScatterCorrection):
         return scatter
 
 
-STRATEGIES = {
-    "Known activity": (
-        {
-            "activity_mbq": lambda image: TOTAL_MBQ,
-            "time_per_projection_s": TIME_PER_VIEW_S,
-        },
-        {},
-    ),
-    "Reference, sum": (
-        {"normalise": reference_normaliser(full_model, method="sum")},
-        {},
-    ),
-    "Reference, trimmed": (
-        {"normalise": reference_normaliser(full_model, method="trimmed")},
-        {},
-    ),
-    "Dewaraja, global": ({"normalise": measured_normaliser(measured)}, {}),
-    # The projector still needs a normaliser; its scale cancels in the ratio.
-    "Dewaraja, pixel-wise": (
-        {"normalise": measured_normaliser(measured)},
-        {"measured": measured},
-    ),
-}
+def strategy_options(title, measured):
+    """The projector and correction options of one normalisation strategy."""
+    if title == "Known activity":
+        return (
+            {
+                "activity_mbq": lambda image: TOTAL_MBQ,
+                "time_per_projection_s": TIME_PER_VIEW_S,
+            },
+            {},
+        )
+    if title == "Reference, sum":
+        return {"normalise": reference_normaliser(full_model, method="sum")}, {}
+    if title == "Reference, trimmed":
+        return {"normalise": reference_normaliser(full_model, method="trimmed")}, {}
+    if title == "Dewaraja, global":
+        return {"normalise": measured_normaliser(measured)}, {}
+    if title == "Dewaraja, pixel-wise":
+        # The projector still needs a normaliser; its scale cancels in the ratio.
+        return (
+            {"normalise": measured_normaliser(measured)},
+            {"measured": measured},
+        )
+    raise ValueError(f"Unknown strategy {title!r}")
 
 
-def reconstruct(projector_options, correction_options):
+STRATEGIES = (
+    "Known activity",
+    "Reference, sum",
+    "Reference, trimmed",
+    "Dewaraja, global",
+    "Dewaraja, pixel-wise",
+)
+
+
+def reconstruct(seed, projector_options, correction_options):
+    measured = realisations[seed]
     projector = SimindProjector(
-        make_adaptor("estimate"), template, mu_image, seed=None, **projector_options
+        _nema.make_adaptor(
+            estimate_dir,
+            f"estimate_{seed}",
+            quantization_scale=ESTIMATE_QUANTIZATION_SCALE,
+            histories=1,
+        ),
+        template,
+        mu_image,
+        seed=None,
+        **projector_options,
     )
     correction = RecordedScatter(
         projector,
@@ -298,31 +264,41 @@ def reconstruct(projector_options, correction_options):
     return image, updater, correction
 
 
-runs = {title: reconstruct(*options) for title, options in STRATEGIES.items()}
-
-# %%
-# The first update's Monte Carlo noise
-# ------------------------------------
-# The first pass has a zero additive term, so every strategy hands SIMIND the
-# same image at the first update. With the same seeds, the SIMIND totals of that
-# update therefore differ only by the scale factor. The table gives the largest
-# difference between the totals, each normalised to unit sum, relative to the
-# largest bin.
-
-first_totals = {
-    title: correction.simind_totals[0] / correction.simind_totals[0].sum()
-    for title, (_, _, correction) in runs.items()
+runs = {
+    title: {
+        seed: reconstruct(seed, *strategy_options(title, realisations[seed]))
+        for seed in realisations
+    }
+    for title in STRATEGIES
 }
-reference_total = first_totals["Known activity"]
-for title, total in first_totals.items():
-    difference = np.abs(total - reference_total).max() / reference_total.max()
-    print(f"{title}: {difference:.1e}")
 
 # %%
-# At the first update the totals differ by at most 2e-7, which is float rounding,
-# so every strategy sees the same Monte Carlo noise there: only the
-# normalisation differs. Later updates use the same seeds but images that differ
-# with the strategy, so their noise differs too.
+# The first update is shared by every strategy
+# --------------------------------------------
+# The first pass has a zero additive term and the same image for every
+# strategy, so with the same seeds every strategy hands SIMIND the same source.
+# The raw totals of that update therefore differ only by float rounding. The
+# table gives the largest difference between the totals, each normalised to
+# unit sum, relative to the largest bin.
+
+for seed in realisations:
+    first_totals = {
+        title: runs[title][seed][2].simind_totals[0]
+        / runs[title][seed][2].simind_totals[0].sum()
+        for title in STRATEGIES
+    }
+    reference_total = first_totals["Known activity"]
+    differences = [
+        np.abs(total - reference_total).max() / reference_total.max()
+        for total in first_totals.values()
+    ]
+    print(f"Seed {seed}: largest first-update difference {max(differences):.1e}")
+
+# %%
+# The differences are at the level of float rounding, so every strategy sees
+# the same Monte Carlo noise at the first update: only the normalisation
+# differs. Later updates use the same seeds but images that differ with the
+# strategy, so their noise differs too.
 
 # %%
 # The scale of each update
@@ -330,82 +306,49 @@ for title, total in first_totals.items():
 # Known activity applies no factor. Each of the other strategies scales every
 # SIMIND output by one factor per update. The raw estimate of an update is the
 # smoothed scatter of its SIMIND run, before the damped average with the
-# estimates of the earlier updates. The first update is made from an image that
-# is not corrected for scatter.
-
-true_sum = true_scatter.sum()
-print(f"True scatter sum: {true_sum:.4g}")
-for title, (_, updater, correction) in runs.items():
-    scales = ", ".join(f"{record.scale:.4g}" for record in updater.history)
-    sums = ", ".join(f"{estimate.sum():.4g}" for estimate in correction.estimates)
-    print(f"{title}\n  scale: {scales}\n  raw estimate sum: {sums}")
+# estimates of the earlier updates. The lines and bands are the mean and
+# standard deviation over the three realisations.
 
 updates = np.arange(1, NUM_UPDATES + 1)
+true_sum = true_scatter.sum()
+print(f"True scatter sum: {true_sum:.4g}")
 fig, axes = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
-for color, (title, (_, updater, correction)) in enumerate(runs.items()):
+for color, title in enumerate(STRATEGIES):
     color = f"C{color}"
-    if title != "Known activity":
-        axes[0].plot(
-            updates, [record.scale for record in updater.history], "o-", color=color
-        )
-    axes[1].plot(
-        updates,
-        [estimate.sum() for estimate in correction.estimates],
-        "o-",
-        color=color,
-        label=title,
+    scales = np.array(
+        [
+            [record.scale for record in runs[title][seed][1].history]
+            for seed in realisations
+        ]
     )
+    sums = np.array(
+        [
+            [estimate.sum() for estimate in runs[title][seed][2].estimates]
+            for seed in realisations
+        ]
+    )
+    if title != "Known activity":
+        axes[0].plot(updates, scales.mean(axis=0), "o-", color=color, label=title)
+    axes[1].plot(updates, sums.mean(axis=0), "o-", color=color, label=title)
 axes[1].axhline(true_sum, color="k", linestyle="--", label="True scatter")
 axes[0].set_title("Scale factor")
 axes[1].set_title("Sum of the raw scatter estimate")
 for ax in axes:
     ax.set_xticks(updates)
     ax.set_xlabel("Update")
-axes[1].legend()
+axes[1].legend(loc="center left", bbox_to_anchor=(1, 0.5))
 plt.show()
 
-# %%
-# The estimates of known activity and of the Dewaraja global model stay within 3%
-# of the true scatter sum (5.692e5) at every update, and the global model's scale
-# stays near 1130. The pixel-wise estimate drifts down to about 27% below the
-# true sum.
-#
-# The two reference normalisations estimate about 8.2e5, 6.4e5 and 5.9e5. The
-# first is 1.4 times the true scatter, and the reconstruction without correction
-# has 1.4 times the true total activity (see the table below). The reference
-# scale follows the scale of the current image, which the pass without scatter
-# correction overestimates. The scales of sum and trimmed differ by at most 3%
-# at every update.
-
-# %%
-# Sum against trimmed at low history
-# ----------------------------------
-# One run of the first-update image at a sixth of the histories, scaled both
-# ways:
-
-first_update_image = runs["Reference, sum"][2].images[0]
-low_history = make_adaptor(
-    "low_history", quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE
-)
-low_history.set_template(template)
-low_history.set_mu_map(mu_image)
-low_history.set_source(first_update_image)
-low_history_outputs = low_history.run()
-sum_scale = reference_normaliser(full_model, method="sum")(
-    low_history_outputs, first_update_image
-)
-trimmed_scale = reference_normaliser(full_model, method="trimmed")(
-    low_history_outputs, first_update_image
-)
-print(
-    f"At a sixth of the histories: sum {sum_scale:.4g}, trimmed {trimmed_scale:.4g}, "
-    f"ratio {trimmed_scale / sum_scale:.2f}"
-)
-
-# %%
-# The scales of sum and trimmed differ by at most 3% in the main runs. At a
-# sixth of the history budget used above, ``trimmed`` scales to 0.70 of
-# ``sum``: low counts bias it low, which is why the other tutorials use ``sum``.
+for title in STRATEGIES:
+    scales = ", ".join(
+        f"{np.mean([record.scale for record in runs[title][seed][1].history]):.4g}"
+        for seed in realisations
+    )
+    sums = ", ".join(
+        f"{np.mean([e.sum() for e in runs[title][seed][2].estimates]):.4g}"
+        for seed in realisations
+    )
+    print(f"{title}\n  mean scale: {scales}\n  mean raw estimate sum: {sums}")
 
 # %%
 # The last raw estimates
@@ -415,18 +358,21 @@ print(
 # last OSEM pass is a damped average of the estimates, so it is not what is
 # shown here.
 
-true_array = true_scatter.as_array()
+true_array = true_scatter
 last_estimates = {
-    title: correction.estimates[-1].as_array()
-    for title, (_, _, correction) in runs.items()
+    title: np.mean(
+        [runs[title][seed][2].estimates[-1].as_array() for seed in realisations],
+        axis=0,
+    )
+    for title in STRATEGIES
 }
 for title, estimate in last_estimates.items():
     error = np.abs(estimate - true_array).sum() / true_array.sum()
-    print(f"{title}: sum {estimate.sum():.4g}, absolute difference {error:.0%}")
+    print(f"{title}: mean sum {estimate.sum():.4g}, absolute difference {error:.0%}")
 
-expected_array = expected.as_array()
-maps = {"True scatter": true_array, **last_estimates}
+expected_array = expectation.counts
 central_view = true_array.shape[-2] // 2
+maps = {"True scatter": true_array, **last_estimates}
 fig, axes = plt.subplots(2, 3, figsize=(10, 6.5), constrained_layout=True)
 for ax, (title, scatter) in zip(axes.flat, maps.items()):
     fraction = np.divide(
@@ -454,38 +400,37 @@ ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
 plt.show()
 
 # %%
-# Known activity and the Dewaraja global model have a last estimate within 3% of
-# the true sum and follow the true scatter over the views. The reference
-# normalisations are 4 to 5% above it and the pixel-wise model is 27% below.
-# Bin by bin, every strategy differs from the true scatter by about the true sum,
-# including the strategies whose sums agree.
-
-# %%
 # Reconstructions
 # ---------------
 # The images are shown relative to their mean in the background mask. The
-# profile runs along x through the centres of the 22 and 37 mm spheres.
+# profile runs along x through the centres of the 22 and 37 mm spheres. Each
+# image and profile is the mean over the three realisations; the band is the
+# standard deviation.
 
-background = nema.masks["background"] > 0
-
-
-def relative_to_background(array):
-    return array / array[background].mean()
+background = nema_phantom.background
 
 
-recon_arrays = {
-    "Truth": relative_to_background(nema.activity_mbq),
-    "No correction": relative_to_background(uncorrected.as_array()),
+def mean_relative(images):
+    array = np.mean([image.as_array() for image in images], axis=0)
+    return nema_phantom.relative_to_background(array)
+
+
+arrays = {
+    "Truth": nema_phantom.relative_to_background(nema.activity_mbq),
+    "No correction": mean_relative(uncorrected.values()),
     **{
-        title: relative_to_background(image.as_array())
-        for title, (image, _, _) in runs.items()
+        title: mean_relative([runs[title][seed][0] for seed in realisations])
+        for title in STRATEGIES
     },
 }
 
 fig, axes = plt.subplots(2, 4, figsize=(12, 6.5), constrained_layout=True)
-for ax, (title, image) in zip(axes.flat, recon_arrays.items()):
+for ax, (title, image) in zip(axes.flat, arrays.items()):
     shown = ax.imshow(
-        image[slice_z], cmap="gray_r", vmin=0, vmax=recon_arrays["Truth"].max()
+        image[nema_phantom.slice_z],
+        cmap="gray_r",
+        vmin=0,
+        vmax=arrays["Truth"].max(),
     )
     ax.set_title(title)
     ax.axis("off")
@@ -493,11 +438,44 @@ axes.flat[-1].axis("off")
 fig.colorbar(shown, ax=axes, label="relative to background")
 plt.show()
 
-fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
-for title, image in recon_arrays.items():
-    ax.plot(
-        image[slice_z, profile_row], "k--" if title == "Truth" else "-", label=title
+difference = arrays["Known activity"] - arrays["No correction"]
+fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+limit = np.abs(difference).max()
+shown = ax.imshow(
+    difference[nema_phantom.slice_z], cmap="coolwarm", vmin=-limit, vmax=limit
+)
+ax.set_title("Known activity − no correction")
+ax.axis("off")
+fig.colorbar(shown, ax=ax, label="difference, relative to background")
+plt.show()
+
+
+def relative_profile(image):
+    array = image.as_array()
+    return (
+        array[nema_phantom.slice_z, nema_phantom.profile_row] / array[background].mean()
     )
+
+
+profiles = {
+    "Truth": np.array([relative_profile(activity_image)]),
+    "No correction": np.array(
+        [relative_profile(image) for image in uncorrected.values()]
+    ),
+    **{
+        title: np.array(
+            [relative_profile(runs[title][seed][0]) for seed in realisations]
+        )
+        for title in STRATEGIES
+    },
+}
+fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
+for title, values in profiles.items():
+    mean = values.mean(axis=0)
+    spread = values.std(axis=0)
+    ax.plot(mean, "k--" if title == "Truth" else "-", label=title)
+    if len(values) > 1:
+        ax.fill_between(np.arange(mean.size), mean - spread, mean + spread, alpha=0.15)
 ax.set_xlabel("x (voxel)")
 ax.set_ylabel("relative to background")
 ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
@@ -511,48 +489,102 @@ plt.show()
 # recovery. The masks include voxels on the sphere edge, which hold less
 # activity, so even the truth scores below 1: its score is the ceiling. The 10
 # and 13 mm spheres are cold and are not scored. The noise is the coefficient
-# of variation in the background mask.
+# of variation in the background mask. The error bars are the standard error
+# over the three realisations.
 #
 # The reconstruction has the scale of the fast model, not of the activity. The
 # total activity is its image sum over the truth's sum, with the scale fixed by
 # the true primary of the data: counts of the primary per unit of the fast
 # model's projection of the true activity. A value of 1 is the true total.
 
-SPHERES = {"sphere_3": 17, "sphere_4": 22, "sphere_5": 28, "sphere_6": 37}
-TRUE_RATIO = 8.0
+truth_recovery = _nema.contrast_recovery(nema.activity_mbq, nema_phantom)
+truth_cov = _nema.background_cov(nema.activity_mbq, nema_phantom)
 counts_per_model_count = (
-    outputs["geom_coll_primary"].sum() / full_model.direct(activity_image).sum()
+    expectation.primary.sum() / full_model.direct(activity_image).sum()
 )
 true_total = counts_per_model_count * nema.activity_mbq.sum()
-recon_totals = {"Truth": true_total}
-recon_totals["No correction"] = uncorrected.sum()
-recon_totals.update({title: image.sum() for title, (image, _, _) in runs.items()})
 
-print(f"{'':22}" + "".join(f"{d:>7} mm" for d in SPHERES.values()) + "   CoV  total")
-for title, image in recon_arrays.items():
-    recovery = [
-        image[nema.masks[name] > 0].mean() / image[background].mean() / TRUE_RATIO
-        for name in SPHERES
-    ]
-    cov = image[background].std() / image[background].mean()
+
+def table_row(title, safe, recovery, total):
+    cov, cov_sem = _nema.mean_and_sem(safe)
+    table.append(
+        (
+            title,
+            recovery.mean(axis=0),
+            recovery.std(axis=0, ddof=1) / np.sqrt(len(recovery)),
+            float(cov),
+            float(cov_sem),
+            float(np.mean(total) / true_total),
+            float(np.std(total, ddof=1) / np.sqrt(len(total)) / true_total),
+        )
+    )
+
+
+table = []
+table.append(
+    (
+        "Truth",
+        np.array(truth_recovery),
+        np.zeros(4),
+        truth_cov,
+        0.0,
+        1.0,
+        0.0,
+    )
+)
+table_row(
+    "No correction",
+    [
+        _nema.background_cov(image.as_array(), nema_phantom)
+        for image in uncorrected.values()
+    ],
+    np.array(
+        [
+            _nema.contrast_recovery(image.as_array(), nema_phantom)
+            for image in uncorrected.values()
+        ]
+    ),
+    np.array([image.sum() for image in uncorrected.values()]),
+)
+for title in STRATEGIES:
+    images = [runs[title][seed][0] for seed in realisations]
+    table_row(
+        title,
+        [_nema.background_cov(image.as_array(), nema_phantom) for image in images],
+        np.array(
+            [
+                _nema.contrast_recovery(image.as_array(), nema_phantom)
+                for image in images
+            ]
+        ),
+        np.array([image.sum() for image in images]),
+    )
+
+diameters = [str(d) for d in _nema.SPHERES.values()]
+print(f"{'':22}" + "".join(f"{d:>7} mm" for d in diameters) + "        CoV       total")
+for title, recovery, recovery_sem, cov, cov_sem, total, total_sem in table:
     print(
         f"{title:<22}"
         + "".join(f"{value:10.2f}" for value in recovery)
-        + f"{cov:7.2f}{recon_totals[title] / true_total:7.2f}"
+        + f"{cov:7.2f}±{cov_sem:.2f}{total:7.2f}±{total_sem:.2f}"
     )
 
+x = np.arange(len(diameters))
+fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
+for offset, row in zip(np.linspace(-0.32, 0.32, len(table)), table):
+    title, recovery, recovery_sem = row[0], row[1], row[2]
+    ax.bar(x + offset, recovery, 0.16, yerr=recovery_sem, capsize=2, label=title)
+ax.set_xticks(x, diameters)
+ax.set_xlabel("Sphere diameter (mm)")
+ax.set_ylabel("Contrast recovery")
+ax.set_ylim(0, max(truth_recovery) * 1.15)
+ax.legend(fontsize=8)
+plt.show()
+
 # %%
-# All five corrections raise the 28 and 37 mm recovery above the reconstruction
-# without correction (0.29, 0.33, 0.46 and 0.47). At 17 and 22 mm the differences
-# are within 0.05, so the table does not separate them from the uncorrected
-# image. All stay below the truth's own score. The differences between
-# strategies, 0.06 at most, are small next to the gap to the truth, and there is
-# one noise realisation, so the table does not rank them. Trimmed and sum differ
-# by 0.04 at most.
-#
-# The total activity separates the strategies more: 1.01 for the reference
-# normalisations, 1.05 to 1.13 for the others, and 1.41 without correction. The
-# total follows the last scatter sum approximately, with the larger estimate
-# giving the smaller total. The background noise of the corrected images, 1.5 to
-# 1.6, is higher than without correction, 1.4. The truth's own value is 0.38
-# because the mask includes voxels on the sphere edges.
+# The known-activity, Dewaraja global and pixel-wise strategies track the true
+# scatter sum at every update. The two reference normalisations sit above it,
+# because they inherit the scale of the image before scatter correction, which
+# has more activity than the phantom. Three realisations separate those two
+# groups but do not rank the strategies within a group. The total activity of
+# the reconstruction reflects the same scale difference.
