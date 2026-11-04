@@ -7,9 +7,11 @@ and compares the projections. The only runtime switch that differs is ``RR``,
 so the difference isolates Monte Carlo noise, not a change of physics.
 
 Both runs use the default source quantization, four 360-degree views of
-32 x 32 bins at 4 mm, and a history multiplier of 8. The figure uses a shared
-count scale for the two projections and a zero-centred symmetric scale for
-their difference.
+32 x 32 bins at 4 mm, and a history multiplier of 3, which gives 3,464,700
+histories per view. That keeps both runs inside a two-hour budget together,
+while each view still holds enough counts for a stable repeatability measure.
+The figure uses a shared count scale for the two projections and a zero-centred
+symmetric scale for their difference.
 """
 
 # %%
@@ -67,7 +69,7 @@ source[hot] = 2.0
 mu_map = np.zeros_like(source)
 mu_map[body] = 0.15
 
-PHOTON_MULTIPLIER = 8
+PHOTON_MULTIPLIER = 3
 
 
 # %%

@@ -26,17 +26,19 @@ and compares the projections. The only runtime switch that differs is ``RR``,
 so the difference isolates Monte Carlo noise, not a change of physics.
 
 Both runs use the default source quantization, four 360-degree views of
-32 x 32 bins at 4 mm, and a history multiplier of 8. The figure uses a shared
-count scale for the two projections and a zero-centred symmetric scale for
-their difference.
+32 x 32 bins at 4 mm, and a history multiplier of 3, which gives 3,464,700
+histories per view. That keeps both runs inside a two-hour budget together,
+while each view still holds enough counts for a stable repeatability measure.
+The figure uses a shared count scale for the two projections and a zero-centred
+symmetric scale for their difference.
 
-.. GENERATED FROM PYTHON SOURCE LINES 16-19
+.. GENERATED FROM PYTHON SOURCE LINES 18-21
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 19-52
+.. GENERATED FROM PYTHON SOURCE LINES 21-54
 
 .. code-block:: Python
 
@@ -80,13 +82,13 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 53-56
+.. GENERATED FROM PYTHON SOURCE LINES 55-58
 
 Build the phantom
 -----------------
 A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
 
-.. GENERATED FROM PYTHON SOURCE LINES 56-73
+.. GENERATED FROM PYTHON SOURCE LINES 58-75
 
 .. code-block:: Python
 
@@ -104,7 +106,7 @@ A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
     mu_map = np.zeros_like(source)
     mu_map[body] = 0.15
 
-    PHOTON_MULTIPLIER = 8
+    PHOTON_MULTIPLIER = 3
 
 
 
@@ -114,14 +116,14 @@ A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 74-78
+.. GENERATED FROM PYTHON SOURCE LINES 76-80
 
 Define one simulation case
 --------------------------
 Both cases share every setting except the random seed (runtime switch
 ``RR``).
 
-.. GENERATED FROM PYTHON SOURCE LINES 78-123
+.. GENERATED FROM PYTHON SOURCE LINES 80-125
 
 .. code-block:: Python
 
@@ -177,12 +179,12 @@ Both cases share every setting except the random seed (runtime switch
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 124-126
+.. GENERATED FROM PYTHON SOURCE LINES 126-128
 
 Run both seeds
 --------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-133
+.. GENERATED FROM PYTHON SOURCE LINES 128-135
 
 .. code-block:: Python
 
@@ -212,7 +214,7 @@ Run both seeds
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: seed_12345_src    
      Cover.....: al        ScoreRout.: scattwin  DensityImg: seed_12345_dns    
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 9239200        
+     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 3464700        
      EnergyResolution...: 9.2          Spectra   Activity..........: 1              
      MaxScatterOrder....: 3            ma-lehr   DetectorLenght....: 21.25          
      DetectorWidth......: 27           SPECT     DetectorHeight....: 0.95           
@@ -228,42 +230,18 @@ Run both seeds
                    Projection          Hits       Scatt/Tot    Progress
   
   
-                    1 of   4           53459        0.281          2 %
-                    1 of   4          111052        0.305          5 %
-                    1 of   4          170265        0.320          8 %
-                    1 of   4          230253        0.329         10 %
-                    1 of   4          290355        0.333         13 %
-                    1 of   4          350601        0.338         16 %
-                    1 of   4          410238        0.339         18 %
-                    1 of   4          467523        0.338         21 %
-                    1 of   4          521994        0.334         24 %
-                    2 of   4           53724        0.329         27 %
-                    2 of   4          110648        0.329         30 %
-                    2 of   4          169593        0.330         33 %
-                    2 of   4          229368        0.332         35 %
-                    2 of   4          289635        0.333         38 %
-                    2 of   4          350438        0.335         41 %
-                    2 of   4          409824        0.335         43 %
-                    2 of   4          467646        0.335         46 %
-                    2 of   4          522100        0.333         49 %
-                    3 of   4           53922        0.330         52 %
-                    3 of   4          111643        0.330         55 %
-                    3 of   4          170942        0.331         58 %
-                    3 of   4          230588        0.332         60 %
-                    3 of   4          290684        0.333         63 %
-                    3 of   4          351207        0.334         66 %
-                    3 of   4          410943        0.335         68 %
-                    3 of   4          468681        0.335         71 %
-                    3 of   4          522662        0.333         74 %
-                    4 of   4           53619        0.331         77 %
-                    4 of   4          110632        0.330         80 %
-                    4 of   4          169882        0.331         83 %
-                    4 of   4          229984        0.332         85 %
-                    4 of   4          290213        0.333         88 %
-                    4 of   4          350805        0.334         91 %
-                    4 of   4          409951        0.334         93 %
-                    4 of   4          467277        0.334         96 %
-                    4 of   4          521751        0.333         99 %
+                    1 of   4           55807        0.313          7 %
+                    1 of   4          116106        0.335         14 %
+                    1 of   4          174719        0.338         21 %
+                    2 of   4           55977        0.329         32 %
+                    2 of   4          115952        0.334         39 %
+                    2 of   4          175148        0.335         46 %
+                    3 of   4           56249        0.331         57 %
+                    3 of   4          116709        0.334         64 %
+                    3 of   4          175375        0.335         71 %
+                    4 of   4           56113        0.331         82 %
+                    4 of   4          116307        0.334         89 %
+                    4 of   4          175130        0.335         96 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -272,8 +250,8 @@ Run both seeds
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 32                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 32                     AcceptanceAngle...: 66.80632       
-     Emission type......: 3                      Initial Weight....: 0.09581        
-     NN ScalingFactor...: 8                      Energy Channels...: 128            
+     Emission type......: 3                      Initial Weight....: 0.2555         
+     NN ScalingFactor...: 3                      Energy Channels...: 128            
                                                                               
      SPECT DATA
      RotationMode.......: 360                    Nr of Projections.: 4              
@@ -307,38 +285,38 @@ Run both seeds
        1       0    126.0 - 154.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.210E+03 0.262E+02 0.184E+03 0.143E+00 0.125E+00 0.525E+02
+       1   0.210E+03 0.261E+02 0.183E+03 0.143E+00 0.125E+00 0.524E+02
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
        1   100.00%     0.00%     0.00%   100.00%     0.00%     0.00%
   
       Win   SC 1  SC 2  SC 3
-       1   93.3%  6.4%  0.3%
+       1   93.4%  6.3%  0.3%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 56.66          
-     MaxValue projection: 0.3305         
-     CountRate spectrum.: 76.80          
-     CountRate E-Window.: 73.28          
+     MaxValue spectrum..: 56.59          
+     MaxValue projection: 0.3218         
+     CountRate spectrum.: 76.68          
+     CountRate E-Window.: 73.18          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.49899        
-     Scatter/Total......: 0.33289        
-     Scatter order 1....: 70.98 %        
-     Scatter order 2....: 23.12 %        
-     Scatter order 3....: 5.9  %         
+     Scatter/Primary....: 0.49951        
+     Scatter/Total......: 0.33311        
+     Scatter order 1....: 70.91 %        
+     Scatter order 2....: 23.08 %        
+     Scatter order 3....: 6.01 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
      Efficiency E-window: 0.8988         
-     Efficiency spectrum: 0.9419         
-     Sensitivity Cps/MBq: 73.2842        
-     Sensitivity Cpm/uCi: 162.691        
+     Efficiency spectrum: 0.9418         
+     Sensitivity Cps/MBq: 73.1795        
+     Sensitivity Cpm/uCi: 162.4584       
                                                                               
-     Simulation started.: 2026:10:26 14:16:28
-     Simulation stopped.: 2026:10:26 15:19:02
-     Elapsed time.......: 1 h, 2 m and 34 s
-     DetectorHits.......: 534196         
-     DetectorHits/CPUsec: 142            
+     Simulation started.: 2026:11:04 15:01:42
+     Simulation stopped.: 2026:11:04 15:20:38
+     Elapsed time.......: 0 h, 18 m and 56 s
+     DetectorHits.......: 200197         
+     DetectorHits/CPUsec: 176            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -348,7 +326,7 @@ Run both seeds
      Header file: seed_12345.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: seed_12345 seed_12345 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:8/RR:12345/FW:seed_12345
+     Command: seed_12345 seed_12345 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:3/RR:12345/FW:seed_12345
     
 
 
@@ -360,7 +338,7 @@ Run both seeds
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: seed_54321_src    
      Cover.....: al        ScoreRout.: scattwin  DensityImg: seed_54321_dns    
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 9239200        
+     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 3464700        
      EnergyResolution...: 9.2          Spectra   Activity..........: 1              
      MaxScatterOrder....: 3            ma-lehr   DetectorLenght....: 21.25          
      DetectorWidth......: 27           SPECT     DetectorHeight....: 0.95           
@@ -376,42 +354,18 @@ Run both seeds
                    Projection          Hits       Scatt/Tot    Progress
   
   
-                    1 of   4           53425        0.280          2 %
-                    1 of   4          110802        0.305          5 %
-                    1 of   4          169838        0.318          8 %
-                    1 of   4          230027        0.327         10 %
-                    1 of   4          289839        0.333         13 %
-                    1 of   4          350560        0.338         16 %
-                    1 of   4          409870        0.340         18 %
-                    1 of   4          467422        0.339         21 %
-                    1 of   4          521619        0.334         24 %
-                    2 of   4           53286        0.328         27 %
-                    2 of   4          110419        0.328         30 %
-                    2 of   4          169611        0.330         33 %
-                    2 of   4          229063        0.331         35 %
-                    2 of   4          289241        0.332         38 %
-                    2 of   4          349715        0.334         41 %
-                    2 of   4          409238        0.334         43 %
-                    2 of   4          466695        0.335         46 %
-                    2 of   4          521609        0.333         49 %
-                    3 of   4           53810        0.329         52 %
-                    3 of   4          111359        0.329         55 %
-                    3 of   4          170510        0.330         58 %
-                    3 of   4          230199        0.331         60 %
-                    3 of   4          289645        0.332         63 %
-                    3 of   4          350071        0.334         66 %
-                    3 of   4          409474        0.334         68 %
-                    3 of   4          466759        0.334         71 %
-                    3 of   4          521464        0.333         74 %
-                    4 of   4           53661        0.330         77 %
-                    4 of   4          110903        0.330         80 %
-                    4 of   4          170430        0.331         83 %
-                    4 of   4          230116        0.332         85 %
-                    4 of   4          290559        0.333         88 %
-                    4 of   4          350927        0.334         91 %
-                    4 of   4          410001        0.334         93 %
-                    4 of   4          467866        0.334         96 %
-                    4 of   4          522626        0.333         99 %
+                    1 of   4           55547        0.315          7 %
+                    1 of   4          115893        0.336         14 %
+                    1 of   4          174579        0.340         21 %
+                    2 of   4           56119        0.329         32 %
+                    2 of   4          116888        0.333         39 %
+                    2 of   4          175555        0.335         46 %
+                    3 of   4           56100        0.330         57 %
+                    3 of   4          116248        0.333         64 %
+                    3 of   4          175148        0.334         71 %
+                    4 of   4           56035        0.330         82 %
+                    4 of   4          116447        0.333         89 %
+                    4 of   4          175294        0.334         96 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -420,8 +374,8 @@ Run both seeds
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 32                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 32                     AcceptanceAngle...: 66.80632       
-     Emission type......: 3                      Initial Weight....: 0.09581        
-     NN ScalingFactor...: 8                      Energy Channels...: 128            
+     Emission type......: 3                      Initial Weight....: 0.2555         
+     NN ScalingFactor...: 3                      Energy Channels...: 128            
                                                                               
      SPECT DATA
      RotationMode.......: 360                    Nr of Projections.: 4              
@@ -455,38 +409,38 @@ Run both seeds
        1       0    126.0 - 154.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.210E+03 0.263E+02 0.184E+03 0.143E+00 0.125E+00 0.526E+02
+       1   0.210E+03 0.262E+02 0.184E+03 0.142E+00 0.125E+00 0.525E+02
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
        1   100.00%     0.00%     0.00%   100.00%     0.00%     0.00%
   
       Win   SC 1  SC 2  SC 3
-       1   93.3%  6.4%  0.3%
+       1   93.3%  6.3%  0.4%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 56.50          
-     MaxValue projection: 0.3308         
-     CountRate spectrum.: 76.80          
-     CountRate E-Window.: 73.29          
+     MaxValue spectrum..: 56.43          
+     MaxValue projection: 0.3346         
+     CountRate spectrum.: 76.78          
+     CountRate E-Window.: 73.26          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.49875        
-     Scatter/Total......: 0.33278        
-     Scatter order 1....: 70.97 %        
-     Scatter order 2....: 23.07 %        
-     Scatter order 3....: 5.96 %         
+     Scatter/Primary....: 0.49819        
+     Scatter/Total......: 0.33253        
+     Scatter order 1....: 71.04 %        
+     Scatter order 2....: 23.05 %        
+     Scatter order 3....: 5.9  %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8991         
-     Efficiency spectrum: 0.9421         
-     Sensitivity Cps/MBq: 73.2874        
-     Sensitivity Cpm/uCi: 162.6981       
+     Efficiency E-window: 0.8987         
+     Efficiency spectrum: 0.9419         
+     Sensitivity Cps/MBq: 73.2565        
+     Sensitivity Cpm/uCi: 162.6295       
                                                                               
-     Simulation started.: 2026:10:26 15:19:02
-     Simulation stopped.: 2026:10:26 20:59:56
-     Elapsed time.......: 5 h, 40 m and 54 s
-     DetectorHits.......: 534854         
-     DetectorHits/CPUsec: 26             
+     Simulation started.: 2026:11:04 15:20:38
+     Simulation stopped.: 2026:11:04 16:41:51
+     Elapsed time.......: 1 h, 21 m and 13 s
+     DetectorHits.......: 200464         
+     DetectorHits/CPUsec: 41             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -496,12 +450,12 @@ Run both seeds
      Header file: seed_54321.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: seed_54321 seed_54321 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:8/RR:54321/FW:seed_54321
+     Command: seed_54321 seed_54321 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:3/RR:54321/FW:seed_54321
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 134-141
+.. GENERATED FROM PYTHON SOURCE LINES 136-143
 
 Compare the projections
 -----------------------
@@ -511,7 +465,7 @@ The relative RMS difference is a repeatability measure: zero for identical
 runs, and about the inverse square root of the counts for two independent
 Monte Carlo runs of the same expectation.
 
-.. GENERATED FROM PYTHON SOURCE LINES 141-175
+.. GENERATED FROM PYTHON SOURCE LINES 143-177
 
 .. code-block:: Python
 
@@ -562,12 +516,12 @@ Monte Carlo runs of the same expectation.
 
  .. code-block:: none
 
-    Seed 12345 projection sum: 209.961
-    Seed 54321 projection sum: 210.240
-    Difference sum (view 0): 0.073
-    Relative RMS difference: 9.369%
+    Seed 12345 projection sum: 209.644
+    Seed 54321 projection sum: 210.137
+    Difference sum (view 0): -0.297
+    Relative RMS difference: 16.825%
     Quantization loss: 0.0000%
-    Elapsed: 3754 s and 20454 s
+    Elapsed: 1136 s and 4873 s
 
 
 
@@ -575,7 +529,7 @@ Monte Carlo runs of the same expectation.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (403 minutes 29.835 seconds)
+   **Total running time of the script:** (100 minutes 10.155 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_02_runtime_switch_comparison.py:
