@@ -42,14 +42,15 @@ its own data directory. Start with the :doc:`basic simulation tutorial
 
     python examples/getting_started/plot_01_basic_simulation.py
 
-It uses a small voxel phantom, one energy window, few projections, and
-``NN=1``. Inspect the saved source, density, and total projection under
-``output/basic_simulation``. The example requests SCATTWIN ``CA=0`` for its
-126–154 keV window, which is available across the checked Linux builds. This is a
-smoke run: its noisy counts are not a quantitative reference. For a quantitative
-run, use the activity and
-time for the acquisition, enough histories for stable statistics, the intended
-number of views, and the matching collimator, windows, and detector settings.
+It uses a small voxel phantom, one energy window, four views, the default
+source quantization and ``NN=8``. Inspect the saved source, density, and total
+projection under ``output/basic_simulation``. The example requests SCATTWIN
+``CA=0`` for its 126–154 keV window, which is available across the checked
+Linux builds. The four views and eightfold history budget resolve the body and
+the hot sphere; this is a teaching run, not a clinical acquisition. For a
+quantitative study, use the activity and time for the acquisition, enough
+histories for stable statistics, the intended number of views, and the matching
+collimator, windows, and detector settings.
 
 Build the phantoms
 ------------------
@@ -69,8 +70,10 @@ The NEMA/IEC body phantom has explicit activity in MBq per voxel, density, and
 named masks. The example builds it before either simulation, so a missing
 phantomgen stops there rather than after the analytic run. It writes both
 projections under ``output/phantom_library`` and plots a central source slice
-and the first projection view of each phantom. The 24 views and low history
-count make the projections noisy.
+and the first projection view of each phantom. The 24 views are kept, but the
+history budget is raised: the analytic branch uses Index 26 = 4 (four million
+histories per projection) and the voxel NEMA branch uses the default
+quantization, which gives its hottest voxel 500 histories.
 
 For a quick smoke run, reduce ``quantization_scale`` and the number of views,
 or threshold the source to a mostly-zero map. Use ``NN >= 1``. For quantitative
