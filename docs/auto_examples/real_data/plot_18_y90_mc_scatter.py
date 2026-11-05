@@ -264,45 +264,41 @@ def _file_digest(path):
 
 
 def _directory_digest(directory):
-    """Return a digest of a configured data tree and its file contents.
+    """Return a content digest of a configured data tree and a completeness flag.
 
-    Every regular file path and its SHA-256 content are hashed, up to a 512 MiB
-    total content budget. Files beyond that budget contribute their path, size
-    and mtime plus a truncation marker. The whole tree is walked, so the digest
-    covers the configured SIMIND data installation rather than a fixed subset.
+    Every regular file is streamed through SHA-256 regardless of size, so a
+    same-size, same-mtime edit always changes the digest. If the tree exceeds
+    ``MAX_DATA_DIGEST_BYTES`` or any file cannot be read, the returned flag is
+    ``False`` and the simulation cache refuses to use the key. No metadata-only
+    fallback can therefore produce a cache hit from unhashed content.
     """
     if not directory:
-        return ""
+        return "", True
     root = Path(directory).expanduser()
     if not root.is_dir():
-        return f"missing:{root}"
+        return f"missing:{root}", False
     digest = hashlib.sha256()
     total = 0
-    truncated = False
+    complete = True
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
         digest.update(relative.encode())
         digest.update(b"\0")
+        file_digest = hashlib.sha256()
         try:
-            data = path.read_bytes()
+            with path.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    total += len(chunk)
+                    file_digest.update(chunk)
         except OSError:
-            digest.update(b"unreadable")
+            complete = False
             continue
-        if truncated or total + len(data) > MAX_DATA_DIGEST_BYTES:
-            truncated = True
-            stat = path.stat()
-            digest.update(b"meta:")
-            digest.update(str(stat.st_size).encode())
-            digest.update(b":")
-            digest.update(str(stat.st_mtime_ns).encode())
-        else:
-            total += len(data)
-            digest.update(hashlib.sha256(data).digest())
-    if truncated:
-        digest.update(b"truncated")
-    return digest.hexdigest()
+        digest.update(file_digest.digest())
+    if total > MAX_DATA_DIGEST_BYTES:
+        complete = False
+    return digest.hexdigest(), complete
 
 
 def _engine_inputs():
@@ -324,13 +320,15 @@ def _engine_inputs():
             break
     if data_directory:
         data_directory = str(Path(data_directory).expanduser().resolve())
+    data_digest, data_complete = _directory_digest(data_directory)
     return {
         "version": os.environ.get("SIMIND_VERSION"),
         "root": os.environ.get("SIMIND_ROOT"),
         "binary": binary,
         "binary_sha256": _file_digest(binary),
         "data_directory": data_directory,
-        "data_directory_digest": _directory_digest(data_directory),
+        "data_directory_digest": data_digest,
+        "data_directory_complete": data_complete,
     }
 
 
@@ -1498,6 +1496,8 @@ def _cached_simulation(output_dir, settings, source):
     except (OSError, ValueError):
         return None
     if manifest.get("settings") != settings:
+        return None
+    if not settings.get("engine", {}).get("data_directory_complete", False):
         return None
     previous_file = output_dir / "source.npy"
     if not previous_file.is_file():

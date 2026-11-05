@@ -913,3 +913,41 @@ def test_simulation_cache_invalidates_on_same_size_same_mtime_content_edit(
         != settings["engine"]["data_directory_digest"]
     )
     assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_over_budget_content_change_cannot_hit_the_cache(tmp_path, monkeypatch):
+    """An over-budget file is never a metadata-only cache key."""
+    output, source, density, job, _, _, data_directory = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    monkeypatch.setattr(script, "MAX_DATA_DIGEST_BYTES", 1)
+    over_budget = script._simulation_settings(job, density)
+    assert over_budget["engine"]["data_directory_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": over_budget,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, over_budget, source) is None
+
+    data_file = data_directory / "y90.isd"
+    before = data_file.stat()
+    data_file.write_text("two")
+    os.utime(data_file, ns=(before.st_atime_ns, before.st_mtime_ns))
+    after = data_file.stat()
+    assert after.st_size == before.st_size
+    assert after.st_mtime_ns == before.st_mtime_ns
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["engine"]["data_directory_digest"]
+        != over_budget["engine"]["data_directory_digest"]
+    )
+    assert changed["engine"]["data_directory_complete"] is False
+    assert script._cached_simulation(output, changed, source) is None
