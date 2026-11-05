@@ -28,13 +28,19 @@ bins of 4.2578 mm and a 75-225 keV window. The script takes no path argument:
 ``fetch_y90_phantom`` reads the directory named by
 ``SIMIND_CONNECTOR_Y90_DATA``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 14-17
+These are raw measured projection previews. All three 08 pages use the same
+0-16 counts-per-bin display scale so the result is an honest input illustration,
+not a reconstruction. See :doc:`../real_data/plot_16c_pytomography_ct_conversion`
+for the CT conversion and :doc:`../real_data/plot_17_y90_effective_energy` and
+:doc:`../real_data/plot_18_y90_mc_scatter` for the reconstruction case studies.
+
+.. GENERATED FROM PYTHON SOURCE LINES 20-23
 
 Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 17-45
+.. GENERATED FROM PYTHON SOURCE LINES 23-55
 
 .. code-block:: Python
 
@@ -47,6 +53,10 @@ Locate the Y-90 dataset and choose where the outputs are written.
     from pytomography.io.SPECT import dicom as pytomo_dicom
 
     from simind_python_connector.datasets import fetch_y90_phantom
+
+
+    PROJECTION_VMIN = 0.0
+    PROJECTION_VMAX = 16.0
 
 
     def _shown(path):
@@ -73,14 +83,14 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 46-50
+.. GENERATED FROM PYTHON SOURCE LINES 56-60
 
 Load the projections
 --------------------
 ``get_projections`` returns a tensor ordered (theta, r, z). ``index_peak=0``
 selects the first energy window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 50-58
+.. GENERATED FROM PYTHON SOURCE LINES 60-68
 
 .. code-block:: Python
 
@@ -106,7 +116,7 @@ selects the first energy window.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 59-66
+.. GENERATED FROM PYTHON SOURCE LINES 69-76
 
 Plot two views
 --------------
@@ -116,7 +126,7 @@ mod 360, so its view k is DICOM frame (k + 60) mod 120 and frame 0 is view 60.
 The tensor is transposed and drawn with ``origin="lower"`` so rows are axial
 with the head end up, and columns are radial.
 
-.. GENERATED FROM PYTHON SOURCE LINES 66-77
+.. GENERATED FROM PYTHON SOURCE LINES 76-94
 
 .. code-block:: Python
 
@@ -125,9 +135,16 @@ with the head end up, and columns are radial.
     fig, axes = plt.subplots(1, 2, figsize=(8, 4))
     for ax, frame in zip(axes, (0, 30)):
         view = (frame - n_views // 2) % n_views
-        ax.imshow(projection[view].T, cmap="magma", origin="lower")
+        shown = ax.imshow(
+            projection[view].T,
+            cmap="magma",
+            origin="lower",
+            vmin=PROJECTION_VMIN,
+            vmax=PROJECTION_VMAX,
+        )
         ax.set_title(f"PyTomography (DICOM frame {frame})")
         ax.axis("off")
+        fig.colorbar(shown, ax=ax, shrink=0.75, label="counts per bin")
     fig.tight_layout()
     fig.savefig(output_dir / "pytomography_from_dicom_summary.png", dpi=140)
     plt.show()
@@ -146,7 +163,7 @@ with the head end up, and columns are radial.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 6.051 seconds)
+   **Total running time of the script:** (0 minutes 16.797 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py:

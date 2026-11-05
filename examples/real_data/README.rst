@@ -43,11 +43,18 @@ The remaining two case studies use the same restricted data:
 
 - ``plot_17_y90_effective_energy.py`` (SIRF) compares a single 150-keV
   attenuation map with one weighted by the detected 75-225 keV spectrum, using
-  two otherwise identical reconstructions that both omit scatter.
+  two otherwise identical reconstructions that both omit scatter. The measured
+  data have about two counts per projection bin, so the figure shows the raw
+  OSEM images and an identical 10 mm FWHM Gaussian display smoothing; the
+  smoothing is display-only. Neither arm includes scatter and neither is an
+  accuracy reference.
 - ``plot_18_y90_mc_scatter.py`` (SIRF) compares Monte Carlo scatter strategies
-  on a common reconstruction schedule. It is an audited diagnostic negative
-  result, not a passing quantitative tutorial: the global-scaling arm collapsed
-  and is not quantitatively interpretable, the nominal sphere-to-liver ratios
-  are sensitive to the frozen sphere centre and do not support a strategy
-  ranking, and statistical adequacy was not established. The page reports
-  every failed or inconclusive quality gate.
+  on a common reconstruction schedule and publishes the reconstructed-image
+  comparison, profiles, scatter estimates and overlays. It is an audited
+  diagnostic negative result, not a passing quantitative tutorial: the
+  global-scaling arm collapsed and is not quantitatively interpretable, the
+  nominal sphere-to-liver ratios are sensitive to the frozen sphere centre and
+  do not support a strategy ranking, and statistical adequacy was not
+  established. The history probe reports NN=4, NN=8 and a chunked 16x level;
+  the coarse 4-to-8 pair already fails, so the finer level cannot restore
+  adequacy. The page reports every failed or inconclusive quality gate.

@@ -8,6 +8,12 @@ study: a Mediso AnyScan acquisition of 120 views over 360 degrees, 128 x 128
 bins of 4.2578 mm and a 75-225 keV window. The script takes no path argument:
 ``fetch_y90_phantom`` reads the directory named by
 ``SIMIND_CONNECTOR_Y90_DATA``.
+
+These are raw measured projection previews. All three 08 pages use the same
+0-16 counts-per-bin display scale so the result is an honest input illustration,
+not a reconstruction. See :doc:`../real_data/plot_16c_pytomography_ct_conversion`
+for the CT conversion and :doc:`../real_data/plot_17_y90_effective_energy` and
+:doc:`../real_data/plot_18_y90_mc_scatter` for the reconstruction case studies.
 """
 
 # %%
@@ -23,6 +29,10 @@ import numpy as np
 from pytomography.io.SPECT import dicom as pytomo_dicom
 
 from simind_python_connector.datasets import fetch_y90_phantom
+
+
+PROJECTION_VMIN = 0.0
+PROJECTION_VMAX = 16.0
 
 
 def _shown(path):
@@ -68,9 +78,16 @@ n_views = projection.shape[0]
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
 for ax, frame in zip(axes, (0, 30)):
     view = (frame - n_views // 2) % n_views
-    ax.imshow(projection[view].T, cmap="magma", origin="lower")
+    shown = ax.imshow(
+        projection[view].T,
+        cmap="magma",
+        origin="lower",
+        vmin=PROJECTION_VMIN,
+        vmax=PROJECTION_VMAX,
+    )
     ax.set_title(f"PyTomography (DICOM frame {frame})")
     ax.axis("off")
+    fig.colorbar(shown, ax=ax, shrink=0.75, label="counts per bin")
 fig.tight_layout()
 fig.savefig(output_dir / "pytomography_from_dicom_summary.png", dpi=140)
 plt.show()

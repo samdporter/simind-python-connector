@@ -744,3 +744,109 @@ def test_html_gate_rejects_a_ratios_panel_missing_from_example18(tmp_path):
         "html_ambiguous_figure_roles",
     }, _codes(problems)
     assert any("ratios" in problem.detail for problem in problems)
+
+
+@pytest.mark.unit
+def test_sphinx_gallery_publishes_figures_that_are_not_closed(tmp_path):
+    """A saved-but-open figure must become a page image, not only a thumbnail."""
+    pytest.importorskip("sphinx")
+    pytest.importorskip("sphinx_gallery")
+    from sphinx.application import Sphinx
+
+    src = tmp_path / "docs"
+    examples = src / "examples"
+    _write(examples / "GALLERY_HEADER.rst", "Gallery examples\n================\n")
+    _write(
+        examples / "plot_demo.py",
+        "\n".join(
+            [
+                '"""Synthetic gallery figure lifecycle check."""',
+                "",
+                "import numpy as np",
+                "import matplotlib",
+                "matplotlib.use('Agg')",
+                "import matplotlib.pyplot as plt",
+                "figure, axis = plt.subplots()",
+                "axis.imshow(np.arange(16).reshape(4, 4))",
+                "figure.savefig('demo_panel.png')",
+                "figure, axis = plt.subplots()",
+                "axis.plot(np.arange(8))",
+                "figure.savefig('demo_curve.png')",
+            ]
+        ),
+    )
+    _write(
+        src / "conf.py",
+        "\n".join(
+            [
+                "extensions = ['sphinx_gallery.gen_gallery']",
+                "sphinx_gallery_conf = {",
+                "    'examples_dirs': ['examples'],",
+                "    'gallery_dirs': ['auto_examples'],",
+                "    'filename_pattern': r'.*',",
+                "    'plot_gallery': True,",
+                "    'image_scrapers': ('matplotlib',),",
+                "    'abort_on_example_error': True,",
+                "}",
+                "project = 'gallery regression'",
+                "master_doc = 'index'",
+            ]
+        ),
+    )
+    _write(src / "index.rst", "Gallery\n=======\n")
+    app = Sphinx(
+        srcdir=str(src),
+        confdir=str(src),
+        outdir=str(tmp_path / "html"),
+        doctreedir=str(tmp_path / "doctrees"),
+        buildername="html",
+        freshenv=True,
+        warningiserror=False,
+        status=None,
+    )
+    app.build()
+    page = (src / "auto_examples" / "plot_demo.rst").read_text()
+    assert ".. image-sg::" in page
+    assert "sphx_glr_plot_demo_001.png" in page
+    assert "sphx_glr_plot_demo_002.png" in page
+    assert "_thumb.png" not in page
+
+
+Y90_SCATTER_FIGURES = (
+    "sphx_glr_plot_18_y90_mc_scatter_001.png",  # registration overlay
+    "sphx_glr_plot_18_y90_mc_scatter_002.png",  # VOI overlay
+    "sphx_glr_plot_18_y90_mc_scatter_003.png",  # shared-scale reconstructions
+    "sphx_glr_plot_18_y90_mc_scatter_004.png",  # collapsed global diagnostic
+    "sphx_glr_plot_18_y90_mc_scatter_005.png",  # primary ratio
+    "sphx_glr_plot_18_y90_mc_scatter_006.png",  # scatter estimates
+    "sphx_glr_plot_18_y90_mc_scatter_007.png",  # sphere profiles
+)
+
+
+def _y90_figure_names(page_text: str) -> list[str]:
+    return [
+        Path(reference).name for reference in re.findall(r"image-sg:: (\S+)", page_text)
+    ]
+
+
+def _assert_y90_figure_set(page_text: str) -> None:
+    names = _y90_figure_names(page_text)
+    assert names == list(Y90_SCATTER_FIGURES), names
+    assert all("thumb" not in name for name in names)
+
+
+@pytest.mark.unit
+def test_y90_scatter_page_publishes_the_complete_figure_set():
+    """The page must reference every reconstruction figure, not only a subset."""
+    page = ROOT / "docs" / "auto_examples" / "real_data" / "plot_18_y90_mc_scatter.rst"
+    text = page.read_text()
+    _assert_y90_figure_set(text)
+    for required in (
+        "sphx_glr_plot_18_y90_mc_scatter_003.png",
+        "sphx_glr_plot_18_y90_mc_scatter_004.png",
+    ):
+        broken = text.replace(
+            f".. image-sg:: /auto_examples/real_data/images/{required}\n", ""
+        )
+        with pytest.raises(AssertionError):
+            _assert_y90_figure_set(broken)

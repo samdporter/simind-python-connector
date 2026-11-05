@@ -35,6 +35,15 @@
    "name": "float"
   }
  ],
+ "HOT_SPHERE_CENTRE_MM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
+  }
+ ],
  "MASK_DEFINITION": [
   {
    "is_class": false,
@@ -106,6 +115,33 @@
    "module": "pathlib.Path",
    "module_short": "pathlib.Path",
    "name": "cwd"
+  }
+ ],
+ "RECON_ITERATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_SUBITERATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_SUBSETS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
   }
  ],
  "STIRSPECTImageDataBuilder": [
@@ -367,6 +403,22 @@
    "name": "any"
   }
  ],
+ "np.append": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "append"
+  }
+ ],
  "np.argsort": [
   {
    "is_class": false,
@@ -429,6 +481,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "asarray"
+  }
+ ],
+ "np.ascontiguousarray": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ascontiguousarray"
   }
  ],
  "np.clip": [
@@ -887,6 +955,22 @@
    "name": "outer"
   }
  ],
+ "np.percentile": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "percentile"
+  }
+ ],
  "np.round": [
   {
    "is_class": false,
@@ -1155,6 +1239,15 @@
    "name": "function"
   }
  ],
+ "reconstruct_pair": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "registration_mask": [
   {
    "is_class": false,
@@ -1209,6 +1302,15 @@
    "name": "function"
   }
  ],
+ "save_reconstruction_comparison": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "save_registration_overlay": [
   {
    "is_class": false,
@@ -1250,6 +1352,51 @@
    "module": "stir.FloatVoxelsOnCartesianGrid",
    "module_short": "stir.FloatVoxelsOnCartesianGrid",
    "name": "read_from_file"
+  }
+ ],
+ "stir.OSMAPOSLReconstruction3DFloat": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "stir",
+   "module_short": "stir",
+   "name": "OSMAPOSLReconstruction3DFloat"
+  }
+ ],
+ "stir.PoissonLogLikelihoodWithLinearModelForMeanAndProjData3DFloat": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "stir",
+   "module_short": "stir",
+   "name": "PoissonLogLikelihoodWithLinearModelForMeanAndProjData3DFloat"
+  }
+ ],
+ "stir.ProjData.read_from_file": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "stir.ProjData",
+   "module_short": "stir.ProjData",
+   "name": "read_from_file"
+  }
+ ],
+ "stir.ProjMatrixByBinSPECTUB": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "stir",
+   "module_short": "stir",
+   "name": "ProjMatrixByBinSPECTUB"
+  }
+ ],
+ "stir.ProjectorByBinPairUsingProjMatrixByBin": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "stir",
+   "module_short": "stir",
+   "name": "ProjectorByBinPairUsingProjMatrixByBin"
   }
  ],
  "stir.Verbosity.set": [
@@ -1302,6 +1449,22 @@
    "module": "stir",
    "module_short": "stir",
    "name": "zoom_image"
+  }
+ ],
+ "time.perf_counter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "time",
+   "module_short": "time",
+   "name": "perf_counter"
   }
  ],
  "write_unaccepted_summary": [

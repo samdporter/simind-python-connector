@@ -8,6 +8,12 @@ AnyScan acquisition of 120 views over 360 degrees, 128 x 128 bins of
 4.2578 mm and a 75-225 keV window. The script takes no path argument:
 ``fetch_y90_phantom`` reads the directory named by
 ``SIMIND_CONNECTOR_Y90_DATA``.
+
+These are raw measured projection previews. All three 08 pages use the same
+0-16 counts-per-bin display scale so the result is an honest input illustration,
+not a reconstruction. See :doc:`../real_data/plot_16a_stir_ct_conversion` for
+the CT conversion and :doc:`../real_data/plot_17_y90_effective_energy` and
+:doc:`../real_data/plot_18_y90_mc_scatter` for the reconstruction case studies.
 """
 
 # %%
@@ -25,6 +31,10 @@ import stir
 from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
 from simind_python_connector.datasets import fetch_y90_phantom
 from simind_python_connector.utils import get_array
+
+
+PROJECTION_VMIN = 0.0
+PROJECTION_VMAX = 16.0
 
 
 # The container's NumPy build warns about a subnormal value that this example
@@ -78,9 +88,10 @@ for ax, view in zip(axes, (0, 30)):
     plane = (
         projection[0, :, view, :] if projection.ndim == 4 else projection[:, view, :]
     )
-    ax.imshow(plane, cmap="magma")
+    shown = ax.imshow(plane, cmap="magma", vmin=PROJECTION_VMIN, vmax=PROJECTION_VMAX)
     ax.set_title(f"STIR projection (view {view})")
     ax.axis("off")
+    fig.colorbar(shown, ax=ax, shrink=0.75, label="counts per bin")
 fig.tight_layout()
 fig.savefig(output_dir / "stir_from_dicom_summary.png", dpi=140)
 plt.show()

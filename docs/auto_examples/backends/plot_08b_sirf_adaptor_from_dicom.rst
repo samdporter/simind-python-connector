@@ -28,13 +28,19 @@ AnyScan acquisition of 120 views over 360 degrees, 128 x 128 bins of
 ``fetch_y90_phantom`` reads the directory named by
 ``SIMIND_CONNECTOR_Y90_DATA``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 14-17
+These are raw measured projection previews. All three 08 pages use the same
+0-16 counts-per-bin display scale so the result is an honest input illustration,
+not a reconstruction. See :doc:`../real_data/plot_16b_sirf_ct_conversion` for
+the CT conversion and :doc:`../real_data/plot_17_y90_effective_energy` and
+:doc:`../real_data/plot_18_y90_mc_scatter` for the reconstruction case studies.
+
+.. GENERATED FROM PYTHON SOURCE LINES 20-23
 
 Setup
 -----
 Locate the Y-90 dataset and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 17-46
+.. GENERATED FROM PYTHON SOURCE LINES 23-56
 
 .. code-block:: Python
 
@@ -48,6 +54,10 @@ Locate the Y-90 dataset and choose where the outputs are written.
     from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
     from simind_python_connector.datasets import fetch_y90_phantom
     from simind_python_connector.utils import get_array
+
+
+    PROJECTION_VMIN = 0.0
+    PROJECTION_VMAX = 16.0
 
 
     def _shown(path):
@@ -74,7 +84,7 @@ Locate the Y-90 dataset and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 47-52
+.. GENERATED FROM PYTHON SOURCE LINES 57-62
 
 Build the SIRF projection data
 ------------------------------
@@ -82,7 +92,7 @@ The builder fills an Interfile header from the DICOM metadata and writes
 the projection counts next to it. The result is read back as SIRF
 ``AcquisitionData``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 52-65
+.. GENERATED FROM PYTHON SOURCE LINES 62-75
 
 .. code-block:: Python
 
@@ -117,13 +127,13 @@ the projection counts next to it. The result is read back as SIRF
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 66-69
+.. GENERATED FROM PYTHON SOURCE LINES 76-79
 
 Plot two views
 --------------
 Views 0 and 30 of the 120 views, 90 degrees apart.
 
-.. GENERATED FROM PYTHON SOURCE LINES 69-81
+.. GENERATED FROM PYTHON SOURCE LINES 79-92
 
 .. code-block:: Python
 
@@ -133,9 +143,10 @@ Views 0 and 30 of the 120 views, 90 degrees apart.
         plane = (
             projection[0, :, view, :] if projection.ndim == 4 else projection[:, view, :]
         )
-        ax.imshow(plane, cmap="magma")
+        shown = ax.imshow(plane, cmap="magma", vmin=PROJECTION_VMIN, vmax=PROJECTION_VMAX)
         ax.set_title(f"SIRF projection (view {view})")
         ax.axis("off")
+        fig.colorbar(shown, ax=ax, shrink=0.75, label="counts per bin")
     fig.tight_layout()
     fig.savefig(output_dir / "sirf_from_dicom_summary.png", dpi=140)
     plt.show()
@@ -154,7 +165,7 @@ Views 0 and 30 of the 120 views, 90 degrees apart.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 1.004 seconds)
+   **Total running time of the script:** (0 minutes 1.264 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_08b_sirf_adaptor_from_dicom.py:
