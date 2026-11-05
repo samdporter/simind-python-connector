@@ -11,6 +11,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import shutil
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,7 +29,6 @@ from simind_python_connector.core.types import (
 from simind_python_connector.phantoms import nema_iec_phantom
 
 
-ENGINE = "SIMIND v8"
 MPI_PROCESSES = 8
 GRID = (48, 48, 48)
 VOXEL_MM = 7.0
@@ -56,7 +58,66 @@ SEEDS = (12345, 12346, 12347)
 SPHERES = {"sphere_3": 17, "sphere_4": 22, "sphere_5": 28, "sphere_6": 37}
 TRUE_RATIO = 8.0
 
-_CACHE_VERSION = 1
+_CACHE_VERSION = 2
+
+
+def _change_version(change: Path) -> str | None:
+    """Read the distribution version from SIMIND's ``change`` banner.
+
+    The simulation binaries have no version flag, but the ``change`` program
+    in the same directory prints ``SIMIND version V8.0`` before its menu.
+    ``change`` pauses for input, so it is run from the distribution directory
+    (where ``simind.smc`` lives) and killed after the banner is captured.
+    """
+    if not change.is_file():
+        return None
+    process = subprocess.Popen(
+        [str(change)],
+        cwd=str(change.parent),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+    )
+    try:
+        output, _ = process.communicate(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        output, _ = process.communicate()
+    except OSError:
+        return None
+    match = re.search(r"SIMIND\s+version\s+(V\d+\.\d+)", output)
+    return match.group(1) if match else None
+
+
+def detect_engine(executable: str | None = None) -> str:
+    """Identify the installed SIMIND binary by version and content hash.
+
+    The version comes from the sibling ``change`` program. The SHA-256 prefix
+    keeps two builds of the same nominal version apart, so a cache cannot be
+    reused across binary changes even when the banner is identical.
+    """
+    path = executable or os.environ.get("SIMIND_BIN") or "simind"
+    resolved = shutil.which(path)
+    if resolved is None:
+        raise RuntimeError(
+            f"SIMIND executable {path!r} not found; set SIMIND_BIN or install it "
+            "on PATH before loading the shared expectation."
+        )
+    binary = Path(resolved).resolve()
+    version = _change_version(binary.parent / "change")
+    digest = hashlib.sha256(binary.read_bytes()).hexdigest()[:12]
+    label = f"SIMIND {version}" if version else "SIMIND (version unknown)"
+    return f"{label} [sha256:{digest}]"
+
+
+def engine_label(engine: str) -> str:
+    """Short human label for a detected engine, e.g. ``SIMIND v8``."""
+    match = re.search(r"V(\d+)\.", engine)
+    if match:
+        return f"SIMIND v{match.group(1)}"
+    return engine.split(" [", 1)[0]
 
 
 @dataclass(frozen=True)
@@ -230,10 +291,11 @@ class Expectation:
 
 
 def _expectation_settings(
-    phantom: Phantom, *, quantization_scale: float, histories: int
+    phantom: Phantom, *, quantization_scale: float, histories: int, engine: str
 ) -> dict:
     return {
         "version": _CACHE_VERSION,
+        "engine": engine,
         "grid": GRID,
         "voxel_mm": VOXEL_MM,
         "views": VIEWS,
@@ -255,10 +317,15 @@ def expectation_cache_file(
     quantization_scale: float = QUANTIZATION_SCALE,
     histories: int = HISTORY_MULTIPLIER,
     cache_dir: Path | None = None,
+    engine: str | None = None,
 ) -> Path:
-    """Where the expectation for these settings is cached."""
+    """Where the expectation for these settings and engine is cached."""
+    engine = engine or detect_engine()
     settings = _expectation_settings(
-        phantom, quantization_scale=quantization_scale, histories=histories
+        phantom,
+        quantization_scale=quantization_scale,
+        histories=histories,
+        engine=engine,
     )
     digest = hashlib.sha1(
         json.dumps(settings, sort_keys=True).encode(), usedforsecurity=False
@@ -275,29 +342,49 @@ def simulate_expectation(
     quantization_scale: float = QUANTIZATION_SCALE,
     histories: int = HISTORY_MULTIPLIER,
     cache_dir: Path | None = None,
+    engine: str | None = None,
 ) -> Expectation:
     """Simulate (or reuse) the high-precision expectation of one reference view.
 
-    The cache key holds every setting that changes the result. A reused file
-    reports its original wall time, so the printed summary still shows what the
-    simulation cost.
+    The cache key holds the engine and every setting that changes the result.
+    A reused file must name the same engine and settings; a mismatch is an
+    error rather than a silent reuse. A reused file reports its original wall
+    time, so the printed summary still shows what the simulation cost.
     """
+    engine = engine or detect_engine()
+    settings = _expectation_settings(
+        phantom,
+        quantization_scale=quantization_scale,
+        histories=histories,
+        engine=engine,
+    )
     cache_file = expectation_cache_file(
         phantom,
         quantization_scale=quantization_scale,
         histories=histories,
         cache_dir=cache_dir,
+        engine=engine,
     )
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     print(
-        f"{ENGINE}: {GRID[0]}x{GRID[1]}x{GRID[2]} grid, {VIEWS} views at "
-        f"{RADIUS_MM:.0f} mm, {histories} histories per source count, "
+        f"{engine_label(engine)}: {GRID[0]}x{GRID[1]}x{GRID[2]} grid, {VIEWS} views "
+        f"at {RADIUS_MM:.0f} mm, {histories} histories per source count, "
         f"{REFERENCE_TIME_S:g} s/view, {MPI_PROCESSES} MPI processes"
     )
 
     if cache_file.exists():
         data = np.load(cache_file)
         meta = json.loads(str(data["meta"]))
+        if meta.get("engine") != engine:
+            raise RuntimeError(
+                f"Expectation cache {cache_file} was produced by "
+                f"{meta.get('engine')!r}, not {engine!r}. Delete it to resimulate."
+            )
+        if meta.get("settings") != json.loads(json.dumps(settings)):
+            raise RuntimeError(
+                f"Expectation cache {cache_file} settings do not match this run. "
+                "Delete it to resimulate."
+            )
         print(
             f"Reused expectation {cache_file.name}: {meta['total']:.3g} counts, "
             f"{meta['histories']:.3g} histories, "
@@ -331,10 +418,8 @@ def simulate_expectation(
     loss = quantization_loss(activity, quantization_scale)
     histories_run = float(source_map(activity, quantization_scale).sum() * histories)
     meta = {
-        "settings": _expectation_settings(
-            phantom, quantization_scale=quantization_scale, histories=histories
-        ),
-        "engine": ENGINE,
+        "settings": settings,
+        "engine": engine,
         "mpi_processes": MPI_PROCESSES,
         "total": float(counts.sum()),
         "histories": histories_run,
@@ -408,3 +493,9 @@ def mean_and_sem(values: Any) -> tuple[np.ndarray, np.ndarray]:
     """Mean and standard error over the first axis of independent realisations."""
     array = np.asarray(values, dtype=np.float64)
     return array.mean(axis=0), array.std(axis=0, ddof=1) / np.sqrt(array.shape[0])
+
+
+def mean_and_std(values: Any) -> tuple[np.ndarray, np.ndarray]:
+    """Mean and sample standard deviation over independent realisations."""
+    array = np.asarray(values, dtype=np.float64)
+    return array.mean(axis=0), array.std(axis=0, ddof=1)

@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**316:47.039** total execution time for 3 files **from auto_examples/mc_scatter**:
+**350:41.200** total execution time for 3 files **from auto_examples/mc_scatter**:
 
 .. container::
 
@@ -33,11 +33,11 @@ Computation times
      - Time
      - Mem (MB)
    * - :ref:`sphx_glr_auto_examples_mc_scatter_plot_12_scatter_normalisation.py` (``plot_12_scatter_normalisation.py``)
-     - 205:26.893
+     - 202:51.335
      - 0.0
    * - :ref:`sphx_glr_auto_examples_mc_scatter_plot_13_residual_correction.py` (``plot_13_residual_correction.py``)
-     - 82:59.576
+     - 105:43.825
      - 0.0
    * - :ref:`sphx_glr_auto_examples_mc_scatter_plot_11_mc_scatter_osem.py` (``plot_11_mc_scatter_osem.py``)
-     - 28:20.570
+     - 42:06.039
      - 0.0

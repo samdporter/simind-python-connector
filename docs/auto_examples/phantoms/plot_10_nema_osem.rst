@@ -215,7 +215,7 @@ expectation.
  .. code-block:: none
 
     SIMIND v8: 48x48x48 grid, 60 views at 250 mm, 4 histories per source count, 2 s/view, 8 MPI processes
-    Reused expectation expectation_5a824ad83b2a.npz: 2e+06 counts, 8.1e+06 histories, simulated in 53.0 min
+    Reused expectation expectation_123c6d88a188.npz: 2e+06 counts, 8.1e+06 histories, simulated in 53.0 min
     Expectation counts: 1.997e+06
     Photon histories: 8.102e+06
     Histories per measured count: 4.06 (so the Monte Carlo variance is that fraction of the Poisson variance)
@@ -436,7 +436,7 @@ standard error over the three independent Poisson realisations.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (1 minutes 14.904 seconds)
+   **Total running time of the script:** (1 minutes 13.902 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_10_nema_osem.py:

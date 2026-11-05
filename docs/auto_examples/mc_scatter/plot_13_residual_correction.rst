@@ -188,7 +188,7 @@ view; the three realisations are shared by every arm.
  .. code-block:: none
 
     SIMIND v8: 48x48x48 grid, 60 views at 250 mm, 4 histories per source count, 2 s/view, 8 MPI processes
-    Reused expectation expectation_5a824ad83b2a.npz: 2e+06 counts, 8.1e+06 histories, simulated in 53.0 min
+    Reused expectation expectation_123c6d88a188.npz: 2e+06 counts, 8.1e+06 histories, simulated in 53.0 min
     Expectation: 1.997e+06 counts from 8.102e+06 histories, quantization loss 0.29%
     Seed 12345: 1.995e+06 measured counts
     Seed 12346: 1.998e+06 measured counts
@@ -413,11 +413,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 29.2281        
      Sensitivity Cpm/uCi: 64.8864        
                                                                               
-     Simulation started.: 2026:11:04 21:56:58
-     Simulation stopped.: 2026:11:04 22:01:59
-     Elapsed time.......: 0 h, 5 m and 1 s
+     Simulation started.: 2026:11:05 09:00:02
+     Simulation stopped.: 2026:11:05 09:04:58
+     Elapsed time.......: 0 h, 4 m and 56 s
      DetectorHits.......: 4530           
-     DetectorHits/CPUsec: 120            
+     DetectorHits/CPUsec: 122            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -534,11 +534,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 29.6215        
      Sensitivity Cpm/uCi: 65.7597        
                                                                               
-     Simulation started.: 2026:11:04 22:02:06
-     Simulation stopped.: 2026:11:04 22:05:38
-     Elapsed time.......: 0 h, 3 m and 32 s
+     Simulation started.: 2026:11:05 09:05:05
+     Simulation stopped.: 2026:11:05 09:08:30
+     Elapsed time.......: 0 h, 3 m and 25 s
      DetectorHits.......: 3010           
-     DetectorHits/CPUsec: 112            
+     DetectorHits/CPUsec: 117            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -656,11 +656,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 29.6346        
      Sensitivity Cpm/uCi: 65.7887        
                                                                               
-     Simulation started.: 2026:11:04 22:05:46
-     Simulation stopped.: 2026:11:04 22:08:45
-     Elapsed time.......: 0 h, 2 m and 59 s
+     Simulation started.: 2026:11:05 09:08:37
+     Simulation stopped.: 2026:11:05 09:11:34
+     Elapsed time.......: 0 h, 2 m and 57 s
      DetectorHits.......: 2640           
-     DetectorHits/CPUsec: 117            
+     DetectorHits/CPUsec: 118            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -777,11 +777,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 29.3176        
      Sensitivity Cpm/uCi: 65.0851        
                                                                               
-     Simulation started.: 2026:11:04 22:08:56
-     Simulation stopped.: 2026:11:04 22:15:03
-     Elapsed time.......: 0 h, 6 m and 7 s
+     Simulation started.: 2026:11:05 09:11:45
+     Simulation stopped.: 2026:11:05 09:17:50
+     Elapsed time.......: 0 h, 6 m and 5 s
      DetectorHits.......: 5734           
-     DetectorHits/CPUsec: 124            
+     DetectorHits/CPUsec: 125            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -806,7 +806,7 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: scatter_12346_src 
      Cover.....: al        ScoreRout.: penetrate DensityImg: scatter_12346_dns 
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 158348         
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 158349         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -849,15 +849,15 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.01 %          94.41 %
-     Penetration........:   4.20 %           3.29 %
-     Scatter in collim..:   3.77 %           2.31 %
-     X-rays in collim...:   5.01 %           0.00 %
+     Geometric..........:  86.91 %          94.45 %
+     Penetration........:   4.26 %           3.32 %
+     Scatter in collim..:   3.78 %           2.23 %
+     X-rays in collim...:   5.05 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.06 %           0.00 %
-     K-photon2 85.36 keV:  27.54 %           0.00 %
-     K-photon3 26.27 keV:   6.40 %           0.00 %
-     K-photon4 29.83 keV:   2.00 %           0.00 %
+     K-photon1 74.16 keV:  64.78 %           0.00 %
+     K-photon2 85.36 keV:  27.07 %           0.00 %
+     K-photon3 26.27 keV:   6.13 %           0.00 %
+     K-photon4 29.83 keV:   2.02 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -874,35 +874,35 @@ subtract. The additive term starts at zero and is refreshed after each pass of
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  71.07  23.26   0.01   0.00  35.54  51.85   1.21   0.42
-     penetration..:   2.34   0.72   0.00   0.00   1.28   1.27   0.04   0.01
-     collim scatt.:   1.80   0.80   0.00   0.00   0.92   1.70   0.04   0.01
-     collim x-rays:   0.00   0.00   0.00   0.00   2.70   3.02   0.00   0.00
+     geometric....:  71.04  23.45   0.01   0.00  35.53  51.74   1.22   0.42
+     penetration..:   2.53   0.73   0.00   0.00   1.29   1.31   0.04   0.01
+     collim scatt.:   1.73   0.51   0.00   0.00   0.92   1.65   0.04   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.75   3.08   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 451.5          
-     MaxValue projection: 0.1990         
-     CountRate spectrum.: 63.20          
-     CountRate E-Window.: 29.80          
+     MaxValue spectrum..: 452.8          
+     MaxValue projection: 0.8596E-01     
+     CountRate spectrum.: 63.21          
+     CountRate E-Window.: 29.79          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.32188        
-     Scatter/Total......: 0.2435         
-     Scatter order 1....: 85.44 %        
-     Scatter order 2....: 13.01 %        
-     Scatter order 3....: 1.54 %         
+     Scatter/Primary....: 0.32034        
+     Scatter/Total......: 0.24262        
+     Scatter order 1....: 85.66 %        
+     Scatter order 2....: 12.85 %        
+     Scatter order 3....: 1.48 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4522         
-     Efficiency spectrum: 0.959          
-     Sensitivity Cps/MBq: 29.8022        
-     Sensitivity Cpm/uCi: 66.1609        
+     Efficiency E-window: 0.4519         
+     Efficiency spectrum: 0.9589         
+     Sensitivity Cps/MBq: 29.7897        
+     Sensitivity Cpm/uCi: 66.1331        
                                                                               
-     Simulation started.: 2026:11:04 22:15:11
-     Simulation stopped.: 2026:11:04 22:19:49
-     Elapsed time.......: 0 h, 4 m and 38 s
-     DetectorHits.......: 4200           
-     DetectorHits/CPUsec: 120            
+     Simulation started.: 2026:11:05 09:17:58
+     Simulation stopped.: 2026:11:05 09:22:40
+     Elapsed time.......: 0 h, 4 m and 42 s
+     DetectorHits.......: 4225           
+     DetectorHits/CPUsec: 119            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -927,7 +927,7 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: scatter_12346_src 
      Cover.....: al        ScoreRout.: penetrate DensityImg: scatter_12346_dns 
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 141066         
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 139153         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -951,7 +951,7 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 0.77889        
+     Emission type......: 3                      Initial Weight....: 0.7896         
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -970,15 +970,15 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.06 %          94.43 %
-     Penetration........:   4.20 %           3.23 %
-     Scatter in collim..:   3.75 %           2.34 %
-     X-rays in collim...:   4.98 %           0.00 %
+     Geometric..........:  87.16 %          94.44 %
+     Penetration........:   4.20 %           3.29 %
+     Scatter in collim..:   3.70 %           2.27 %
+     X-rays in collim...:   4.94 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.64 %           0.00 %
-     K-photon2 85.36 keV:  27.38 %           0.00 %
-     K-photon3 26.27 keV:   6.42 %           0.00 %
-     K-photon4 29.83 keV:   1.56 %           0.00 %
+     K-photon1 74.16 keV:  65.11 %           0.00 %
+     K-photon2 85.36 keV:  27.06 %           0.00 %
+     K-photon3 26.27 keV:   6.25 %           0.00 %
+     K-photon4 29.83 keV:   1.58 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -995,35 +995,35 @@ subtract. The additive term starts at zero and is refreshed after each pass of
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  71.65  22.77   0.01   0.00  35.65  51.76   1.21   0.41
-     penetration..:   2.66   0.64   0.00   0.00   1.26   1.26   0.04   0.02
-     collim scatt.:   1.81   0.47   0.00   0.00   0.95   1.68   0.03   0.01
-     collim x-rays:   0.00   0.00   0.00   0.00   2.76   2.95   0.00   0.00
+     geometric....:  71.42  23.11   0.00   0.00  35.54  51.86   1.23   0.42
+     penetration..:   2.70   0.65   0.00   0.00   1.30   1.29   0.04   0.01
+     collim scatt.:   1.73   0.38   0.00   0.00   0.91   1.75   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.63   2.99   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 452.5          
-     MaxValue projection: 0.8973E-01     
-     CountRate spectrum.: 63.26          
-     CountRate E-Window.: 29.84          
+     MaxValue spectrum..: 453.3          
+     MaxValue projection: 0.9420E-01     
+     CountRate spectrum.: 63.21          
+     CountRate E-Window.: 29.86          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.31715        
-     Scatter/Total......: 0.24079        
-     Scatter order 1....: 85.58 %        
-     Scatter order 2....: 12.94 %        
-     Scatter order 3....: 1.47 %         
+     Scatter/Primary....: 0.32324        
+     Scatter/Total......: 0.24428        
+     Scatter order 1....: 85.44 %        
+     Scatter order 2....: 13.01 %        
+     Scatter order 3....: 1.55 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
      Efficiency E-window: 0.4528         
-     Efficiency spectrum: 0.96           
-     Sensitivity Cps/MBq: 29.8368        
-     Sensitivity Cpm/uCi: 66.2377        
+     Efficiency spectrum: 0.9586         
+     Sensitivity Cps/MBq: 29.8612        
+     Sensitivity Cpm/uCi: 66.292         
                                                                               
-     Simulation started.: 2026:11:04 22:19:56
-     Simulation stopped.: 2026:11:04 22:24:06
-     Elapsed time.......: 0 h, 4 m and 10 s
-     DetectorHits.......: 3908           
-     DetectorHits/CPUsec: 124            
+     Simulation started.: 2026:11:05 09:22:49
+     Simulation stopped.: 2026:11:05 09:28:11
+     Elapsed time.......: 0 h, 5 m and 22 s
+     DetectorHits.......: 3743           
+     DetectorHits/CPUsec: 109            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1140,11 +1140,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 29.2946        
      Sensitivity Cpm/uCi: 65.034         
                                                                               
-     Simulation started.: 2026:11:04 22:24:17
-     Simulation stopped.: 2026:11:04 22:29:34
-     Elapsed time.......: 0 h, 5 m and 17 s
+     Simulation started.: 2026:11:05 09:28:25
+     Simulation stopped.: 2026:11:05 09:36:41
+     Elapsed time.......: 0 h, 8 m and 16 s
      DetectorHits.......: 4796           
-     DetectorHits/CPUsec: 121            
+     DetectorHits/CPUsec: 94             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1261,11 +1261,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 29.5676        
      Sensitivity Cpm/uCi: 65.6402        
                                                                               
-     Simulation started.: 2026:11:04 22:29:41
-     Simulation stopped.: 2026:11:04 22:33:32
-     Elapsed time.......: 0 h, 3 m and 51 s
+     Simulation started.: 2026:11:05 09:36:59
+     Simulation stopped.: 2026:11:05 09:46:48
+     Elapsed time.......: 0 h, 9 m and 49 s
      DetectorHits.......: 3473           
-     DetectorHits/CPUsec: 120            
+     DetectorHits/CPUsec: 92             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1383,11 +1383,11 @@ subtract. The additive term starts at zero and is refreshed after each pass of
      Sensitivity Cps/MBq: 29.6903        
      Sensitivity Cpm/uCi: 65.9124        
                                                                               
-     Simulation started.: 2026:11:04 22:33:40
-     Simulation stopped.: 2026:11:04 22:37:03
-     Elapsed time.......: 0 h, 3 m and 23 s
+     Simulation started.: 2026:11:05 09:47:00
+     Simulation stopped.: 2026:11:05 09:53:42
+     Elapsed time.......: 0 h, 6 m and 42 s
      DetectorHits.......: 2933           
-     DetectorHits/CPUsec: 115            
+     DetectorHits/CPUsec: 112            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1591,11 +1591,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.2281        
      Sensitivity Cpm/uCi: 64.8864        
                                                                               
-     Simulation started.: 2026:11:04 22:37:15
-     Simulation stopped.: 2026:11:04 22:42:21
-     Elapsed time.......: 0 h, 5 m and 6 s
+     Simulation started.: 2026:11:05 09:53:57
+     Simulation stopped.: 2026:11:05 10:00:32
+     Elapsed time.......: 0 h, 6 m and 35 s
      DetectorHits.......: 4530           
-     DetectorHits/CPUsec: 118            
+     DetectorHits/CPUsec: 117            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1713,11 +1713,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.6186        
      Sensitivity Cpm/uCi: 65.7534        
                                                                               
-     Simulation started.: 2026:11:04 22:42:29
-     Simulation stopped.: 2026:11:04 22:46:06
-     Elapsed time.......: 0 h, 3 m and 37 s
+     Simulation started.: 2026:11:05 10:00:43
+     Simulation stopped.: 2026:11:05 10:04:52
+     Elapsed time.......: 0 h, 4 m and 9 s
      DetectorHits.......: 3165           
-     DetectorHits/CPUsec: 116            
+     DetectorHits/CPUsec: 110            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1835,11 +1835,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.5762        
      Sensitivity Cpm/uCi: 65.6591        
                                                                               
-     Simulation started.: 2026:11:04 22:46:15
-     Simulation stopped.: 2026:11:04 22:49:12
-     Elapsed time.......: 0 h, 2 m and 57 s
+     Simulation started.: 2026:11:05 10:05:01
+     Simulation stopped.: 2026:11:05 10:08:05
+     Elapsed time.......: 0 h, 3 m and 4 s
      DetectorHits.......: 2424           
-     DetectorHits/CPUsec: 109            
+     DetectorHits/CPUsec: 105            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1956,11 +1956,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.3176        
      Sensitivity Cpm/uCi: 65.0851        
                                                                               
-     Simulation started.: 2026:11:04 22:49:26
-     Simulation stopped.: 2026:11:04 22:55:42
-     Elapsed time.......: 0 h, 6 m and 16 s
+     Simulation started.: 2026:11:05 10:08:18
+     Simulation stopped.: 2026:11:05 10:14:56
+     Elapsed time.......: 0 h, 6 m and 38 s
      DetectorHits.......: 5734           
-     DetectorHits/CPUsec: 121            
+     DetectorHits/CPUsec: 115            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2077,11 +2077,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.4524        
      Sensitivity Cpm/uCi: 65.3843        
                                                                               
-     Simulation started.: 2026:11:04 22:55:52
-     Simulation stopped.: 2026:11:04 23:00:33
-     Elapsed time.......: 0 h, 4 m and 41 s
+     Simulation started.: 2026:11:05 10:15:06
+     Simulation stopped.: 2026:11:05 10:19:55
+     Elapsed time.......: 0 h, 4 m and 49 s
      DetectorHits.......: 4006           
-     DetectorHits/CPUsec: 114            
+     DetectorHits/CPUsec: 110            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2199,11 +2199,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.5712        
      Sensitivity Cpm/uCi: 65.6482        
                                                                               
-     Simulation started.: 2026:11:04 23:00:43
-     Simulation stopped.: 2026:11:04 23:04:47
-     Elapsed time.......: 0 h, 4 m and 4 s
+     Simulation started.: 2026:11:05 10:20:06
+     Simulation stopped.: 2026:11:05 10:23:34
+     Elapsed time.......: 0 h, 3 m and 28 s
      DetectorHits.......: 2869           
-     DetectorHits/CPUsec: 111            
+     DetectorHits/CPUsec: 109            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2320,11 +2320,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.2946        
      Sensitivity Cpm/uCi: 65.034         
                                                                               
-     Simulation started.: 2026:11:04 23:05:01
-     Simulation stopped.: 2026:11:04 23:11:09
-     Elapsed time.......: 0 h, 6 m and 8 s
+     Simulation started.: 2026:11:05 10:23:49
+     Simulation stopped.: 2026:11:05 10:29:14
+     Elapsed time.......: 0 h, 5 m and 25 s
      DetectorHits.......: 4796           
-     DetectorHits/CPUsec: 118            
+     DetectorHits/CPUsec: 117            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2442,11 +2442,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.539         
      Sensitivity Cpm/uCi: 65.5765        
                                                                               
-     Simulation started.: 2026:11:04 23:11:19
-     Simulation stopped.: 2026:11:04 23:15:03
-     Elapsed time.......: 0 h, 3 m and 44 s
+     Simulation started.: 2026:11:05 10:29:24
+     Simulation stopped.: 2026:11:05 10:37:40
+     Elapsed time.......: 0 h, 8 m and 16 s
      DetectorHits.......: 3171           
-     DetectorHits/CPUsec: 112            
+     DetectorHits/CPUsec: 104            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2564,11 +2564,11 @@ damped term the next OSEM pass uses.
      Sensitivity Cps/MBq: 29.6126        
      Sensitivity Cpm/uCi: 65.7399        
                                                                               
-     Simulation started.: 2026:11:04 23:15:13
-     Simulation stopped.: 2026:11:04 23:19:03
-     Elapsed time.......: 0 h, 3 m and 50 s
+     Simulation started.: 2026:11:05 10:37:55
+     Simulation stopped.: 2026:11:05 10:44:55
+     Elapsed time.......: 0 h, 7 m and 0 s
      DetectorHits.......: 1882           
-     DetectorHits/CPUsec: 103            
+     DetectorHits/CPUsec: 102            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2621,26 +2621,26 @@ fits the data better, beyond Monte Carlo noise.
 
  .. code-block:: none
 
-    seed 12345 scatter update at iteration 12: additive sum 4.131e+05, 304 s
-    seed 12345 scatter update at iteration 24: additive sum 5.276e+05, 216 s
-    seed 12345 scatter update at iteration 36: additive sum 5.582e+05, 183 s
-    seed 12345 residual update at iteration 12: additive sum 5.196e+05, 310 s
-    seed 12345 residual update at iteration 24: additive sum 6.345e+05, 221 s
-    seed 12345 residual update at iteration 36: additive sum 6.812e+05, 182 s
+    seed 12345 scatter update at iteration 12: additive sum 4.131e+05, 300 s
+    seed 12345 scatter update at iteration 24: additive sum 5.276e+05, 208 s
+    seed 12345 scatter update at iteration 36: additive sum 5.582e+05, 181 s
+    seed 12345 residual update at iteration 12: additive sum 5.196e+05, 402 s
+    seed 12345 residual update at iteration 24: additive sum 6.345e+05, 255 s
+    seed 12345 residual update at iteration 36: additive sum 6.812e+05, 188 s
     seed 12345 effective objective at each residual update: -3.85339e+06, -3.70823e+06, -3.4652e+06
-    seed 12346 scatter update at iteration 12: additive sum 4.088e+05, 370 s
-    seed 12346 scatter update at iteration 24: additive sum 5.255e+05, 281 s
-    seed 12346 scatter update at iteration 36: additive sum 5.571e+05, 253 s
-    seed 12346 residual update at iteration 12: additive sum 4.965e+05, 382 s
-    seed 12346 residual update at iteration 24: additive sum 6.11e+05, 286 s
-    seed 12346 residual update at iteration 36: additive sum 6.661e+05, 249 s
+    seed 12346 scatter update at iteration 12: additive sum 4.088e+05, 368 s
+    seed 12346 scatter update at iteration 24: additive sum 5.241e+05, 286 s
+    seed 12346 scatter update at iteration 36: additive sum 5.614e+05, 326 s
+    seed 12346 residual update at iteration 12: additive sum 4.965e+05, 403 s
+    seed 12346 residual update at iteration 24: additive sum 6.11e+05, 296 s
+    seed 12346 residual update at iteration 36: additive sum 6.661e+05, 213 s
     seed 12346 effective objective at each residual update: -3.99429e+06, -3.9119e+06, -3.63761e+06
-    seed 12347 scatter update at iteration 12: additive sum 4.083e+05, 320 s
-    seed 12347 scatter update at iteration 24: additive sum 5.264e+05, 234 s
-    seed 12347 scatter update at iteration 36: additive sum 5.584e+05, 207 s
-    seed 12347 residual update at iteration 12: additive sum 5.131e+05, 373 s
-    seed 12347 residual update at iteration 24: additive sum 6.321e+05, 229 s
-    seed 12347 residual update at iteration 36: additive sum 7.049e+05, 237 s
+    seed 12347 scatter update at iteration 12: additive sum 4.083e+05, 503 s
+    seed 12347 scatter update at iteration 24: additive sum 5.264e+05, 598 s
+    seed 12347 scatter update at iteration 36: additive sum 5.584e+05, 408 s
+    seed 12347 residual update at iteration 12: additive sum 5.131e+05, 331 s
+    seed 12347 residual update at iteration 24: additive sum 6.321e+05, 503 s
+    seed 12347 residual update at iteration 36: additive sum 7.049e+05, 429 s
     seed 12347 effective objective at each residual update: -3.86457e+06, -3.68472e+06, -2.94991e+06
 
 
@@ -2793,7 +2793,7 @@ standard error over the three independent realisations.
                                   17 mm      22 mm      28 mm      37 mm     CoV
     Truth                          0.44       0.51       0.63       0.66    0.38
     Fast only                      0.29       0.38       0.50       0.55    0.71
-    Fast + SIMIND scatter          0.31       0.43       0.56       0.63    0.79
+    Fast + SIMIND scatter          0.31       0.42       0.56       0.63    0.79
     Fast + full residual           0.33       0.43       0.56       0.60    1.00
 
 
@@ -2813,7 +2813,7 @@ update, so the damped residual does not keep improving that fit.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (82 minutes 59.576 seconds)
+   **Total running time of the script:** (105 minutes 43.825 seconds)
 
 
 .. _sphx_glr_download_auto_examples_mc_scatter_plot_13_residual_correction.py:

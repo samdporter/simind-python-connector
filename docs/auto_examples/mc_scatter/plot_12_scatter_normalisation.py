@@ -328,8 +328,14 @@ for color, title in enumerate(STRATEGIES):
         ]
     )
     if title != "Known activity":
-        axes[0].plot(updates, scales.mean(axis=0), "o-", color=color, label=title)
-    axes[1].plot(updates, sums.mean(axis=0), "o-", color=color, label=title)
+        mean, spread = _nema.mean_and_std(scales)
+        axes[0].plot(updates, mean, "o-", color=color, label=title)
+        axes[0].fill_between(
+            updates, mean - spread, mean + spread, color=color, alpha=0.15
+        )
+    mean, spread = _nema.mean_and_std(sums)
+    axes[1].plot(updates, mean, "o-", color=color, label=title)
+    axes[1].fill_between(updates, mean - spread, mean + spread, color=color, alpha=0.15)
 axes[1].axhline(true_sum, color="k", linestyle="--", label="True scatter")
 axes[0].set_title("Scale factor")
 axes[1].set_title("Sum of the raw scatter estimate")

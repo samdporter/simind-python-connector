@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 - The NEMA reconstruction tutorials (examples 10-15) share a cached
   high-precision SIMIND expectation, report seed-to-seed uncertainty, and
-  separate Monte Carlo precision from Poisson acquisition noise.
+  separate Monte Carlo precision from Poisson acquisition noise. The cache is
+  keyed by the detected SIMIND version and binary hash, and a reused file must
+  match both its engine and its settings.
+- The normalisation tutorial draws the seed-to-seed standard-deviation bands
+  its text describes for both the scale factors and the raw scatter sums.
 
 ## [2.0.1] - 2026-10-24
 

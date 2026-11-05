@@ -10,6 +10,15 @@ from examples import _nema
 
 pytestmark = pytest.mark.unit
 
+_REAL_DETECT = _nema.detect_engine
+
+
+@pytest.fixture(autouse=True)
+def _fixed_engine(monkeypatch):
+    monkeypatch.setattr(
+        _nema, "detect_engine", lambda *args, **kwargs: "SIMIND V8.0 [sha256:test]"
+    )
+
 
 def test_quantization_loss_is_below_one_percent_at_the_default_budget():
     activity = np.full((4, 4, 4), 1.0)
@@ -201,3 +210,82 @@ def test_mean_and_sem_is_over_independent_realisations():
 
     np.testing.assert_allclose(mean, [2.0, 4.0])
     np.testing.assert_allclose(sem, np.std(values, axis=0, ddof=1) / np.sqrt(3))
+
+
+def test_mean_and_std_is_the_sample_spread_over_realisations():
+    values = [[1.0, 2.0], [2.0, 4.0], [3.0, 6.0]]
+
+    mean, spread = _nema.mean_and_std(values)
+
+    np.testing.assert_allclose(mean, [2.0, 4.0])
+    np.testing.assert_allclose(spread, np.std(values, axis=0, ddof=1))
+
+
+def test_detect_engine_reads_the_change_banner_and_hashes_the_binary(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    binary = tmp_path / "simind"
+    binary.write_bytes(b"fake simind binary")
+    binary.chmod(0o755)
+    change = tmp_path / "change"
+    change.write_text(
+        "#!/bin/sh\necho ' C H A N G E: Main page for SIMIND version V9.1 '\n"
+    )
+    change.chmod(0o755)
+
+    engine = _nema.detect_engine(str(binary))
+
+    assert engine.startswith("SIMIND V9.1 [sha256:")
+    assert _nema.engine_label(engine) == "SIMIND v9"
+
+
+def test_cache_key_includes_the_engine(tmp_path):
+    first = _nema.expectation_cache_file(
+        _FakePhantom(), cache_dir=tmp_path, engine="SIMIND V8.0 [sha256:a]"
+    )
+    second = _nema.expectation_cache_file(
+        _FakePhantom(), cache_dir=tmp_path, engine="SIMIND V8.0 [sha256:b]"
+    )
+
+    assert first != second
+
+
+def test_reused_cache_rejects_metadata_from_another_engine(tmp_path, monkeypatch):
+    monkeypatch.setattr(_nema, "make_adaptor", lambda *a, **k: _FakeAdaptor([]))
+    monkeypatch.setattr(_nema, "to_sirf_image", lambda array: array)
+    engine = "SIMIND V8.0 [sha256:a]"
+    kwargs = dict(template=None, cache_dir=tmp_path, histories=4, engine=engine)
+    _nema.simulate_expectation(_FakePhantom(), **kwargs)
+    cache = _nema.expectation_cache_file(
+        _FakePhantom(), cache_dir=tmp_path, histories=4, engine=engine
+    )
+    data = np.load(cache)
+    meta = json.loads(str(data["meta"]))
+    meta["engine"] = "SIMIND V8.0 [sha256:b]"
+    np.savez_compressed(
+        cache, counts=data["counts"], primary=data["primary"], meta=json.dumps(meta)
+    )
+
+    with pytest.raises(RuntimeError, match="produced by"):
+        _nema.simulate_expectation(_FakePhantom(), **kwargs)
+
+
+def test_reused_cache_rejects_metadata_with_other_settings(tmp_path, monkeypatch):
+    monkeypatch.setattr(_nema, "make_adaptor", lambda *a, **k: _FakeAdaptor([]))
+    monkeypatch.setattr(_nema, "to_sirf_image", lambda array: array)
+    engine = "SIMIND V8.0 [sha256:a]"
+    kwargs = dict(template=None, cache_dir=tmp_path, histories=4, engine=engine)
+    _nema.simulate_expectation(_FakePhantom(), **kwargs)
+    cache = _nema.expectation_cache_file(
+        _FakePhantom(), cache_dir=tmp_path, histories=4, engine=engine
+    )
+    data = np.load(cache)
+    meta = json.loads(str(data["meta"]))
+    meta["settings"]["histories"] = 99
+    np.savez_compressed(
+        cache, counts=data["counts"], primary=data["primary"], meta=json.dumps(meta)
+    )
+
+    with pytest.raises(RuntimeError, match="settings do not match"):
+        _nema.simulate_expectation(_FakePhantom(), **kwargs)
