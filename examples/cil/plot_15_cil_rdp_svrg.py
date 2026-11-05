@@ -27,8 +27,9 @@ estimate on three independent Poisson realisations.
    The first tutorial run simulates the shared expectation and takes about an
    hour with 8 MPI processes. Each scatter estimate uses a fortieth of that
    history budget and takes about a minute; this example makes one estimate
-   for the pilot and eighteen in the final run, so it takes about an hour.
-   Later tutorials reuse the cached expectation.
+   for the pilot and eighteen in the final run, and the SVRG pilot and final
+   runs add repeated subset-gradient set-ups. It takes about two to three
+   hours. Later tutorials reuse the cached expectation.
 
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
@@ -213,8 +214,11 @@ for seed, measured in realisations.items():
 # objective carries the prior with a sixth of its strength, so the SVRG snapshot
 # gradient still sums to the full prior. This is the split used by the MaGeZ
 # algorithm submitted to the PETRIC reconstruction challenge, whose late-epoch
-# step size is 0.5; with CIL's ``AdaptiveSensitivity`` a unit step overshoots at
-# the edge of the field of view, so 0.5 is used throughout.
+# step size is 0.5. With CIL's ``AdaptiveSensitivity``, a 0.5 step made edge
+# voxels grow without bound in this setup: the prior pilot returned non-finite
+# images and the refreshed scatter estimate fed the growth back into the data
+# term. A 0.1 step is stable over both pilot epoch counts and is used
+# throughout; it is a numerical choice, not a value tuned for recovery.
 #
 # ``SVRGFunction`` draws one subset per iteration and retakes the full gradient
 # every 12 iterations. ``CorrectionCallback`` refreshes the scatter estimate
@@ -222,7 +226,7 @@ for seed, measured in realisations.items():
 
 ETA_PILOT = (0.0, 0.05, 0.1, 0.2)
 EPOCH_PILOT = (12, 24)
-STEP_SIZE = 0.5
+STEP_SIZE = 0.1
 UPDATE_EVERY_EPOCHS = 3
 
 

@@ -212,6 +212,11 @@ for iterations in (2, 4, 8):
         + f"{cov:8.2f}"
     )
 
+# The expectation row has no acquisition noise. Its recovery differs from the
+# four-iteration Poisson row by at most 0.01, while the background CoV rises
+# from 0.43 to 0.55. The fast model and the stopping rule therefore set the
+# recovery ceiling, and the acquisition noise mostly adds background texture.
+
 # %%
 # Reconstruction and truth
 # ------------------------

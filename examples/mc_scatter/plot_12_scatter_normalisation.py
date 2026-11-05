@@ -582,9 +582,12 @@ ax.legend(fontsize=8)
 plt.show()
 
 # %%
-# The known-activity, Dewaraja global and pixel-wise strategies track the true
-# scatter sum at every update. The two reference normalisations sit above it,
-# because they inherit the scale of the image before scatter correction, which
-# has more activity than the phantom. Three realisations separate those two
-# groups but do not rank the strategies within a group. The total activity of
-# the reconstruction reflects the same scale difference.
+# All five strategies raise the sphere recovery above the uncorrected arm and
+# stay below the truth's own score. Their per-seed mean raw scatter sums are
+# 5.71e5, 5.68e5 and 5.72e5 for known activity, against a true 5.70e5;
+# Dewaraja global is about 1% above, pixel-wise about 14% below, and the two
+# reference normalisations about 20% and 22% above. In the reconstruction's
+# total activity the reference normalisations are closest to 1 (1.00-1.01),
+# while known activity and Dewaraja global are 1.05 and pixel-wise 1.10. Three
+# realisations order those totals but do not rank the strategies within a
+# group; the printed error bars are the test.

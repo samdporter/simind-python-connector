@@ -391,6 +391,8 @@ plt.show()
 # The printed table and the error bars show where a corrected arm exceeds the
 # fast-only recovery by more than the seed-to-seed spread. With three
 # realisations the full residual correction does not separate from the scatter
-# correction at every sphere, and both stay below the truth's masked score.
-# The effective objective is printed at every residual update so its fall can
-# be checked against the Monte Carlo noise rather than assumed.
+# correction at every sphere, and both stay below the truth's masked score. The
+# residual arm trades a higher background CoV for the small 17 mm gain. The
+# effective objective printed at each update is the honest check on the
+# accurate-model fit: in this run it rises rather than falls after the first
+# update, so the damped residual does not keep improving that fit.

@@ -136,7 +136,8 @@ Monte Carlo scatter and residual correction
 The Monte Carlo tutorials simulate the NEMA/IEC phantom and reconstruct it with
 SIRF or CIL. The shared expectation is simulated once per output directory;
 the first tutorial pays for it and the rest reuse it. Each tutorial then takes
-between about half an hour and an hour, dominated by the scatter estimates:
+between about half an hour and three hours, dominated by the scatter estimates
+and, in the last tutorial, by the SVRG subset gradients:
 
 - :doc:`Monte Carlo scatter correction in OSEM
   <auto_examples/mc_scatter/plot_11_mc_scatter_osem>`

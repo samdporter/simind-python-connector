@@ -26,27 +26,40 @@ difference prior (RDP) and CIL's stochastic variance reduced gradient (SVRG),
 and compare it with OSEM. Both reconstructions use a SIMIND scatter estimate
 that is refreshed from the current image during the run.
 
-The data are simulated by SIMIND and reconstructed with a fast SPECTUB model
-that has no scatter. SIMIND provides the scatter: all interactions minus the
+The data are simulated by SIMIND with four histories per measured count, so
+the Monte Carlo variance of the expectation is a quarter of the Poisson
+variance of the acquisition. The reconstruction uses a fast SPECTUB model that
+has no scatter. SIMIND provides the scatter: all interactions minus the
 geometric primary, scaled to the fast model and added to its forward
 projection. The RDP is smooth, so it is part of the gradient-based objective
-rather than a proximal term. Its strength was picked by eye at this grid.
+rather than a proximal term.
+
+The prior strength and epoch count are chosen with a paired pilot on one
+realisation, using one fixed scatter estimate and the same data: beta 0, 0.05,
+0.1 and 0.2 at 12 and 24 epochs. The chosen rule is the strongest prior whose
+37 mm recovery is within 0.05 of the unregularised recovery, at the shorter
+epoch count whose recovery has changed by less than 0.02 from 24 epochs. The
+final comparison then reruns the chosen protocol with a refreshed scatter
+estimate on three independent Poisson realisations.
 
 .. warning::
-   This example takes about seventeen minutes, nearly all of it in the SIMIND runs:
-   the simulation of the data and one scatter estimate per update for each of
-   the two reconstructions. Every run uses 8 MPI processes.
+   The first tutorial run simulates the shared expectation and takes about an
+   hour with 8 MPI processes. Each scatter estimate uses a fortieth of that
+   history budget and takes about a minute; this example makes one estimate
+   for the pilot and eighteen in the final run, and the SVRG pilot and final
+   runs add repeated subset-gradient set-ups. It takes about two to three
+   hours. Later tutorials reuse the cached expectation.
 
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 26-29
+.. GENERATED FROM PYTHON SOURCE LINES 39-42
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 29-83
+.. GENERATED FROM PYTHON SOURCE LINES 42-85
 
 .. code-block:: Python
 
@@ -67,17 +80,7 @@ Check that SIMIND is installed and choose where the outputs are written.
     )
     from cil.optimisation.utilities import AdaptiveSensitivity, Sampler
 
-    from simind_python_connector import SirfSimindAdaptor, configs
-    from simind_python_connector.builders import (
-        STIRSPECTAcquisitionDataBuilder,
-        STIRSPECTImageDataBuilder,
-    )
-    from simind_python_connector.converters.attenuation import get_attenuation_coefficient
-    from simind_python_connector.core.types import (
-        DEFAULT_QUANTIZATION_SCALE,
-        ScoringRoutine,
-    )
-    from simind_python_connector.phantoms import nema_iec_phantom
+    from examples import _nema
     from simind_python_connector.recon import (
         AdditiveUpdater,
         ScatterCorrection,
@@ -100,10 +103,8 @@ Check that SIMIND is installed and choose where the outputs are written.
 
     output_dir = Path(os.environ.get("SIMIND_EXAMPLES_OUTPUT", "output")) / "cil_rdp_svrg"
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    GRID = (48, 48, 48)
-    VOXEL_MM = 7.0
-
+    estimate_dir = output_dir / "estimates"
+    estimate_dir.mkdir(exist_ok=True)
 
 
 
@@ -111,7 +112,8 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 84-90
+
+.. GENERATED FROM PYTHON SOURCE LINES 86-92
 
 NEMA/IEC phantom
 ----------------
@@ -120,65 +122,28 @@ Its two smallest spheres, 10 and 13 mm, are cold; the four hot spheres are
 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 the density times the attenuation coefficient of water at 140 keV.
 
-.. GENERATED FROM PYTHON SOURCE LINES 90-132
+.. GENERATED FROM PYTHON SOURCE LINES 92-102
 
 .. code-block:: Python
 
 
-    nema = nema_iec_phantom(GRID, (VOXEL_MM,) * 3, preset="pet", supersample=4)
-    mu = nema.density_g_cm3 * get_attenuation_coefficient("water", 140.0)
-    slice_z, profile_row = (
-        np.argwhere(nema.masks["sphere_6"]).mean(axis=0).round().astype(int)[:2]
-    )
+    nema_phantom = _nema.phantom()
+    nema = nema_phantom.nema
+    slice_z = nema_phantom.slice_z
 
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
-    for ax, (title, image) in zip(
-        axes,
-        (
-            ("Activity (MBq per voxel)", nema.activity_mbq),
-            ("Density (g/cm³)", nema.density_g_cm3),
-        ),
-    ):
-        ax.imshow(image[slice_z], cmap="gray_r")
-        ax.set_title(title)
-        ax.axis("off")
-    plt.show()
-
-
-    def to_sirf_image(array):
-        builder = STIRSPECTImageDataBuilder(
-            {
-                "!matrix size [1]": str(GRID[2]),
-                "!matrix size [2]": str(GRID[1]),
-                "!matrix size [3]": str(GRID[0]),
-                "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-                "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-                "scaling factor (mm/pixel) [3]": str(VOXEL_MM),
-            },
-            backend="sirf",
-        )
-        builder.set_pixel_array(array.astype(np.float32))
-        return builder.build()
-
-
-    activity_image = to_sirf_image(nema.activity_mbq)
-    mu_image = to_sirf_image(mu)
+    activity_image = _nema.to_sirf_image(nema.activity_mbq)
+    mu_image = _nema.to_sirf_image(nema_phantom.mu)
     # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
-    spectub_mu_image = to_sirf_image(mu[..., ::-1])
-
-
-
-
-.. image-sg:: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_001.png
-   :alt: Activity (MBq per voxel), Density (g/cm³)
-   :srcset: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_001.png
-   :class: sphx-glr-single-img
+    spectub_mu_image = _nema.to_sirf_image(nema_phantom.mu[..., ::-1])
 
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 133-138
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 103-108
 
 Template
 --------
@@ -186,25 +151,12 @@ The template sets the projection geometry: 48 x 48 bins of 7 mm, 60 views
 over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 reconstruction take their geometry from it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 138-154
+.. GENERATED FROM PYTHON SOURCE LINES 108-111
 
 .. code-block:: Python
 
 
-    sirf.AcquisitionData.set_storage_scheme("memory")
-    template = STIRSPECTAcquisitionDataBuilder(
-        header_overrides={
-            "!matrix size [1]": "48",
-            "!matrix size [2]": "48",
-            "!number of projections": "60",
-            "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-            "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-            "!direction of rotation": "CW",
-            "start angle": "180",
-            "Radius": "250",
-        },
-        backend="sirf",
-    ).build(output_path=output_dir / "template")
+    template = _nema.template(output_dir)
 
 
 
@@ -213,7 +165,7 @@ reconstruction take their geometry from it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 155-162
+.. GENERATED FROM PYTHON SOURCE LINES 112-120
 
 "Measured" data
 ---------------
@@ -221,198 +173,43 @@ SIMIND simulates the phantom for Tc-99m with a 126-154 keV window and the
 ma-lehr collimator. The total activity and the time per view are given, so the
 projections come out in counts (Index 25). The 8 MPI processes each simulate
 all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
-Poisson noise from a seeded generator is added to the simulated counts.
+Poisson noise from a seeded generator is added to the expectation at 2 s per
+view; the three realisations are shared by both reconstructions.
 
-.. GENERATED FROM PYTHON SOURCE LINES 162-208
+.. GENERATED FROM PYTHON SOURCE LINES 120-131
 
 .. code-block:: Python
 
 
-    TOTAL_MBQ = float(nema.activity_mbq.sum())
-    TIME_PER_VIEW_S = 2.0
-    QUANTIZATION_SCALE = 0.06 * DEFAULT_QUANTIZATION_SCALE
-
-
-    def make_adaptor(name):
-        adaptor = SirfSimindAdaptor(
-            configs.get("Example.yaml"),
-            str(output_dir),
-            name,
-            scoring_routine=ScoringRoutine.PENETRATE,
-            quantization_scale=QUANTIZATION_SCALE,
-        )
-        # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
-        adaptor.add_config_value(20, 154.0)
-        adaptor.add_config_value(21, 126.0)
-        adaptor.add_runtime_switch("CC", "ma-lehr")
-        adaptor.set_mpi(8)
-        adaptor.add_config_value(1, 140.0)
-        return adaptor
-
-
-    measured_adaptor = make_adaptor("measured")
-    measured_adaptor.set_template(template)
-    measured_adaptor.set_source(activity_image)
-    measured_adaptor.set_mu_map(mu_image)
-    measured_adaptor.set_activity(TOTAL_MBQ, TIME_PER_VIEW_S)
-    outputs = measured_adaptor.run()
-    expected = outputs["all_interactions"]
-
-    rng = np.random.default_rng(12345)
-    measured = expected.clone()
-    measured.fill(rng.poisson(np.maximum(expected.as_array(), 0)).astype(np.float32))
-    print(f"Measured counts: {measured.sum():.4g}")
-
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
-    counts = measured.as_array()[0]  # axial, view, bin
-    axes[0].imshow(counts[:, 0, :], cmap="magma")
-    axes[0].set_title("Projection, view 0")
-    axes[1].imshow(counts[counts.shape[0] // 2], cmap="magma")
-    axes[1].set_title("Sinogram, central row")
-    axes[1].set_xlabel("bin")
-    axes[1].set_ylabel("view")
-    plt.show()
+    expectation = _nema.simulate_expectation(nema_phantom, template)
+    realisations = dict(_nema.paired_realisations(expectation, template))
+    print(
+        f"Expectation: {expectation.total:.4g} counts from "
+        f"{expectation.histories:.4g} histories, "
+        f"quantization loss {expectation.quantization_loss:.2%}"
+    )
+    for seed, measured in realisations.items():
+        print(f"Seed {seed}: {measured.sum():.4g} measured counts")
 
 
 
-
-.. image-sg:: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_002.png
-   :alt: Projection, view 0, Sinogram, central row
-   :srcset: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_002.png
-   :class: sphx-glr-single-img
 
 
 .. rst-class:: sphx-glr-script-out
 
  .. code-block:: none
 
-    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
-      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    
-
-
-
-                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
-    ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: measured          
-     Phantom B : bone      BackScatt.: pmt       OutputFile: measured          
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: measured_src      
-     Cover.....: al        ScoreRout.: penetrate DensityImg: measured_dns      
-    ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 130002         
-     EnergyResolution...: 9.2          SPECT     Activity..........: 1118.8         
-     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
-     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
-     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
-     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
-     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
-     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
-     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
-     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
-     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
-    ------------------------------------------------------------------------------
-                   Projection          Hits       Scatt/Tot    Progress
-  
-  
-    ------------------------------------------------------------------------------
-     GENERAL DATA
-     keV/channel........: 4                      CutoffEnergy......: 0              
-     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
-     CameraOffset X.....: 0                      CoverThickness....: 0.1            
-     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
-     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
-     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 945.58661      
-     NN ScalingFactor...: 1                      Energy Channels...: 128            
-                                                                              
-     SPECT DATA
-     RotationMode.......: 360                    Nr of Projections.: 60             
-     RotationAngle......: 6                      Projection.[start]: 1              
-     Orbital fraction...: 1                      Projection...[end]: 60             
-                                                                              
-     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
-     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
-     HoleSize X.........: 0.15                   Distance X........: 0.02           
-     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
-     CenterShift X......: 0.085                  X-Ray flag........: T              
-     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
-     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
-     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
-     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
-
-     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.02 %          94.49 %
-     Penetration........:   4.23 %           3.20 %
-     Scatter in collim..:   3.77 %           2.31 %
-     X-rays in collim...:   4.98 %           0.00 %
-                                                                              
-     K-photon1 74.16 keV:  64.54 %           0.00 %
-     K-photon2 85.36 keV:  27.72 %           0.00 %
-     K-photon3 26.27 keV:   6.17 %           0.00 %
-     K-photon4 29.83 keV:   1.56 %           0.00 %
-                                                                              
-     IMAGE-BASED PHANTOM DATA
-     RotationCentre.....:  25, 25                Bone definition...: 1170           
-     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
-     StartImage.........: 1                      No of CT-Images...: 48             
-     MatrixSize I.......: 48                     CTmapOrientation..: 0              
-     MatrixSize J.......: 48                     StepSize..........: 0.1            
-     CenterPoint I......: 25                     ShiftPhantom X....: 0              
-     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
-     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
-  
-    ------------------------------------------------------------------------------
-    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
-
-                           Energy Window %      :      Total Spectrum %
-                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  71.16  23.25   0.00   0.00  35.44  51.83   1.23   0.43
-     penetration..:   2.52   0.64   0.00   0.00   1.26   1.25   0.05   0.01
-     collim scatt.:   1.86   0.57   0.00   0.00   0.94   1.79   0.03   0.01
-     collim x-rays:   0.00   0.00   0.00   0.00   2.70   3.04   0.00   0.00
-                                                                              
-     INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 0.5061E+06     
-     MaxValue projection: 143.0          
-     CountRate spectrum.: 0.7080E+05     
-     CountRate E-Window.: 0.3322E+05     
-                                                                              
-     SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.32006        
-     Scatter/Total......: 0.24246        
-     Scatter order 1....: 85.74 %        
-     Scatter order 2....: 12.84 %        
-     Scatter order 3....: 1.42 %         
-                                                                              
-     CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4501         
-     Efficiency spectrum: 0.9592         
-     Sensitivity Cps/MBq: 29.6947        
-     Sensitivity Cpm/uCi: 65.9223        
-                                                                              
-     Simulation started.: 2026:10:19 19:22:32
-     Simulation stopped.: 2026:10:19 19:25:08
-     Elapsed time.......: 0 h, 2 m and 36 s
-     DetectorHits.......: 3446           
-     DetectorHits/CPUsec: 175            
-                                                                              
-     OTHER INFORMATION
-     Minimal toy-example SIMIND configuration
-     Compiled 2025:10:06 with intel Linux 
-     Current random number generator: ranmar
-     MPI Processors: 8              
-     Energy resolution as function of 1/sqrt(E)
-     Header file: measured.h00
-     Linear angle sampling within acceptance angle
-     Inifile: simind.ini
-     Command: measured measured /NN:1/CC:ma-lehr/PX:0.7
-    Measured counts: 1.992e+06
+    SIMIND v8: 48x48x48 grid, 60 views at 250 mm, 4 histories per source count, 2 s/view, 8 MPI processes
+    Reused expectation expectation_5a824ad83b2a.npz: 2e+06 counts, 8.1e+06 histories, simulated in 53.0 min
+    Expectation: 1.997e+06 counts from 8.102e+06 histories, quantization loss 0.29%
+    Seed 12345: 1.995e+06 measured counts
+    Seed 12346: 1.998e+06 measured counts
+    Seed 12347: 1.995e+06 measured counts
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 209-220
+.. GENERATED FROM PYTHON SOURCE LINES 132-143
 
 Model and scatter updates
 -------------------------
@@ -426,16 +223,17 @@ views as well. The additive term starts at zero and averages successive
 estimates (``damping=0.5``). ``seed=None`` leaves the ``RR`` switch unset, so
 the 8 MPI processes use their fixed seeds.
 
-.. GENERATED FROM PYTHON SOURCE LINES 220-257
+.. GENERATED FROM PYTHON SOURCE LINES 143-186
 
 .. code-block:: Python
 
 
-    NUM_SUBSETS = 6
+    NUM_SUBSETS = _nema.NUM_SUBSETS
     OSEM_SUBITERATIONS = 12
     OSEM_UPDATES = 3
     initial_image = activity_image.get_uniform_copy(1.0)
-    zero_additive = measured.get_uniform_copy(0)
+    zero_additive = next(iter(realisations.values())).get_uniform_copy(0)
+    ESTIMATE_QUANTIZATION_SCALE = 0.1 * _nema.QUANTIZATION_SCALE
 
 
     def make_model():
@@ -448,12 +246,17 @@ the 8 MPI processes use their fixed seeds.
 
 
     full_model = make_model()
-    full_model.set_up(measured, activity_image)
+    full_model.set_up(next(iter(realisations.values())), activity_image)
 
 
     def make_scatter_updater(name, schedule):
         projector = SimindProjector(
-            make_adaptor(name),
+            _nema.make_adaptor(
+                estimate_dir,
+                name,
+                quantization_scale=ESTIMATE_QUANTIZATION_SCALE,
+                histories=1,
+            ),
             template,
             mu_image,
             normalise=reference_normaliser(full_model),
@@ -474,7 +277,7 @@ the 8 MPI processes use their fixed seeds.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 258-263
+.. GENERATED FROM PYTHON SOURCE LINES 187-192
 
 OSEM
 ----
@@ -482,23 +285,27 @@ The comparison uses the same recipe as the OSEM scatter tutorial: 6 subsets,
 passes of 12 subiterations and three scatter updates, 8 full iterations in
 all.
 
-.. GENERATED FROM PYTHON SOURCE LINES 263-277
+.. GENERATED FROM PYTHON SOURCE LINES 192-210
 
 .. code-block:: Python
 
 
-    osem_updater = make_scatter_updater(
-        "osem_estimate", UpdateSchedule(every=OSEM_SUBITERATIONS)
-    )
-    osem = run_osem_with_corrections(
-        measured,
-        make_model,
-        initial_image,
-        osem_updater,
-        NUM_SUBSETS,
-        OSEM_SUBITERATIONS,
-        OSEM_UPDATES,
-    )
+    osem = {}
+    osem_updaters = {}
+    for seed, measured in realisations.items():
+        updater = make_scatter_updater(
+            f"osem_estimate_{seed}", UpdateSchedule(every=OSEM_SUBITERATIONS)
+        )
+        osem[seed] = run_osem_with_corrections(
+            measured,
+            make_model,
+            initial_image,
+            updater,
+            NUM_SUBSETS,
+            OSEM_SUBITERATIONS,
+            OSEM_UPDATES,
+        )
+        osem_updaters[seed] = updater
 
 
 
@@ -510,19 +317,18 @@ all.
 
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    1.6% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
 
                    MPI-SIMIND Monte Carlo Simulation Program    V8.0  
     ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate     
-     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate     
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_src 
-     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_dns 
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 104977         
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 170744         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -546,7 +352,7 @@ all.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 1.04666        
+     Emission type......: 3                      Initial Weight....: 0.64351        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -565,15 +371,15 @@ all.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.95 %          94.31 %
-     Penetration........:   4.25 %           3.37 %
-     Scatter in collim..:   3.79 %           2.32 %
-     X-rays in collim...:   5.01 %           0.00 %
+     Geometric..........:  87.09 %          94.27 %
+     Penetration........:   4.18 %           3.29 %
+     Scatter in collim..:   3.80 %           2.43 %
+     X-rays in collim...:   4.93 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  63.11 %           0.00 %
-     K-photon2 85.36 keV:  28.46 %           0.00 %
-     K-photon3 26.27 keV:   6.81 %           0.00 %
-     K-photon4 29.83 keV:   1.63 %           0.00 %
+     K-photon1 74.16 keV:  63.86 %           0.00 %
+     K-photon2 85.36 keV:  28.24 %           0.00 %
+     K-photon3 26.27 keV:   6.14 %           0.00 %
+     K-photon4 29.83 keV:   1.75 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -590,35 +396,35 @@ all.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  71.01  23.62   0.00   0.00  34.98  52.46   1.21   0.42
-     penetration..:   2.61   0.74   0.01   0.00   1.27   1.30   0.05   0.01
-     collim scatt.:   1.54   0.47   0.00   0.00   0.89   1.74   0.02   0.00
-     collim x-rays:   0.00   0.00   0.00   0.00   2.58   3.06   0.00   0.00
+     geometric....:  70.78  23.61   0.00   0.00  34.94  52.39   1.21   0.43
+     penetration..:   2.63   0.69   0.00   0.00   1.28   1.26   0.05   0.01
+     collim scatt.:   1.71   0.58   0.00   0.00   0.94   1.79   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.61   3.05   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 444.8          
-     MaxValue projection: 0.1694         
-     CountRate spectrum.: 62.45          
-     CountRate E-Window.: 29.25          
+     MaxValue spectrum..: 442.1          
+     MaxValue projection: 0.1103         
+     CountRate spectrum.: 62.48          
+     CountRate E-Window.: 29.23          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.33407        
-     Scatter/Total......: 0.25041        
-     Scatter order 1....: 85.35 %        
-     Scatter order 2....: 13.16 %        
-     Scatter order 3....: 1.49 %         
+     Scatter/Primary....: 0.33153        
+     Scatter/Total......: 0.24899        
+     Scatter order 1....: 85.55 %        
+     Scatter order 2....: 12.99 %        
+     Scatter order 3....: 1.46 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4494         
-     Efficiency spectrum: 0.9593         
-     Sensitivity Cps/MBq: 29.2529        
-     Sensitivity Cpm/uCi: 64.9414        
+     Efficiency E-window: 0.4489         
+     Efficiency spectrum: 0.9595         
+     Sensitivity Cps/MBq: 29.2281        
+     Sensitivity Cpm/uCi: 64.8864        
                                                                               
-     Simulation started.: 2026:10:19 19:25:12
-     Simulation stopped.: 2026:10:19 19:27:25
-     Elapsed time.......: 0 h, 2 m and 13 s
-     DetectorHits.......: 2874           
-     DetectorHits/CPUsec: 172            
+     Simulation started.: 2026:11:04 23:19:24
+     Simulation stopped.: 2026:11:04 23:25:15
+     Elapsed time.......: 0 h, 5 m and 51 s
+     DetectorHits.......: 4530           
+     DetectorHits/CPUsec: 115            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -626,25 +432,24 @@ all.
      Current random number generator: ranmar
      MPI Processors: 8              
      Energy resolution as function of 1/sqrt(E)
-     Header file: osem_estimate.h00
+     Header file: osem_estimate_12345.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: osem_estimate osem_estimate /NN:1/CC:ma-lehr/PX:0.7
+     Command: osem_estimate_12345 osem_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    4.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
 
                    MPI-SIMIND Monte Carlo Simulation Program    V8.0  
     ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate     
-     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate     
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_src 
-     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_dns 
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 64567          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 113583         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -668,7 +473,7 @@ all.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 1.70172        
+     Emission type......: 3                      Initial Weight....: 0.96735        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -687,14 +492,136 @@ all.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.73 %          94.46 %
-     Penetration........:   4.36 %           3.24 %
-     Scatter in collim..:   3.76 %           2.30 %
-     X-rays in collim...:   5.16 %           0.00 %
+     Geometric..........:  87.05 %          94.36 %
+     Penetration........:   4.14 %           3.23 %
+     Scatter in collim..:   3.84 %           2.41 %
+     X-rays in collim...:   4.97 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  66.26 %           0.00 %
-     K-photon2 85.36 keV:  26.70 %           0.00 %
-     K-photon3 26.27 keV:   5.70 %           0.00 %
+     K-photon1 74.16 keV:  65.07 %           0.00 %
+     K-photon2 85.36 keV:  27.47 %           0.00 %
+     K-photon3 26.27 keV:   5.73 %           0.00 %
+     K-photon4 29.83 keV:   1.73 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.54  23.03   0.00   0.00  35.38  52.01   1.24   0.41
+     penetration..:   2.55   0.52   0.00   0.00   1.27   1.26   0.04   0.01
+     collim scatt.:   1.94   0.43   0.00   0.00   0.96   1.72   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.52   3.14   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 450.3          
+     MaxValue projection: 0.1012         
+     CountRate spectrum.: 63.05          
+     CountRate E-Window.: 29.62          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32217        
+     Scatter/Total......: 0.24367        
+     Scatter order 1....: 85.47 %        
+     Scatter order 2....: 13.07 %        
+     Scatter order 3....: 1.47 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4507         
+     Efficiency spectrum: 0.9594         
+     Sensitivity Cps/MBq: 29.6215        
+     Sensitivity Cpm/uCi: 65.7597        
+                                                                              
+     Simulation started.: 2026:11:04 23:25:25
+     Simulation stopped.: 2026:11:04 23:32:03
+     Elapsed time.......: 0 h, 6 m and 38 s
+     DetectorHits.......: 3010           
+     DetectorHits/CPUsec: 116            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: osem_estimate_12345.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: osem_estimate_12345 osem_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 96707          
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 1.13616        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.92 %          94.43 %
+     Penetration........:   4.28 %           3.24 %
+     Scatter in collim..:   3.78 %           2.33 %
+     X-rays in collim...:   5.02 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.36 %           0.00 %
+     K-photon2 85.36 keV:  27.54 %           0.00 %
+     K-photon3 26.27 keV:   6.76 %           0.00 %
      K-photon4 29.83 keV:   1.34 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
@@ -712,35 +639,35 @@ all.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  70.95  23.95   0.01   0.00  35.35  51.86   1.20   0.42
-     penetration..:   2.67   0.50   0.00   0.00   1.29   1.29   0.04   0.00
-     collim scatt.:   1.39   0.53   0.00   0.00   0.87   1.76   0.02   0.00
-     collim x-rays:   0.00   0.00   0.00   0.00   2.77   3.12   0.00   0.00
+     geometric....:  71.68  22.78   0.00   0.00  35.53  51.82   1.22   0.41
+     penetration..:   2.80   0.80   0.00   0.00   1.30   1.23   0.04   0.01
+     collim scatt.:   1.55   0.38   0.00   0.00   0.94   1.70   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.76   3.01   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 450.8          
-     MaxValue projection: 0.3355         
-     CountRate spectrum.: 63.07          
-     CountRate E-Window.: 29.68          
+     MaxValue spectrum..: 451.0          
+     MaxValue projection: 0.1878         
+     CountRate spectrum.: 63.02          
+     CountRate E-Window.: 29.63          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.32409        
-     Scatter/Total......: 0.24476        
-     Scatter order 1....: 85.66 %        
-     Scatter order 2....: 12.83 %        
-     Scatter order 3....: 1.51 %         
+     Scatter/Primary....: 0.31746        
+     Scatter/Total......: 0.24096        
+     Scatter order 1....: 86.05 %        
+     Scatter order 2....: 12.5  %        
+     Scatter order 3....: 1.44 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4513         
-     Efficiency spectrum: 0.959          
-     Sensitivity Cps/MBq: 29.6811        
-     Sensitivity Cpm/uCi: 65.892         
+     Efficiency E-window: 0.4511         
+     Efficiency spectrum: 0.9594         
+     Sensitivity Cps/MBq: 29.6346        
+     Sensitivity Cpm/uCi: 65.7887        
                                                                               
-     Simulation started.: 2026:10:19 19:27:29
-     Simulation stopped.: 2026:10:19 19:28:56
-     Elapsed time.......: 0 h, 1 m and 27 s
-     DetectorHits.......: 1759           
-     DetectorHits/CPUsec: 161            
+     Simulation started.: 2026:11:04 23:32:13
+     Simulation stopped.: 2026:11:04 23:37:37
+     Elapsed time.......: 0 h, 5 m and 24 s
+     DetectorHits.......: 2640           
+     DetectorHits/CPUsec: 118            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -748,25 +675,24 @@ all.
      Current random number generator: ranmar
      MPI Processors: 8              
      Energy resolution as function of 1/sqrt(E)
-     Header file: osem_estimate.h00
+     Header file: osem_estimate_12345.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: osem_estimate osem_estimate /NN:1/CC:ma-lehr/PX:0.7
+     Command: osem_estimate_12345 osem_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    5.6% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
 
                    MPI-SIMIND Monte Carlo Simulation Program    V8.0  
     ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate     
-     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate     
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_src 
-     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_dns 
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 51562          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 211735         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -790,7 +716,7 @@ all.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 2.13093        
+     Emission type......: 3                      Initial Weight....: 0.51893        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -809,15 +735,15 @@ all.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.68 %          94.37 %
-     Penetration........:   4.26 %           3.28 %
-     Scatter in collim..:   3.93 %           2.36 %
-     X-rays in collim...:   5.12 %           0.00 %
+     Geometric..........:  86.91 %          94.43 %
+     Penetration........:   4.27 %           3.26 %
+     Scatter in collim..:   3.81 %           2.31 %
+     X-rays in collim...:   5.01 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  63.57 %           0.00 %
-     K-photon2 85.36 keV:  28.70 %           0.00 %
-     K-photon3 26.27 keV:   5.95 %           0.00 %
-     K-photon4 29.83 keV:   1.78 %           0.00 %
+     K-photon1 74.16 keV:  63.51 %           0.00 %
+     K-photon2 85.36 keV:  28.36 %           0.00 %
+     K-photon3 26.27 keV:   6.45 %           0.00 %
+     K-photon4 29.83 keV:   1.67 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -834,35 +760,35 @@ all.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  71.07  23.03   0.00   0.00  35.45  51.78   1.20   0.43
-     penetration..:   2.67   0.58   0.00   0.00   1.26   1.26   0.04   0.01
-     collim scatt.:   1.75   0.90   0.00   0.00   0.97   1.73   0.03   0.00
-     collim x-rays:   0.00   0.00   0.00   0.00   2.69   3.13   0.00   0.00
+     geometric....:  70.87  23.56   0.01   0.00  35.01  52.29   1.23   0.43
+     penetration..:   2.50   0.78   0.00   0.00   1.27   1.26   0.04   0.01
+     collim scatt.:   1.82   0.46   0.00   0.00   0.93   1.74   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.69   3.06   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 447.4          
-     MaxValue projection: 0.2843         
-     CountRate spectrum.: 63.15          
-     CountRate E-Window.: 29.71          
+     MaxValue spectrum..: 443.5          
+     MaxValue projection: 0.9653E-01     
+     CountRate spectrum.: 62.72          
+     CountRate E-Window.: 29.32          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.32301        
-     Scatter/Total......: 0.24415        
-     Scatter order 1....: 84.77 %        
-     Scatter order 2....: 13.64 %        
-     Scatter order 3....: 1.59 %         
+     Scatter/Primary....: 0.32729        
+     Scatter/Total......: 0.24659        
+     Scatter order 1....: 85.56 %        
+     Scatter order 2....: 12.93 %        
+     Scatter order 3....: 1.5  %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4512         
-     Efficiency spectrum: 0.9592         
-     Sensitivity Cps/MBq: 29.7087        
-     Sensitivity Cpm/uCi: 65.9533        
+     Efficiency E-window: 0.4485         
+     Efficiency spectrum: 0.9595         
+     Sensitivity Cps/MBq: 29.3176        
+     Sensitivity Cpm/uCi: 65.0851        
                                                                               
-     Simulation started.: 2026:10:19 19:29:00
-     Simulation stopped.: 2026:10:19 19:30:13
-     Elapsed time.......: 0 h, 1 m and 13 s
-     DetectorHits.......: 1384           
-     DetectorHits/CPUsec: 150            
+     Simulation started.: 2026:11:04 23:37:50
+     Simulation stopped.: 2026:11:04 23:47:17
+     Elapsed time.......: 0 h, 9 m and 27 s
+     DetectorHits.......: 5734           
+     DetectorHits/CPUsec: 123            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -870,15 +796,621 @@ all.
      Current random number generator: ranmar
      MPI Processors: 8              
      Energy resolution as function of 1/sqrt(E)
-     Header file: osem_estimate.h00
+     Header file: osem_estimate_12346.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: osem_estimate osem_estimate /NN:1/CC:ma-lehr/PX:0.7
+     Command: osem_estimate_12346 osem_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 158349         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.69388        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.91 %          94.45 %
+     Penetration........:   4.26 %           3.32 %
+     Scatter in collim..:   3.78 %           2.23 %
+     X-rays in collim...:   5.05 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.78 %           0.00 %
+     K-photon2 85.36 keV:  27.07 %           0.00 %
+     K-photon3 26.27 keV:   6.13 %           0.00 %
+     K-photon4 29.83 keV:   2.02 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.04  23.45   0.01   0.00  35.53  51.74   1.22   0.42
+     penetration..:   2.53   0.73   0.00   0.00   1.29   1.31   0.04   0.01
+     collim scatt.:   1.73   0.51   0.00   0.00   0.92   1.65   0.04   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.75   3.08   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 452.8          
+     MaxValue projection: 0.8596E-01     
+     CountRate spectrum.: 63.21          
+     CountRate E-Window.: 29.79          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32034        
+     Scatter/Total......: 0.24262        
+     Scatter order 1....: 85.66 %        
+     Scatter order 2....: 12.85 %        
+     Scatter order 3....: 1.48 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4519         
+     Efficiency spectrum: 0.9589         
+     Sensitivity Cps/MBq: 29.7897        
+     Sensitivity Cpm/uCi: 66.1331        
+                                                                              
+     Simulation started.: 2026:11:04 23:47:25
+     Simulation stopped.: 2026:11:04 23:52:04
+     Elapsed time.......: 0 h, 4 m and 39 s
+     DetectorHits.......: 4225           
+     DetectorHits/CPUsec: 120            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: osem_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: osem_estimate_12346 osem_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 139153         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.7896         
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.16 %          94.44 %
+     Penetration........:   4.20 %           3.29 %
+     Scatter in collim..:   3.70 %           2.27 %
+     X-rays in collim...:   4.94 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  65.11 %           0.00 %
+     K-photon2 85.36 keV:  27.06 %           0.00 %
+     K-photon3 26.27 keV:   6.25 %           0.00 %
+     K-photon4 29.83 keV:   1.58 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.42  23.11   0.00   0.00  35.54  51.86   1.23   0.42
+     penetration..:   2.70   0.65   0.00   0.00   1.30   1.29   0.04   0.01
+     collim scatt.:   1.73   0.38   0.00   0.00   0.91   1.75   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.63   2.99   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 453.3          
+     MaxValue projection: 0.9420E-01     
+     CountRate spectrum.: 63.21          
+     CountRate E-Window.: 29.86          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32324        
+     Scatter/Total......: 0.24428        
+     Scatter order 1....: 85.44 %        
+     Scatter order 2....: 13.01 %        
+     Scatter order 3....: 1.55 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4528         
+     Efficiency spectrum: 0.9586         
+     Sensitivity Cps/MBq: 29.8612        
+     Sensitivity Cpm/uCi: 66.292         
+                                                                              
+     Simulation started.: 2026:11:04 23:52:12
+     Simulation stopped.: 2026:11:04 23:56:18
+     Elapsed time.......: 0 h, 4 m and 6 s
+     DetectorHits.......: 3743           
+     DetectorHits/CPUsec: 121            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: osem_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: osem_estimate_12346 osem_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 174263         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.63051        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.86 %          94.41 %
+     Penetration........:   4.31 %           3.32 %
+     Scatter in collim..:   3.77 %           2.27 %
+     X-rays in collim...:   5.07 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.26 %           0.00 %
+     K-photon2 85.36 keV:  27.89 %           0.00 %
+     K-photon3 26.27 keV:   6.15 %           0.00 %
+     K-photon4 29.83 keV:   1.70 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  70.48  24.19   0.01   0.00  34.97  52.26   1.18   0.42
+     penetration..:   2.48   0.68   0.00   0.00   1.29   1.29   0.04   0.01
+     collim scatt.:   1.74   0.42   0.00   0.00   0.93   1.76   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.74   3.07   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 444.1          
+     MaxValue projection: 0.1035         
+     CountRate spectrum.: 62.78          
+     CountRate E-Window.: 29.29          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32852        
+     Scatter/Total......: 0.24728        
+     Scatter order 1....: 85.66 %        
+     Scatter order 2....: 12.96 %        
+     Scatter order 3....: 1.38 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4479         
+     Efficiency spectrum: 0.9599         
+     Sensitivity Cps/MBq: 29.2946        
+     Sensitivity Cpm/uCi: 65.034         
+                                                                              
+     Simulation started.: 2026:11:04 23:56:30
+     Simulation stopped.: 2026:11:05 00:01:37
+     Elapsed time.......: 0 h, 5 m and 7 s
+     DetectorHits.......: 4796           
+     DetectorHits/CPUsec: 124            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: osem_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: osem_estimate_12347 osem_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 125988         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.87211        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.04 %          94.36 %
+     Penetration........:   4.22 %           3.20 %
+     Scatter in collim..:   3.80 %           2.44 %
+     X-rays in collim...:   4.95 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  63.32 %           0.00 %
+     K-photon2 85.36 keV:  28.61 %           0.00 %
+     K-photon3 26.27 keV:   6.17 %           0.00 %
+     K-photon4 29.83 keV:   1.89 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.54  23.10   0.01   0.00  35.35  52.10   1.21   0.43
+     penetration..:   2.46   0.72   0.00   0.00   1.25   1.25   0.04   0.01
+     collim scatt.:   1.68   0.49   0.00   0.00   0.96   1.70   0.02   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.75   2.91   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 447.4          
+     MaxValue projection: 0.8868E-01     
+     CountRate spectrum.: 62.91          
+     CountRate E-Window.: 29.57          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32398        
+     Scatter/Total......: 0.2447         
+     Scatter order 1....: 85.45 %        
+     Scatter order 2....: 13.14 %        
+     Scatter order 3....: 1.41 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.451          
+     Efficiency spectrum: 0.9595         
+     Sensitivity Cps/MBq: 29.5676        
+     Sensitivity Cpm/uCi: 65.6402        
+                                                                              
+     Simulation started.: 2026:11:05 00:01:44
+     Simulation stopped.: 2026:11:05 00:05:29
+     Elapsed time.......: 0 h, 3 m and 45 s
+     DetectorHits.......: 3473           
+     DetectorHits/CPUsec: 123            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: osem_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: osem_estimate_12347 osem_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.0% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: osem_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: osem_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: osem_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: osem_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 109759         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 1.00106        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.11 %          94.48 %
+     Penetration........:   4.24 %           3.22 %
+     Scatter in collim..:   3.74 %           2.30 %
+     X-rays in collim...:   4.90 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.14 %           0.00 %
+     K-photon2 85.36 keV:  27.46 %           0.00 %
+     K-photon3 26.27 keV:   6.47 %           0.00 %
+     K-photon4 29.83 keV:   1.93 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.65  22.72   0.00   0.00  35.69  51.91   1.23   0.42
+     penetration..:   2.63   0.72   0.00   0.00   1.29   1.22   0.05   0.01
+     collim scatt.:   1.85   0.42   0.00   0.00   0.92   1.70   0.02   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.59   2.94   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 450.4          
+     MaxValue projection: 0.2302         
+     CountRate spectrum.: 62.85          
+     CountRate E-Window.: 29.69          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.31902        
+     Scatter/Total......: 0.24186        
+     Scatter order 1....: 85.82 %        
+     Scatter order 2....: 12.77 %        
+     Scatter order 3....: 1.41 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4531         
+     Efficiency spectrum: 0.9591         
+     Sensitivity Cps/MBq: 29.6903        
+     Sensitivity Cpm/uCi: 65.9124        
+                                                                              
+     Simulation started.: 2026:11:05 00:05:37
+     Simulation stopped.: 2026:11:05 00:08:58
+     Elapsed time.......: 0 h, 3 m and 21 s
+     DetectorHits.......: 2933           
+     DetectorHits/CPUsec: 116            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: osem_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: osem_estimate_12347 osem_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 278-292
+.. GENERATED FROM PYTHON SOURCE LINES 211-226
 
 RDP + SVRG
 ----------
@@ -886,24 +1418,25 @@ The RDP is smooth, so it belongs in the smooth part of ISTA. Each subset
 objective carries the prior with a sixth of its strength, so the SVRG snapshot
 gradient still sums to the full prior. This is the split used by the MaGeZ
 algorithm submitted to the PETRIC reconstruction challenge, whose late-epoch
-step size is 0.5; with CIL's ``AdaptiveSensitivity`` a unit step overshoots at
-the edge of the field of view, so 0.5 is used throughout. The strength, 0.2 in
-the units of the fast model, was picked by eye at this grid: it visibly
-smooths the background without flattening the spheres.
+step size is 0.5. With CIL's ``AdaptiveSensitivity``, a 0.5 step made edge
+voxels grow without bound in this setup: the prior pilot returned non-finite
+images and the refreshed scatter estimate fed the growth back into the data
+term. A 0.1 step is stable over both pilot epoch counts and is used
+throughout; it is a numerical choice, not a value tuned for recovery.
 
 ``SVRGFunction`` draws one subset per iteration and retakes the full gradient
 every 12 iterations. ``CorrectionCallback`` refreshes the scatter estimate
 every three epochs and then the stored SVRG gradients.
 
-.. GENERATED FROM PYTHON SOURCE LINES 292-355
+.. GENERATED FROM PYTHON SOURCE LINES 226-278
 
 .. code-block:: Python
 
 
-    RDP_STRENGTH = 0.2
-    EPOCHS = 12
-    UPDATE_EVERY = 3 * NUM_SUBSETS
-    ITERATIONS = EPOCHS * NUM_SUBSETS
+    ETA_PILOT = (0.0, 0.05, 0.1, 0.2)
+    EPOCH_PILOT = (12, 24)
+    STEP_SIZE = 0.1
+    UPDATE_EVERY_EPOCHS = 3
 
 
     class PriorFunction(Function):
@@ -920,47 +1453,329 @@ every three epochs and then the stored SVRG gradients.
             return self.prior.get_gradient(image, out=out)
 
 
-    prior = sirf.RelativeDifferencePrior()
-    prior.set_penalisation_factor(RDP_STRENGTH / NUM_SUBSETS)
-    prior.set_up(initial_image)
-    prior_term = PriorFunction(prior)
+    def rdp_term(strength):
+        prior = sirf.RelativeDifferencePrior()
+        prior.set_penalisation_factor(strength / NUM_SUBSETS)
+        prior.set_up(initial_image)
+        return PriorFunction(prior)
 
-    objectives = build_subset_objectives(
-        measured, zero_additive, make_model, NUM_SUBSETS, initial_image
-    )
-    subset_functions = [SumFunction(f, prior_term) for f in objectives.functions]
-    svrg = SVRGFunction(
-        subset_functions,
-        sampler=Sampler.sequential(NUM_SUBSETS),
-        snapshot_update_interval=2 * NUM_SUBSETS,
-    )
-    svrg_updater = make_scatter_updater(
-        "svrg_estimate", UpdateSchedule(every=UPDATE_EVERY, stop_at=ITERATIONS)
-    )
-    algorithm = ISTA(
-        initial=initial_image,
-        f=svrg,
-        g=IndicatorBox(lower=0),
-        step_size=0.5,
-        preconditioner=AdaptiveSensitivity(full_model, max_iterations=ITERATIONS + 1),
-    )
-    algorithm.run(ITERATIONS, callbacks=[CorrectionCallback(svrg_updater, objectives)])
-    svrg_image = algorithm.solution
 
-    for name, updater in (("OSEM", osem_updater), ("SVRG", svrg_updater)):
-        for record in updater.history:
-            print(
-                f"{name} update at iteration {record.iteration}: "
-                f"scatter sum {record.additive_sum:.4g}, {record.seconds:.0f} s"
+    def svrg_run(measured, additive, strength, epochs, callbacks):
+        objectives = build_subset_objectives(
+            measured, additive, make_model, NUM_SUBSETS, initial_image
+        )
+        subset_functions = [
+            SumFunction(f, rdp_term(strength)) for f in objectives.functions
+        ]
+        svrg = SVRGFunction(
+            subset_functions,
+            sampler=Sampler.sequential(NUM_SUBSETS),
+            snapshot_update_interval=2 * NUM_SUBSETS,
+        )
+        iterations = epochs * NUM_SUBSETS
+        algorithm = ISTA(
+            initial=initial_image,
+            f=svrg,
+            g=IndicatorBox(lower=0),
+            step_size=STEP_SIZE,
+            preconditioner=AdaptiveSensitivity(full_model, max_iterations=iterations + 1),
+        )
+        algorithm.run(iterations, callbacks=callbacks(objectives, iterations))
+        return algorithm.solution, objectives
+
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 279-285
+
+Prior and epoch pilot
+---------------------
+The pilot uses one realisation and one scatter estimate, made from the
+unregularised OSEM image and then held fixed. Only beta and the epoch count
+change, so the comparison isolates the prior. For each run we report the
+recovery at 37 mm and the background noise.
+
+.. GENERATED FROM PYTHON SOURCE LINES 285-353
+
+.. code-block:: Python
+
+
+    pilot_seed = next(iter(realisations))
+    pilot_projector = SimindProjector(
+        _nema.make_adaptor(
+            estimate_dir,
+            "pilot_estimate",
+            quantization_scale=ESTIMATE_QUANTIZATION_SCALE,
+            histories=1,
+        ),
+        template,
+        mu_image,
+        normalise=reference_normaliser(full_model),
+        seed=None,
+    )
+    pilot_additive = ScatterCorrection(
+        pilot_projector, smoothing_fwhm_bins=3.0, smooth_across_views=True
+    ).estimate(osem[pilot_seed])
+
+    pilot = {}
+    for epochs in EPOCH_PILOT:
+        for strength in ETA_PILOT:
+            image, _ = svrg_run(
+                realisations[pilot_seed],
+                pilot_additive,
+                strength,
+                epochs,
+                lambda objectives, iterations: [],
             )
-    true_scatter = expected - outputs["geom_coll_primary"]
-    print(f"True scatter sum: {true_scatter.sum():.4g}")
-    print(
-        f"Scatter fraction of the measured counts: "
-        f"true {true_scatter.sum() / measured.sum():.0%}, "
-        f"OSEM {osem_updater.current.sum() / measured.sum():.0%}, "
-        f"SVRG {svrg_updater.current.sum() / measured.sum():.0%}"
+            recovery, cov = _nema.contrast_recovery_scores(image.as_array(), nema_phantom)
+            pilot[strength, epochs] = (image, recovery, cov)
+            print(
+                f"beta {strength:.2f}, {epochs:2d} epochs: "
+                f"37 mm {recovery[-1]:.2f}, CoV {cov:.2f}"
+            )
+
+    # Choose the strongest prior whose 37 mm recovery is within 0.05 of the
+    # unregularised run, then the shorter epoch count whose 37 mm recovery is within
+    # 0.02 of the longer one.
+    candidates = [
+        strength
+        for strength in ETA_PILOT
+        if abs(pilot[strength, EPOCH_PILOT[0]][1][-1] - pilot[0.0, EPOCH_PILOT[0]][1][-1])
+        <= 0.05
+    ]
+    RDP_STRENGTH = max(candidates)
+    RDP_EPOCHS = min(
+        epochs
+        for epochs in EPOCH_PILOT
+        if abs(
+            pilot[RDP_STRENGTH, epochs][1][-1] - pilot[RDP_STRENGTH, EPOCH_PILOT[-1]][1][-1]
+        )
+        <= 0.02
     )
+    print(f"Chosen protocol: beta {RDP_STRENGTH:.2f}, {RDP_EPOCHS} epochs")
+
+    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
+    for strength in ETA_PILOT:
+        ax.plot(
+            EPOCH_PILOT,
+            [pilot[strength, epochs][1][-1] for epochs in EPOCH_PILOT],
+            "o-",
+            label=f"beta {strength:.2f}",
+        )
+    ax.set_xlabel("Epochs")
+    ax.set_ylabel("37 mm contrast recovery")
+    ax.legend()
+    plt.show()
+
+
+
+
+.. image-sg:: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_001.png
+   :alt: plot 15 cil rdp svrg
+   :srcset: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_001.png
+   :class: sphx-glr-single-img
+
+
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.6% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: pilot_estimate    
+     Phantom B : bone      BackScatt.: pmt       OutputFile: pilot_estimate    
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: pilot_estimate_src
+     Cover.....: al        ScoreRout.: penetrate DensityImg: pilot_estimate_dns
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 90299          
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 1.21679        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.15 %          94.39 %
+     Penetration........:   4.14 %           3.24 %
+     Scatter in collim..:   3.81 %           2.38 %
+     X-rays in collim...:   4.90 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.28 %           0.00 %
+     K-photon2 85.36 keV:  28.25 %           0.00 %
+     K-photon3 26.27 keV:   5.95 %           0.00 %
+     K-photon4 29.83 keV:   1.52 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  70.83  23.68   0.00   0.00  35.62  51.90   1.22   0.42
+     penetration..:   2.43   0.77   0.00   0.00   1.29   1.23   0.04   0.01
+     collim scatt.:   1.70   0.59   0.00   0.00   0.93   1.74   0.02   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.59   3.00   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 451.4          
+     MaxValue projection: 0.1414         
+     CountRate spectrum.: 63.10          
+     CountRate E-Window.: 29.82          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32128        
+     Scatter/Total......: 0.24316        
+     Scatter order 1....: 85.68 %        
+     Scatter order 2....: 12.89 %        
+     Scatter order 3....: 1.43 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4533         
+     Efficiency spectrum: 0.9593         
+     Sensitivity Cps/MBq: 29.8218        
+     Sensitivity Cpm/uCi: 66.2044        
+                                                                              
+     Simulation started.: 2026:11:05 00:09:06
+     Simulation stopped.: 2026:11:05 00:11:53
+     Elapsed time.......: 0 h, 2 m and 47 s
+     DetectorHits.......: 2407           
+     DetectorHits/CPUsec: 114            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: pilot_estimate.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: pilot_estimate pilot_estimate /NN:1/CC:ma-lehr/PX:0.7
+    beta 0.00, 12 epochs: 37 mm 0.48, CoV 0.38
+    beta 0.05, 12 epochs: 37 mm 0.47, CoV 0.36
+    beta 0.10, 12 epochs: 37 mm 0.46, CoV 0.35
+    beta 0.20, 12 epochs: 37 mm 0.45, CoV 0.34
+    beta 0.00, 24 epochs: 37 mm 0.58, CoV 0.47
+    beta 0.05, 24 epochs: 37 mm 0.56, CoV 0.43
+    beta 0.10, 24 epochs: 37 mm 0.55, CoV 0.40
+    beta 0.20, 24 epochs: 37 mm 0.52, CoV 0.37
+    Chosen protocol: beta 0.20, 24 epochs
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 354-360
+
+Final RDP + SVRG and OSEM
+-------------------------
+The chosen protocol is rerun on every realisation with a scatter estimate
+refreshed every three epochs, so the SVRG gradients and the additive term are
+refreshed together. The epoch count is the pilot's choice, not a value picked
+by eye.
+
+.. GENERATED FROM PYTHON SOURCE LINES 360-404
+
+.. code-block:: Python
+
+
+    ITERATIONS = RDP_EPOCHS * NUM_SUBSETS
+    UPDATE_EVERY = UPDATE_EVERY_EPOCHS * NUM_SUBSETS
+    svrg_image = {}
+    svrg_updaters = {}
+    for seed in realisations:
+        updater = make_scatter_updater(
+            f"svrg_estimate_{seed}",
+            UpdateSchedule(every=UPDATE_EVERY, stop_at=ITERATIONS),
+        )
+
+        def callbacks(objectives, iterations, updater=updater):
+            return [CorrectionCallback(updater, objectives)]
+
+        svrg_image[seed], _ = svrg_run(
+            realisations[seed],
+            zero_additive,
+            RDP_STRENGTH,
+            RDP_EPOCHS,
+            callbacks,
+        )
+        svrg_updaters[seed] = updater
+
+    for seed in realisations:
+        for name, updater in (
+            ("OSEM", osem_updaters[seed]),
+            ("SVRG", svrg_updaters[seed]),
+        ):
+            for record in updater.history:
+                print(
+                    f"seed {seed} {name} update at iteration {record.iteration}: "
+                    f"scatter sum {record.additive_sum:.4g}, {record.seconds:.0f} s"
+                )
+
+    true_scatter = expectation.true_scatter
+    print(f"True scatter sum: {true_scatter.sum():.4g}")
+    for seed in realisations:
+        print(
+            f"Seed {seed} scatter fraction: "
+            f"true {true_scatter.sum() / realisations[seed].sum():.0%}, "
+            f"OSEM {osem_updaters[seed].current.sum() / realisations[seed].sum():.0%}, "
+            f"SVRG {svrg_updaters[seed].current.sum() / realisations[seed].sum():.0%}"
+        )
 
 
 
@@ -972,19 +1787,18 @@ every three epochs and then the stored SVRG gradients.
 
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    1.7% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
 
                    MPI-SIMIND Monte Carlo Simulation Program    V8.0  
     ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate     
-     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate     
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_src 
-     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_dns 
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 156142         
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 630754         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -1008,7 +1822,7 @@ every three epochs and then the stored SVRG gradients.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 0.70369        
+     Emission type......: 3                      Initial Weight....: 0.1742         
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -1027,15 +1841,15 @@ every three epochs and then the stored SVRG gradients.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.81 %          94.37 %
-     Penetration........:   4.30 %           3.28 %
-     Scatter in collim..:   3.78 %           2.36 %
-     X-rays in collim...:   5.11 %           0.00 %
+     Geometric..........:  86.87 %          94.39 %
+     Penetration........:   4.31 %           3.28 %
+     Scatter in collim..:   3.78 %           2.33 %
+     X-rays in collim...:   5.05 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  63.87 %           0.00 %
-     K-photon2 85.36 keV:  28.00 %           0.00 %
-     K-photon3 26.27 keV:   6.51 %           0.00 %
-     K-photon4 29.83 keV:   1.61 %           0.00 %
+     K-photon1 74.16 keV:  64.23 %           0.00 %
+     K-photon2 85.36 keV:  28.31 %           0.00 %
+     K-photon3 26.27 keV:   6.01 %           0.00 %
+     K-photon4 29.83 keV:   1.45 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -1052,35 +1866,35 @@ every three epochs and then the stored SVRG gradients.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  70.97  23.58   0.01   0.00  34.98  52.20   1.20   0.43
-     penetration..:   2.63   0.65   0.00   0.00   1.27   1.30   0.05   0.01
-     collim scatt.:   1.74   0.44   0.00   0.00   0.94   1.68   0.02   0.01
-     collim x-rays:   0.00   0.00   0.00   0.00   2.77   3.15   0.00   0.00
+     geometric....:  81.24  13.04   0.01   0.00  51.04  35.77   1.75   0.28
+     penetration..:   2.89   0.39   0.00   0.00   1.82   0.84   0.06   0.01
+     collim scatt.:   2.10   0.32   0.00   0.00   1.33   1.21   0.04   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   3.70   2.14   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 445.5          
-     MaxValue projection: 0.1415         
-     CountRate spectrum.: 62.81          
-     CountRate E-Window.: 29.34          
+     MaxValue spectrum..: 681.3          
+     MaxValue projection: 0.5933E-01     
+     CountRate spectrum.: 71.65          
+     CountRate E-Window.: 39.99          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.32946        
-     Scatter/Total......: 0.24782        
-     Scatter order 1....: 85.37 %        
-     Scatter order 2....: 13.13 %        
+     Scatter/Primary....: 0.1611         
+     Scatter/Total......: 0.13875        
+     Scatter order 1....: 85.15 %        
+     Scatter order 2....: 13.36 %        
      Scatter order 3....: 1.49 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.448          
-     Efficiency spectrum: 0.9592         
-     Sensitivity Cps/MBq: 29.3357        
-     Sensitivity Cpm/uCi: 65.1254        
+     Efficiency E-window: 0.5302         
+     Efficiency spectrum: 0.9499         
+     Sensitivity Cps/MBq: 39.989         
+     Sensitivity Cpm/uCi: 88.7756        
                                                                               
-     Simulation started.: 2026:10:19 19:30:44
-     Simulation stopped.: 2026:10:19 19:33:47
-     Elapsed time.......: 0 h, 3 m and 3 s
-     DetectorHits.......: 4326           
-     DetectorHits/CPUsec: 188            
+     Simulation started.: 2026:11:05 00:51:17
+     Simulation stopped.: 2026:11:05 01:06:02
+     Elapsed time.......: 0 h, 14 m and 45 s
+     DetectorHits.......: 14823          
+     DetectorHits/CPUsec: 134            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1088,24 +1902,25 @@ every three epochs and then the stored SVRG gradients.
      Current random number generator: ranmar
      MPI Processors: 8              
      Energy resolution as function of 1/sqrt(E)
-     Header file: svrg_estimate.h00
+     Header file: svrg_estimate_12345.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: svrg_estimate svrg_estimate /NN:1/CC:ma-lehr/PX:0.7
+     Command: svrg_estimate_12345 svrg_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.3% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
 
                    MPI-SIMIND Monte Carlo Simulation Program    V8.0  
     ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate     
-     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate     
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_src 
-     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_dns 
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 123647         
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 350066         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -1129,7 +1944,7 @@ every three epochs and then the stored SVRG gradients.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 0.88862        
+     Emission type......: 3                      Initial Weight....: 0.31387        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -1148,15 +1963,15 @@ every three epochs and then the stored SVRG gradients.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.05 %          94.47 %
-     Penetration........:   4.19 %           3.28 %
-     Scatter in collim..:   3.81 %           2.25 %
-     X-rays in collim...:   4.95 %           0.00 %
+     Geometric..........:  87.01 %          94.47 %
+     Penetration........:   4.24 %           3.25 %
+     Scatter in collim..:   3.74 %           2.28 %
+     X-rays in collim...:   5.01 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  63.39 %           0.00 %
-     K-photon2 85.36 keV:  29.16 %           0.00 %
-     K-photon3 26.27 keV:   5.83 %           0.00 %
-     K-photon4 29.83 keV:   1.62 %           0.00 %
+     K-photon1 74.16 keV:  64.44 %           0.00 %
+     K-photon2 85.36 keV:  27.98 %           0.00 %
+     K-photon3 26.27 keV:   5.86 %           0.00 %
+     K-photon4 29.83 keV:   1.72 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -1173,35 +1988,35 @@ every three epochs and then the stored SVRG gradients.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  71.68  22.37   0.01   0.00  35.65  51.76   1.25   0.40
-     penetration..:   2.62   0.71   0.00   0.00   1.30   1.27   0.04   0.01
-     collim scatt.:   2.00   0.62   0.00   0.00   0.91   1.68   0.03   0.01
-     collim x-rays:   0.00   0.00   0.00   0.00   2.68   3.00   0.00   0.00
+     geometric....:  75.80  18.73   0.00   0.00  42.09  45.07   1.44   0.35
+     penetration..:   2.73   0.51   0.00   0.00   1.50   1.08   0.05   0.01
+     collim scatt.:   1.78   0.44   0.00   0.00   1.09   1.51   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   3.12   2.65   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 454.5          
-     MaxValue projection: 0.8257E-01     
-     CountRate spectrum.: 63.18          
-     CountRate E-Window.: 29.77          
+     MaxValue spectrum..: 542.2          
+     MaxValue projection: 0.8063E-01     
+     CountRate spectrum.: 66.46          
+     CountRate E-Window.: 33.69          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.31653        
-     Scatter/Total......: 0.24043        
-     Scatter order 1....: 85.38 %        
-     Scatter order 2....: 13.14 %        
-     Scatter order 3....: 1.48 %         
+     Scatter/Primary....: 0.24451        
+     Scatter/Total......: 0.19647        
+     Scatter order 1....: 85.5  %        
+     Scatter order 2....: 13.01 %        
+     Scatter order 3....: 1.49 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4518         
-     Efficiency spectrum: 0.9589         
-     Sensitivity Cps/MBq: 29.7721        
-     Sensitivity Cpm/uCi: 66.094         
+     Efficiency E-window: 0.4844         
+     Efficiency spectrum: 0.9554         
+     Sensitivity Cps/MBq: 33.6947        
+     Sensitivity Cpm/uCi: 74.8021        
                                                                               
-     Simulation started.: 2026:10:19 19:34:14
-     Simulation stopped.: 2026:10:19 19:36:42
-     Elapsed time.......: 0 h, 2 m and 28 s
-     DetectorHits.......: 3238           
-     DetectorHits/CPUsec: 174            
+     Simulation started.: 2026:11:05 01:06:58
+     Simulation stopped.: 2026:11:05 01:16:13
+     Elapsed time.......: 0 h, 9 m and 15 s
+     DetectorHits.......: 8920           
+     DetectorHits/CPUsec: 128            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1209,25 +2024,25 @@ every three epochs and then the stored SVRG gradients.
      Current random number generator: ranmar
      MPI Processors: 8              
      Energy resolution as function of 1/sqrt(E)
-     Header file: svrg_estimate.h00
+     Header file: svrg_estimate_12345.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: svrg_estimate svrg_estimate /NN:1/CC:ma-lehr/PX:0.7
+     Command: svrg_estimate_12345 svrg_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
     /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
       warnings.warn("geometrical info for STIR.ImageData might be incorrect")
-    1.9% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    3.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
     
 
 
 
                    MPI-SIMIND Monte Carlo Simulation Program    V8.0  
     ------------------------------------------------------------------------------
-     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate     
-     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate     
-     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_src 
-     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_dns 
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 67108          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 267781         
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -1251,7 +2066,7 @@ every three epochs and then the stored SVRG gradients.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 1.63729        
+     Emission type......: 3                      Initial Weight....: 0.41032        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -1270,14 +2085,14 @@ every three epochs and then the stored SVRG gradients.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  87.20 %          94.37 %
-     Penetration........:   4.15 %           3.27 %
-     Scatter in collim..:   3.78 %           2.36 %
-     X-rays in collim...:   4.87 %           0.00 %
+     Geometric..........:  87.03 %          94.44 %
+     Penetration........:   4.22 %           3.27 %
+     Scatter in collim..:   3.78 %           2.28 %
+     X-rays in collim...:   4.96 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  65.11 %           0.00 %
-     K-photon2 85.36 keV:  26.54 %           0.00 %
-     K-photon3 26.27 keV:   6.75 %           0.00 %
+     K-photon1 74.16 keV:  64.77 %           0.00 %
+     K-photon2 85.36 keV:  27.70 %           0.00 %
+     K-photon3 26.27 keV:   5.93 %           0.00 %
      K-photon4 29.83 keV:   1.60 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
@@ -1295,35 +2110,35 @@ every three epochs and then the stored SVRG gradients.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  70.85  23.14   0.00   0.00  35.58  51.94   1.24   0.41
-     penetration..:   2.68   0.69   0.00   0.00   1.28   1.24   0.04   0.00
-     collim scatt.:   1.93   0.72   0.00   0.00   0.97   1.83   0.04   0.00
-     collim x-rays:   0.00   0.00   0.00   0.00   2.55   2.88   0.00   0.00
+     geometric....:  72.53  21.81   0.01   0.00  37.16  50.16   1.28   0.40
+     penetration..:   2.69   0.64   0.00   0.00   1.33   1.20   0.04   0.01
+     collim scatt.:   1.85   0.47   0.00   0.00   0.99   1.66   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.75   2.98   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 456.3          
-     MaxValue projection: 0.1163         
-     CountRate spectrum.: 63.28          
-     CountRate E-Window.: 29.84          
+     MaxValue spectrum..: 471.0          
+     MaxValue projection: 0.9236E-01     
+     CountRate spectrum.: 63.79          
+     CountRate E-Window.: 30.68          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.32027        
-     Scatter/Total......: 0.24258        
-     Scatter order 1....: 85.56 %        
-     Scatter order 2....: 13.02 %        
-     Scatter order 3....: 1.41 %         
+     Scatter/Primary....: 0.29871        
+     Scatter/Total......: 0.23           
+     Scatter order 1....: 85.63 %        
+     Scatter order 2....: 12.89 %        
+     Scatter order 3....: 1.48 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4525         
-     Efficiency spectrum: 0.9598         
-     Sensitivity Cps/MBq: 29.8392        
-     Sensitivity Cpm/uCi: 66.2431        
+     Efficiency E-window: 0.4608         
+     Efficiency spectrum: 0.9581         
+     Sensitivity Cps/MBq: 30.6764        
+     Sensitivity Cpm/uCi: 68.1016        
                                                                               
-     Simulation started.: 2026:10:19 19:37:08
-     Simulation stopped.: 2026:10:19 19:38:37
-     Elapsed time.......: 0 h, 1 m and 29 s
-     DetectorHits.......: 1785           
-     DetectorHits/CPUsec: 159            
+     Simulation started.: 2026:11:05 01:17:06
+     Simulation stopped.: 2026:11:05 01:24:33
+     Elapsed time.......: 0 h, 7 m and 27 s
+     DetectorHits.......: 7153           
+     DetectorHits/CPUsec: 128            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1331,60 +2146,2304 @@ every three epochs and then the stored SVRG gradients.
      Current random number generator: ranmar
      MPI Processors: 8              
      Energy resolution as function of 1/sqrt(E)
-     Header file: svrg_estimate.h00
+     Header file: svrg_estimate_12345.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: svrg_estimate svrg_estimate /NN:1/CC:ma-lehr/PX:0.7
-    OSEM update at iteration 12: scatter sum 4.102e+05, 135 s
-    OSEM update at iteration 24: scatter sum 5.243e+05, 89 s
-    OSEM update at iteration 36: scatter sum 5.59e+05, 75 s
-    SVRG update at iteration 18: scatter sum 4.062e+05, 185 s
-    SVRG update at iteration 36: scatter sum 5.165e+05, 150 s
-    SVRG update at iteration 54: scatter sum 5.535e+05, 91 s
-    True scatter sum: 5.692e+05
-    Scatter fraction of the measured counts: true 29%, OSEM 28%, SVRG 28%
+     Command: svrg_estimate_12345 svrg_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    2.5% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 235330         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.4669         
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.92 %          94.37 %
+     Penetration........:   4.27 %           3.28 %
+     Scatter in collim..:   3.79 %           2.35 %
+     X-rays in collim...:   5.02 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.36 %           0.00 %
+     K-photon2 85.36 keV:  27.59 %           0.00 %
+     K-photon3 26.27 keV:   6.41 %           0.00 %
+     K-photon4 29.83 keV:   1.64 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.62  22.89   0.01   0.00  35.70  51.75   1.23   0.41
+     penetration..:   2.46   0.68   0.00   0.00   1.29   1.23   0.05   0.01
+     collim scatt.:   1.75   0.59   0.00   0.00   0.93   1.67   0.02   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.60   3.10   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 451.0          
+     MaxValue projection: 0.7549E-01     
+     CountRate spectrum.: 62.88          
+     CountRate E-Window.: 29.77          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.31983        
+     Scatter/Total......: 0.24233        
+     Scatter order 1....: 85.62 %        
+     Scatter order 2....: 12.89 %        
+     Scatter order 3....: 1.49 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4539         
+     Efficiency spectrum: 0.9588         
+     Sensitivity Cps/MBq: 29.7698        
+     Sensitivity Cpm/uCi: 66.089         
+                                                                              
+     Simulation started.: 2026:11:05 01:25:30
+     Simulation stopped.: 2026:11:05 01:32:13
+     Elapsed time.......: 0 h, 6 m and 43 s
+     DetectorHits.......: 6429           
+     DetectorHits/CPUsec: 127            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12345.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12345 svrg_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.7% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 218159         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.50365        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.03 %          94.41 %
+     Penetration........:   4.25 %           3.33 %
+     Scatter in collim..:   3.74 %           2.26 %
+     X-rays in collim...:   4.97 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.56 %           0.00 %
+     K-photon2 85.36 keV:  27.45 %           0.00 %
+     K-photon3 26.27 keV:   6.21 %           0.00 %
+     K-photon4 29.83 keV:   1.78 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.31  23.40   0.01   0.00  35.57  51.75   1.23   0.44
+     penetration..:   2.48   0.74   0.00   0.00   1.32   1.26   0.04   0.01
+     collim scatt.:   1.63   0.42   0.00   0.00   0.93   1.67   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.67   3.07   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 451.1          
+     MaxValue projection: 0.7397E-01     
+     CountRate spectrum.: 62.74          
+     CountRate E-Window.: 29.59          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.31845        
+     Scatter/Total......: 0.24153        
+     Scatter order 1....: 85.45 %        
+     Scatter order 2....: 13    %        
+     Scatter order 3....: 1.55 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4523         
+     Efficiency spectrum: 0.959          
+     Sensitivity Cps/MBq: 29.5897        
+     Sensitivity Cpm/uCi: 65.6891        
+                                                                              
+     Simulation started.: 2026:11:05 01:33:09
+     Simulation stopped.: 2026:11:05 01:39:25
+     Elapsed time.......: 0 h, 6 m and 16 s
+     DetectorHits.......: 5771           
+     DetectorHits/CPUsec: 122            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12345.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12345 svrg_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 208175         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.5278         
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.86 %          94.41 %
+     Penetration........:   4.29 %           3.30 %
+     Scatter in collim..:   3.78 %           2.29 %
+     X-rays in collim...:   5.06 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.08 %           0.00 %
+     K-photon2 85.36 keV:  28.40 %           0.00 %
+     K-photon3 26.27 keV:   6.21 %           0.00 %
+     K-photon4 29.83 keV:   1.32 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.00  23.36   0.01   0.00  35.42  51.80   1.20   0.43
+     penetration..:   2.51   0.79   0.00   0.00   1.31   1.26   0.05   0.01
+     collim scatt.:   1.71   0.62   0.00   0.00   0.92   1.71   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.64   3.21   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 450.5          
+     MaxValue projection: 0.8113E-01     
+     CountRate spectrum.: 63.01          
+     CountRate E-Window.: 29.65          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32197        
+     Scatter/Total......: 0.24355        
+     Scatter order 1....: 85.19 %        
+     Scatter order 2....: 13.3  %        
+     Scatter order 3....: 1.5  %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4516         
+     Efficiency spectrum: 0.9596         
+     Sensitivity Cps/MBq: 29.6539        
+     Sensitivity Cpm/uCi: 65.8317        
+                                                                              
+     Simulation started.: 2026:11:05 01:40:22
+     Simulation stopped.: 2026:11:05 01:46:19
+     Elapsed time.......: 0 h, 5 m and 57 s
+     DetectorHits.......: 5585           
+     DetectorHits/CPUsec: 125            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12345.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12345 svrg_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 203515         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.53989        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.99 %          94.53 %
+     Penetration........:   4.27 %           3.20 %
+     Scatter in collim..:   3.76 %           2.27 %
+     X-rays in collim...:   4.98 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.76 %           0.00 %
+     K-photon2 85.36 keV:  27.80 %           0.00 %
+     K-photon3 26.27 keV:   5.92 %           0.00 %
+     K-photon4 29.83 keV:   1.52 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.47  22.89   0.00   0.00  35.50  51.84   1.22   0.43
+     penetration..:   2.73   0.56   0.00   0.00   1.28   1.26   0.04   0.01
+     collim scatt.:   1.75   0.60   0.00   0.00   0.92   1.70   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.78   2.98   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 452.2          
+     MaxValue projection: 0.1131         
+     CountRate spectrum.: 63.15          
+     CountRate E-Window.: 29.72          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.3204         
+     Scatter/Total......: 0.24265        
+     Scatter order 1....: 85.62 %        
+     Scatter order 2....: 12.9  %        
+     Scatter order 3....: 1.47 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4515         
+     Efficiency spectrum: 0.9594         
+     Sensitivity Cps/MBq: 29.715         
+     Sensitivity Cpm/uCi: 65.9673        
+                                                                              
+     Simulation started.: 2026:11:05 01:47:12
+     Simulation stopped.: 2026:11:05 01:53:03
+     Elapsed time.......: 0 h, 5 m and 51 s
+     DetectorHits.......: 5469           
+     DetectorHits/CPUsec: 124            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12345.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12345 svrg_estimate_12345 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 684306         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.16056        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.90 %          94.39 %
+     Penetration........:   4.29 %           3.28 %
+     Scatter in collim..:   3.76 %           2.33 %
+     X-rays in collim...:   5.05 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.97 %           0.00 %
+     K-photon2 85.36 keV:  27.59 %           0.00 %
+     K-photon3 26.27 keV:   5.82 %           0.00 %
+     K-photon4 29.83 keV:   1.62 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  81.16  13.20   0.01   0.00  50.83  35.97   1.74   0.28
+     penetration..:   2.95   0.43   0.00   0.00   1.81   0.85   0.07   0.01
+     collim scatt.:   1.96   0.30   0.00   0.00   1.32   1.21   0.04   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   3.70   2.16   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 679.3          
+     MaxValue projection: 0.8341E-01     
+     CountRate spectrum.: 71.63          
+     CountRate E-Window.: 39.85          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.16253        
+     Scatter/Total......: 0.13981        
+     Scatter order 1....: 85.28 %        
+     Scatter order 2....: 13.17 %        
+     Scatter order 3....: 1.55 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.5286         
+     Efficiency spectrum: 0.95           
+     Sensitivity Cps/MBq: 39.8543        
+     Sensitivity Cpm/uCi: 88.4765        
+                                                                              
+     Simulation started.: 2026:11:05 01:54:49
+     Simulation stopped.: 2026:11:05 02:10:49
+     Elapsed time.......: 0 h, 16 m and 0 s
+     DetectorHits.......: 16026          
+     DetectorHits/CPUsec: 133            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12346 svrg_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 392131         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.2802         
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.08 %          94.40 %
+     Penetration........:   4.19 %           3.27 %
+     Scatter in collim..:   3.75 %           2.33 %
+     X-rays in collim...:   4.98 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.81 %           0.00 %
+     K-photon2 85.36 keV:  27.40 %           0.00 %
+     K-photon3 26.27 keV:   6.20 %           0.00 %
+     K-photon4 29.83 keV:   1.59 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  75.46  18.85   0.01   0.00  41.88  45.30   1.44   0.36
+     penetration..:   2.78   0.56   0.00   0.00   1.52   1.08   0.05   0.01
+     collim scatt.:   1.92   0.43   0.00   0.00   1.09   1.50   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   3.11   2.62   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 537.8          
+     MaxValue projection: 0.9618E-01     
+     CountRate spectrum.: 66.18          
+     CountRate E-Window.: 33.53          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.24439        
+     Scatter/Total......: 0.1964         
+     Scatter order 1....: 85.43 %        
+     Scatter order 2....: 13.08 %        
+     Scatter order 3....: 1.49 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4841         
+     Efficiency spectrum: 0.9556         
+     Sensitivity Cps/MBq: 33.5257        
+     Sensitivity Cpm/uCi: 74.4271        
+                                                                              
+     Simulation started.: 2026:11:05 02:11:44
+     Simulation stopped.: 2026:11:05 02:22:02
+     Elapsed time.......: 0 h, 10 m and 18 s
+     DetectorHits.......: 9876           
+     DetectorHits/CPUsec: 128            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12346 svrg_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    2.8% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 307490         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.35733        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.95 %          94.39 %
+     Penetration........:   4.25 %           3.30 %
+     Scatter in collim..:   3.78 %           2.31 %
+     X-rays in collim...:   5.02 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.66 %           0.00 %
+     K-photon2 85.36 keV:  27.15 %           0.00 %
+     K-photon3 26.27 keV:   6.35 %           0.00 %
+     K-photon4 29.83 keV:   1.84 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  73.15  21.32   0.01   0.00  37.49  49.77   1.28   0.42
+     penetration..:   2.66   0.70   0.00   0.00   1.36   1.20   0.05   0.01
+     collim scatt.:   1.77   0.40   0.00   0.00   0.99   1.64   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.92   2.83   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 476.1          
+     MaxValue projection: 0.7951E-01     
+     CountRate spectrum.: 63.99          
+     CountRate E-Window.: 30.84          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.29521        
+     Scatter/Total......: 0.22792        
+     Scatter order 1....: 85.21 %        
+     Scatter order 2....: 13.28 %        
+     Scatter order 3....: 1.51 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4618         
+     Efficiency spectrum: 0.958          
+     Sensitivity Cps/MBq: 30.8432        
+     Sensitivity Cpm/uCi: 68.4719        
+                                                                              
+     Simulation started.: 2026:11:05 02:22:56
+     Simulation stopped.: 2026:11:05 02:31:22
+     Elapsed time.......: 0 h, 8 m and 26 s
+     DetectorHits.......: 7918           
+     DetectorHits/CPUsec: 125            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12346 svrg_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    2.3% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 271198         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.40515        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.04 %          94.46 %
+     Penetration........:   4.20 %           3.22 %
+     Scatter in collim..:   3.79 %           2.33 %
+     X-rays in collim...:   4.96 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.25 %           0.00 %
+     K-photon2 85.36 keV:  27.90 %           0.00 %
+     K-photon3 26.27 keV:   6.09 %           0.00 %
+     K-photon4 29.83 keV:   1.76 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.33  22.93   0.01   0.00  35.78  51.58   1.23   0.42
+     penetration..:   2.61   0.72   0.00   0.00   1.27   1.23   0.05   0.01
+     collim scatt.:   1.80   0.60   0.00   0.00   0.93   1.70   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.69   3.07   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 455.6          
+     MaxValue projection: 0.1266         
+     CountRate spectrum.: 63.14          
+     CountRate E-Window.: 29.89          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.31803        
+     Scatter/Total......: 0.24129        
+     Scatter order 1....: 85.58 %        
+     Scatter order 2....: 12.97 %        
+     Scatter order 3....: 1.45 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4541         
+     Efficiency spectrum: 0.9593         
+     Sensitivity Cps/MBq: 29.8874        
+     Sensitivity Cpm/uCi: 66.35          
+                                                                              
+     Simulation started.: 2026:11:05 02:32:17
+     Simulation stopped.: 2026:11:05 02:39:54
+     Elapsed time.......: 0 h, 7 m and 37 s
+     DetectorHits.......: 7331           
+     DetectorHits/CPUsec: 128            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12346 svrg_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.6% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 254692         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.4314         
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.99 %          94.46 %
+     Penetration........:   4.19 %           3.24 %
+     Scatter in collim..:   3.82 %           2.30 %
+     X-rays in collim...:   5.00 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  63.91 %           0.00 %
+     K-photon2 85.36 keV:  27.70 %           0.00 %
+     K-photon3 26.27 keV:   6.53 %           0.00 %
+     K-photon4 29.83 keV:   1.86 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.30  23.18   0.00   0.00  35.53  51.81   1.25   0.43
+     penetration..:   2.57   0.75   0.00   0.00   1.27   1.25   0.04   0.01
+     collim scatt.:   1.76   0.42   0.00   0.00   0.94   1.72   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.68   3.05   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 450.1          
+     MaxValue projection: 0.6346E-01     
+     CountRate spectrum.: 62.86          
+     CountRate E-Window.: 29.58          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.31907        
+     Scatter/Total......: 0.24189        
+     Scatter order 1....: 85.46 %        
+     Scatter order 2....: 13.09 %        
+     Scatter order 3....: 1.46 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4515         
+     Efficiency spectrum: 0.9594         
+     Sensitivity Cps/MBq: 29.5809        
+     Sensitivity Cpm/uCi: 65.6696        
+                                                                              
+     Simulation started.: 2026:11:05 02:40:46
+     Simulation stopped.: 2026:11:05 02:47:57
+     Elapsed time.......: 0 h, 7 m and 11 s
+     DetectorHits.......: 6892           
+     DetectorHits/CPUsec: 128            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12346 svrg_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.1% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 245111         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.44827        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.90 %          94.45 %
+     Penetration........:   4.25 %           3.25 %
+     Scatter in collim..:   3.77 %           2.30 %
+     X-rays in collim...:   5.08 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.38 %           0.00 %
+     K-photon2 85.36 keV:  27.89 %           0.00 %
+     K-photon3 26.27 keV:   6.02 %           0.00 %
+     K-photon4 29.83 keV:   1.71 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.33  23.14   0.01   0.00  35.53  51.82   1.21   0.42
+     penetration..:   2.57   0.70   0.00   0.00   1.26   1.26   0.04   0.01
+     collim scatt.:   1.74   0.51   0.00   0.00   0.93   1.65   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.72   3.09   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 453.9          
+     MaxValue projection: 0.6925E-01     
+     CountRate spectrum.: 63.10          
+     CountRate E-Window.: 29.77          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32278        
+     Scatter/Total......: 0.24401        
+     Scatter order 1....: 85.9  %        
+     Scatter order 2....: 12.75 %        
+     Scatter order 3....: 1.35 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4525         
+     Efficiency spectrum: 0.9591         
+     Sensitivity Cps/MBq: 29.7705        
+     Sensitivity Cpm/uCi: 66.0906        
+                                                                              
+     Simulation started.: 2026:11:05 02:48:54
+     Simulation stopped.: 2026:11:05 02:55:47
+     Elapsed time.......: 0 h, 6 m and 53 s
+     DetectorHits.......: 6699           
+     DetectorHits/CPUsec: 129            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12346 svrg_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 236958         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.46369        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.96 %          94.44 %
+     Penetration........:   4.22 %           3.25 %
+     Scatter in collim..:   3.77 %           2.31 %
+     X-rays in collim...:   5.06 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  63.84 %           0.00 %
+     K-photon2 85.36 keV:  28.12 %           0.00 %
+     K-photon3 26.27 keV:   6.37 %           0.00 %
+     K-photon4 29.83 keV:   1.66 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.00  23.48   0.00   0.00  35.58  51.82   1.23   0.41
+     penetration..:   2.44   0.73   0.00   0.00   1.28   1.26   0.04   0.02
+     collim scatt.:   1.84   0.49   0.00   0.01   0.93   1.67   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.67   3.05   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 452.1          
+     MaxValue projection: 0.1010         
+     CountRate spectrum.: 63.05          
+     CountRate E-Window.: 29.77          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32101        
+     Scatter/Total......: 0.243          
+     Scatter order 1....: 85.78 %        
+     Scatter order 2....: 12.8  %        
+     Scatter order 3....: 1.42 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4527         
+     Efficiency spectrum: 0.9591         
+     Sensitivity Cps/MBq: 29.765         
+     Sensitivity Cpm/uCi: 66.0784        
+                                                                              
+     Simulation started.: 2026:11:05 02:56:40
+     Simulation stopped.: 2026:11:05 03:03:24
+     Elapsed time.......: 0 h, 6 m and 44 s
+     DetectorHits.......: 6339           
+     DetectorHits/CPUsec: 125            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12346.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12346 svrg_estimate_12346 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 652128         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.16849        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.72 %          94.43 %
+     Penetration........:   4.38 %           3.27 %
+     Scatter in collim..:   3.79 %           2.30 %
+     X-rays in collim...:   5.12 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.19 %           0.00 %
+     K-photon2 85.36 keV:  28.35 %           0.00 %
+     K-photon3 26.27 keV:   5.86 %           0.00 %
+     K-photon4 29.83 keV:   1.59 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  81.37  13.18   0.00   0.00  50.92  35.82   1.76   0.28
+     penetration..:   2.84   0.36   0.00   0.00   1.82   0.84   0.06   0.01
+     collim scatt.:   1.91   0.33   0.00   0.00   1.33   1.20   0.04   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   3.80   2.11   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 678.3          
+     MaxValue projection: 0.6264E-01     
+     CountRate spectrum.: 71.73          
+     CountRate E-Window.: 39.89          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.1607         
+     Scatter/Total......: 0.13845        
+     Scatter order 1....: 85.23 %        
+     Scatter order 2....: 13.18 %        
+     Scatter order 3....: 1.59 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.5283         
+     Efficiency spectrum: 0.95           
+     Sensitivity Cps/MBq: 39.8868        
+     Sensitivity Cpm/uCi: 88.5487        
+                                                                              
+     Simulation started.: 2026:11:05 03:05:13
+     Simulation stopped.: 2026:11:05 03:20:08
+     Elapsed time.......: 0 h, 14 m and 55 s
+     DetectorHits.......: 15047          
+     DetectorHits/CPUsec: 134            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.3% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 359379         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.30574        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.88 %          94.44 %
+     Penetration........:   4.30 %           3.29 %
+     Scatter in collim..:   3.77 %           2.27 %
+     X-rays in collim...:   5.06 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  63.67 %           0.00 %
+     K-photon2 85.36 keV:  28.79 %           0.00 %
+     K-photon3 26.27 keV:   6.06 %           0.00 %
+     K-photon4 29.83 keV:   1.47 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  76.05  18.44   0.01   0.00  42.06  44.98   1.45   0.37
+     penetration..:   2.77   0.62   0.00   0.00   1.53   1.08   0.05   0.01
+     collim scatt.:   1.74   0.37   0.00   0.00   1.06   1.48   0.04   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   3.18   2.70   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 540.5          
+     MaxValue projection: 0.6917E-01     
+     CountRate spectrum.: 66.42          
+     CountRate E-Window.: 33.62          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.24187        
+     Scatter/Total......: 0.19477        
+     Scatter order 1....: 85.32 %        
+     Scatter order 2....: 13.15 %        
+     Scatter order 3....: 1.52 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4834         
+     Efficiency spectrum: 0.9551         
+     Sensitivity Cps/MBq: 33.6192        
+     Sensitivity Cpm/uCi: 74.6347        
+                                                                              
+     Simulation started.: 2026:11:05 03:21:01
+     Simulation stopped.: 2026:11:05 03:30:22
+     Elapsed time.......: 0 h, 9 m and 21 s
+     DetectorHits.......: 9137           
+     DetectorHits/CPUsec: 130            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    3.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 272390         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.40337        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.03 %          94.48 %
+     Penetration........:   4.21 %           3.19 %
+     Scatter in collim..:   3.79 %           2.33 %
+     X-rays in collim...:   4.97 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  63.95 %           0.00 %
+     K-photon2 85.36 keV:  28.48 %           0.00 %
+     K-photon3 26.27 keV:   5.95 %           0.00 %
+     K-photon4 29.83 keV:   1.62 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  72.60  21.86   0.01   0.00  37.24  50.16   1.28   0.40
+     penetration..:   2.60   0.63   0.00   0.00   1.32   1.19   0.04   0.01
+     collim scatt.:   1.80   0.49   0.00   0.00   0.97   1.64   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.82   2.88   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 471.9          
+     MaxValue projection: 0.1081         
+     CountRate spectrum.: 63.62          
+     CountRate E-Window.: 30.62          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.29863        
+     Scatter/Total......: 0.22996        
+     Scatter order 1....: 85.27 %        
+     Scatter order 2....: 13.27 %        
+     Scatter order 3....: 1.46 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4611         
+     Efficiency spectrum: 0.9581         
+     Sensitivity Cps/MBq: 30.6178        
+     Sensitivity Cpm/uCi: 67.9714        
+                                                                              
+     Simulation started.: 2026:11:05 03:31:15
+     Simulation stopped.: 2026:11:05 03:38:50
+     Elapsed time.......: 0 h, 7 m and 35 s
+     DetectorHits.......: 7350           
+     DetectorHits/CPUsec: 129            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    2.5% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 237735         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.46217        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.08 %          94.40 %
+     Penetration........:   4.21 %           3.28 %
+     Scatter in collim..:   3.76 %           2.32 %
+     X-rays in collim...:   4.95 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.01 %           0.00 %
+     K-photon2 85.36 keV:  27.99 %           0.00 %
+     K-photon3 26.27 keV:   6.18 %           0.00 %
+     K-photon4 29.83 keV:   1.82 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.43  22.84   0.01   0.00  35.70  51.75   1.23   0.42
+     penetration..:   2.55   0.66   0.00   0.00   1.29   1.24   0.04   0.01
+     collim scatt.:   1.96   0.54   0.00   0.00   0.93   1.67   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.67   3.03   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 450.5          
+     MaxValue projection: 0.8784E-01     
+     CountRate spectrum.: 62.86          
+     CountRate E-Window.: 29.74          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32058        
+     Scatter/Total......: 0.24276        
+     Scatter order 1....: 85.5  %        
+     Scatter order 2....: 13.06 %        
+     Scatter order 3....: 1.44 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4539         
+     Efficiency spectrum: 0.9593         
+     Sensitivity Cps/MBq: 29.7428        
+     Sensitivity Cpm/uCi: 66.029         
+                                                                              
+     Simulation started.: 2026:11:05 03:39:46
+     Simulation stopped.: 2026:11:05 03:46:27
+     Elapsed time.......: 0 h, 6 m and 41 s
+     DetectorHits.......: 6392           
+     DetectorHits/CPUsec: 127            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.7% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 221810         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.49536        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.89 %          94.36 %
+     Penetration........:   4.29 %           3.31 %
+     Scatter in collim..:   3.75 %           2.33 %
+     X-rays in collim...:   5.06 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  63.54 %           0.00 %
+     K-photon2 85.36 keV:  28.19 %           0.00 %
+     K-photon3 26.27 keV:   6.33 %           0.00 %
+     K-photon4 29.83 keV:   1.93 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.21  23.10   0.01   0.00  35.36  51.85   1.25   0.42
+     penetration..:   2.61   0.78   0.00   0.00   1.28   1.27   0.04   0.01
+     collim scatt.:   1.70   0.58   0.00   0.00   0.94   1.69   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.77   3.08   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 449.0          
+     MaxValue projection: 0.1800         
+     CountRate spectrum.: 62.93          
+     CountRate E-Window.: 29.64          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32489        
+     Scatter/Total......: 0.24522        
+     Scatter order 1....: 85.61 %        
+     Scatter order 2....: 12.95 %        
+     Scatter order 3....: 1.43 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4517         
+     Efficiency spectrum: 0.9591         
+     Sensitivity Cps/MBq: 29.635         
+     Sensitivity Cpm/uCi: 65.7898        
+                                                                              
+     Simulation started.: 2026:11:05 03:47:23
+     Simulation stopped.: 2026:11:05 03:53:41
+     Elapsed time.......: 0 h, 6 m and 18 s
+     DetectorHits.......: 5989           
+     DetectorHits/CPUsec: 126            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    1.2% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 211855         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.51863        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  86.91 %          94.39 %
+     Penetration........:   4.25 %           3.30 %
+     Scatter in collim..:   3.80 %           2.31 %
+     X-rays in collim...:   5.05 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  63.98 %           0.00 %
+     K-photon2 85.36 keV:  27.82 %           0.00 %
+     K-photon3 26.27 keV:   6.62 %           0.00 %
+     K-photon4 29.83 keV:   1.58 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.10  23.28   0.00   0.00  35.45  51.84   1.22   0.42
+     penetration..:   2.58   0.73   0.00   0.00   1.29   1.24   0.05   0.01
+     collim scatt.:   1.78   0.53   0.00   0.00   0.96   1.68   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.70   3.09   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 449.4          
+     MaxValue projection: 0.1043         
+     CountRate spectrum.: 63.00          
+     CountRate E-Window.: 29.64          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32108        
+     Scatter/Total......: 0.24304        
+     Scatter order 1....: 85.83 %        
+     Scatter order 2....: 12.66 %        
+     Scatter order 3....: 1.51 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.4513         
+     Efficiency spectrum: 0.9592         
+     Sensitivity Cps/MBq: 29.6393        
+     Sensitivity Cpm/uCi: 65.7993        
+                                                                              
+     Simulation started.: 2026:11:05 03:54:36
+     Simulation stopped.: 2026:11:05 04:00:41
+     Elapsed time.......: 0 h, 6 m and 5 s
+     DetectorHits.......: 5603           
+     DetectorHits/CPUsec: 123            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    /opt/SIRF-SuperBuild/INSTALL/python/sirf/SIRF.py:701: UserWarning: geometrical info for STIR.ImageData might be incorrect
+      warnings.warn("geometrical info for STIR.ImageData might be incorrect")
+    
+
+
+
+                   MPI-SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: svrg_estimate_1234
+     Phantom B : bone      BackScatt.: pmt       OutputFile: svrg_estimate_1234
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: svrg_estimate_1234
+     Cover.....: al        ScoreRout.: penetrate DensityImg: svrg_estimate_1234
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 204683         
+     EnergyResolution...: 9.2          SPECT     Activity..........: 1              
+     MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
+     DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 154          Random    Distance to det...: 25             
+     LowerEneWindowTresh: 126          Cover     ShiftSource X.....: 0              
+     PixelSize  I.......: 0.7          Phantom   ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.7          Resolut   ShiftSource Z.....: 0              
+     HalfLength S.......: 16.8         Forced    HalfLength P......: 16.8           
+     HalfWidth  S.......: 16.8         Header    HalfWidth  P......: 16.8           
+     HalfHeight S.......: 16.8                   HalfHeight P......: 16.8           
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.879                  StartingAngle.....: 0              
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
+     Emission type......: 3                      Initial Weight....: 0.53681        
+     NN ScalingFactor...: 1                      Energy Channels...: 128            
+                                                                              
+     SPECT DATA
+     RotationMode.......: 360                    Nr of Projections.: 60             
+     RotationAngle......: 6                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 60             
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  87.02 %          94.42 %
+     Penetration........:   4.25 %           3.20 %
+     Scatter in collim..:   3.78 %           2.37 %
+     X-rays in collim...:   4.95 %           0.00 %
+                                                                              
+     K-photon1 74.16 keV:  64.01 %           0.00 %
+     K-photon2 85.36 keV:  28.03 %           0.00 %
+     K-photon3 26.27 keV:   6.36 %           0.00 %
+     K-photon4 29.83 keV:   1.60 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  25, 25                Bone definition...: 1170           
+     CT-Pixel size......: 0.7                    Slice thickness...: 0.7            
+     StartImage.........: 1                      No of CT-Images...: 48             
+     MatrixSize I.......: 48                     CTmapOrientation..: 0              
+     MatrixSize J.......: 48                     StepSize..........: 0.1            
+     CenterPoint I......: 25                     ShiftPhantom X....: 0              
+     CenterPoint J......: 25                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 25                     ShiftPhantom Z....: 0              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  71.00  23.30   0.01   0.00  35.56  51.90   1.22   0.43
+     penetration..:   2.53   0.69   0.01   0.00   1.27   1.25   0.04   0.01
+     collim scatt.:   1.98   0.48   0.00   0.00   0.98   1.71   0.03   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.62   2.98   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 453.0          
+     MaxValue projection: 0.1067         
+     CountRate spectrum.: 63.13          
+     CountRate E-Window.: 29.81          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 0.32101        
+     Scatter/Total......: 0.243          
+     Scatter order 1....: 85.49 %        
+     Scatter order 2....: 13.09 %        
+     Scatter order 3....: 1.42 %         
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.453          
+     Efficiency spectrum: 0.9592         
+     Sensitivity Cps/MBq: 29.8148        
+     Sensitivity Cpm/uCi: 66.1888        
+                                                                              
+     Simulation started.: 2026:11:05 04:01:34
+     Simulation stopped.: 2026:11:05 04:07:26
+     Elapsed time.......: 0 h, 5 m and 52 s
+     DetectorHits.......: 5372           
+     DetectorHits/CPUsec: 122            
+                                                                              
+     OTHER INFORMATION
+     Minimal toy-example SIMIND configuration
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     MPI Processors: 8              
+     Energy resolution as function of 1/sqrt(E)
+     Header file: svrg_estimate_12347.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
+    seed 12345 OSEM update at iteration 12: scatter sum 4.131e+05, 356 s
+    seed 12345 OSEM update at iteration 24: scatter sum 5.276e+05, 404 s
+    seed 12345 OSEM update at iteration 36: scatter sum 5.582e+05, 328 s
+    seed 12345 SVRG update at iteration 18: scatter sum 2.663e+05, 889 s
+    seed 12345 SVRG update at iteration 36: scatter sum 4.233e+05, 558 s
+    seed 12345 SVRG update at iteration 54: scatter sum 5.174e+05, 450 s
+    seed 12345 SVRG update at iteration 72: scatter sum 5.615e+05, 407 s
+    seed 12345 SVRG update at iteration 90: scatter sum 5.715e+05, 380 s
+    seed 12345 SVRG update at iteration 108: scatter sum 5.745e+05, 360 s
+    seed 12345 SVRG update at iteration 126: scatter sum 5.725e+05, 355 s
+    seed 12346 OSEM update at iteration 12: scatter sum 4.088e+05, 571 s
+    seed 12346 OSEM update at iteration 24: scatter sum 5.241e+05, 283 s
+    seed 12346 OSEM update at iteration 36: scatter sum 5.614e+05, 249 s
+    seed 12346 SVRG update at iteration 18: scatter sum 2.686e+05, 964 s
+    seed 12346 SVRG update at iteration 36: scatter sum 4.257e+05, 621 s
+    seed 12346 SVRG update at iteration 54: scatter sum 5.16e+05, 509 s
+    seed 12346 SVRG update at iteration 72: scatter sum 5.589e+05, 461 s
+    seed 12346 SVRG update at iteration 90: scatter sum 5.704e+05, 435 s
+    seed 12346 SVRG update at iteration 108: scatter sum 5.751e+05, 417 s
+    seed 12346 SVRG update at iteration 126: scatter sum 5.74e+05, 408 s
+    seed 12347 OSEM update at iteration 12: scatter sum 4.083e+05, 310 s
+    seed 12347 OSEM update at iteration 24: scatter sum 5.264e+05, 229 s
+    seed 12347 OSEM update at iteration 36: scatter sum 5.584e+05, 204 s
+    seed 12347 SVRG update at iteration 18: scatter sum 2.657e+05, 899 s
+    seed 12347 SVRG update at iteration 36: scatter sum 4.206e+05, 565 s
+    seed 12347 SVRG update at iteration 54: scatter sum 5.155e+05, 458 s
+    seed 12347 SVRG update at iteration 72: scatter sum 5.607e+05, 404 s
+    seed 12347 SVRG update at iteration 90: scatter sum 5.76e+05, 381 s
+    seed 12347 SVRG update at iteration 108: scatter sum 5.758e+05, 368 s
+    seed 12347 SVRG update at iteration 126: scatter sum 5.744e+05, 355 s
+    True scatter sum: 5.703e+05
+    Seed 12345 scatter fraction: true 29%, OSEM 28%, SVRG 29%
+    Seed 12346 scatter fraction: true 29%, OSEM 28%, SVRG 29%
+    Seed 12347 scatter fraction: true 29%, OSEM 28%, SVRG 29%
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 356-360
+.. GENERATED FROM PYTHON SOURCE LINES 405-411
 
 Reconstructions and profile
 ---------------------------
-The images are shown relative to their mean in the background mask. The
-profile runs along x through the centres of the 22 and 37 mm spheres.
+The images are shown relative to their mean in the background mask. Each
+image and profile is the mean over the three realisations; the band is the
+standard deviation. The profile runs along x through the centres of the 22
+and 37 mm spheres.
 
-.. GENERATED FROM PYTHON SOURCE LINES 360-392
+.. GENERATED FROM PYTHON SOURCE LINES 411-468
 
 .. code-block:: Python
 
 
-    background = nema.masks["background"] > 0
+    background = nema_phantom.background
 
 
-    def relative_to_background(array):
-        return array / array[background].mean()
+    def mean_relative(images):
+        array = np.mean([image.as_array() for image in images], axis=0)
+        return nema_phantom.relative_to_background(array)
 
 
-    truth_array = relative_to_background(nema.activity_mbq)
-    recon_arrays = {
-        "OSEM": relative_to_background(osem.as_array()),
-        "RDP + SVRG": relative_to_background(svrg_image.as_array()),
+    truth_array = nema_phantom.relative_to_background(nema.activity_mbq)
+    arrays = {
+        "OSEM": mean_relative(osem.values()),
+        "RDP + SVRG": mean_relative(svrg_image.values()),
     }
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
-    for ax, (title, image) in zip(axes, (("Truth", truth_array), *recon_arrays.items())):
+    for ax, (title, image) in zip(axes, (("Truth", truth_array), *arrays.items())):
         shown = ax.imshow(image[slice_z], cmap="gray_r", vmin=0, vmax=truth_array.max())
         ax.set_title(title)
         ax.axis("off")
     fig.colorbar(shown, ax=axes, label="relative to background")
     plt.show()
 
-    fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
-    for title, image in (("Truth", truth_array), *recon_arrays.items()):
-        ax.plot(
-            image[slice_z, profile_row], "k--" if title == "Truth" else "-", label=title
+    difference = arrays["RDP + SVRG"] - arrays["OSEM"]
+    fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+    limit = np.abs(difference).max()
+    shown = ax.imshow(difference[slice_z], cmap="coolwarm", vmin=-limit, vmax=limit)
+    ax.set_title("RDP + SVRG − OSEM")
+    ax.axis("off")
+    fig.colorbar(shown, ax=ax, label="difference, relative to background")
+    plt.show()
+
+
+    def relative_profile(image):
+        array = image.as_array()
+        return (
+            array[nema_phantom.slice_z, nema_phantom.profile_row] / array[background].mean()
         )
+
+
+    profiles = {
+        "Truth": np.array([relative_profile(activity_image)]),
+        "OSEM": np.array([relative_profile(image) for image in osem.values()]),
+        "RDP + SVRG": np.array([relative_profile(image) for image in svrg_image.values()]),
+    }
+    fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
+    for title, values in profiles.items():
+        mean = values.mean(axis=0)
+        spread = values.std(axis=0)
+        ax.plot(mean, "k--" if title == "Truth" else "-", label=title)
+        if len(values) > 1:
+            ax.fill_between(np.arange(mean.size), mean - spread, mean + spread, alpha=0.15)
     ax.set_xlabel("x (voxel)")
     ax.set_ylabel("relative to background")
     ax.legend()
@@ -1398,8 +4457,15 @@ profile runs along x through the centres of the 22 and 37 mm spheres.
 
     *
 
-      .. image-sg:: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_003.png
+      .. image-sg:: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_002.png
          :alt: Truth, OSEM, RDP + SVRG
+         :srcset: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_002.png
+         :class: sphx-glr-multi-img
+
+    *
+
+      .. image-sg:: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_003.png
+         :alt: RDP + SVRG − OSEM
          :srcset: /auto_examples/cil/images/sphx_glr_plot_15_cil_rdp_svrg_003.png
          :class: sphx-glr-multi-img
 
@@ -1414,7 +4480,7 @@ profile runs along x through the centres of the 22 and 37 mm spheres.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 393-401
+.. GENERATED FROM PYTHON SOURCE LINES 469-478
 
 Contrast recovery and noise
 ---------------------------
@@ -1423,40 +4489,49 @@ mask, divided by the true ratio of 8. A value of 1 is full recovery. The
 masks include voxels on the sphere edge, which hold less activity, so even
 the truth scores below 1; its score is the ceiling for the reconstructions.
 The 10 and 13 mm spheres are cold and are not scored. The noise is the
-coefficient of variation in the background mask.
+coefficient of variation in the background mask. The error bars are the
+standard error over the three independent realisations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 401-432
+.. GENERATED FROM PYTHON SOURCE LINES 478-517
 
 .. code-block:: Python
 
 
-    SPHERES = {"sphere_3": 17, "sphere_4": 22, "sphere_5": 28, "sphere_6": 37}
-    TRUE_RATIO = 8.0
+    truth_recovery = _nema.contrast_recovery(nema.activity_mbq, nema_phantom)
+    truth_cov = _nema.background_cov(nema.activity_mbq, nema_phantom)
+    scores = {"Truth": (truth_recovery, [0.0] * 4, truth_cov, 0.0)}
+    for title, images in (("OSEM", osem), ("RDP + SVRG", svrg_image)):
+        recovery, recovery_sem = _nema.mean_and_sem(
+            [
+                _nema.contrast_recovery(image.as_array(), nema_phantom)
+                for image in images.values()
+            ]
+        )
+        cov, cov_sem = _nema.mean_and_sem(
+            [
+                _nema.background_cov(image.as_array(), nema_phantom)
+                for image in images.values()
+            ]
+        )
+        scores[title] = (recovery, recovery_sem, float(cov), float(cov_sem))
 
-
-    def contrast_recovery(image, sphere_name):
-        sphere = nema.masks[sphere_name] > 0
-        return image[sphere].mean() / image[background].mean() / TRUE_RATIO
-
-
-    scores = {"Truth": truth_array, **recon_arrays}
-    diameters = [str(d) for d in SPHERES.values()]
-    print(f"{'':24}" + "".join(f"{d:>7} mm" for d in diameters) + "    CoV")
-    for title, image in scores.items():
-        recovery = [contrast_recovery(image, name) for name in SPHERES]
-        cov = image[background].std() / image[background].mean()
+    diameters = [str(d) for d in _nema.SPHERES.values()]
+    print(f"{'':24}" + "".join(f"{d:>8} mm" for d in diameters) + "     CoV")
+    for title, (recovery, recovery_sem, cov, cov_sem) in scores.items():
         print(
-            f"{title:<24}" + "".join(f"{value:10.2f}" for value in recovery) + f"{cov:7.2f}"
+            f"{title:<24}" + "".join(f"{value:11.2f}" for value in recovery) + f"{cov:8.2f}"
         )
 
     x = np.arange(len(diameters))
     fig, ax = plt.subplots(figsize=(7, 4), constrained_layout=True)
-    for offset, (title, image) in zip((-0.2, 0, 0.2), scores.items()):
-        values = [contrast_recovery(image, name) for name in SPHERES]
-        ax.bar(x + offset, values, 0.2, label=title)
+    for offset, (title, (recovery, recovery_sem, _, _)) in zip(
+        (-0.2, 0, 0.2), scores.items()
+    ):
+        ax.bar(x + offset, recovery, 0.2, yerr=recovery_sem, capsize=2, label=title)
     ax.set_xticks(x, diameters)
     ax.set_xlabel("Sphere diameter (mm)")
     ax.set_ylabel("Contrast recovery")
+    ax.set_ylim(0, max(truth_recovery) * 1.15)
     ax.legend()
     plt.show()
 
@@ -1473,27 +4548,27 @@ coefficient of variation in the background mask.
 
  .. code-block:: none
 
-                                 17 mm     22 mm     28 mm     37 mm    CoV
-    Truth                         0.44      0.51      0.63      0.66   0.38
-    OSEM                          0.29      0.33      0.53      0.50   1.62
-    RDP + SVRG                    0.25      0.30      0.46      0.47   0.74
+                                  17 mm      22 mm      28 mm      37 mm     CoV
+    Truth                          0.44       0.51       0.63       0.66    0.38
+    OSEM                           0.31       0.42       0.56       0.63    0.79
+    RDP + SVRG                     0.22       0.29       0.43       0.51    0.36
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 433-439
+.. GENERATED FROM PYTHON SOURCE LINES 518-524
 
-At this budget RDP + SVRG is visibly smoother than OSEM and recovers less of
-each sphere: it is a different point on the noise-recovery trade-off, not a
-better image. The comparison also changes the algorithm and step size, not
-only the prior, so it does not isolate the prior's effect. With one noise
-realisation the table does not rank the two methods, and the 10 and 13 mm
-spheres remain cold.
+The printed table and the profile show the trade-off rather than a ranking:
+RDP + SVRG is smoother and its background noise and sphere recovery are
+reported next to OSEM, with the spread over three realisations. The
+comparison also changes the algorithm and step size, not only the prior, so
+it does not isolate the prior's effect. Three realisations do not rank the
+two methods, and the 10 and 13 mm spheres remain cold.
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (16 minutes 33.309 seconds)
+   **Total running time of the script:** (289 minutes 4.234 seconds)
 
 
 .. _sphx_glr_download_auto_examples_cil_plot_15_cil_rdp_svrg.py:
