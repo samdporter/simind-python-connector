@@ -859,3 +859,57 @@ def test_simulation_cache_records_the_path_resolved_executable(tmp_path, monkeyp
     second = script._engine_inputs()
     assert second["binary"] == first["binary"]
     assert second["binary_sha256"] != first["binary_sha256"]
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_version_changes(
+    tmp_path, monkeypatch
+):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIMIND_VERSION", "9")
+    changed = script._simulation_settings(job, density)
+    assert changed["engine"]["version"] != settings["engine"]["version"]
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_root_changes(tmp_path, monkeypatch):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    other = tmp_path / "other-root"
+    other.mkdir()
+    monkeypatch.setenv("SIMIND_ROOT", str(other))
+    changed = script._simulation_settings(job, density)
+    assert changed["engine"]["root"] != settings["engine"]["root"]
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_engine_data_directory_falls_back_to_smc_dir(tmp_path, monkeypatch):
+    data_directory = tmp_path / "smc"
+    data_directory.mkdir()
+    (data_directory / "y90.isd").write_text("one")
+    monkeypatch.delenv("SIMIND_SMC_DIR", raising=False)
+    monkeypatch.delenv("SIMIND_DATA_DIR", raising=False)
+    monkeypatch.setenv("SMC_DIR", str(data_directory))
+    assert script._engine_inputs()["data_directory"] == str(data_directory.resolve())
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_on_same_size_same_mtime_content_edit(
+    tmp_path, monkeypatch
+):
+    output, source, density, job, settings, _, data_directory = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    data_file = data_directory / "y90.isd"
+    before = data_file.stat()
+    data_file.write_text("two")
+    os.utime(data_file, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert data_file.stat().st_size == before.st_size
+    assert data_file.stat().st_mtime_ns == before.st_mtime_ns
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["engine"]["data_directory_digest"]
+        != settings["engine"]["data_directory_digest"]
+    )
+    assert script._cached_simulation(output, changed, source) is None

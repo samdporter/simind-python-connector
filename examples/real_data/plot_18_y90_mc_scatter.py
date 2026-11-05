@@ -186,6 +186,7 @@ if HISTORY_MULTIPLIER < 1:
 # way that the recorded settings do not capture.
 SIMULATION_CACHE_VERSION = 1
 REFRESH_SIMULATIONS = os.environ.get("SIMIND_Y90_REFRESH_SIMULATIONS") == "1"
+MAX_DATA_DIGEST_BYTES = 512 * 1024 * 1024
 
 # The NN=16 history level is the mean of four independent NN=4 realizations.
 # This is the same effective history budget as one NN=16 run, but each chunk is
@@ -263,19 +264,44 @@ def _file_digest(path):
 
 
 def _directory_digest(directory):
-    """Return a digest of a directory tree's names, sizes and mtimes."""
+    """Return a digest of a configured data tree and its file contents.
+
+    Every regular file path and its SHA-256 content are hashed, up to a 512 MiB
+    total content budget. Files beyond that budget contribute their path, size
+    and mtime plus a truncation marker. The whole tree is walked, so the digest
+    covers the configured SIMIND data installation rather than a fixed subset.
+    """
     if not directory:
         return ""
     root = Path(directory).expanduser()
     if not root.is_dir():
         return f"missing:{root}"
     digest = hashlib.sha256()
+    total = 0
+    truncated = False
     for path in sorted(root.rglob("*")):
-        if path.is_file():
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root).as_posix()
+        digest.update(relative.encode())
+        digest.update(b"\0")
+        try:
+            data = path.read_bytes()
+        except OSError:
+            digest.update(b"unreadable")
+            continue
+        if truncated or total + len(data) > MAX_DATA_DIGEST_BYTES:
+            truncated = True
             stat = path.stat()
-            digest.update(path.relative_to(root).as_posix().encode())
+            digest.update(b"meta:")
             digest.update(str(stat.st_size).encode())
+            digest.update(b":")
             digest.update(str(stat.st_mtime_ns).encode())
+        else:
+            total += len(data)
+            digest.update(hashlib.sha256(data).digest())
+    if truncated:
+        digest.update(b"truncated")
     return digest.hexdigest()
 
 
@@ -284,14 +310,18 @@ def _engine_inputs():
 
     ``SIMIND_BIN`` may be unset, in which case the executable is found on
     ``PATH``; both cases are recorded by the resolved path and its content
-    digest. The data directory is ``SIMIND_SMC_DIR`` falling back to
-    ``SIMIND_DATA_DIR``, recorded by resolved path and a tree digest so that
-    either a path change or an in-place data change invalidates the cache.
+    digest. The data directory follows the connector's fallback order,
+    ``SIMIND_SMC_DIR``, ``SMC_DIR`` then ``SIMIND_DATA_DIR``, and is recorded
+    by resolved path and a content tree digest so that either a path change or
+    an in-place data change invalidates the cache.
     """
     binary = _resolved_binary()
-    data_directory = (
-        os.environ.get("SIMIND_SMC_DIR") or os.environ.get("SIMIND_DATA_DIR") or ""
-    )
+    data_directory = ""
+    for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR"):
+        value = os.environ.get(variable)
+        if value:
+            data_directory = value
+            break
     if data_directory:
         data_directory = str(Path(data_directory).expanduser().resolve())
     return {
@@ -2881,9 +2911,25 @@ def run(strict=True):
             "total_subiterations": TOTAL_SUBITERATIONS,
             "damping": DAMPING,
             "simind_runs": 6,
-            "simind_probe_runs": 4,
+            "simind_probe_runs": 2 + 2 + NN16_CHUNKS,
+            "simind_total_runs": 6 + 2 + 2 + NN16_CHUNKS,
+            "probe_run_detail": {
+                "seed_checks": 2,
+                "single_history_levels": 2,
+                "nn16_chunks": NN16_CHUNKS,
+            },
             "history_multiplier": HISTORY_MULTIPLIER,
-            "history_multiplier_probe": 2 * HISTORY_MULTIPLIER,
+            "probe_history_multipliers": [
+                HISTORY_MULTIPLIER,
+                2 * HISTORY_MULTIPLIER,
+                4 * HISTORY_MULTIPLIER,
+            ],
+            "history_multiplier_probe": 4 * HISTORY_MULTIPLIER,
+            "nn16_seeds": list(NN16_SEEDS),
+            "nn16_construction": (
+                "mean of four independent NN=4 realizations; same effective "
+                "histories as one NN=16 run"
+            ),
             "probe_geometry": "native 120-view measured geometry",
             "shared_refresh_seconds": first_refresh_seconds,
             "shared_quantization_scale": result.shared_raw.get(

@@ -234,6 +234,15 @@
    "name": "int"
   }
  ],
+ "MAX_DATA_DIGEST_BYTES": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
  "MAX_QUANTIZATION_LOSS": [
   {
    "is_class": false,

@@ -121,7 +121,7 @@ The Y-90 phantom data are not published for download yet. Set
 Setup
 -----
 
-.. GENERATED FROM PYTHON SOURCE LINES 104-318
+.. GENERATED FROM PYTHON SOURCE LINES 104-348
 
 .. code-block:: Python
 
@@ -210,6 +210,7 @@ Setup
     # way that the recorded settings do not capture.
     SIMULATION_CACHE_VERSION = 1
     REFRESH_SIMULATIONS = os.environ.get("SIMIND_Y90_REFRESH_SIMULATIONS") == "1"
+    MAX_DATA_DIGEST_BYTES = 512 * 1024 * 1024
 
     # The NN=16 history level is the mean of four independent NN=4 realizations.
     # This is the same effective history budget as one NN=16 run, but each chunk is
@@ -287,19 +288,44 @@ Setup
 
 
     def _directory_digest(directory):
-        """Return a digest of a directory tree's names, sizes and mtimes."""
+        """Return a digest of a configured data tree and its file contents.
+
+        Every regular file path and its SHA-256 content are hashed, up to a 512 MiB
+        total content budget. Files beyond that budget contribute their path, size
+        and mtime plus a truncation marker. The whole tree is walked, so the digest
+        covers the configured SIMIND data installation rather than a fixed subset.
+        """
         if not directory:
             return ""
         root = Path(directory).expanduser()
         if not root.is_dir():
             return f"missing:{root}"
         digest = hashlib.sha256()
+        total = 0
+        truncated = False
         for path in sorted(root.rglob("*")):
-            if path.is_file():
+            if not path.is_file():
+                continue
+            relative = path.relative_to(root).as_posix()
+            digest.update(relative.encode())
+            digest.update(b"\0")
+            try:
+                data = path.read_bytes()
+            except OSError:
+                digest.update(b"unreadable")
+                continue
+            if truncated or total + len(data) > MAX_DATA_DIGEST_BYTES:
+                truncated = True
                 stat = path.stat()
-                digest.update(path.relative_to(root).as_posix().encode())
+                digest.update(b"meta:")
                 digest.update(str(stat.st_size).encode())
+                digest.update(b":")
                 digest.update(str(stat.st_mtime_ns).encode())
+            else:
+                total += len(data)
+                digest.update(hashlib.sha256(data).digest())
+        if truncated:
+            digest.update(b"truncated")
         return digest.hexdigest()
 
 
@@ -308,14 +334,18 @@ Setup
 
         ``SIMIND_BIN`` may be unset, in which case the executable is found on
         ``PATH``; both cases are recorded by the resolved path and its content
-        digest. The data directory is ``SIMIND_SMC_DIR`` falling back to
-        ``SIMIND_DATA_DIR``, recorded by resolved path and a tree digest so that
-        either a path change or an in-place data change invalidates the cache.
+        digest. The data directory follows the connector's fallback order,
+        ``SIMIND_SMC_DIR``, ``SMC_DIR`` then ``SIMIND_DATA_DIR``, and is recorded
+        by resolved path and a content tree digest so that either a path change or
+        an in-place data change invalidates the cache.
         """
         binary = _resolved_binary()
-        data_directory = (
-            os.environ.get("SIMIND_SMC_DIR") or os.environ.get("SIMIND_DATA_DIR") or ""
-        )
+        data_directory = ""
+        for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR"):
+            value = os.environ.get(variable)
+            if value:
+                data_directory = value
+                break
         if data_directory:
             data_directory = str(Path(data_directory).expanduser().resolve())
         return {
@@ -346,7 +376,7 @@ Setup
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 319-325
+.. GENERATED FROM PYTHON SOURCE LINES 349-355
 
 CT series and patient-to-SPECT frame
 ------------------------------------
@@ -355,7 +385,7 @@ The CT slices are not stored in spatial order and are sorted by
 patient-to-SPECT affine uses the NM detector centre in x and z and the CT
 table height in y; no origin is re-derived from the images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 325-476
+.. GENERATED FROM PYTHON SOURCE LINES 355-506
 
 .. code-block:: Python
 
@@ -517,7 +547,7 @@ table height in y; no origin is re-derived from the images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 477-484
+.. GENERATED FROM PYTHON SOURCE LINES 507-514
 
 Registration
 ------------
@@ -527,7 +557,7 @@ finite values, eroded once to keep the body/table boundary out of the edge
 correlation. The acceptance criterion is a Euclidean offset of at most one
 voxel. The measured offset is reported, not applied to the maps.
 
-.. GENERATED FROM PYTHON SOURCE LINES 484-669
+.. GENERATED FROM PYTHON SOURCE LINES 514-699
 
 .. code-block:: Python
 
@@ -723,7 +753,7 @@ voxel. The measured offset is reported, not applied to the maps.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 670-676
+.. GENERATED FROM PYTHON SOURCE LINES 700-706
 
 SIRF resampling
 ---------------
@@ -732,7 +762,7 @@ resampler's zero padding becomes -1000 HU. The reference is an empty image
 with the target SPECT affine and the identity transform is deliberate. The
 resampled array is transferred to a STIR image on the vendor grid.
 
-.. GENERATED FROM PYTHON SOURCE LINES 676-725
+.. GENERATED FROM PYTHON SOURCE LINES 706-755
 
 .. code-block:: Python
 
@@ -792,7 +822,7 @@ resampled array is transferred to a STIR image on the vendor grid.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 726-732
+.. GENERATED FROM PYTHON SOURCE LINES 756-762
 
 Liver VOI
 ---------
@@ -801,7 +831,7 @@ closed component of the wall on each CT slice, excluding the wall itself, air,
 the lung domes and other compartments. The mask is generated once from the CT,
 before any reconstruction, and is never changed by a strategy.
 
-.. GENERATED FROM PYTHON SOURCE LINES 732-878
+.. GENERATED FROM PYTHON SOURCE LINES 762-908
 
 .. code-block:: Python
 
@@ -958,7 +988,7 @@ before any reconstruction, and is never changed by a strategy.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 879-892
+.. GENERATED FROM PYTHON SOURCE LINES 909-922
 
 Metrics
 -------
@@ -974,7 +1004,7 @@ and sphere. It is affected by recovery, spillover and the VOI uncertainty.
 The activities are those at the scan; no decay correction is applied, and
 +-2% is the supplied activity uncertainty only.
 
-.. GENERATED FROM PYTHON SOURCE LINES 892-1125
+.. GENERATED FROM PYTHON SOURCE LINES 922-1155
 
 .. code-block:: Python
 
@@ -1218,12 +1248,12 @@ The activities are those at the scan; no decay correction is applied, and
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1126-1128
+.. GENERATED FROM PYTHON SOURCE LINES 1156-1158
 
 Scatter strategies
 ------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1128-1207
+.. GENERATED FROM PYTHON SOURCE LINES 1158-1237
 
 .. code-block:: Python
 
@@ -1313,12 +1343,12 @@ Scatter strategies
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1208-1210
+.. GENERATED FROM PYTHON SOURCE LINES 1238-1240
 
 Reconstruction schedule
 -----------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1210-1316
+.. GENERATED FROM PYTHON SOURCE LINES 1240-1346
 
 .. code-block:: Python
 
@@ -1435,12 +1465,12 @@ Reconstruction schedule
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1317-1319
+.. GENERATED FROM PYTHON SOURCE LINES 1347-1349
 
 SIRF and SIMIND run-time helpers
 --------------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1319-1412
+.. GENERATED FROM PYTHON SOURCE LINES 1349-1442
 
 .. code-block:: Python
 
@@ -1544,12 +1574,12 @@ SIRF and SIMIND run-time helpers
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1413-1415
+.. GENERATED FROM PYTHON SOURCE LINES 1443-1445
 
 SIMIND job
 ----------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1415-1737
+.. GENERATED FROM PYTHON SOURCE LINES 1445-1767
 
 .. code-block:: Python
 
@@ -1882,12 +1912,12 @@ SIMIND job
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1738-1740
+.. GENERATED FROM PYTHON SOURCE LINES 1768-1770
 
 Templates and measured data
 ---------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1740-1792
+.. GENERATED FROM PYTHON SOURCE LINES 1770-1822
 
 .. code-block:: Python
 
@@ -1950,11 +1980,11 @@ Templates and measured data
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1793-1794
+.. GENERATED FROM PYTHON SOURCE LINES 1823-1824
 
 Figures
 
-.. GENERATED FROM PYTHON SOURCE LINES 1794-2026
+.. GENERATED FROM PYTHON SOURCE LINES 1824-2056
 
 .. code-block:: Python
 
@@ -2197,12 +2227,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 2027-2029
+.. GENERATED FROM PYTHON SOURCE LINES 2057-2059
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 2029-2946
+.. GENERATED FROM PYTHON SOURCE LINES 2059-2992
 
 .. code-block:: Python
 
@@ -3061,9 +3091,25 @@ Run the tutorial
                 "total_subiterations": TOTAL_SUBITERATIONS,
                 "damping": DAMPING,
                 "simind_runs": 6,
-                "simind_probe_runs": 4,
+                "simind_probe_runs": 2 + 2 + NN16_CHUNKS,
+                "simind_total_runs": 6 + 2 + 2 + NN16_CHUNKS,
+                "probe_run_detail": {
+                    "seed_checks": 2,
+                    "single_history_levels": 2,
+                    "nn16_chunks": NN16_CHUNKS,
+                },
                 "history_multiplier": HISTORY_MULTIPLIER,
-                "history_multiplier_probe": 2 * HISTORY_MULTIPLIER,
+                "probe_history_multipliers": [
+                    HISTORY_MULTIPLIER,
+                    2 * HISTORY_MULTIPLIER,
+                    4 * HISTORY_MULTIPLIER,
+                ],
+                "history_multiplier_probe": 4 * HISTORY_MULTIPLIER,
+                "nn16_seeds": list(NN16_SEEDS),
+                "nn16_construction": (
+                    "mean of four independent NN=4 realizations; same effective "
+                    "histories as one NN=16 run"
+                ),
                 "probe_geometry": "native 120-view measured geometry",
                 "shared_refresh_seconds": first_refresh_seconds,
                 "shared_quantization_scale": result.shared_raw.get(
@@ -3200,7 +3246,7 @@ Run the tutorial
     SIMIND source support: 15948 voxels, 1231.0 mL
     Measured projections: (1, 128, 120, 128), sum 3783028.0
     Generating the independent attenuation-only reference reconstruction
-    Reference: 161.0 s, max 4.440, sum 95176.0
+    Reference: 158.0 s, max 4.440, sum 95176.0
     Reference hot-sphere centroid: [ -77.43 -181.69 -576.2 ] mm at voxel [64.52 53.71 45.78] (peak (63, 52, 45)); accepted centre (-77.43, -181.69, -576.2), difference 0.00 mm
     Sphere: 8.092 mL, centroid [ -77.43 -181.7  -576.21] mm
     Liver ex sphere: 978.17 mL, centroid [ -31.97 -172.15 -596.65] mm
@@ -3295,7 +3341,7 @@ Run the tutorial
       Dewaraja, pixel-wi      0.823      0.822      0.822      0.000
     Diagnostic scale: shared/measured 0.269, global factor 3.716, measured counts in zero-SIMIND bins 31.6%
     SIMIND realizations: 14 of 14 loaded from a matching cached run (timings below are the recorded original runs)
-    Total wall time: 256.4 min
+    Total wall time: 286.9 min
     Summary written to y90_mc_scatter
     WARNING: Statistical adequacy was not established; see UNACCEPTED.txt
 
@@ -3305,7 +3351,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (256 minutes 27.546 seconds)
+   **Total running time of the script:** (286 minutes 57.571 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_18_y90_mc_scatter.py:
