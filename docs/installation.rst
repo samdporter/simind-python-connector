@@ -101,20 +101,21 @@ otherwise the connector searches for ``simind`` on ``PATH``. Set
     export SIMIND_BIN="/path/to/simind/simind"
     export SMC_DIR="/path/to/simind/smc_dir/"
     export PATH="/path/to/simind:$PATH"
-    export SIMIND_VERSION=9
+    export SIMIND_VERSION=8
 
-Set ``SIMIND_VERSION`` to ``8`` or ``9`` to match the executable. The default
-is ``8``; ``simind_version=9`` on a connector or adaptor overrides the
-environment. This explicit selection accounts for the different voxel-map
-origins. It does not replace selecting the matching executable and data.
+SIMIND v8 is the supported engine for this release. Set ``SIMIND_VERSION`` to
+``8`` to match the executable; an explicit ``simind_version=8`` on a connector
+or adaptor overrides the environment. Version selection accounts for the
+different voxel-map origins in the experimental v9 code path. It does not
+replace selecting the matching executable and data.
 
 .. warning::
 
-   The SIMIND v9.0 Linux Intel build has a SCATTWIN defect: it can abort with
-   heap corruption or exit normally with silently corrupted projections. For
-   SCATTWIN simulations use SIMIND v8 or the macOS v9 build; the PENETRATE
-   routine is unaffected. The connector emits a ``RuntimeWarning`` when asked to
-   run SCATTWIN with v9 on Linux. See :doc:`simind_validation`.
+   SIMIND v9 is experimental and unvalidated in this release; support is
+   planned for 2.1.0. The v9.0 Linux Intel build can abort with heap corruption
+   or exit normally with silently corrupted SCATTWIN projections. Use SIMIND v8
+   for supported workflows. The connector emits a ``RuntimeWarning`` when asked
+   to run SCATTWIN with v9 on Linux. See :doc:`simind_validation`.
 
 When working from this repository with the layout above, those commands become:
 

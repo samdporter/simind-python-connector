@@ -51,21 +51,6 @@ def test_point_pair_symmetric_about_centre(validate, tmp_path, axis, name):
     )
 
 
-def test_v9_rejects_unvalidated_orientation(validate, not_run, engine, tmp_path):
-    if engine.version != 9:
-        not_run("v9_rejects_unvalidated_orientation", "v9-only centring guard")
-    connector = _connector(tmp_path, "ori")
-    connector.add_runtime_switch("DI", 1)
-
-    try:
-        connector.run()
-        rejected = 0.0
-    except ValueError:
-        rejected = 1.0
-
-    validate("v9_rejects_unvalidated_orientation", rejected, expected=1.0, abs_tol=0)
-
-
 def test_timeout_enforced(validate, tmp_path):
     size = 64
     connector = _connector(tmp_path, "slow")

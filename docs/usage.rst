@@ -13,14 +13,17 @@ The Python package does not bundle SIMIND. Pair the executable and ``smc_dir``
 from the same release. The executor uses ``SIMIND_BIN`` when set and otherwise
 searches ``PATH``; see :doc:`installation`.
 
-Set ``SIMIND_VERSION=9`` when using SIMIND v9, or pass ``simind_version=9`` to
-the connector/adaptor constructor. The default is v8; an explicit constructor
-value takes precedence over the environment. V9 voxel maps need origin
-compensation for SIMIND's different map centring; this is applied to a copy of
-the run configuration and leaves the input arrays unchanged. The supported
-compensation currently requires the default source/density orientations
-(``DI=0``, Index 32 = 0, and no ``OR`` override). Other map orientations fail
-before SIMIND starts.
+SIMIND v8 is the supported engine for this release. Set ``SIMIND_VERSION=8``,
+or pass ``simind_version=8`` to the connector/adaptor constructor. An explicit
+constructor value takes precedence over the environment and the default is 8.
+
+``simind_version=9`` remains available for experimental use, but v9 is
+unvalidated in this release (planned for 2.1.0). The v9 voxel-map origin
+compensation is implementation behaviour, not evidence of validated physics:
+it is applied to a copy of the run configuration and leaves the input arrays
+unchanged. The compensation currently requires the default source/density
+orientations (``DI=0``, Index 32 = 0, and no ``OR`` override). Other map
+orientations fail before SIMIND starts.
 
 .. code-block:: python
 
@@ -39,7 +42,7 @@ before SIMIND starts.
         output_dir="output/basic",
         output_prefix="case01",
         quantization_scale=0.05 * DEFAULT_QUANTIZATION_SCALE,
-        simind_version=9,
+        simind_version=8,
     )
 
     connector.configure_voxel_phantom(

@@ -120,19 +120,6 @@ def _record_not_run(path: Path, engine: Engine, feature: str, case: str, reason:
     pytest.skip(reason)
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_runtest_setup(item):
-    engine = _engine()
-    if engine.label == "v9-linux" and item.get_closest_marker("scattwin_data"):
-        _record_not_run(
-            _output_dir() / f"{engine.label}.jsonl",
-            engine,
-            _feature(item),
-            item.name.removeprefix("test_").replace("[", "_").rstrip("]"),
-            "v9 Linux SCATTWIN engine defect: silently corrupted projections",
-        )
-
-
 @pytest.fixture
 def validate(request, engine):
     path = _output_dir() / f"{engine.label}.jsonl"

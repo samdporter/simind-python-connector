@@ -176,17 +176,19 @@ columns (x, Index 78 and 79) and rows (y, Index 81 and 82) of the maps are set
 separately, and a SIMIND test checks that non-square slices give the same
 projections as the same slices padded to square.
 
-SIMIND v9 uses a different transverse origin for image-based source and density
-maps. Select the matching version explicitly with ``simind_version=9`` or set
-``SIMIND_VERSION=9``; v8 remains the default for existing callers. For v9
-voxel maps, the connector adds the validated source shifts to Indexes 17/18 and
-density-map origin offsets to Indexes 36/37 in the saved run configuration.
-The shifts use the source map's effective ``PX`` and the density pixel size in
-Index 31, preserving the input arrays and the caller's in-memory origin
-offsets. This compensation is validated for the
-default orientation only: ``DI=0``, density Index 32 = 0, and no ``OR`` switch.
-Other v9 voxel-map orientations are rejected before engine launch. Analytic
-phantoms and v8 voxel maps do not receive these offsets.
+SIMIND v8 is the supported engine and remains the default. The v9 code path is
+experimental and unvalidated in this release (planned for 2.1.0). SIMIND v9
+uses a different transverse origin for image-based source and density maps;
+select it with ``simind_version=9`` or ``SIMIND_VERSION=9`` only for
+experimental work. For v9 voxel maps, the connector adds source shifts to
+Indexes 17/18 and density-map origin offsets to Indexes 36/37 in the saved run
+configuration. The shifts use the source map's effective ``PX`` and the
+density pixel size in Index 31, preserving the input arrays and the caller's
+in-memory origin offsets. This compensation is implementation behaviour, not
+evidence of validated physics; it has only been exercised for the default
+orientation (``DI=0``, density Index 32 = 0, and no ``OR`` switch). Other v9
+voxel-map orientations are rejected before engine launch. Analytic phantoms and
+v8 voxel maps do not receive these offsets.
 
 Mu-maps can be given as attenuation (``mu_map_type="attenuation"``, cm^-1 at
 ``mu_map_energy_kev``, which defaults to ``abs(Index 1)``), density

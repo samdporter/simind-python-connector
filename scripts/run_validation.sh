@@ -3,11 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker/compose.yaml"
-MACOS_V9_SOURCE="${SIMIND_MACOS_V9_DIR:-}"
-# the macOS v9 install ships no phantom.zub; the library phantoms take it from the v9 Linux tree
-LIBRARY_TABLE_ROOT="${SIMIND_MACOS_V9_TABLE_ROOT:-}"
-# SIMIND rejects an SMC_DIR of 100 characters or more, so it is reached through a short link
-MACOS_V9_DIR="${SIMIND_MACOS_V9_LINK:-/tmp/simind-v9-macos}"
 OUT_DIR="$ROOT_DIR/output/validation"
 
 ENGINE=""
@@ -15,14 +10,15 @@ FEATURES=()
 
 usage() {
     cat <<'USAGE'
-Usage: bash scripts/run_validation.sh --engine v8|v9|v9-macos [--feature NAME]...
+Usage: bash scripts/run_validation.sh --engine v8 [--feature NAME]...
 
-Runs the SIMIND validation tests and records the numbers in
-output/validation/<engine>.jsonl. v8 and v9 run in Docker (python image,
-then sirf image, then pytomography image); v9-macos runs on the host with
-the native macOS binary.
+Runs the SIMIND v8 release validation tests and records the numbers in
+output/validation/v8-linux.jsonl. The cases run in Docker (python image,
+then sirf image, then pytomography image).
 --feature NAME runs tests/validation/test_NAME.py and replaces only that
 feature's records; without it the engine file is rebuilt from scratch.
+SIMIND v9 is experimental and unvalidated in this release; it is planned for
+2.1.0, so the release runner accepts only v8.
 USAGE
 }
 
@@ -50,8 +46,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$ENGINE" in
-    v8|v9|v9-macos) ;;
-    *) echo "--engine must be v8, v9 or v9-macos" >&2; usage; exit 2 ;;
+    v8) ;;
+    v9|v9-macos)
+        echo "SIMIND v9 is experimental and unvalidated in this release;" \
+            "release validation runs v8 only. v9 is planned for 2.1.0." >&2
+        exit 2
+        ;;
+    *)
+        echo "--engine must be v8 (SIMIND v9 is experimental/unvalidated)" >&2
+        usage
+        exit 2
+        ;;
 esac
 
 if [[ ${#FEATURES[@]} -eq 0 ]]; then
@@ -63,16 +68,7 @@ else
     done
 fi
 
-if [[ "$ENGINE" == v9-macos ]]; then
-    if [[ -z "$MACOS_V9_SOURCE" || -z "$LIBRARY_TABLE_ROOT" ]]; then
-        echo "v9-macos needs SIMIND_MACOS_V9_DIR (the macOS v9 install) and" \
-            "SIMIND_MACOS_V9_TABLE_ROOT (a v9 Linux tree for phantom.zub)" >&2
-        exit 2
-    fi
-    RECORD_FILE="$OUT_DIR/v9-darwin.jsonl"
-else
-    RECORD_FILE="$OUT_DIR/$ENGINE-linux.jsonl"
-fi
+RECORD_FILE="$OUT_DIR/v8-linux.jsonl"
 mkdir -p "$OUT_DIR"
 if [[ ${#FEATURES[@]} -eq 0 ]]; then
     : > "$RECORD_FILE"
@@ -83,13 +79,6 @@ elif [[ -f "$RECORD_FILE" ]]; then
     done
 fi
 
-if [[ -z "${PYTHON:-}" ]]; then
-    if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
-        PYTHON="$ROOT_DIR/.venv/bin/python"
-    else
-        PYTHON=python
-    fi
-fi
 STATUS=0
 
 # pytest exits 5 when nothing was selected, which is not a failure here
@@ -99,24 +88,8 @@ collect_status() {
     fi
 }
 
-if [[ "$ENGINE" == v9-macos ]]; then
-    ln -sfn "$MACOS_V9_SOURCE" "$MACOS_V9_DIR"
-    SIMIND_VALIDATION_ENGINE=v9-darwin \
-    SIMIND_VALIDATION_OUT="$OUT_DIR" \
-    SIMIND_VERSION=9 \
-    SIMIND_ROOT="$LIBRARY_TABLE_ROOT" \
-    SIMIND_BIN="$MACOS_V9_DIR/simind" \
-    SMC_DIR="$MACOS_V9_DIR/smc_dir/" \
-    PATH="$MACOS_V9_DIR:$PATH" \
-    PYTHONPATH="$ROOT_DIR" \
-        "$PYTHON" -m pytest -m "validation and macos_v9" "${TARGETS[@]}" || collect_status $?
-    exit "$STATUS"
-fi
-
-case "$ENGINE" in
-    v8) SIMIND_DIR=/workspace/simind; SIMIND_VERSION=8 ;;
-    v9) SIMIND_DIR=/workspace/tmp/engines/v9; SIMIND_VERSION=9 ;;
-esac
+SIMIND_DIR=/workspace/simind
+SIMIND_VERSION=8
 
 run_in_docker() {
     local service="$1" marker="$2"
@@ -127,7 +100,7 @@ run_in_docker() {
     fi
     DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
         ${user_args[@]+"${user_args[@]}"} \
-        -e SIMIND_VALIDATION_ENGINE="$ENGINE-linux" \
+        -e SIMIND_VALIDATION_ENGINE="v8-linux" \
         -e SIMIND_VALIDATION_OUT=/workspace/output/validation \
         -e SIMIND_VERSION="$SIMIND_VERSION" \
         -e SIMIND_ROOT="$SIMIND_DIR" \
