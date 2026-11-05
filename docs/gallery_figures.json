@@ -160,13 +160,9 @@
     {
      "role": "component_stacks",
      "accepts": ["sphx_glr_plot_05_scattwin_vs_penetrate_comparison_002.png"]
-    },
-    {
-     "role": "component_comparison",
-     "accepts": ["sphx_glr_plot_05_scattwin_vs_penetrate_comparison_003.png"]
     }
    ],
-   "figure_count": 3,
+   "figure_count": 2,
    "thumbnail": "real"
   },
   "getting_started/plot_06_schneider_density_conversion": {
@@ -298,9 +294,13 @@
     {
      "role": "attenuation_maps",
      "accepts": ["sphx_glr_plot_16a_stir_ct_conversion_002.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_16a_stir_ct_conversion_003.png"]
     }
    ],
-   "figure_count": 2,
+   "figure_count": 3,
    "thumbnail": "real"
   },
   "real_data/plot_16b_sirf_ct_conversion": {
@@ -312,9 +312,13 @@
     {
      "role": "attenuation_maps",
      "accepts": ["sphx_glr_plot_16b_sirf_ct_conversion_002.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_16b_sirf_ct_conversion_003.png"]
     }
    ],
-   "figure_count": 2,
+   "figure_count": 3,
    "thumbnail": "real"
   },
   "real_data/plot_16c_pytomography_ct_conversion": {
@@ -330,9 +334,13 @@
     {
      "role": "conversion_ratio",
      "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_003.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_004.png"]
     }
    ],
-   "figure_count": 3,
+   "figure_count": 4,
    "thumbnail": "real"
   },
   "real_data/plot_17_y90_effective_energy": {
