@@ -267,10 +267,11 @@ def _directory_digest(directory):
     """Return a content digest of a configured data tree and a completeness flag.
 
     Every regular file is streamed through SHA-256 regardless of size, so a
-    same-size, same-mtime edit always changes the digest. If the tree exceeds
-    ``MAX_DATA_DIGEST_BYTES`` or any file cannot be read, the returned flag is
-    ``False`` and the simulation cache refuses to use the key. No metadata-only
-    fallback can therefore produce a cache hit from unhashed content.
+    same-size, same-mtime edit always changes the digest. Directory symlinks
+    are not followed and make the tree incomplete, so files reachable only
+    through a linked directory can never produce a cache hit. If the tree
+    exceeds ``MAX_DATA_DIGEST_BYTES``, any file cannot be read, or any symlink
+    is encountered, the flag is ``False`` and the cache refuses the key.
     """
     if not directory:
         return "", True
@@ -280,22 +281,31 @@ def _directory_digest(directory):
     digest = hashlib.sha256()
     total = 0
     complete = True
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(root).as_posix()
-        digest.update(relative.encode())
-        digest.update(b"\0")
-        file_digest = hashlib.sha256()
-        try:
-            with path.open("rb") as stream:
-                while chunk := stream.read(1024 * 1024):
-                    total += len(chunk)
-                    file_digest.update(chunk)
-        except OSError:
-            complete = False
-            continue
-        digest.update(file_digest.digest())
+    for current, directories, filenames in os.walk(root, followlinks=False):
+        current_path = Path(current)
+        directories.sort()
+        filenames.sort()
+        for name in directories:
+            if (current_path / name).is_symlink():
+                complete = False
+        for name in filenames:
+            path = current_path / name
+            if path.is_symlink():
+                complete = False
+                continue
+            relative = path.relative_to(root).as_posix()
+            digest.update(relative.encode())
+            digest.update(b"\0")
+            file_digest = hashlib.sha256()
+            try:
+                with path.open("rb") as stream:
+                    while chunk := stream.read(1024 * 1024):
+                        total += len(chunk)
+                        file_digest.update(chunk)
+            except OSError:
+                complete = False
+                continue
+            digest.update(file_digest.digest())
     if total > MAX_DATA_DIGEST_BYTES:
         complete = False
     return digest.hexdigest(), complete

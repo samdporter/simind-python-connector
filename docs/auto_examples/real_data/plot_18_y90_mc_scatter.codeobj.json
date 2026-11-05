@@ -2759,6 +2759,22 @@
    "name": "get"
   }
  ],
+ "os.walk": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os",
+   "module_short": "os",
+   "name": "walk"
+  }
+ ],
  "passes_gate": [
   {
    "is_class": false,
