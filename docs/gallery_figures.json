@@ -1,0 +1,459 @@
+{
+ "schema": 1,
+ "notes": [
+  "Every gallery page must have an entry here; a new example without one fails the gate.",
+  "figures names the semantic panels required in the page. accepts holds the gallery filenames that satisfy that panel; alt_contains narrows a match when the filename alone is ambiguous.",
+  "figure_count is the accepted number of embedded figures (an integer or [minimum, maximum]).",
+  "thumbnail is real for every page except intentional zero-figure pages, where placeholder is allowed.",
+  "run_summary points at a committed summary from the reviewed run. The gate never re-runs a simulation; it checks the reported fields and the statistical gates that back a quantitative claim.",
+  "Set statistical_claims.negative_result on an audited negative result. Such a page passes completeness but is rejected if the summary is labelled accepted or if no required gate failed."
+ ],
+ "examples": {
+  "backends/plot_07a_stir_adaptor_osem": {
+   "figures": [
+    {
+     "role": "adaptor_osem_comparison",
+     "accepts": ["sphx_glr_plot_07a_stir_adaptor_osem_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_07b_sirf_adaptor_osem": {
+   "figures": [
+    {
+     "role": "adaptor_osem_comparison",
+     "accepts": ["sphx_glr_plot_07b_sirf_adaptor_osem_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_07c_pytomography_adaptor_osem": {
+   "figures": [
+    {
+     "role": "adaptor_osem_comparison",
+     "accepts": ["sphx_glr_plot_07c_pytomography_adaptor_osem_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_08a_stir_adaptor_from_dicom": {
+   "figures": [
+    {
+     "role": "dicom_projection",
+     "accepts": ["sphx_glr_plot_08a_stir_adaptor_from_dicom_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_08b_sirf_adaptor_from_dicom": {
+   "figures": [
+    {
+     "role": "dicom_projection",
+     "accepts": ["sphx_glr_plot_08b_sirf_adaptor_from_dicom_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_08c_pytomography_adaptor_from_dicom": {
+   "figures": [
+    {
+     "role": "dicom_projection",
+     "accepts": ["sphx_glr_plot_08c_pytomography_adaptor_from_dicom_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "cil/plot_14_cil_scatter": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_002.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_003.png"]
+    },
+    {
+     "role": "reconstruction_triptych",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real"
+  },
+  "cil/plot_15_cil_rdp_svrg": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_002.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_003.png"]
+    },
+    {
+     "role": "convergence",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_004.png"]
+    },
+    {
+     "role": "convergence_detail",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_005.png"]
+    }
+   ],
+   "figure_count": 5,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_01_basic_simulation": {
+   "figures": [
+    {
+     "role": "source_and_projection",
+     "accepts": ["sphx_glr_plot_01_basic_simulation_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_02_runtime_switch_comparison": {
+   "figures": [
+    {
+     "role": "seed_comparison",
+     "accepts": ["sphx_glr_plot_02_runtime_switch_comparison_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_03_multi_window": {
+   "figures": [
+    {
+     "role": "multi_window_and_tew",
+     "accepts": ["sphx_glr_plot_03_multi_window_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_04_custom_config": {
+   "intentional_zero_figures": true,
+   "thumbnail": "placeholder"
+  },
+  "getting_started/plot_05_scattwin_vs_penetrate_comparison": {
+   "figures": [
+    {
+     "role": "count_maps",
+     "accepts": ["sphx_glr_plot_05_scattwin_vs_penetrate_comparison_001.png"]
+    },
+    {
+     "role": "component_stacks",
+     "accepts": ["sphx_glr_plot_05_scattwin_vs_penetrate_comparison_002.png"]
+    },
+    {
+     "role": "component_comparison",
+     "accepts": ["sphx_glr_plot_05_scattwin_vs_penetrate_comparison_003.png"]
+    }
+   ],
+   "figure_count": 3,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_06_schneider_density_conversion": {
+   "figures": [
+    {
+     "role": "density_conversion_comparison",
+     "accepts": ["sphx_glr_plot_06_schneider_density_conversion_001.png"]
+    },
+    {
+     "role": "simulated_ct_and_density",
+     "accepts": ["sphx_glr_plot_06_schneider_density_conversion_002.png"]
+    }
+   ],
+   "figure_count": 2,
+   "thumbnail": "real"
+  },
+  "mc_scatter/plot_11_mc_scatter_osem": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_002.png"]
+    },
+    {
+     "role": "measured_and_scatter_estimates",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_003.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_004.png"]
+    },
+    {
+     "role": "reconstruction_triptych",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_005.png"]
+    }
+   ],
+   "figure_count": 5,
+   "thumbnail": "real"
+  },
+  "mc_scatter/plot_12_scatter_normalisation": {
+   "figures": [
+    {
+     "role": "scale_factors",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_001.png"]
+    },
+    {
+     "role": "scatter_estimates",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_002.png"]
+    },
+    {
+     "role": "ratio_comparison",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_003.png"]
+    },
+    {
+     "role": "reconstruction_grid",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_004.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_005.png"]
+    }
+   ],
+   "figure_count": 5,
+   "thumbnail": "real"
+  },
+  "mc_scatter/plot_13_residual_correction": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_13_residual_correction_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_13_residual_correction_002.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_13_residual_correction_003.png"]
+    },
+    {
+     "role": "reconstruction_triptych",
+     "accepts": ["sphx_glr_plot_13_residual_correction_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real"
+  },
+  "phantoms/plot_09_phantom_library": {
+   "figures": [
+    {
+     "role": "phantom_library",
+     "accepts": ["sphx_glr_plot_09_phantom_library_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "phantoms/plot_10_nema_osem": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_10_nema_osem_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_10_nema_osem_002.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_10_nema_osem_003.png"]
+    },
+    {
+     "role": "reconstruction_triptych",
+     "accepts": ["sphx_glr_plot_10_nema_osem_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real"
+  },
+  "real_data/plot_16a_stir_ct_conversion": {
+   "figures": [
+    {
+     "role": "registration_overlay",
+     "accepts": ["sphx_glr_plot_16a_stir_ct_conversion_001.png"]
+    },
+    {
+     "role": "attenuation_maps",
+     "accepts": ["sphx_glr_plot_16a_stir_ct_conversion_002.png"]
+    }
+   ],
+   "figure_count": 2,
+   "thumbnail": "real"
+  },
+  "real_data/plot_16b_sirf_ct_conversion": {
+   "figures": [
+    {
+     "role": "registration_overlay",
+     "accepts": ["sphx_glr_plot_16b_sirf_ct_conversion_001.png"]
+    },
+    {
+     "role": "attenuation_maps",
+     "accepts": ["sphx_glr_plot_16b_sirf_ct_conversion_002.png"]
+    }
+   ],
+   "figure_count": 2,
+   "thumbnail": "real"
+  },
+  "real_data/plot_16c_pytomography_ct_conversion": {
+   "figures": [
+    {
+     "role": "registration_overlay",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_001.png"]
+    },
+    {
+     "role": "attenuation_maps",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_002.png"]
+    },
+    {
+     "role": "conversion_ratio",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_003.png"]
+    }
+   ],
+   "figure_count": 3,
+   "thumbnail": "real"
+  },
+  "real_data/plot_17_y90_effective_energy": {
+   "figures": [
+    {
+     "role": "source_spectrum",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_001.png"]
+    },
+    {
+     "role": "detected_spectrum",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_002.png"]
+    },
+    {
+     "role": "attenuation_comparison",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_003.png"]
+    },
+    {
+     "role": "attenuation_profiles",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real",
+   "run_summary": {
+    "path": "gallery_provenance/plot_17_y90_effective_energy.json",
+    "required_fields": [
+     "source_spectrum.kind",
+     "source_spectrum.points",
+     "detected_spectrum.views",
+     "detected_spectrum.records",
+     "weighted_attenuation.weighted_mean_energy_kev",
+     "weighted_attenuation.body_mean_difference_cm1",
+     "reconstruction.subsets",
+     "reconstruction.iterations"
+    ]
+   }
+  },
+  "real_data/plot_18_y90_mc_scatter": {
+   "figures": [
+    {
+     "role": "registration",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_001.png"]
+    },
+    {
+     "role": "vois",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_002.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_003.png"]
+    },
+    {
+     "role": "reconstructions_global",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_004.png"],
+     "alt_contains": ["Global scaling", "collapsed", "diagnostic only"],
+     "optional": true
+    },
+    {
+     "role": "ratios",
+     "accepts": [
+      "sphx_glr_plot_18_y90_mc_scatter_004.png",
+      "sphx_glr_plot_18_y90_mc_scatter_005.png"
+     ]
+    },
+    {
+     "role": "scatter",
+     "accepts": [
+      "sphx_glr_plot_18_y90_mc_scatter_005.png",
+      "sphx_glr_plot_18_y90_mc_scatter_006.png"
+     ]
+    },
+    {
+     "role": "profiles",
+     "accepts": [
+      "sphx_glr_plot_18_y90_mc_scatter_006.png",
+      "sphx_glr_plot_18_y90_mc_scatter_007.png"
+     ],
+     "alt_contains": ["Profiles through", "hot-sphere column"]
+    }
+   ],
+   "figure_count": [6, 7],
+   "thumbnail": "real",
+   "run_summary": {
+    "path": "gallery_provenance/plot_18_y90_mc_scatter.json",
+    "required_fields": [
+     "status",
+     "engine.version",
+     "engine.history_multiplier",
+     "schedule.probe_geometry",
+     "gates.registration",
+     "gates.quantization_passed",
+     "gates.seed_passed",
+     "gates.seed_scatter_l1",
+     "gates.nn_passed",
+     "gates.iteration_passed",
+     "gates.stability_passed"
+    ],
+    "statistical_claims": {
+     "quantitative": false,
+     "negative_result": true,
+     "required_gates": [
+      "registration",
+      "quantization_passed",
+      "seed_passed",
+      "nn_passed",
+      "iteration_passed",
+      "stability_passed"
+     ],
+     "page_markers": [
+      "audited negative result",
+      "Statistical adequacy was not established",
+      "not quantitatively interpretable"
+     ],
+     "forbidden_page_markers": [
+      "quantitatively validated",
+      "quantitative validation was established",
+      "all statistical gates pass",
+      "supports a robust strategy ranking"
+     ]
+    }
+   }
+  }
+ }
+}

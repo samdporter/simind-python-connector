@@ -13,6 +13,9 @@ Usage: bash scripts/build_gallery.sh [--backend B]... [--simind-version 8|9]
 
 Builds the gallery once per backend in its container, executing only that
 backend's examples, then checks that every example of the built backends has current outputs.
+Before each build scripts/prepare_gallery_build.py invalidates cached output of
+dependency-stale examples, so dependency changes reach the figures instead of
+being stamped onto a cached build.
 Backends: python, stir, sirf, pytomography (default: all, in that order).
 USAGE
 }
@@ -71,9 +74,9 @@ for backend in "${BACKENDS[@]}"; do
         -e SIMIND_MPI_BIN="$SIMIND_DIR/simind_mpi" \
         -e SIMIND_SMC_DIR="$SIMIND_DIR/smc_dir/" \
         -e SIMIND_DATA_DIR="$SIMIND_DIR/smc_dir/" \
-        "$backend" bash -lc "python -m sphinx -b html docs docs/_build/html"
+        "$backend" bash -lc "python scripts/prepare_gallery_build.py --backend $backend && python -m sphinx -b html docs docs/_build/html"
 done
 
 DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
     --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    python bash -lc "python scripts/check_gallery_current.py ${BACKENDS[*]/#/--backend }"
+    python bash -lc "python scripts/check_gallery_current.py ${BACKENDS[*]/#/--backend } --html-dir /workspace/docs/_build/html"
