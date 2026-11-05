@@ -4,27 +4,31 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
 
 .. important::
    This tutorial reports an audited negative result. Statistical adequacy was
-   not established: the native-geometry history-doubling gate failed at 80.1%.
+   not established. The history-doubling probe runs at NN=4, 8 and 16 on the
+   native 120-view geometry and gates both the 4-to-8 and 8-to-16 changes. The
+   coarse pair already fails: its largest change was 80.1%, and the
+   known-activity ratio changed from 1.61 to 1.67 (3.45%, above the 2% gate).
    The reference-sum and reference-trimmed probe arms nearly collapsed
    (sphere/liver ratios 0.042 and 0.070 at NN=4, 0.002 and 0.003 at NN=8), so
-   that gate is dominated by those arms and does not establish convergence.
-   The known-activity ratio changed from 1.61 to 1.67 (3.45%, above the 2%
-   gate) and the pixel-wise ratio from 1.74 to 1.72 (0.96%, within it), both
-   far below the collapsed-arm changes. The independent-seed check passed
-   (smoothed scatter L1 3.19%, gate 5%), as did the two-refresh stability check
+   that maximum is dominated by those arms. The 16x level is the mean of four
+   independent NN=4 realizations (seeds 301-304), which is the same effective
+   history budget as one NN=16 run and lets each chunk be cached; the 8-to-16
+   changes are reported in the probe table. A pass there cannot repair the
+   failed coarse pair, and the run does not establish adequacy. The
+   independent-seed check passed (smoothed scatter L1 3.19%, gate 5%), as did
+   the two-refresh stability check
    (4.79%, gate 5%) and the two-iteration extension (0.89%, gate 2%). The
-   Dewaraja
-   global arm collapsed in this configuration and is shown only as a
+   Dewaraja global arm collapsed in this configuration and is shown only as a
    diagnostic; it is not quantitatively interpretable and it is not ranked
    against the other strategies. The primary ratios are sensitive to the
    frozen sphere centre, and the results do not support a robust strategy
    ranking or a quantitative superiority claim.
 
 The history-doubling and independent-seed probes run on the native 120-view
-geometry at the same higher history multiplier as the main runs, so they test
-convergence rather than a reduced-geometry surrogate. The run still does not
-establish statistical adequacy where a gate fails, and no strategy ranking or
-calibrated recovery is claimed.
+geometry at four, eight and sixteen times the base history multiplier, so they
+test convergence rather than a reduced-geometry surrogate. The run still does
+not establish statistical adequacy where a gate fails, and no strategy ranking
+or calibrated recovery is claimed.
 
 The figures below are published by Sphinx-Gallery: the uncorrected baseline
 and the four noncollapsed strategies on one shared display scale, the collapsed
@@ -78,14 +82,15 @@ executed in parallel, each with its own output directory.
 
 .. warning::
    A fresh run takes many hours. Nearly all of it is in six SIMIND runs at
-   120 views, two more for the independent-seed check and up to two for the
-   native-geometry history-doubling check. Every run uses the same history
-   multiplier (four by default). A source map is quantized at a scale that
-   keeps the activity lost to integer rounding below 1%, so the run time is set
-   by the statistics rather than by the reconstruction. Completed realizations
-   are recorded with a source/map/settings manifest and reused on a later run
-   at the same settings, so the reconstruction and figures can be redone
-   without repeating the Monte Carlo simulation. Set
+   120 views, two more for the independent-seed check, two for NN=4 and NN=8,
+   and four chunked NN=4 realizations averaged to the 16x level. Every run
+   uses the same history multiplier (four by default). A source map is
+   quantized at a scale that keeps the activity lost to integer rounding below
+   1%, so the run time is set by the statistics rather than by the
+   reconstruction. Completed realizations are recorded with a
+   source/map/settings manifest and reused on a later run at the same settings,
+   so the reconstruction and figures can be redone without repeating the Monte
+   Carlo simulation. Set
    ``SIMIND_Y90_REFRESH_SIMULATIONS=1`` to force a fresh simulation.
 
 The Y-90 phantom data are not published for download yet. Set
@@ -182,6 +187,12 @@ if HISTORY_MULTIPLIER < 1:
 SIMULATION_CACHE_VERSION = 1
 REFRESH_SIMULATIONS = os.environ.get("SIMIND_Y90_REFRESH_SIMULATIONS") == "1"
 
+# The NN=16 history level is the mean of four independent NN=4 realizations.
+# This is the same effective history budget as one NN=16 run, but each chunk is
+# a complete realization that can be cached and resumed after an interruption.
+NN16_CHUNKS = 4
+NN16_SEEDS = (301, 302, 303, 304)
+
 # Starting source scale. Each run is raised in 1.25x steps only when more than
 # 1% of its source activity would be lost to integer quantization; the measured
 # scale and loss are reported for every run.
@@ -235,15 +246,68 @@ def _shown(path):
         return path.name
 
 
-def engine_identity():
-    """Record which SIMIND installation produced the Monte Carlo data."""
+def _resolved_binary():
+    """Return the executable SIMIND would actually run."""
     binary = os.environ.get("SIMIND_BIN") or shutil.which("simind") or ""
+    return str(Path(binary).expanduser().resolve()) if binary else ""
+
+
+def _file_digest(path):
+    """Return a content digest for a file, or a marker when it is unreadable."""
+    if not path:
+        return ""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return f"unreadable:{path}"
+
+
+def _directory_digest(directory):
+    """Return a digest of a directory tree's names, sizes and mtimes."""
+    if not directory:
+        return ""
+    root = Path(directory).expanduser()
+    if not root.is_dir():
+        return f"missing:{root}"
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            stat = path.stat()
+            digest.update(path.relative_to(root).as_posix().encode())
+            digest.update(str(stat.st_size).encode())
+            digest.update(str(stat.st_mtime_ns).encode())
+    return digest.hexdigest()
+
+
+def _engine_inputs():
+    """Identify the effective SIMIND engine that would produce the counts.
+
+    ``SIMIND_BIN`` may be unset, in which case the executable is found on
+    ``PATH``; both cases are recorded by the resolved path and its content
+    digest. The data directory is ``SIMIND_SMC_DIR`` falling back to
+    ``SIMIND_DATA_DIR``, recorded by resolved path and a tree digest so that
+    either a path change or an in-place data change invalidates the cache.
+    """
+    binary = _resolved_binary()
+    data_directory = (
+        os.environ.get("SIMIND_SMC_DIR") or os.environ.get("SIMIND_DATA_DIR") or ""
+    )
+    if data_directory:
+        data_directory = str(Path(data_directory).expanduser().resolve())
     return {
         "version": os.environ.get("SIMIND_VERSION"),
-        "binary": binary,
         "root": os.environ.get("SIMIND_ROOT"),
-        "smc_dir": os.environ.get("SIMIND_SMC_DIR")
-        or os.environ.get("SIMIND_DATA_DIR"),
+        "binary": binary,
+        "binary_sha256": _file_digest(binary),
+        "data_directory": data_directory,
+        "data_directory_digest": _directory_digest(data_directory),
+    }
+
+
+def engine_identity():
+    """Record which SIMIND installation produced the Monte Carlo data."""
+    return {
+        **_engine_inputs(),
         "history_multiplier": HISTORY_MULTIPLIER,
         "probe_geometry": "native 120-view measured geometry",
         "seeds": [101, 202],
@@ -1378,11 +1442,7 @@ def _simulation_settings(job, density):
         "time_per_projection_s": job["time_per_projection_s"],
         "quantization_scale": job["quantization_scale"],
         "density_digest": _array_digest(density),
-        "engine": {
-            "version": os.environ.get("SIMIND_VERSION"),
-            "root": os.environ.get("SIMIND_ROOT"),
-            "binary": os.environ.get("SIMIND_BIN"),
-        },
+        "engine": _engine_inputs(),
     }
 
 
@@ -1639,6 +1699,39 @@ def simulate_many(jobs, workers=5, minimum_total=0.0):
         raw["quantization_scale"] = result["quantization_scale"]
         outputs[result["name"]] = raw
     return outputs
+
+
+def mean_raws(raws):
+    """Average independent realizations into one higher-history realization.
+
+    Averaging keeps the expected counts on the same scale as a single
+    realization. Four independent NN=4 realizations therefore have the same
+    effective histories as one NN=16 realization with four times less variance,
+    rather than four times the counts.
+    """
+    if not raws:
+        raise ValueError("at least one realization is required")
+    total = np.mean(
+        [np.asarray(raw["all_interactions"], float) for raw in raws], axis=0
+    )
+    primary = np.mean(
+        [np.asarray(raw["geom_coll_primary"], float) for raw in raws], axis=0
+    )
+    return {
+        "all_interactions": total,
+        "geom_coll_primary": primary,
+        "sums": {
+            key: float(np.mean([raw["sums"][key] for raw in raws]))
+            for key in ("all_interactions", "geom_coll_primary")
+        },
+        "result": {
+            "seconds": float(sum(raw["result"]["seconds"] for raw in raws)),
+            "cached": all(raw["result"].get("cached") for raw in raws),
+        },
+        "source_sum": float(np.mean([raw["source_sum"] for raw in raws])),
+        "quantization_loss": max(raw["quantization_loss"] for raw in raws),
+        "quantization_scale": raws[0].get("quantization_scale", QUANTIZATION_SCALE),
+    }
 
 
 # %%
@@ -2435,11 +2528,30 @@ def run(strict=True):
             {"nn": 2 * HISTORY_MULTIPLIER},
         ),
     ]
-    probe_raws = simulate_many(seed_jobs + nn_jobs, workers=4)
+    nn_chunk_jobs = [
+        (
+            f"nn_16_chunk_{index}",
+            frozen_source,
+            template,
+            density_file,
+            simulations / "probes",
+            {"nn": HISTORY_MULTIPLIER, "seed": seed},
+        )
+        for index, seed in enumerate(NN16_SEEDS, start=1)
+    ]
+    probe_raws = simulate_many(
+        seed_jobs + nn_jobs + nn_chunk_jobs,
+        workers=3,
+    )
     seed_raws = {
         name: raw for name, raw in probe_raws.items() if name.startswith("seed_")
     }
-    nn_raws = {name: raw for name, raw in probe_raws.items() if name.startswith("nn_")}
+    nn_raws = {
+        name: raw for name, raw in probe_raws.items() if name in ("nn_1", "nn_2")
+    }
+    nn_raws["nn_4"] = mean_raws(
+        [probe_raws[f"nn_16_chunk_{index}"] for index in range(1, NN16_CHUNKS + 1)]
+    )
     seed_scatter = {}
     for name, raw in seed_raws.items():
         seed_scatter[name] = smooth_scatter(
@@ -2462,9 +2574,13 @@ def run(strict=True):
         "(gate <= 2%)"
     )
     print(f"  seed smoothed-scatter relative L1: {100 * seed_l1:.2f}% (gate <= 5%)")
-    nn_ratios = {1: {}, 2: {}}
+    nn_ratios = {1: {}, 2: {}, 4: {}}
     strategy_kinds = dict(STRATEGIES)
-    for nn, raw in ((1, nn_raws["nn_1"]), (2, nn_raws["nn_2"])):
+    for nn, raw in (
+        (1, nn_raws["nn_1"]),
+        (2, nn_raws["nn_2"]),
+        (4, nn_raws["nn_4"]),
+    ):
         for name in valid_names:
             kind = strategy_kinds[name]
             source = np.asarray(common_image, float) * activity_support
@@ -2490,22 +2606,44 @@ def run(strict=True):
                 2 * SUBITERATIONS_PER_PASS,
             )
             nn_ratios[nn][name] = ratio(image)
-    nn_changes = {
+    nn_changes_coarse = {
         name: abs(nn_ratios[2][name] - nn_ratios[1][name]) / nn_ratios[1][name]
         for name in valid_names
     }
+    nn_changes = {
+        name: abs(nn_ratios[4][name] - nn_ratios[2][name]) / nn_ratios[2][name]
+        for name in valid_names
+    }
     print(
-        "  base / doubled-history final-pass ratios (history-doubling probe; "
+        "  16x level: mean of four independent NN=4 realizations with seeds "
+        f"{list(NN16_SEEDS)} (same effective histories as one NN=16 run)"
+    )
+    print(
+        "  final-pass ratios at the history levels (history-doubling probe; "
         "native 120-view geometry at "
-        f"NN={HISTORY_MULTIPLIER}/{2 * HISTORY_MULTIPLIER}): "
+        f"NN={HISTORY_MULTIPLIER}/"
+        f"{2 * HISTORY_MULTIPLIER}/"
+        f"{4 * HISTORY_MULTIPLIER}): "
         + ", ".join(
-            f"{name} {nn_ratios[1][name]:.3f}/{nn_ratios[2][name]:.3f}"
+            f"{name} {nn_ratios[1][name]:.3f}/"
+            f"{nn_ratios[2][name]:.3f}/"
+            f"{nn_ratios[4][name]:.3f}"
             for name in valid_names
         )
     )
     print(
-        f"  largest NN ratio change: {100 * max(nn_changes.values()):.2f}% (gate <= 2%)"
+        "  largest NN ratio change "
+        f"NN={HISTORY_MULTIPLIER}->{2 * HISTORY_MULTIPLIER}: "
+        f"{100 * max(nn_changes_coarse.values()):.2f}% (gate <= 2%); "
+        f"NN={2 * HISTORY_MULTIPLIER}->{4 * HISTORY_MULTIPLIER}: "
+        f"{100 * max(nn_changes.values()):.2f}% (gate <= 2%)"
     )
+    for name in valid_names:
+        print(
+            f"    {name}: "
+            f"{100 * nn_changes_coarse[name]:.2f}% / "
+            f"{100 * nn_changes[name]:.2f}%"
+        )
     if collapsed_names:
         print(
             "  collapsed arm excluded from the history-doubling gate: "
@@ -2641,11 +2779,13 @@ def run(strict=True):
     # Statistical adequacy was not established. The independent-seed check
     # passed (smoothed-scatter L1 3.19%, gate 5%), the two-refresh stability
     # check passed (4.79%, gate 5%) and the two-iteration extension passed
-    # (0.89%, gate 2%). The native-geometry history-doubling gate failed at
-    # 80.1% because the reference-sum and reference-trimmed probe arms nearly
-    # collapsed (0.042 versus 0.070 and 0.002 versus 0.003). The known-activity
-    # arm changed by 3.45% (above the 2% gate) and the pixel-wise arm by 0.96%
-    # (within it), far below the collapsed-arm changes.
+    # (0.89%, gate 2%). The native-geometry history-doubling probe runs at
+    # NN=4, 8 and 16. The coarse 4-to-8 pair fails at 80.1% because the
+    # reference-sum and reference-trimmed probe arms nearly collapsed (0.042
+    # versus 0.070 and 0.002 versus 0.003). The known-activity arm changed by
+    # 3.45% (above the 2% gate) and the pixel-wise arm by 0.96% (within it),
+    # far below the collapsed-arm changes. The 8-to-16 changes are printed with
+    # the probe table; a pass there cannot repair the failed coarse pair.
     #
     # The tutorial reproduces the paper's normalisation algebra, not its full
     # physical experiment: the measured window is 75–225 keV rather than
@@ -2672,6 +2812,7 @@ def run(strict=True):
     )
     stability_gate = max(strategy_metrics[name]["stability"] for name in valid_names)
     nn_gate = max(nn_changes[name] for name in valid_names)
+    nn_gate_coarse = max(nn_changes_coarse[name] for name in valid_names)
     iteration_gate = max(iteration_changes[name] for name in valid_names)
     gates = {
         "registration": registration["passed"],
@@ -2682,7 +2823,8 @@ def run(strict=True):
         "seed_scatter_l1": seed_l1,
         "seed_passed": seed_total_difference <= 0.02 and seed_l1 <= 0.05,
         "nn_max_ratio_change": nn_gate,
-        "nn_passed": nn_gate <= 0.02,
+        "nn_max_ratio_change_coarse": nn_gate_coarse,
+        "nn_passed": nn_gate <= 0.02 and nn_gate_coarse <= 0.02,
         "iteration_max_ratio_change": iteration_gate,
         "iteration_passed": iteration_gate <= 0.02,
         "stability_max_ratio_change": stability_gate,
@@ -2771,7 +2913,15 @@ def run(strict=True):
         "valid_strategies": valid_names,
         "collapsed_strategies": collapsed_names,
         "scatter_differences": differences,
-        "nn_ratios": {"nn_1": nn_ratios[1], "nn_2": nn_ratios[2]},
+        "nn_ratios": {
+            "nn_1": nn_ratios[1],
+            "nn_2": nn_ratios[2],
+            "nn_4": nn_ratios[4],
+        },
+        "nn_ratio_changes": {
+            "coarse": nn_changes_coarse,
+            "fine": nn_changes,
+        },
         "iteration_ratio_changes": iteration_changes,
         "seed_scatter_totals": {
             name: float(seed_scatter[name].sum()) for name in seed_names

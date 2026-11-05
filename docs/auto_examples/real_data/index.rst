@@ -59,7 +59,9 @@ The remaining two case studies use the same restricted data:
   global-scaling arm collapsed and is not quantitatively interpretable, the
   nominal sphere-to-liver ratios are sensitive to the frozen sphere centre and
   do not support a strategy ranking, and statistical adequacy was not
-  established. The page reports every failed or inconclusive quality gate.
+  established. The history probe reports NN=4, NN=8 and a chunked 16x level;
+  the coarse 4-to-8 pair already fails, so the finer level cannot restore
+  adequacy. The page reports every failed or inconclusive quality gate.
 
 
 .. raw:: html
@@ -143,7 +145,7 @@ The remaining two case studies use the same restricted data:
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="The history-doubling and independent-seed probes run on the native 120-view geometry at the same higher history multiplier as the main runs, so they test convergence rather than a reduced-geometry surrogate. The run still does not establish statistical adequacy where a gate fails, and no strategy ranking or calibrated recovery is claimed.">
+    <div class="sphx-glr-thumbcontainer" tooltip="The history-doubling and independent-seed probes run on the native 120-view geometry at four, eight and sixteen times the base history multiplier, so they test convergence rather than a reduced-geometry surrogate. The run still does not establish statistical adequacy where a gate fails, and no strategy ranking or calibrated recovery is claimed.">
 
 .. only:: html
 

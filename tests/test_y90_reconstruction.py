@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -770,3 +771,91 @@ def test_sparse_real_engine_density_and_template_integration(tmp_path):
     assert raw["geom_coll_primary"].shape == (1, grid, 2, grid)
     assert float(raw["all_interactions"].sum()) > 0.0
     assert float(raw["geom_coll_primary"].sum()) > 0.0
+
+
+def _cache_fixture(tmp_path, monkeypatch):
+    binary = tmp_path / "simind"
+    binary.write_bytes(b"engine-one")
+    data_directory = tmp_path / "smc"
+    data_directory.mkdir()
+    (data_directory / "y90.isd").write_text("one")
+    monkeypatch.setenv("SIMIND_BIN", str(binary))
+    monkeypatch.setenv("SIMIND_SMC_DIR", str(data_directory))
+    monkeypatch.setenv("SIMIND_DATA_DIR", str(data_directory))
+    monkeypatch.setenv("SIMIND_VERSION", "8")
+    monkeypatch.setenv("SIMIND_ROOT", str(tmp_path))
+    output = tmp_path / "job"
+    output.mkdir()
+    source = np.ones((2, 2, 2), dtype=np.float32)
+    density = np.ones((2, 2, 2), dtype=np.float32)
+    sums = {"all_interactions": 8.0, "geom_coll_primary": 6.0}
+    for name in ("source", "all_interactions", "geom_coll_primary"):
+        np.save(output / f"{name}.npy", source)
+    (output / "components.json").write_text(json.dumps(sums))
+    job = {
+        "prefix": "job",
+        "nn": 1,
+        "seed": None,
+        "activity_mbq": 1.0,
+        "time_per_projection_s": 1.0,
+        "quantization_scale": 0.1,
+    }
+    settings = script._simulation_settings(job, density)
+    (output / "manifest.json").write_text(
+        json.dumps({"settings": settings, "result": {"seconds": 3.0, "sums": sums}})
+    )
+    return output, source, density, job, settings, binary, data_directory
+
+
+@pytest.mark.unit
+def test_simulation_cache_hits_when_engine_inputs_are_unchanged(tmp_path, monkeypatch):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    assert script._cached_simulation(output, settings, source) == {
+        "seconds": 3.0,
+        "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+    }
+    assert script._simulation_settings(job, density) == settings
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_binary_changes(tmp_path, monkeypatch):
+    output, source, density, job, settings, binary, _ = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    binary.write_bytes(b"engine-two")
+    changed = script._simulation_settings(job, density)
+    assert changed["engine"]["binary_sha256"] != settings["engine"]["binary_sha256"]
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_data_changes(tmp_path, monkeypatch):
+    output, source, density, job, settings, _, data_directory = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    (data_directory / "y90.isd").write_text("one-more-line\n")
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["engine"]["data_directory_digest"]
+        != settings["engine"]["data_directory_digest"]
+    )
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_records_the_path_resolved_executable(tmp_path, monkeypatch):
+    bin_directory = tmp_path / "bin"
+    bin_directory.mkdir()
+    binary = bin_directory / "simind"
+    binary.write_bytes(b"path-engine-one")
+    binary.chmod(0o755)
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.setenv(
+        "PATH", str(bin_directory) + os.pathsep + os.environ.get("PATH", "")
+    )
+    first = script._engine_inputs()
+    assert first["binary"] == str(binary.resolve())
+    binary.write_bytes(b"path-engine-two")
+    second = script._engine_inputs()
+    assert second["binary"] == first["binary"]
+    assert second["binary_sha256"] != first["binary_sha256"]

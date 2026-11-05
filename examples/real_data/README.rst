@@ -55,4 +55,6 @@ The remaining two case studies use the same restricted data:
   global-scaling arm collapsed and is not quantitatively interpretable, the
   nominal sphere-to-liver ratios are sensitive to the frozen sphere centre and
   do not support a strategy ranking, and statistical adequacy was not
-  established. The page reports every failed or inconclusive quality gate.
+  established. The history probe reports NN=4, NN=8 and a chunked 16x level;
+  the coarse 4-to-8 pair already fails, so the finer level cannot restore
+  adequacy. The page reports every failed or inconclusive quality gate.

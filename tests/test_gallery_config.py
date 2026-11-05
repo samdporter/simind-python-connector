@@ -180,10 +180,41 @@ def test_sphinx_gallery_publishes_figures_that_are_not_closed(tmp_path):
     assert "_thumb.png" not in page
 
 
+Y90_SCATTER_FIGURES = (
+    "sphx_glr_plot_18_y90_mc_scatter_001.png",  # registration overlay
+    "sphx_glr_plot_18_y90_mc_scatter_002.png",  # VOI overlay
+    "sphx_glr_plot_18_y90_mc_scatter_003.png",  # shared-scale reconstructions
+    "sphx_glr_plot_18_y90_mc_scatter_004.png",  # collapsed global diagnostic
+    "sphx_glr_plot_18_y90_mc_scatter_005.png",  # primary ratio
+    "sphx_glr_plot_18_y90_mc_scatter_006.png",  # scatter estimates
+    "sphx_glr_plot_18_y90_mc_scatter_007.png",  # sphere profiles
+)
+
+
+def _y90_figure_names(page_text: str) -> list[str]:
+    return [
+        Path(reference).name for reference in re.findall(r"image-sg:: (\S+)", page_text)
+    ]
+
+
+def _assert_y90_figure_set(page_text: str) -> None:
+    names = _y90_figure_names(page_text)
+    assert names == list(Y90_SCATTER_FIGURES), names
+    assert all("thumb" not in name for name in names)
+
+
 @pytest.mark.unit
-def test_y90_scatter_page_publishes_non_thumbnail_reconstruction_figures():
-    """The committed page must reference the figures, not only the thumbnail."""
+def test_y90_scatter_page_publishes_the_complete_figure_set():
+    """The page must reference every reconstruction figure, not only a subset."""
     page = ROOT / "docs" / "auto_examples" / "real_data" / "plot_18_y90_mc_scatter.rst"
-    images = re.findall(r"image-sg:: (\S+)", page.read_text())
-    assert len(images) >= 6, images
-    assert all("thumb" not in image for image in images)
+    text = page.read_text()
+    _assert_y90_figure_set(text)
+    for required in (
+        "sphx_glr_plot_18_y90_mc_scatter_003.png",
+        "sphx_glr_plot_18_y90_mc_scatter_004.png",
+    ):
+        broken = text.replace(
+            f".. image-sg:: /auto_examples/real_data/images/{required}\n", ""
+        )
+        with pytest.raises(AssertionError):
+            _assert_y90_figure_set(broken)

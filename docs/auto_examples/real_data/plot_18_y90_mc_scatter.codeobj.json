@@ -259,6 +259,24 @@
    "name": "MAX_SOURCE"
   }
  ],
+ "NN16_CHUNKS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "NN16_SEEDS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
+  }
+ ],
  "NUM_SUBSETS": [
   {
    "is_class": false,
@@ -770,6 +788,33 @@
    "name": "function"
   }
  ],
+ "_directory_digest": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "_engine_inputs": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "_file_digest": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "_image_from_array": [
   {
    "is_class": false,
@@ -843,6 +888,15 @@
   }
  ],
  "_pyplot": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "_resolved_binary": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -1276,6 +1330,15 @@
   }
  ],
  "mask_volume_ml": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "mean_raws": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -2175,6 +2238,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "maximum"
+  }
+ ],
+ "np.mean": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "mean"
   }
  ],
  "np.median": [
