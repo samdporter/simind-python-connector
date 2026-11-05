@@ -22,22 +22,28 @@ Multi-window simulation
 =======================
 
 This example runs a multi-window (TEW-style) simulation of Lu-177 with the
-pure Python connector and builds a triple-energy-window scatter correction. It
-is a quick low-history run, so the projections are noisy.
+pure Python connector and builds a triple-energy-window scatter correction.
+It uses the default source quantization, a history multiplier of 10 and four
+360-degree views of 32 x 32 bins at 4 mm.
 
-.. GENERATED FROM PYTHON SOURCE LINES 11-14
+TEW assumes that the scatter spectrum is linear across the three windows.
+That is an approximation: the estimate is not a measured scatter component and
+can be negative after subtraction where the side windows are noisy.
+
+.. GENERATED FROM PYTHON SOURCE LINES 16-19
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 14-35
+.. GENERATED FROM PYTHON SOURCE LINES 19-49
 
 .. code-block:: Python
 
 
     import os
     import shutil
+    import time
     from pathlib import Path
 
     import matplotlib.pyplot as plt
@@ -45,6 +51,14 @@ Check that SIMIND is installed and choose where the outputs are written.
 
     from simind_python_connector import SimindPythonConnector, configs
     from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
+    from simind_python_connector.utils.interfile import ProjectionGeometry
+    from simind_python_connector.utils.projection_metrics import (
+        projection_view0,
+        require_output_keys,
+        source_weight_sum,
+        tew_correction,
+        zero_history_fraction,
+    )
 
 
     if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
@@ -63,13 +77,13 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 36-39
+.. GENERATED FROM PYTHON SOURCE LINES 50-53
 
 Build the phantom
 -----------------
 A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
 
-.. GENERATED FROM PYTHON SOURCE LINES 39-53
+.. GENERATED FROM PYTHON SOURCE LINES 53-67
 
 .. code-block:: Python
 
@@ -94,7 +108,7 @@ A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 54-59
+.. GENERATED FROM PYTHON SOURCE LINES 68-73
 
 Configure three energy windows
 ------------------------------
@@ -102,22 +116,40 @@ Lu-177 TEW around the 208 keV peak: lower scatter 166-187 keV, photopeak
 187-229 keV and upper scatter 229-250 keV. SIMIND writes one projection per
 window (``tot_w1`` to ``tot_w3``).
 
-.. GENERATED FROM PYTHON SOURCE LINES 59-90
+.. GENERATED FROM PYTHON SOURCE LINES 73-125
 
 .. code-block:: Python
 
+
+    PHOTON_MULTIPLIER = 10
+    SEED = 12345
 
     connector = SimindPythonConnector(
         config_source=configs.get("Example.yaml"),
         output_dir=output_dir,
         output_prefix="tew_case01",
-        quantization_scale=0.02 * DEFAULT_QUANTIZATION_SCALE,
+        quantization_scale=DEFAULT_QUANTIZATION_SCALE,
     )
     connector.configure_voxel_phantom(
         source=source,
         mu_map=mu_map,
         voxel_size_mm=4.0,
         scoring_routine=1,
+    )
+    connector.configure_acquisition(
+        ProjectionGeometry(
+            num_projections=4,
+            extent_deg=360.0,
+            direction="CW",
+            start_angle_deg=180.0,
+            radius_mm=250.0,
+            radii_mm=None,
+            num_bins=32,
+            num_axial=32,
+            bin_size_mm=4.0,
+            axial_size_mm=4.0,
+            image_duration_s=None,
+        )
     )
     connector.add_config_value(19, 2)
     connector.add_config_value(53, 0)
@@ -128,14 +160,17 @@ window (``tot_w1`` to ``tot_w3``).
     connector.add_config_value(1, 208.0)
     connector.add_runtime_switch("FI", "lu177")
     connector.add_runtime_switch("CC", "ma-megp")
-    connector.add_runtime_switch("NN", 1)
-    connector.add_runtime_switch("RR", 12345)
+    connector.add_runtime_switch("NN", PHOTON_MULTIPLIER)
+    connector.add_runtime_switch("RR", SEED)
 
+    started = time.perf_counter()
     outputs = connector.run()
+    elapsed_s = time.perf_counter() - started
 
-    lower_scatter = outputs["tot_w1"].projection
-    photopeak = outputs["tot_w2"].projection
-    upper_scatter = outputs["tot_w3"].projection
+    windows = require_output_keys(outputs, "tot_w1", "tot_w2", "tot_w3")
+    lower_scatter = windows["tot_w1"].projection
+    photopeak = windows["tot_w2"].projection
+    upper_scatter = windows["tot_w3"].projection
 
 
 
@@ -156,14 +191,14 @@ window (``tot_w1`` to ``tot_w3``).
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: tew_case01_src    
      Cover.....: al        ScoreRout.: scattwin  DensityImg: tew_case01_dns    
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 208          lu177     PhotonsPerProj....: 23098          
+     PhotonEnergy.......: 208          lu177     PhotonsPerProj....: 11549000       
      EnergyResolution...: 9.2          Spectra   Activity..........: 1              
      MaxScatterOrder....: 3            ma-megp   DetectorLenght....: 21.25          
      DetectorWidth......: 27           SPECT     DetectorHeight....: 0.95           
      UpperEneWindowTresh: 225          x-rays    Distance to det...: 25             
      LowerEneWindowTresh: 75           BScatt    ShiftSource X.....: 0              
-     PixelSize  I.......: 0.44         Random    ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.44         Cover     ShiftSource Z.....: 0              
+     PixelSize  I.......: 0.4          Random    ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.4          Cover     ShiftSource Z.....: 0              
      HalfLength S.......: 6.4          Phantom   HalfLength P......: 6.4            
      HalfWidth  S.......: 6.4          Resolut   HalfWidth  P......: 6.4            
      HalfHeight S.......: 6.4          Forced    HalfHeight P......: 6.4            
@@ -172,6 +207,50 @@ window (``tot_w1`` to ``tot_w3``).
                    Projection          Hits       Scatt/Tot    Progress
   
   
+                    1 of   4         1381022        0.276          2 %
+                    1 of   4         2836580        0.300          4 %
+                    1 of   4         4368726        0.317          6 %
+                    1 of   4         5902269        0.326          8 %
+                    1 of   4         7478822        0.334         10 %
+                    1 of   4         9060033        0.341         12 %
+                    1 of   4        10616281        0.344         15 %
+                    1 of   4        12182914        0.346         17 %
+                    1 of   4        13724603        0.348         19 %
+                    1 of   4        15219245        0.346         21 %
+                    1 of   4        16648335        0.343         23 %
+                    2 of   4         1382164        0.337         27 %
+                    2 of   4         2838683        0.335         29 %
+                    2 of   4         4370114        0.337         31 %
+                    2 of   4         5906739        0.337         33 %
+                    2 of   4         7481942        0.339         35 %
+                    2 of   4         9063445        0.340         37 %
+                    2 of   4        10619499        0.341         40 %
+                    2 of   4        12185089        0.342         42 %
+                    2 of   4        13727080        0.343         44 %
+                    2 of   4        15221645        0.342         46 %
+                    2 of   4        16650202        0.341         48 %
+                    3 of   4         1382254        0.338         52 %
+                    3 of   4         2836796        0.337         54 %
+                    3 of   4         4367681        0.338         56 %
+                    3 of   4         5902747        0.338         58 %
+                    3 of   4         7480385        0.339         60 %
+                    3 of   4         9059049        0.340         62 %
+                    3 of   4        10616025        0.341         65 %
+                    3 of   4        12181530        0.342         67 %
+                    3 of   4        13725067        0.342         69 %
+                    3 of   4        15219574        0.342         71 %
+                    3 of   4        16647391        0.341         73 %
+                    4 of   4         1382345        0.338         77 %
+                    4 of   4         2837900        0.338         79 %
+                    4 of   4         4369073        0.338         81 %
+                    4 of   4         5904190        0.339         83 %
+                    4 of   4         7480876        0.340         85 %
+                    4 of   4         9060551        0.341         87 %
+                    4 of   4        10616582        0.341         90 %
+                    4 of   4        12184307        0.342         92 %
+                    4 of   4        13724587        0.342         94 %
+                    4 of   4        15219179        0.342         96 %
+                    4 of   4        16644478        0.341         98 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -180,13 +259,13 @@ window (``tot_w1`` to ``tot_w3``).
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 32                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 32                     AcceptanceAngle...: 4.08562        
-     Emission type......: 2                      Initial Weight....: 9.80163        
-     NN ScalingFactor...: 1                      Energy Channels...: 128            
+     Emission type......: 2                      Initial Weight....: 0.0196         
+     NN ScalingFactor...: 10                     Energy Channels...: 128            
                                                                               
      SPECT DATA
-     RotationMode.......: -360                   Nr of Projections.: 24             
-     RotationAngle......: 15                     Projection.[start]: 1              
-     Orbital fraction...: 1                      Projection...[end]: 24             
+     RotationMode.......: 360                    Nr of Projections.: 4              
+     RotationAngle......: 90                     Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 4              
                                                                               
      COLLIMATOR DATA FOR ROUTINE: Analytical          
      CollimatorCode.....: ma-megp                CollimatorType....: Parallel 
@@ -217,9 +296,9 @@ window (``tot_w1`` to ``tot_w3``).
        3       0    229.0 - 250.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.184E+02 0.146E+02 0.379E+01 0.385E+01 0.794E+00 0.766E+00
-       2   0.159E+03 0.159E+02 0.143E+03 0.111E+00 0.100E+00 0.662E+01
-       3   0.147E+01 0.218E+00 0.125E+01 0.174E+00 0.148E+00 0.613E-01
+       1   0.307E+01 0.244E+01 0.638E+00 0.382E+01 0.792E+00 0.769E+00
+       2   0.262E+02 0.262E+01 0.236E+02 0.111E+00 0.999E-01 0.655E+01
+       3   0.244E+00 0.369E-01 0.207E+00 0.178E+00 0.151E+00 0.610E-01
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
        1   100.00%     0.00%     0.00%   100.00%     0.00%     0.00%
@@ -227,34 +306,34 @@ window (``tot_w1`` to ``tot_w3``).
        3   100.00%     0.00%     0.00%   100.00%     0.00%     0.00%
   
       Win   SC 1  SC 2  SC 3
-       1   85.8% 13.4%  0.7%
-       2   94.2%  5.6%  0.2%
-       3   92.6%  7.4%  0.0%
+       1   86.0% 13.1%  0.9%
+       2   94.9%  4.9%  0.2%
+       3   90.9%  8.6%  0.5%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 52.70          
-     MaxValue projection: 0.1201         
-     CountRate spectrum.: 29.10          
-     CountRate E-Window.: 19.95          
+     MaxValue spectrum..: 8.694          
+     MaxValue projection: 0.7989E-01     
+     CountRate spectrum.: 28.85          
+     CountRate E-Window.: 19.79          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.5144         
-     Scatter/Total......: 0.33967        
-     Scatter order 1....: 70.89 %        
-     Scatter order 2....: 22.68 %        
-     Scatter order 3....: 6.43 %         
+     Scatter/Primary....: 0.51655        
+     Scatter/Total......: 0.34061        
+     Scatter order 1....: 70.71 %        
+     Scatter order 2....: 22.76 %        
+     Scatter order 3....: 6.53 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.5991         
-     Efficiency spectrum: 0.8738         
-     Sensitivity Cps/MBq: 19.9541        
-     Sensitivity Cpm/uCi: 44.2981        
+     Efficiency E-window: 0.599          
+     Efficiency spectrum: 0.8734         
+     Sensitivity Cps/MBq: 19.7881        
+     Sensitivity Cpm/uCi: 43.9296        
                                                                               
-     Simulation started.: 2026:10:17 13:35:41
-     Simulation stopped.: 2026:10:17 13:36:28
-     Elapsed time.......: 0 h, 0 m and 47 s
-     DetectorHits.......: 34534          
-     DetectorHits/CPUsec: 731            
+     Simulation started.: 2026:10:26 20:59:58
+     Simulation stopped.: 2026:10:26 22:47:24
+     Elapsed time.......: 1 h, 47 m and 26 s
+     DetectorHits.......: 17391801       
+     DetectorHits/CPUsec: 2699           
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -264,30 +343,35 @@ window (``tot_w1`` to ``tot_w3``).
      Header file: tew_case01.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: tew_case01 tew_case01 /PX:0.4/FI:lu177/CC:ma-megp/NN:1/RR:12345
+     Command: tew_case01 tew_case01 /PX:0.4/FI:lu177/CC:ma-megp/NN:10/RR:12345/FW:tew_case01
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 91-95
+.. GENERATED FROM PYTHON SOURCE LINES 126-133
 
 Apply the TEW correction
 ------------------------
-The scatter in the photopeak is estimated from the count densities in the
-two neighbouring windows, then subtracted (clipped at zero).
+Each side window is scaled to the photopeak width and half of the total is
+assigned to the peak. The result is subtracted and clipped at zero, because a
+negative activity is unphysical. The clipping fraction says how much of the
+photopeak the estimate removed at zero; a large fraction means the side
+windows are too noisy for a quantitative correction.
 
-.. GENERATED FROM PYTHON SOURCE LINES 95-114
+.. GENERATED FROM PYTHON SOURCE LINES 133-163
 
 .. code-block:: Python
 
 
-    width1 = uppers[0] - lowers[0]
-    width2 = uppers[1] - lowers[1]
-    width3 = uppers[2] - lowers[2]
-    scatter_estimate = lower_scatter * (width2 / (2.0 * width1)) + upper_scatter * (
-        width2 / (2.0 * width3)
+    widths = [upper - lower for lower, upper in zip(lowers, uppers)]
+    scatter_estimate, corrected, clipped_counts, clipped_pixels = tew_correction(
+        photopeak,
+        lower_scatter,
+        upper_scatter,
+        lower_width_kev=widths[0],
+        photopeak_width_kev=widths[1],
+        upper_width_kev=widths[2],
     )
-    corrected = np.clip(photopeak - scatter_estimate, a_min=0.0, a_max=None)
 
     np.save(output_dir / "tew_lower_window.npy", lower_scatter)
     np.save(output_dir / "tew_photopeak.npy", photopeak)
@@ -295,9 +379,18 @@ two neighbouring windows, then subtracted (clipped at zero).
     np.save(output_dir / "tew_scatter_estimate.npy", scatter_estimate)
     np.save(output_dir / "tew_corrected.npy", corrected)
 
-    print(f"Photopeak counts: {float(photopeak.sum()):.3f}")
-    print(f"TEW scatter estimate counts: {float(scatter_estimate.sum()):.3f}")
-    print(f"TEW corrected counts: {float(corrected.sum()):.3f}")
+    print(
+        "Histories per view: "
+        f"{source_weight_sum(source, DEFAULT_QUANTIZATION_SCALE) * PHOTON_MULTIPLIER}"
+    )
+    loss = zero_history_fraction(source, DEFAULT_QUANTIZATION_SCALE)
+    print(f"Quantization loss: {loss:.4%}")
+    print(f"Photopeak projection sum: {float(photopeak.sum()):.3f}")
+    print(f"TEW scatter estimate projection sum: {float(scatter_estimate.sum()):.3f}")
+    print(f"TEW corrected projection sum: {float(corrected.sum()):.3f}")
+    print(f"Clipped photopeak counts: {clipped_counts:.3%}")
+    print(f"Clipped pixels: {clipped_pixels:.3%}")
+    print(f"Elapsed: {elapsed_s:.0f} s")
 
 
 
@@ -307,57 +400,75 @@ two neighbouring windows, then subtracted (clipped at zero).
 
  .. code-block:: none
 
-    Photopeak counts: 158.923
-    TEW scatter estimate counts: 19.866
-    TEW corrected counts: 139.452
+    Histories per view: 11549000
+    Quantization loss: 0.0000%
+    Photopeak projection sum: 26.216
+    TEW scatter estimate projection sum: 3.319
+    TEW corrected projection sum: 22.900
+    Clipped photopeak counts: 0.010%
+    Clipped pixels: 13.452%
+    Elapsed: 6445 s
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 115-119
+.. GENERATED FROM PYTHON SOURCE LINES 164-169
 
 Plot the result
 ---------------
-The three projection panels share one colour scale, so the scatter estimate
-can be compared directly with the photopeak and the corrected image.
+The lower and upper windows and the TEW estimate share one colour scale,
+because they are all scatter-scale images. The photopeak and corrected image
+share a second scale. One scale for all five would hide the side windows.
 
-.. GENERATED FROM PYTHON SOURCE LINES 119-147
+.. GENERATED FROM PYTHON SOURCE LINES 169-209
 
 .. code-block:: Python
 
 
 
-    def view0(projection: np.ndarray) -> np.ndarray:
-        return projection[0, :, 0, :] if projection.ndim == 4 else projection[0, :, :]
+    lower_view0 = projection_view0(lower_scatter)
+    photopeak_view0 = projection_view0(photopeak)
+    upper_view0 = projection_view0(upper_scatter)
+    scatter_view0 = projection_view0(scatter_estimate)
+    corrected_view0 = projection_view0(corrected)
+    views = [
+        lower_view0,
+        photopeak_view0,
+        upper_view0,
+        scatter_view0,
+        corrected_view0,
+    ]
+    scatter_vmax = float(max(lower_view0.max(), upper_view0.max(), scatter_view0.max()))
+    peak_vmax = float(max(photopeak_view0.max(), corrected_view0.max()))
 
-
-    photopeak_view0 = view0(photopeak)
-    scatter_view0 = view0(scatter_estimate)
-    corrected_view0 = view0(corrected)
-    lower_view0 = view0(lower_scatter)
-    views = [photopeak_view0, scatter_view0, corrected_view0, lower_view0]
-    proj_vmin = float(min(v.min() for v in views))
-    proj_vmax = float(max(v.max() for v in views))
-
-    fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+    fig, axes = plt.subplots(2, 3, figsize=(14, 8), constrained_layout=True)
+    axes = axes.ravel()
     axes[0].imshow(source[source.shape[0] // 2, :, :], cmap="viridis")
     axes[0].set_title("Input source")
-    axes[1].imshow(photopeak_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[1].set_title("Photopeak (view 0)")
-    axes[2].imshow(scatter_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[2].set_title("TEW scatter est.")
-    axes[3].imshow(corrected_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
-    axes[3].set_title("TEW corrected")
+    for ax, view, title, vmax in zip(
+        axes[1:],
+        views,
+        (
+            "Lower scatter 166-187 keV",
+            "Photopeak 187-229 keV",
+            "Upper scatter 229-250 keV",
+            "TEW scatter estimate",
+            "TEW corrected",
+        ),
+        (scatter_vmax, peak_vmax, scatter_vmax, scatter_vmax, peak_vmax),
+    ):
+        image = ax.imshow(view, cmap="magma", vmin=0.0, vmax=vmax)
+        ax.set_title(title)
+        fig.colorbar(image, ax=ax, shrink=0.7)
     for ax in axes:
         ax.axis("off")
-    fig.tight_layout()
     fig.savefig(output_dir / "multi_window_summary.png", dpi=140)
     plt.show()
 
 
 
 .. image-sg:: /auto_examples/getting_started/images/sphx_glr_plot_03_multi_window_001.png
-   :alt: Input source, Photopeak (view 0), TEW scatter est., TEW corrected
+   :alt: Input source, Lower scatter 166-187 keV, Photopeak 187-229 keV, Upper scatter 229-250 keV, TEW scatter estimate, TEW corrected
    :srcset: /auto_examples/getting_started/images/sphx_glr_plot_03_multi_window_001.png
    :class: sphx-glr-single-img
 
@@ -368,7 +479,7 @@ can be compared directly with the photopeak and the corrected image.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 47.555 seconds)
+   **Total running time of the script:** (107 minutes 26.454 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_03_multi_window.py:

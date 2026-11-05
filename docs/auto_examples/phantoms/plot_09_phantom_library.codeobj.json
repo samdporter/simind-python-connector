@@ -1,4 +1,13 @@
 {
+ "ANALYTIC_INDEX26": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
  "AnalyticPhantom": [
   {
    "is_class": true,
@@ -261,6 +270,38 @@
    "name": "float"
   }
  ],
+ "VOXEL_NN": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "VoxelPhantom": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.phantoms",
+   "module_short": "simind_python_connector.phantoms",
+   "name": "VoxelPhantom"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "VoxelPhantom"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.phantoms",
+   "module_short": "simind_python_connector.phantoms",
+   "name": "VoxelPhantom"
+  }
+ ],
  "_": [
   {
    "is_class": false,
@@ -268,6 +309,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "ndarray"
+  }
+ ],
+ "artist": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.image",
+   "module_short": "matplotlib.image",
+   "name": "AxesImage"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "AxesImage"
   }
  ],
  "ax": [
@@ -515,6 +572,50 @@
    "module": "matplotlib",
    "module_short": "matplotlib",
    "name": "Figure"
+  }
+ ],
+ "fig.colorbar": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "Figure.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Figure.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "FigureBase.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "FigureBase.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.colorbar"
   }
  ],
  "hot_slice": [
@@ -865,6 +966,22 @@
    "name": "subplots"
   }
  ],
+ "projection_view0": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.projection_metrics",
+   "module_short": "simind_python_connector.utils.projection_metrics",
+   "name": "projection_view0"
+  }
+ ],
  "radii_cm": [
   {
    "is_class": false,
@@ -897,6 +1014,38 @@
    "module": "builtins",
    "module_short": "builtins",
    "name": "function"
+  }
+ ],
+ "source_weight_sum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.projection_metrics",
+   "module_short": "simind_python_connector.utils.projection_metrics",
+   "name": "source_weight_sum"
+  }
+ ],
+ "time.perf_counter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "time",
+   "module_short": "time",
+   "name": "perf_counter"
   }
  ],
  "title": [
@@ -938,6 +1087,22 @@
    "module": "simind_python_connector",
    "module_short": "simind_python_connector",
    "name": "HorizontalCylinder"
+  }
+ ],
+ "zero_history_fraction": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.projection_metrics",
+   "module_short": "simind_python_connector.utils.projection_metrics",
+   "name": "zero_history_fraction"
   }
  ]
 }

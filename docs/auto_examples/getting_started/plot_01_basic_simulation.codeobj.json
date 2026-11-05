@@ -15,6 +15,15 @@
    "name": "DEFAULT_QUANTIZATION_SCALE"
   }
  ],
+ "PHOTON_MULTIPLIER": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
  "Path": [
   {
    "is_class": true,
@@ -36,6 +45,45 @@
    "module": "pathlib",
    "module_short": "pathlib",
    "name": "Path"
+  }
+ ],
+ "ProjectionGeometry": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.interfile",
+   "module_short": "simind_python_connector.utils.interfile",
+   "name": "ProjectionGeometry"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils",
+   "module_short": "simind_python_connector.utils",
+   "name": "ProjectionGeometry"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "ProjectionGeometry"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.interfile",
+   "module_short": "simind_python_connector.utils.interfile",
+   "name": "ProjectionGeometry"
+  }
+ ],
+ "SEED": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
   }
  ],
  "SimindPythonConnector": [
@@ -336,6 +384,57 @@
    "name": "ABC.add_runtime_switch"
   }
  ],
+ "connector.configure_acquisition": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SimindPythonConnector.configure_acquisition"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector",
+   "name": "SimindPythonConnector.configure_acquisition"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "SimindPythonConnector.configure_acquisition"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors.base",
+   "module_short": "simind_python_connector.connectors.base",
+   "name": "BaseConnector.configure_acquisition"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.connectors",
+   "module_short": "simind_python_connector.connectors",
+   "name": "BaseConnector.configure_acquisition"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector",
+   "module_short": "simind_python_connector",
+   "name": "BaseConnector.configure_acquisition"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.configure_acquisition"
+  }
+ ],
  "connector.configure_voxel_phantom": [
   {
    "is_class": false,
@@ -507,6 +606,15 @@
    "name": "tuple"
   }
  ],
+ "elapsed_s": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
  "fig": [
   {
    "is_class": false,
@@ -521,6 +629,50 @@
    "module": "matplotlib",
    "module_short": "matplotlib",
    "name": "Figure"
+  }
+ ],
+ "fig.colorbar": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "Figure.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Figure.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "FigureBase.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "FigureBase.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.colorbar"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.colorbar"
   }
  ],
  "fig.savefig": [
@@ -567,50 +719,6 @@
    "name": "Artist.savefig"
   }
  ],
- "fig.tight_layout": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib.figure",
-   "module_short": "matplotlib.figure",
-   "name": "Figure.tight_layout"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib",
-   "module_short": "matplotlib",
-   "name": "Figure.tight_layout"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib.figure",
-   "module_short": "matplotlib.figure",
-   "name": "FigureBase.tight_layout"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib",
-   "module_short": "matplotlib",
-   "name": "FigureBase.tight_layout"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib.artist",
-   "module_short": "matplotlib.artist",
-   "name": "Artist.tight_layout"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib",
-   "module_short": "matplotlib",
-   "name": "Artist.tight_layout"
-  }
- ],
  "hot": [
   {
    "is_class": false,
@@ -618,6 +726,15 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "ndarray"
+  }
+ ],
+ "loss": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
   }
  ],
  "mu_map": [
@@ -933,6 +1050,47 @@
    "name": "subplots"
   }
  ],
+ "profile_row": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "projection_view0": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.projection_metrics",
+   "module_short": "simind_python_connector.utils.projection_metrics",
+   "name": "projection_view0"
+  }
+ ],
+ "require_output_keys": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.projection_metrics",
+   "module_short": "simind_python_connector.utils.projection_metrics",
+   "name": "require_output_keys"
+  }
+ ],
  "shutil.which": [
   {
    "is_class": false,
@@ -985,6 +1143,47 @@
    "name": "ndarray"
   }
  ],
+ "source_weight_sum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.projection_metrics",
+   "module_short": "simind_python_connector.utils.projection_metrics",
+   "name": "source_weight_sum"
+  }
+ ],
+ "started": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "time.perf_counter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "time",
+   "module_short": "time",
+   "name": "perf_counter"
+  }
+ ],
  "total": [
   {
    "is_class": false,
@@ -992,15 +1191,6 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "ndarray"
-  }
- ],
- "total.ndim": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "int"
   }
  ],
  "total.sum": [
@@ -1012,6 +1202,22 @@
    "name": "builtin_function_or_method"
   }
  ],
+ "total_image": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.image",
+   "module_short": "matplotlib.image",
+   "name": "AxesImage"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "AxesImage"
+  }
+ ],
  "total_view0": [
   {
    "is_class": false,
@@ -1019,6 +1225,15 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "ndarray"
+  }
+ ],
+ "total_view0.shape": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
   }
  ],
  "x": [
@@ -1046,6 +1261,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "ndarray"
+  }
+ ],
+ "zero_history_fraction": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "simind_python_connector.utils.projection_metrics",
+   "module_short": "simind_python_connector.utils.projection_metrics",
+   "name": "zero_history_fraction"
   }
  ]
 }

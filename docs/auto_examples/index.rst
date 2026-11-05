@@ -41,7 +41,7 @@ Getting started
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example runs SIMIND with voxelized NumPy inputs and reads projections back as NumPy arrays via SimindPythonConnector. It is a quick low-history run, so the projection is noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example runs SIMIND with voxelized NumPy inputs and reads projections back as NumPy arrays via SimindPythonConnector. It uses the default source quantization and a history multiplier large enough for the body and the hot sphere to be resolved in the projection, rather than a smoke-test run.">
 
 .. only:: html
 
@@ -58,7 +58,7 @@ Getting started
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example runs two SIMIND cases with different runtime switch settings and compares the resulting projection view. It is a quick low-history run, so the seed-to-seed noise is large.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example runs the same simulation twice with two independent random seeds and compares the projections. The only runtime switch that differs is RR, so the difference isolates Monte Carlo noise, not a change of physics.">
 
 .. only:: html
 
@@ -69,13 +69,13 @@ Getting started
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Runtime-switch comparison</div>
+      <div class="sphx-glr-thumbnail-title">Seed reproducibility</div>
     </div>
 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example runs a multi-window (TEW-style) simulation of Lu-177 with the pure Python connector and builds a triple-energy-window scatter correction. It is a quick low-history run, so the projections are noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example runs a multi-window (TEW-style) simulation of Lu-177 with the pure Python connector and builds a triple-energy-window scatter correction. It uses the default source quantization, a history multiplier of 10 and four 360-degree views of 32 x 32 bins at 4 mm.">
 
 .. only:: html
 
@@ -109,7 +109,7 @@ Getting started
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example compares the SCATTWIN and PENETRATE scoring routines of SIMIND on the same phantom using the pure Python connector. It is a quick low-history run, so the component counts are noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example compares the SCATTWIN and PENETRATE scoring routines of SIMIND on the same phantom, with the same geometry, histories and detector acceptance. It replaces the earlier 16 x 16 preview with a 32 x 32 grid of 4 mm bins and a history budget large enough for the component decomposition.">
 
 .. only:: html
 
@@ -287,7 +287,7 @@ Phantoms and reconstruction
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Simulate phantoms that need no hand-made voxel maps: SIMIND&#x27;s analytic multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from phantomgen. Both are Tc-99m runs with 24 views, so the projections are noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="Simulate phantoms that need no hand-made voxel maps: SIMIND&#x27;s analytic multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from phantomgen. Both are Tc-99m runs with 24 views.">
 
 .. only:: html
 

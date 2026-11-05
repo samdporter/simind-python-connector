@@ -23,22 +23,29 @@ Phantom library
 
 Simulate phantoms that need no hand-made voxel maps: SIMIND's analytic
 multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from
-phantomgen. Both are Tc-99m runs with 24 views, so the projections are noisy.
+phantomgen. Both are Tc-99m runs with 24 views.
+
+The analytic phantom gets one million photon histories per projection per unit
+of Index 26, so Index 26 is raised well above the old 0.1 smoke-test value.
+The voxelized NEMA phantom gets its histories from the source map instead: the
+default quantization gives the hottest voxel 500 histories and ``NN``
+multiplies them. Both projections use enough histories to show the inserts as
+integrated structures rather than isolated counts.
 
 .. warning::
-   This example takes about five minutes, nearly all of it in the two SIMIND
-   runs.
+   The two runs take roughly three to four hours on a single emulated x86
+   core. Nearly all of that is SIMIND; the phantom construction is seconds.
 
 The NEMA/IEC phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 18-21
+.. GENERATED FROM PYTHON SOURCE LINES 25-28
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 21-100
+.. GENERATED FROM PYTHON SOURCE LINES 28-129
 
 .. code-block:: Python
 
@@ -46,6 +53,7 @@ Check that SIMIND is installed and choose where the outputs are written.
     import math
     import os
     import shutil
+    import time
     from pathlib import Path
 
     import matplotlib.pyplot as plt
@@ -60,10 +68,16 @@ Check that SIMIND is installed and choose where the outputs are written.
         HorizontalCylinder,
         Insert,
         MultipleInserts,
+        VoxelPhantom,
         nema_iec_phantom,
         voxelise,
     )
     from simind_python_connector.utils.interfile import ProjectionGeometry
+    from simind_python_connector.utils.projection_metrics import (
+        projection_view0,
+        source_weight_sum,
+        zero_history_fraction,
+    )
 
 
     if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
@@ -80,6 +94,8 @@ Check that SIMIND is installed and choose where the outputs are written.
     GRID = (48, 48, 48)
     VOXEL_MM = 7.0
     NUM_VIEWS = 24
+    ANALYTIC_INDEX26 = 4.0
+    VOXEL_NN = 1
 
 
     def simulate(phantom, prefix):
@@ -88,7 +104,7 @@ Check that SIMIND is installed and choose where the outputs are written.
             configs.get("Example.yaml"),
             output_dir,
             prefix,
-            quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
+            quantization_scale=DEFAULT_QUANTIZATION_SCALE,
         )
         # The acquisition geometry is declared explicitly, not taken from either
         # phantom: 48 bins of 7 mm, a full turn and a 250 mm radius.
@@ -114,11 +130,24 @@ Check that SIMIND is installed and choose where the outputs are written.
         connector.add_config_value(21, 126.0)
         connector.add_runtime_switch("CC", "ma-lehr")
         connector.add_runtime_switch("RR", 12345)
-        # A small history budget keeps both runs within a few minutes while
-        # leaving visible structure in the projections.
-        connector.add_config_value(26, 0.1)
+        if isinstance(phantom, VoxelPhantom):
+            connector.add_runtime_switch("NN", VOXEL_NN)
+            histories = (
+                source_weight_sum(phantom.activity_mbq, DEFAULT_QUANTIZATION_SCALE)
+                * VOXEL_NN
+            )
+            print(f"{prefix}: {histories} histories per view")
+        else:
+            connector.add_config_value(26, ANALYTIC_INDEX26)
+            print(f"{prefix}: {ANALYTIC_INDEX26 * 1e6:.0f} histories per view")
         connector.configure_phantom(phantom, time_per_projection_s=10.0)
-        return connector.run()["all_interactions"].projection
+        started = time.perf_counter()
+        projection = connector.run()["all_interactions"].projection
+        elapsed_s = time.perf_counter() - started
+        print(
+            f"{prefix}: projection sum {float(projection.sum()):.6g} in {elapsed_s:.0f} s"
+        )
+        return projection
 
 
 
@@ -128,7 +157,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 101-107
+.. GENERATED FROM PYTHON SOURCE LINES 130-136
 
 Analytic phantom
 ----------------
@@ -137,7 +166,7 @@ described with SIMIND's own shapes. ``voxelise`` shows the source as SIMIND
 sees it. The phantom has a known shape but no absolute activity, so the
 source is in relative units.
 
-.. GENERATED FROM PYTHON SOURCE LINES 107-122
+.. GENERATED FROM PYTHON SOURCE LINES 136-151
 
 .. code-block:: Python
 
@@ -163,7 +192,7 @@ source is in relative units.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 123-129
+.. GENERATED FROM PYTHON SOURCE LINES 152-158
 
 NEMA/IEC body phantom
 ---------------------
@@ -172,7 +201,7 @@ insert. Its activity is known in MBq per voxel, so the run is normalised by
 the known total activity (Index 25). Building it here, before either
 simulation, means a missing phantomgen stops the example immediately.
 
-.. GENERATED FROM PYTHON SOURCE LINES 129-132
+.. GENERATED FROM PYTHON SOURCE LINES 158-161
 
 .. code-block:: Python
 
@@ -186,17 +215,21 @@ simulation, means a missing phantomgen stops the example immediately.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 133-136
+.. GENERATED FROM PYTHON SOURCE LINES 162-165
 
 Simulations
 -----------
 Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
 
-.. GENERATED FROM PYTHON SOURCE LINES 136-140
+.. GENERATED FROM PYTHON SOURCE LINES 165-173
 
 .. code-block:: Python
 
 
+    print(
+        "NEMA quantization loss: "
+        f"{zero_history_fraction(nema.activity_mbq, DEFAULT_QUANTIZATION_SCALE):.4%}"
+    )
     jaszczak_projection = simulate(jaszczak, "jaszczak")
     nema_projection = simulate(nema, "nema")
 
@@ -208,6 +241,8 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
 
  .. code-block:: none
 
+    NEMA quantization loss: 0.0000%
+    jaszczak: 4000000 histories per view
     
 
 
@@ -219,7 +254,7 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Collimator: pb_sb2    SourceRout: jaszak    SourceImg.: none              
      Cover.....: al        ScoreRout.: penetrate DensityImg: none              
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 100000         
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 4000000        
      EnergyResolution...: 9.2          SPECT     Activity..........: 1              
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -235,30 +270,102 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
                    Projection          Hits       Scatt/Tot    Progress
   
   
-                    1 of  24            4706        0.211          4 %
-                    2 of  24            4798        0.215          8 %
-                    3 of  24            4767        0.218         12 %
-                    4 of  24            4647        0.216         16 %
-                    5 of  24            4675        0.214         20 %
-                    6 of  24            4865        0.210         25 %
-                    7 of  24            4523        0.210         29 %
-                    8 of  24            4664        0.209         33 %
-                    9 of  24            4647        0.211         37 %
-                   10 of  24            4752        0.212         41 %
-                   11 of  24            4709        0.211         45 %
-                   12 of  24            4637        0.211         50 %
-                   13 of  24            4688        0.210         54 %
-                   14 of  24            4793        0.210         58 %
-                   15 of  24            4673        0.211         62 %
-                   16 of  24            4802        0.213         66 %
-                   17 of  24            4787        0.214         70 %
-                   18 of  24            4662        0.213         75 %
-                   19 of  24            4659        0.213         79 %
-                   20 of  24            4668        0.214         83 %
-                   21 of  24            4837        0.214         87 %
-                   22 of  24            4729        0.213         91 %
-                   23 of  24            4748        0.212         95 %
-                   24 of  24            4739        0.211        100 %
+                    1 of  24           47252        0.207          1 %
+                    1 of  24           94462        0.206          2 %
+                    1 of  24          141722        0.207          3 %
+                    1 of  24          188955        0.207          4 %
+                    2 of  24           47140        0.208          5 %
+                    2 of  24           94190        0.209          6 %
+                    2 of  24          141282        0.210          7 %
+                    2 of  24          188416        0.211          8 %
+                    3 of  24           47546        0.211          9 %
+                    3 of  24           95202        0.212         10 %
+                    3 of  24          142786        0.213         11 %
+                    3 of  24          190308        0.213         12 %
+                    4 of  24           47421        0.213         13 %
+                    4 of  24           94832        0.214         14 %
+                    4 of  24          142183        0.214         15 %
+                    4 of  24          189486        0.214         16 %
+                    5 of  24           47520        0.215         17 %
+                    5 of  24           95048        0.215         18 %
+                    5 of  24          142612        0.215         19 %
+                    5 of  24          190122        0.216         20 %
+                    6 of  24           47199        0.215         21 %
+                    6 of  24           94418        0.215         22 %
+                    6 of  24          141651        0.215         23 %
+                    6 of  24          188861        0.215         25 %
+                    7 of  24           45888        0.215         26 %
+                    7 of  24           91806        0.215         27 %
+                    7 of  24          137684        0.215         28 %
+                    7 of  24          183591        0.215         29 %
+                    8 of  24           47015        0.214         30 %
+                    8 of  24           94069        0.213         31 %
+                    8 of  24          141055        0.213         32 %
+                    8 of  24          188197        0.212         33 %
+                    9 of  24           47381        0.213         34 %
+                    9 of  24           94881        0.213         35 %
+                    9 of  24          142329        0.213         36 %
+                    9 of  24          189794        0.214         37 %
+                   10 of  24           47498        0.213         38 %
+                   10 of  24           95034        0.213         39 %
+                   10 of  24          142574        0.213         40 %
+                   10 of  24          190113        0.213         41 %
+                   11 of  24           47157        0.213         42 %
+                   11 of  24           94261        0.214         43 %
+                   11 of  24          141502        0.214         44 %
+                   11 of  24          188714        0.214         45 %
+                   12 of  24           46784        0.214         46 %
+                   12 of  24           93595        0.214         47 %
+                   12 of  24          140376        0.213         48 %
+                   12 of  24          187115        0.213         50 %
+                   13 of  24           47608        0.213         51 %
+                   13 of  24           95216        0.213         52 %
+                   13 of  24          142839        0.212         53 %
+                   13 of  24          190498        0.212         54 %
+                   14 of  24           47702        0.212         55 %
+                   14 of  24           95405        0.212         56 %
+                   14 of  24          143165        0.212         57 %
+                   14 of  24          190861        0.211         58 %
+                   15 of  24           46959        0.211         59 %
+                   15 of  24           93947        0.211         60 %
+                   15 of  24          140941        0.211         61 %
+                   15 of  24          187906        0.211         62 %
+                   16 of  24           48201        0.211         63 %
+                   16 of  24           96371        0.211         64 %
+                   16 of  24          144578        0.211         65 %
+                   16 of  24          192811        0.211         66 %
+                   17 of  24           48183        0.212         67 %
+                   17 of  24           96419        0.212         68 %
+                   17 of  24          144699        0.212         69 %
+                   17 of  24          192973        0.212         70 %
+                   18 of  24           47365        0.212         71 %
+                   18 of  24           94754        0.212         72 %
+                   18 of  24          142169        0.212         73 %
+                   18 of  24          189523        0.212         75 %
+                   19 of  24           46978        0.212         76 %
+                   19 of  24           93971        0.212         77 %
+                   19 of  24          140994        0.212         78 %
+                   19 of  24          188002        0.212         79 %
+                   20 of  24           47005        0.212         80 %
+                   20 of  24           93953        0.212         81 %
+                   20 of  24          140870        0.213         82 %
+                   20 of  24          187747        0.213         83 %
+                   21 of  24           47656        0.213         84 %
+                   21 of  24           95343        0.213         85 %
+                   21 of  24          143056        0.213         86 %
+                   21 of  24          190731        0.213         87 %
+                   22 of  24           47170        0.213         88 %
+                   22 of  24           94323        0.213         89 %
+                   22 of  24          141543        0.213         90 %
+                   22 of  24          188713        0.213         91 %
+                   23 of  24           47227        0.213         92 %
+                   23 of  24           94341        0.213         93 %
+                   23 of  24          141454        0.213         94 %
+                   23 of  24          188607        0.212         95 %
+                   24 of  24           47046        0.212         96 %
+                   24 of  24           94139        0.213         97 %
+                   24 of  24          141274        0.213         98 %
+                   24 of  24          188345        0.213        100 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -267,7 +374,7 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 72.81478       
-     Emission type......: 3                      Initial Weight....: 8.79           
+     Emission type......: 3                      Initial Weight....: 0.21975        
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -286,15 +393,15 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.79 %          94.02 %
-     Penetration........:   4.42 %           3.60 %
-     Scatter in collim..:   3.71 %           2.37 %
-     X-rays in collim...:   5.08 %           0.00 %
+     Geometric..........:  87.05 %          94.39 %
+     Penetration........:   4.20 %           3.23 %
+     Scatter in collim..:   3.82 %           2.39 %
+     X-rays in collim...:   4.93 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  64.22 %           0.00 %
-     K-photon2 85.36 keV:  26.64 %           0.00 %
-     K-photon3 26.27 keV:   7.83 %           0.00 %
-     K-photon4 29.83 keV:   1.31 %           0.00 %
+     K-photon1 74.16 keV:  62.95 %           0.00 %
+     K-photon2 85.36 keV:  28.22 %           0.00 %
+     K-photon3 26.27 keV:   7.06 %           0.00 %
+     K-photon4 29.83 keV:   1.77 %           0.00 %
                                                                               
      MULTIPLE SOURCE CONFIGURATION
 
@@ -312,35 +419,35 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  74.16  19.86   0.00   0.00  38.99  48.37   1.26   0.42
-     penetration..:   2.89   0.71   0.00   0.00   1.49   1.29   0.05   0.00
-     collim scatt.:   1.85   0.52   0.00   0.00   0.98   1.65   0.03   0.00
-     collim x-rays:   0.00   0.00   0.00   0.00   2.61   2.85   0.00   0.00
+     geometric....:  74.14  20.24   0.00   0.01  38.94  48.39   1.32   0.39
+     penetration..:   2.65   0.57   0.00   0.00   1.46   1.17   0.05   0.02
+     collim scatt.:   1.95   0.44   0.00   0.00   1.09   1.52   0.04   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.69   2.95   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 224.9          
-     MaxValue projection: 0.4098         
+     MaxValue spectrum..: 221.7          
+     MaxValue projection: 0.2064         
      CountRate spectrum.: 71.37          
-     CountRate E-Window.: 35.59          
+     CountRate E-Window.: 35.47          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.2673         
-     Scatter/Total......: 0.21092        
-     Scatter order 1....: 87.4  %        
-     Scatter order 2....: 11.38 %        
-     Scatter order 3....: 1.22 %         
+     Scatter/Primary....: 0.26991        
+     Scatter/Total......: 0.21254        
+     Scatter order 1....: 86.79 %        
+     Scatter order 2....: 12.01 %        
+     Scatter order 3....: 1.2  %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.476          
-     Efficiency spectrum: 0.9546         
-     Sensitivity Cps/MBq: 35.5863        
-     Sensitivity Cpm/uCi: 79.0016        
+     Efficiency E-window: 0.4752         
+     Efficiency spectrum: 0.9561         
+     Sensitivity Cps/MBq: 35.4705        
+     Sensitivity Cpm/uCi: 78.7445        
                                                                               
-     Simulation started.: 2026:10:19 16:46:10
-     Simulation stopped.: 2026:10:19 16:49:36
-     Elapsed time.......: 0 h, 3 m and 26 s
-     DetectorHits.......: 4739           
-     DetectorHits/CPUsec: 23             
+     Simulation started.: 2026:11:04 09:22:07
+     Simulation stopped.: 2026:11:04 11:35:26
+     Elapsed time.......: 2 h, 13 m and 19 s
+     DetectorHits.......: 188345         
+     DetectorHits/CPUsec: 24             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -352,7 +459,8 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Inifile: simind.ini
      Message: Input file used:jaszczak.inp                                         
      Command: jaszczak jaszczak /CC:ma-lehr/RR:12345/IF:jaszczak.inp/BG:1.0
-    5.6% of the source activity is in voxels below the integer resolution and gets no photon histories; increase quantization_scale (maximum 1.0) to keep it
+    jaszczak: projection sum 851.292 in 8000 s
+    nema: 2025536 histories per view
     
 
 
@@ -364,7 +472,7 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: nema_src          
      Cover.....: al        ScoreRout.: penetrate DensityImg: nema_dns          
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 30422          
+     PhotonEnergy.......: 140          ma-lehr   PhotonsPerProj....: 2025536        
      EnergyResolution...: 9.2          SPECT     Activity..........: 5594           
      MaxScatterOrder....: 3            x-rays    DetectorLenght....: 21.25          
      DetectorWidth......: 27           BScatt    DetectorHeight....: 0.95           
@@ -380,6 +488,54 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
                    Projection          Hits       Scatt/Tot    Progress
   
   
+                    1 of  24           26814        0.230          2 %
+                    1 of  24           53654        0.246          4 %
+                    2 of  24           26587        0.246          6 %
+                    2 of  24           53582        0.246          8 %
+                    3 of  24           27002        0.246         10 %
+                    3 of  24           53642        0.245         12 %
+                    4 of  24           26903        0.244         14 %
+                    4 of  24           53954        0.244         16 %
+                    5 of  24           26833        0.243         18 %
+                    5 of  24           53302        0.242         20 %
+                    6 of  24           26582        0.244         22 %
+                    6 of  24           53614        0.245         24 %
+                    7 of  24           26888        0.245         27 %
+                    7 of  24           53819        0.246         29 %
+                    8 of  24           26923        0.246         31 %
+                    8 of  24           54141        0.246         33 %
+                    9 of  24           26794        0.245         35 %
+                    9 of  24           53491        0.245         37 %
+                   10 of  24           26833        0.245         39 %
+                   10 of  24           53389        0.246         41 %
+                   11 of  24           26817        0.245         43 %
+                   11 of  24           53718        0.245         45 %
+                   12 of  24           26760        0.244         47 %
+                   12 of  24           53893        0.245         49 %
+                   13 of  24           26790        0.244         52 %
+                   13 of  24           53637        0.244         54 %
+                   14 of  24           27053        0.244         56 %
+                   14 of  24           53987        0.243         58 %
+                   15 of  24           27008        0.243         60 %
+                   15 of  24           53931        0.243         62 %
+                   16 of  24           26792        0.243         64 %
+                   16 of  24           53637        0.243         66 %
+                   17 of  24           26687        0.243         68 %
+                   17 of  24           53221        0.243         70 %
+                   18 of  24           26927        0.243         72 %
+                   18 of  24           53659        0.244         74 %
+                   19 of  24           26651        0.244         77 %
+                   19 of  24           53732        0.244         79 %
+                   20 of  24           26418        0.244         81 %
+                   20 of  24           53159        0.244         83 %
+                   21 of  24           26426        0.244         85 %
+                   21 of  24           53081        0.244         87 %
+                   22 of  24           26914        0.244         89 %
+                   22 of  24           53715        0.244         91 %
+                   23 of  24           27105        0.244         93 %
+                   23 of  24           53914        0.244         95 %
+                   24 of  24           26451        0.244         97 %
+                   24 of  24           53189        0.244         99 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -388,7 +544,7 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 48                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 48                     AcceptanceAngle...: 81.96903       
-     Emission type......: 3                      Initial Weight....: 161630.59628   
+     Emission type......: 3                      Initial Weight....: 2427.56781     
      NN ScalingFactor...: 1                      Energy Channels...: 128            
                                                                               
      SPECT DATA
@@ -407,15 +563,15 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
 
      PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.33 %          94.63 %
-     Penetration........:   5.02 %           3.02 %
-     Scatter in collim..:   2.90 %           2.35 %
-     X-rays in collim...:   5.75 %           0.00 %
+     Geometric..........:  86.99 %          94.53 %
+     Penetration........:   4.18 %           3.23 %
+     Scatter in collim..:   3.82 %           2.23 %
+     X-rays in collim...:   5.01 %           0.00 %
                                                                               
-     K-photon1 74.16 keV:  61.05 %           0.00 %
-     K-photon2 85.36 keV:  25.50 %           0.00 %
-     K-photon3 26.27 keV:  12.55 %           0.00 %
-     K-photon4 29.83 keV:   0.90 %           0.00 %
+     K-photon1 74.16 keV:  64.01 %           0.00 %
+     K-photon2 85.36 keV:  28.33 %           0.00 %
+     K-photon3 26.27 keV:   5.76 %           0.00 %
+     K-photon4 29.83 keV:   1.90 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  25, 25                Bone definition...: 1170           
@@ -432,35 +588,35 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
 
                            Energy Window %      :      Total Spectrum %
                      -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
-     geometric....:  71.14  23.50   0.00   0.00  34.85  52.46   1.40   0.36
-     penetration..:   2.68   0.34   0.00   0.00   1.29   1.12   0.04   0.00
-     collim scatt.:   1.49   0.86   0.00   0.00   0.90   1.55   0.00   0.07
-     collim x-rays:   0.00   0.00   0.00   0.00   3.57   2.38   0.00   0.00
+     geometric....:  71.40  23.12   0.01   0.00  35.44  51.96   1.19   0.41
+     penetration..:   2.51   0.72   0.00   0.00   1.26   1.25   0.04   0.01
+     collim scatt.:   1.71   0.53   0.00   0.00   0.92   1.72   0.02   0.01
+     collim x-rays:   0.00   0.00   0.00   0.00   2.79   2.97   0.00   0.00
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 0.9484E+06     
-     MaxValue projection: 4758.          
-     CountRate spectrum.: 0.3528E+06     
-     CountRate E-Window.: 0.1637E+06     
+     MaxValue spectrum..: 0.1011E+07     
+     MaxValue projection: 409.6          
+     CountRate spectrum.: 0.3538E+06     
+     CountRate E-Window.: 0.1663E+06     
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.3281         
-     Scatter/Total......: 0.24705        
-     Scatter order 1....: 86.53 %        
-     Scatter order 2....: 12.51 %        
-     Scatter order 3....: 0.96 %         
+     Scatter/Primary....: 0.32226        
+     Scatter/Total......: 0.24372        
+     Scatter order 1....: 85.51 %        
+     Scatter order 2....: 12.99 %        
+     Scatter order 3....: 1.5  %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.4434         
-     Efficiency spectrum: 0.9558         
-     Sensitivity Cps/MBq: 29.2642        
-     Sensitivity Cpm/uCi: 64.9666        
+     Efficiency E-window: 0.451          
+     Efficiency spectrum: 0.9593         
+     Sensitivity Cps/MBq: 29.733         
+     Sensitivity Cpm/uCi: 66.0072        
                                                                               
-     Simulation started.: 2026:10:19 16:49:37
-     Simulation stopped.: 2026:10:19 16:50:42
-     Elapsed time.......: 0 h, 1 m and 5 s
-     DetectorHits.......: 836            
-     DetectorHits/CPUsec: 13             
+     Simulation started.: 2026:11:04 11:35:27
+     Simulation stopped.: 2026:11:04 12:41:39
+     Elapsed time.......: 1 h, 6 m and 12 s
+     DetectorHits.......: 53694          
+     DetectorHits/CPUsec: 14             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -470,42 +626,45 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Header file: nema.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: nema nema /CC:ma-lehr/RR:12345/PX:0.7
+     Command: nema nema /CC:ma-lehr/RR:12345/NN:1/PX:0.7
+    nema: projection sum 3.99183e+06 in 3972 s
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 141-145
+.. GENERATED FROM PYTHON SOURCE LINES 174-179
 
 Slices and projections
 ----------------------
 The central slice of the Jaszczak source, the slice through the hottest NEMA/IEC
-voxel, and the first projection view of each.
+voxel, and the first projection view of each. The projections use independent
+colour scales because the two phantoms have different activity scales.
 
-.. GENERATED FROM PYTHON SOURCE LINES 145-160
+.. GENERATED FROM PYTHON SOURCE LINES 179-195
 
 .. code-block:: Python
 
 
     hot_slice = nema.activity_mbq.max(axis=(1, 2)).argmax()
 
-    fig, axes = plt.subplots(2, 2, figsize=(8, 8), constrained_layout=True)
+    fig, axes = plt.subplots(2, 2, figsize=(9, 9), constrained_layout=True)
     panels = (
         ("Jaszczak source", jaszczak_source[GRID[0] // 2]),
-        ("Jaszczak projection", jaszczak_projection[0]),
+        ("Jaszczak projection (view 0)", projection_view0(jaszczak_projection)),
         ("NEMA/IEC activity", nema.activity_mbq[hot_slice]),
-        ("NEMA/IEC projection", nema_projection[0]),
+        ("NEMA/IEC projection (view 0)", projection_view0(nema_projection)),
     )
     for ax, (title, image) in zip(axes.flat, panels):
-        ax.imshow(image, cmap="gray_r")
+        artist = ax.imshow(image, cmap="gray_r")
         ax.set_title(title)
         ax.axis("off")
+        fig.colorbar(artist, ax=ax, shrink=0.7)
     plt.show()
 
 
 
 .. image-sg:: /auto_examples/phantoms/images/sphx_glr_plot_09_phantom_library_001.png
-   :alt: Jaszczak source, Jaszczak projection, NEMA/IEC activity, NEMA/IEC projection
+   :alt: Jaszczak source, Jaszczak projection (view 0), NEMA/IEC activity, NEMA/IEC projection (view 0)
    :srcset: /auto_examples/phantoms/images/sphx_glr_plot_09_phantom_library_001.png
    :class: sphx-glr-single-img
 
@@ -516,7 +675,7 @@ voxel, and the first projection view of each.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (4 minutes 33.614 seconds)
+   **Total running time of the script:** (199 minutes 33.464 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_09_phantom_library.py:
