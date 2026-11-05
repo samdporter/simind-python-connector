@@ -751,6 +751,7 @@ def test_sphinx_gallery_publishes_figures_that_are_not_closed(tmp_path):
     """A saved-but-open figure must become a page image, not only a thumbnail."""
     pytest.importorskip("sphinx")
     pytest.importorskip("sphinx_gallery")
+    pytest.importorskip("matplotlib")
     from sphinx.application import Sphinx
 
     src = tmp_path / "docs"
