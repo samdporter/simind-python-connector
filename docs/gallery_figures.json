@@ -194,15 +194,19 @@
      "accepts": ["sphx_glr_plot_11_mc_scatter_osem_003.png"]
     },
     {
-     "role": "reconstruction_comparison",
+     "role": "reconstruction_triptych",
      "accepts": ["sphx_glr_plot_11_mc_scatter_osem_004.png"]
     },
     {
-     "role": "reconstruction_triptych",
+     "role": "reconstruction_comparison",
      "accepts": ["sphx_glr_plot_11_mc_scatter_osem_005.png"]
+    },
+    {
+     "role": "contrast_recovery",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_006.png"]
     }
    ],
-   "figure_count": 5,
+   "figure_count": 6,
    "thumbnail": "real"
   },
   "mc_scatter/plot_12_scatter_normalisation": {
@@ -226,31 +230,35 @@
     {
      "role": "reconstruction_comparison",
      "accepts": ["sphx_glr_plot_12_scatter_normalisation_005.png"]
+    },
+    {
+     "role": "profiles",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_006.png"]
+    },
+    {
+     "role": "contrast_recovery",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_007.png"]
     }
    ],
-   "figure_count": 5,
+   "figure_count": 7,
    "thumbnail": "real"
   },
   "mc_scatter/plot_13_residual_correction": {
    "figures": [
     {
-     "role": "phantom_overview",
+     "role": "reconstruction_grid",
      "accepts": ["sphx_glr_plot_13_residual_correction_001.png"]
     },
     {
-     "role": "projection_and_sinogram",
+     "role": "reconstruction_comparison",
      "accepts": ["sphx_glr_plot_13_residual_correction_002.png"]
     },
     {
-     "role": "reconstruction_comparison",
+     "role": "contrast_recovery",
      "accepts": ["sphx_glr_plot_13_residual_correction_003.png"]
-    },
-    {
-     "role": "reconstruction_triptych",
-     "accepts": ["sphx_glr_plot_13_residual_correction_004.png"]
     }
    ],
-   "figure_count": 4,
+   "figure_count": 3,
    "thumbnail": "real"
   },
   "phantoms/plot_09_phantom_library": {
