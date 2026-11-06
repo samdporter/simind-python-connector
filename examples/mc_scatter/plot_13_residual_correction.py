@@ -14,10 +14,17 @@ model, as in Fu & Qi, Med Phys 37:704, 2010. The scatter arm uses the same
 SIMIND projection but removes only the scatter, all interactions minus the
 geometric primary.
 
+The expectation is simulated once with four histories per measured count, so
+its Monte Carlo variance is a quarter of the Poisson variance. Every arm uses
+the same three independent Poisson realisations of it, 6 subsets, three passes
+of 12 subiterations (8 full iterations) and the same initial image. The scatter
+and residual estimates use a fortieth of the expectation's history budget.
+
 .. warning::
-   This example takes about thirteen minutes, nearly all of it in the SIMIND
-   runs: the simulation of the data, and one SIMIND projection per update for
-   each of the two corrected reconstructions. Every run uses 8 MPI processes.
+   The first tutorial run simulates the shared expectation and takes about an
+   hour with 8 MPI processes. Each of the two corrected arms makes three
+   estimates per realisation, at about a minute each; this example takes about
+   an hour in all. Later tutorials reuse the cached expectation.
 
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
@@ -36,17 +43,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sirf.STIR as sirf
 
-from simind_python_connector import SirfSimindAdaptor, configs
-from simind_python_connector.builders import (
-    STIRSPECTAcquisitionDataBuilder,
-    STIRSPECTImageDataBuilder,
-)
-from simind_python_connector.converters.attenuation import get_attenuation_coefficient
-from simind_python_connector.core.types import (
-    DEFAULT_QUANTIZATION_SCALE,
-    ScoringRoutine,
-)
-from simind_python_connector.phantoms import nema_iec_phantom
+from examples import _nema
 from simind_python_connector.recon import (
     AdditiveUpdater,
     ResidualCorrection,
@@ -70,9 +67,8 @@ output_dir = (
     Path(os.environ.get("SIMIND_EXAMPLES_OUTPUT", "output")) / "residual_correction"
 )
 output_dir.mkdir(parents=True, exist_ok=True)
-
-GRID = (48, 48, 48)
-VOXEL_MM = 7.0
+estimate_dir = output_dir / "estimates"
+estimate_dir.mkdir(exist_ok=True)
 
 # %%
 # NEMA/IEC phantom
@@ -82,44 +78,14 @@ VOXEL_MM = 7.0
 # 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 # the density times the attenuation coefficient of water at 140 keV.
 
-nema = nema_iec_phantom(GRID, (VOXEL_MM,) * 3, preset="pet", supersample=4)
-mu = nema.density_g_cm3 * get_attenuation_coefficient("water", 140.0)
-slice_z = round(np.argwhere(nema.masks["sphere_6"]).mean(axis=0)[0])
+nema_phantom = _nema.phantom()
+nema = nema_phantom.nema
+slice_z = nema_phantom.slice_z
 
-fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
-for ax, (title, image) in zip(
-    axes,
-    (
-        ("Activity (MBq per voxel)", nema.activity_mbq),
-        ("Density (g/cm³)", nema.density_g_cm3),
-    ),
-):
-    ax.imshow(image[slice_z], cmap="gray_r")
-    ax.set_title(title)
-    ax.axis("off")
-plt.show()
-
-
-def to_sirf_image(array):
-    builder = STIRSPECTImageDataBuilder(
-        {
-            "!matrix size [1]": str(GRID[2]),
-            "!matrix size [2]": str(GRID[1]),
-            "!matrix size [3]": str(GRID[0]),
-            "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-            "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-            "scaling factor (mm/pixel) [3]": str(VOXEL_MM),
-        },
-        backend="sirf",
-    )
-    builder.set_pixel_array(array.astype(np.float32))
-    return builder.build()
-
-
-activity_image = to_sirf_image(nema.activity_mbq)
-mu_image = to_sirf_image(mu)
+activity_image = _nema.to_sirf_image(nema.activity_mbq)
+mu_image = _nema.to_sirf_image(nema_phantom.mu)
 # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
-spectub_mu_image = to_sirf_image(mu[..., ::-1])
+spectub_mu_image = _nema.to_sirf_image(nema_phantom.mu[..., ::-1])
 
 # %%
 # Template
@@ -128,20 +94,7 @@ spectub_mu_image = to_sirf_image(mu[..., ::-1])
 # over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 # reconstruction take their geometry from it.
 
-sirf.AcquisitionData.set_storage_scheme("memory")
-template = STIRSPECTAcquisitionDataBuilder(
-    header_overrides={
-        "!matrix size [1]": "48",
-        "!matrix size [2]": "48",
-        "!number of projections": "60",
-        "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-        "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-        "!direction of rotation": "CW",
-        "start angle": "180",
-        "Radius": "250",
-    },
-    backend="sirf",
-).build(output_path=output_dir / "template")
+template = _nema.template(output_dir)
 
 # %%
 # "Measured" data
@@ -150,65 +103,33 @@ template = STIRSPECTAcquisitionDataBuilder(
 # ma-lehr collimator. The total activity and the time per view are given, so the
 # projections come out in counts (Index 25). The 8 MPI processes each simulate
 # all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
-# Poisson noise from a seeded generator is added to the simulated counts.
+# Poisson noise from a seeded generator is added to the expectation at 2 s per
+# view; the three realisations are shared by every arm.
 
-TOTAL_MBQ = float(nema.activity_mbq.sum())
-TIME_PER_VIEW_S = 2.0
-QUANTIZATION_SCALE = 0.06 * DEFAULT_QUANTIZATION_SCALE
-
-
-def make_adaptor(name):
-    adaptor = SirfSimindAdaptor(
-        configs.get("Example.yaml"),
-        str(output_dir),
-        name,
-        scoring_routine=ScoringRoutine.PENETRATE,
-        quantization_scale=QUANTIZATION_SCALE,
-    )
-    # PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
-    adaptor.add_config_value(20, 154.0)
-    adaptor.add_config_value(21, 126.0)
-    adaptor.add_runtime_switch("CC", "ma-lehr")
-    adaptor.set_mpi(8)
-    adaptor.add_config_value(1, 140.0)
-    return adaptor
-
-
-measured_adaptor = make_adaptor("measured")
-measured_adaptor.set_template(template)
-measured_adaptor.set_source(activity_image)
-measured_adaptor.set_mu_map(mu_image)
-measured_adaptor.set_activity(TOTAL_MBQ, TIME_PER_VIEW_S)
-expected = measured_adaptor.run()["all_interactions"]
-
-rng = np.random.default_rng(12345)
-measured = expected.clone()
-measured.fill(rng.poisson(np.maximum(expected.as_array(), 0)).astype(np.float32))
-print(f"Measured counts: {measured.sum():.4g}")
-
-fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
-counts = measured.as_array()[0]  # axial, view, bin
-axes[0].imshow(counts[:, 0, :], cmap="magma")
-axes[0].set_title("Projection, view 0")
-axes[1].imshow(counts[counts.shape[0] // 2], cmap="magma")
-axes[1].set_title("Sinogram, central row")
-axes[1].set_xlabel("bin")
-axes[1].set_ylabel("view")
-plt.show()
+expectation = _nema.simulate_expectation(nema_phantom, template)
+realisations = dict(_nema.paired_realisations(expectation, template))
+print(
+    f"Expectation: {expectation.total:.4g} counts from "
+    f"{expectation.histories:.4g} histories, "
+    f"quantization loss {expectation.quantization_loss:.2%}"
+)
+for seed, measured in realisations.items():
+    print(f"Seed {seed}: {measured.sum():.4g} measured counts")
 
 # %%
 # The fast model
 # --------------
 # The reconstruction model is SPECTUB with the flipped attenuation map and no
-# PSF. OSEM runs with 6 subsets of 10 views each. ``run_osem_with_corrections``
-# runs OSEM in passes and calls the updater between them. Every arm uses 48
-# subiterations, 8 full iterations, and the first pass has a zero additive term.
+# PSF. ``run_osem_with_corrections`` runs OSEM in passes and calls the updater
+# between them. Every arm uses 6 subsets, 12 subiterations per pass and three
+# updates (8 full iterations), and the first pass has a zero additive term.
 
-NUM_SUBSETS = 6
+NUM_SUBSETS = _nema.NUM_SUBSETS
 SUBITERATIONS_PER_UPDATE = 12
 NUM_UPDATES = 3
 initial_image = activity_image.get_uniform_copy(1.0)
-zero_additive = measured.get_uniform_copy(0)
+zero_additive = next(iter(realisations.values())).get_uniform_copy(0)
+ESTIMATE_QUANTIZATION_SCALE = 0.1 * _nema.QUANTIZATION_SCALE
 
 
 def make_acq_model():
@@ -219,17 +140,20 @@ def make_acq_model():
 
 
 full_model = make_acq_model()
-full_model.set_up(measured, activity_image)
+full_model.set_up(next(iter(realisations.values())), activity_image)
 
-fast_only = run_osem_with_corrections(
-    measured,
-    make_acq_model,
-    initial_image,
-    AdditiveUpdater(None, UpdateSchedule(every=1), zero_additive),
-    NUM_SUBSETS,
-    SUBITERATIONS_PER_UPDATE * (NUM_UPDATES + 1),
-    num_updates=0,
-)
+fast_only = {
+    seed: run_osem_with_corrections(
+        measured,
+        make_acq_model,
+        initial_image,
+        AdditiveUpdater(None, UpdateSchedule(every=1), zero_additive),
+        NUM_SUBSETS,
+        SUBITERATIONS_PER_UPDATE * (NUM_UPDATES + 1),
+        num_updates=0,
+    )
+    for seed, measured in realisations.items()
+}
 
 # %%
 # SIMIND scatter
@@ -244,30 +168,37 @@ fast_only = run_osem_with_corrections(
 # 12 subiterations, averaging successive estimates (``damping=0.5``). With
 # ``seed=None`` the 8 MPI processes use their fixed seeds in every pass.
 
-scatter_projector = SimindProjector(
-    make_adaptor("scatter"),
-    template,
-    mu_image,
-    normalise=reference_normaliser(full_model),
-    seed=None,
-)
-scatter_updater = AdditiveUpdater(
-    ScatterCorrection(
-        scatter_projector, smoothing_fwhm_bins=3.0, smooth_across_views=True
-    ),
-    UpdateSchedule(every=SUBITERATIONS_PER_UPDATE),
-    zero_additive,
-    damping=0.5,
-)
-scatter_corrected = run_osem_with_corrections(
-    measured,
-    make_acq_model,
-    initial_image,
-    scatter_updater,
-    NUM_SUBSETS,
-    SUBITERATIONS_PER_UPDATE,
-    NUM_UPDATES,
-)
+scatter_corrected = {}
+scatter_updaters = {}
+for seed, measured in realisations.items():
+    projector = SimindProjector(
+        _nema.make_adaptor(
+            estimate_dir,
+            f"scatter_{seed}",
+            quantization_scale=ESTIMATE_QUANTIZATION_SCALE,
+            histories=1,
+        ),
+        template,
+        mu_image,
+        normalise=reference_normaliser(full_model),
+        seed=None,
+    )
+    updater = AdditiveUpdater(
+        ScatterCorrection(projector, smoothing_fwhm_bins=3.0, smooth_across_views=True),
+        UpdateSchedule(every=SUBITERATIONS_PER_UPDATE),
+        zero_additive,
+        damping=0.5,
+    )
+    scatter_corrected[seed] = run_osem_with_corrections(
+        measured,
+        make_acq_model,
+        initial_image,
+        updater,
+        NUM_SUBSETS,
+        SUBITERATIONS_PER_UPDATE,
+        NUM_UPDATES,
+    )
+    scatter_updaters[seed] = updater
 
 # %%
 # Full residual
@@ -282,13 +213,9 @@ scatter_corrected = run_osem_with_corrections(
 # before that average, so it measures the image passed to SIMIND rather than the
 # damped term the next OSEM pass uses.
 
-residual_projector = SimindProjector(
-    make_adaptor("residual"),
-    template,
-    mu_image,
-    normalise=reference_normaliser(full_model),
-    seed=None,
-)
+residual_corrected = {}
+residual_updaters = {}
+residual_objectives = {}
 
 
 class RecordedResidualCorrection(ResidualCorrection):
@@ -305,27 +232,42 @@ class RecordedResidualCorrection(ResidualCorrection):
         return additive
 
 
-residual = RecordedResidualCorrection(
-    measured,
-    SimindComponent(residual_projector, "all_interactions"),
-    full_model,
-    zero_additive,
-)
-residual_updater = AdditiveUpdater(
-    residual,
-    UpdateSchedule(every=SUBITERATIONS_PER_UPDATE),
-    zero_additive,
-    damping=0.5,
-)
-residual_corrected = run_osem_with_corrections(
-    measured,
-    make_acq_model,
-    initial_image,
-    residual_updater,
-    NUM_SUBSETS,
-    SUBITERATIONS_PER_UPDATE,
-    NUM_UPDATES,
-)
+for seed, measured in realisations.items():
+    projector = SimindProjector(
+        _nema.make_adaptor(
+            estimate_dir,
+            f"residual_{seed}",
+            quantization_scale=ESTIMATE_QUANTIZATION_SCALE,
+            histories=1,
+        ),
+        template,
+        mu_image,
+        normalise=reference_normaliser(full_model),
+        seed=None,
+    )
+    residual = RecordedResidualCorrection(
+        measured,
+        SimindComponent(projector, "all_interactions"),
+        full_model,
+        zero_additive,
+    )
+    updater = AdditiveUpdater(
+        residual,
+        UpdateSchedule(every=SUBITERATIONS_PER_UPDATE),
+        zero_additive,
+        damping=0.5,
+    )
+    residual_corrected[seed] = run_osem_with_corrections(
+        measured,
+        make_acq_model,
+        initial_image,
+        updater,
+        NUM_SUBSETS,
+        SUBITERATIONS_PER_UPDATE,
+        NUM_UPDATES,
+    )
+    residual_updaters[seed] = updater
+    residual_objectives[seed] = residual.objectives
 
 # %%
 # Update cost and effective objective
@@ -335,16 +277,20 @@ residual_corrected = run_osem_with_corrections(
 # term after each residual update; a falling value means the accurate model
 # fits the data better, beyond Monte Carlo noise.
 
-for name, updater in (("scatter", scatter_updater), ("residual", residual_updater)):
-    for record in updater.history:
-        print(
-            f"{name} update at iteration {record.iteration}: "
-            f"additive sum {record.additive_sum:.4g}, {record.seconds:.0f} s"
-        )
-print(
-    "effective objective at each residual update: "
-    + ", ".join(f"{value:.6g}" for value in residual.objectives)
-)
+for seed in realisations:
+    for name, updater in (
+        ("scatter", scatter_updaters[seed]),
+        ("residual", residual_updaters[seed]),
+    ):
+        for record in updater.history:
+            print(
+                f"seed {seed} {name} update at iteration {record.iteration}: "
+                f"additive sum {record.additive_sum:.4g}, {record.seconds:.0f} s"
+            )
+    print(
+        f"seed {seed} effective objective at each residual update: "
+        + ", ".join(f"{value:.6g}" for value in residual_objectives[seed])
+    )
 
 # %%
 # Reconstructions
@@ -352,30 +298,40 @@ print(
 # The images are the reconstructions after the fourth pass, so each additive
 # term is the damped average described above, not the latest raw estimate.
 # Every image is shown relative to its mean in the background mask, so the
-# arbitrary scale of the reconstructions does not matter.
+# arbitrary scale of the reconstructions does not matter. Each image is the
+# mean of the three realisations, and the difference panels are zero-centred
+# with a symmetric scale.
 
-background = nema.masks["background"] > 0
-
-
-def relative_to_background(array):
-    return array / array[background].mean()
+background = nema_phantom.background
 
 
-truth_array = relative_to_background(nema.activity_mbq)
-recon_arrays = {
-    "Fast only": relative_to_background(fast_only.as_array()),
-    "Fast + SIMIND scatter": relative_to_background(scatter_corrected.as_array()),
-    "Fast + full residual": relative_to_background(residual_corrected.as_array()),
+def mean_relative(images):
+    array = np.mean([image.as_array() for image in images], axis=0)
+    return nema_phantom.relative_to_background(array)
+
+
+truth_array = nema_phantom.relative_to_background(nema.activity_mbq)
+arrays = {
+    "Fast only": mean_relative(fast_only.values()),
+    "Fast + SIMIND scatter": mean_relative(scatter_corrected.values()),
+    "Fast + full residual": mean_relative(residual_corrected.values()),
 }
 
 fig, axes = plt.subplots(2, 2, figsize=(8, 8), constrained_layout=True)
-for ax, (title, image) in zip(
-    axes.flat, (("Truth", truth_array), *recon_arrays.items())
-):
+for ax, (title, image) in zip(axes.flat, (("Truth", truth_array), *arrays.items())):
     shown = ax.imshow(image[slice_z], cmap="gray_r", vmin=0, vmax=truth_array.max())
     ax.set_title(title)
     ax.axis("off")
 fig.colorbar(shown, ax=axes, label="relative to background")
+plt.show()
+
+difference = arrays["Fast + full residual"] - arrays["Fast + SIMIND scatter"]
+fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+limit = np.abs(difference).max()
+shown = ax.imshow(difference[slice_z], cmap="coolwarm", vmin=-limit, vmax=limit)
+ax.set_title("Full residual − SIMIND scatter")
+ax.axis("off")
+fig.colorbar(shown, ax=ax, label="difference, relative to background")
 plt.show()
 
 # %%
@@ -386,45 +342,57 @@ plt.show()
 # masks include voxels on the sphere edge, which hold less activity, so even
 # the truth scores below 1; its score is the ceiling for the reconstructions.
 # The 10 and 13 mm spheres are cold and are not scored. The noise is the
-# coefficient of variation in the background mask.
+# coefficient of variation in the background mask. The error bars are the
+# standard error over the three independent realisations.
 
-SPHERES = {"sphere_3": 17, "sphere_4": 22, "sphere_5": 28, "sphere_6": 37}
-TRUE_RATIO = 8.0
+truth_recovery = _nema.contrast_recovery(nema.activity_mbq, nema_phantom)
+truth_cov = _nema.background_cov(nema.activity_mbq, nema_phantom)
+scores = {"Truth": (truth_recovery, [0.0] * 4, truth_cov, 0.0)}
+for title, images in (
+    ("Fast only", fast_only),
+    ("Fast + SIMIND scatter", scatter_corrected),
+    ("Fast + full residual", residual_corrected),
+):
+    recovery, recovery_sem = _nema.mean_and_sem(
+        [
+            _nema.contrast_recovery(image.as_array(), nema_phantom)
+            for image in images.values()
+        ]
+    )
+    cov, cov_sem = _nema.mean_and_sem(
+        [
+            _nema.background_cov(image.as_array(), nema_phantom)
+            for image in images.values()
+        ]
+    )
+    scores[title] = (recovery, recovery_sem, float(cov), float(cov_sem))
 
-
-def contrast_recovery(image, sphere_name):
-    sphere = nema.masks[sphere_name] > 0
-    return image[sphere].mean() / image[background].mean() / TRUE_RATIO
-
-
-scores = {"Truth": truth_array, **recon_arrays}
-diameters = [str(d) for d in SPHERES.values()]
-print(f"{'':24}" + "".join(f"{d:>7} mm" for d in diameters) + "    CoV")
-for title, image in scores.items():
-    recovery = [contrast_recovery(image, name) for name in SPHERES]
-    cov = image[background].std() / image[background].mean()
+diameters = [str(d) for d in _nema.SPHERES.values()]
+print(f"{'':24}" + "".join(f"{d:>8} mm" for d in diameters) + "     CoV")
+for title, (recovery, recovery_sem, cov, cov_sem) in scores.items():
     print(
-        f"{title:<24}" + "".join(f"{value:10.2f}" for value in recovery) + f"{cov:7.2f}"
+        f"{title:<24}" + "".join(f"{value:11.2f}" for value in recovery) + f"{cov:8.2f}"
     )
 
 x = np.arange(len(diameters))
 fig, ax = plt.subplots(figsize=(7, 4), constrained_layout=True)
-for offset, (title, image) in zip((-0.3, -0.1, 0.1, 0.3), scores.items()):
-    values = [contrast_recovery(image, name) for name in SPHERES]
-    ax.bar(x + offset, values, 0.2, label=title)
+for offset, (title, (recovery, recovery_sem, _, _)) in zip(
+    (-0.3, -0.1, 0.1, 0.3), scores.items()
+):
+    ax.bar(x + offset, recovery, 0.2, yerr=recovery_sem, capsize=2, label=title)
 ax.set_xticks(x, diameters)
 ax.set_xlabel("Sphere diameter (mm)")
 ax.set_ylabel("Contrast recovery")
+ax.set_ylim(0, max(truth_recovery) * 1.15)
 ax.legend()
 plt.show()
 
 # %%
-# Scatter correction raises the recovery at 28 and 37 mm and leaves the 17 and
-# 22 mm values essentially unchanged. With one noise realisation the full
-# residual correction does not separate from the scatter correction: the two
-# differ by 0.06 or less at every sphere. At 22 mm the residual is below the
-# fast model alone. The effective objective falls at each update, by less at the
-# last one. With three damped updates this chart does not rank the two
-# corrections: it shows how much of the gap to the truth each one closes at this
-# budget, and that an accurate forward model does not by itself guarantee a
-# better image than a scatter estimate.
+# The printed table and the error bars show where a corrected arm exceeds the
+# fast-only recovery by more than the seed-to-seed spread. With three
+# realisations the full residual correction does not separate from the scatter
+# correction at every sphere, and both stay below the truth's masked score. The
+# residual arm trades a higher background CoV for the small 17 mm gain. The
+# effective objective printed at each update is the honest check on the
+# accurate-model fit: in this run it rises rather than falls after the first
+# update, so the damped residual does not keep improving that fit.
