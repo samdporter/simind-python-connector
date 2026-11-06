@@ -38,7 +38,7 @@ SIMIND v8 is the supported engine for this release. The connector uses the
 version to place voxel source and density maps in the same physical
 coordinates; the default is version 8. A constructor's `simind_version`
 overrides `SIMIND_VERSION`. V9 selection remains experimental and unvalidated
-(planned for 2.1.0); the v9.0 Linux build is known to fail in SCATTWIN.
+(planned for 2.1.0); the v9.0 Linux build can fail in SCATTWIN.
 
 Use the installed connector directly:
 

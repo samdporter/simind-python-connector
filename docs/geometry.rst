@@ -68,13 +68,13 @@ Units
 Example Configuration Guardrails
 --------------------------------
 
-The OSEM examples intentionally pin key simulation parameters so geometry checks
-are reproducible:
+The OSEM examples pin key simulation parameters so geometry checks are
+reproducible:
 
 - ``NN=1`` (runtime switch) for faster, deterministic iteration.
 - ``config[29]=24`` for projection count.
 - ``config[53]=0`` to keep collimator modeling geometric-only in these tests.
-- ``config[19]=2`` to keep a consistent mapping used by current examples.
+- ``config[19]=2`` to keep the mapping used by the examples.
 
 Debug Checklist
 ---------------

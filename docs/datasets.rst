@@ -26,8 +26,7 @@ rendered case studies produced from data available to the authors. The pages
 are not generally reproducible tutorials: without the restricted input they
 cannot be run or regenerated.
 
-The examples fail fast with a clear message when the data are absent. This
-statement makes no privacy or redistribution claim about the data.
+The examples fail fast with a clear message when the data are absent.
 
 If you have a local copy, point ``SIMIND_CONNECTOR_Y90_DATA`` at a directory
 containing:

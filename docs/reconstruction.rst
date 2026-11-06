@@ -278,8 +278,8 @@ Schedule guidance:
 - update every 1-5 epochs: ``every = epochs * num_subsets``;
 - set ``stop_at = total_iterations`` so the final-callback refresh is
   skipped: ``stop_at`` is an exclusive bound, so this keeps every update that
-  can affect the reconstruction (an earlier bound is an optional, deliberate
-  freeze); pass it to ``UpdateSchedule``, or directly to
+  can affect the reconstruction; an earlier bound stops updating earlier. Pass
+  it to ``UpdateSchedule``, or directly to
   ``scatter_updater(..., stop_at=stop_at)`` when using that helper;
 - use damping 0.5-1.0 with MC accurate models, but damping < 1 requires a
   non-zero starting additive term. From zero, use damping 1.0: otherwise the

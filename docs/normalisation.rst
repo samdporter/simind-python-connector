@@ -182,9 +182,8 @@ hence the smoothing.
 
 .. note::
    The Y-90 tutorial's pixel-wise arm sat about 27% below the true scatter
-   sum in the stored run, which used the pre-fix ratio-first estimator. That
-   figure is a legacy observation: the examples have not been re-run with the
-   corrected estimator, so its effect on the 27% is unmeasured, and the drift
-   investigation is unresolved. The next check is a frozen-image comparison
-   with an independent SIMIND seed, which separates estimator bias from
-   image- and source-dependence.
+   sum in the stored run, which used the earlier ratio-first estimator. The
+   examples have not been re-run with the corrected estimator, so its effect
+   on the 27% is unmeasured, and the source of the drift is unresolved. The
+   next check compares a fixed image with an independent SIMIND seed, which
+   separates estimator bias from image- and source-dependence.
