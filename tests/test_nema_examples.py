@@ -1,5 +1,6 @@
 """The shared protocol of the NEMA reconstruction tutorials (examples 10-15)."""
 
+import hashlib
 import json
 
 import numpy as np
@@ -265,6 +266,33 @@ def test_detect_engine_changes_when_only_the_mpi_binary_changes(tmp_path, monkey
     second = _nema.detect_engine(str(simind), str(simind_mpi))
 
     assert first != second
+
+
+def test_detect_engine_uses_the_symlinked_executors_mpi_sibling(tmp_path, monkeypatch):
+    monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    real = tmp_path / "real"
+    link = tmp_path / "link"
+    _fake_distribution(real)
+    link.mkdir()
+    (link / "simind").symlink_to(real / "simind")
+    linked_mpi = link / "simind_mpi"
+    linked_mpi.write_bytes(b"MPI binary in the symlink directory")
+    linked_mpi.chmod(0o755)
+
+    from simind_python_connector.core.executor import SimindExecutor
+
+    selected = SimindExecutor(executable=str(link / "simind"))._mpi_executable(
+        str(link / "simind")
+    )
+    assert selected == str(link / "simind_mpi")
+
+    engine = _nema.detect_engine(str(link / "simind"))
+    linked_digest = hashlib.sha256(linked_mpi.read_bytes()).hexdigest()[:12]
+    real_digest = hashlib.sha256((real / "simind_mpi").read_bytes()).hexdigest()[:12]
+
+    assert f"simind_mpi:sha256:{linked_digest}" in engine
+    assert f"simind_mpi:sha256:{real_digest}" not in engine
 
 
 def test_detect_engine_expands_home_relative_simind_bin(tmp_path, monkeypatch):

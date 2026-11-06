@@ -123,13 +123,17 @@ def detect_engine(
     apart, so a cache cannot be reused across binary changes.
     """
     serial_value = executable or os.environ.get("SIMIND_BIN") or "simind"
-    serial = _which_executable(_resolve_executable(serial_value), role="executable")
+    anchored = _resolve_executable(serial_value)
+    serial = _which_executable(anchored, role="executable")
     mpi_value = mpi_executable or os.environ.get("SIMIND_MPI_BIN")
     if mpi_value:
         mpi = _which_executable(_resolve_executable(mpi_value), role="MPI executable")
-    elif os.sep in _resolve_executable(serial_value):
+    elif os.sep in anchored:
+        # Match SimindExecutor: choose the sibling from the anchored but
+        # unresolved serial path, so a symlinked SIMIND_BIN keeps its own
+        # directory's simind_mpi rather than the target's.
         mpi = _which_executable(
-            str(serial.with_name("simind_mpi")), role="MPI executable"
+            str(Path(anchored).with_name("simind_mpi")), role="MPI executable"
         )
     else:
         mpi = _which_executable("simind_mpi", role="MPI executable")
