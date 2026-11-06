@@ -221,23 +221,82 @@ def test_mean_and_std_is_the_sample_spread_over_realisations():
     np.testing.assert_allclose(spread, np.std(values, axis=0, ddof=1))
 
 
-def test_detect_engine_reads_the_change_banner_and_hashes_the_binary(
+def _fake_distribution(directory, *, version="V9.1", banner=None, change=True):
+    directory.mkdir(parents=True, exist_ok=True)
+    simind = directory / "simind"
+    simind.write_bytes(b"fake simind binary")
+    simind.chmod(0o755)
+    simind_mpi = directory / "simind_mpi"
+    simind_mpi.write_bytes(b"fake simind_mpi binary")
+    simind_mpi.chmod(0o755)
+    if change:
+        text = (
+            banner
+            if banner is not None
+            else (
+                "#!/bin/sh\n"
+                f"echo ' C H A N G E: Main page for SIMIND version {version} '\n"
+            )
+        )
+        script = directory / "change"
+        script.write_text(text)
+        script.chmod(0o755)
+    return simind, simind_mpi
+
+
+def test_detect_engine_reads_the_change_banner_and_hashes_both_binaries(
     tmp_path, monkeypatch
 ):
     monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
-    binary = tmp_path / "simind"
-    binary.write_bytes(b"fake simind binary")
-    binary.chmod(0o755)
-    change = tmp_path / "change"
-    change.write_text(
-        "#!/bin/sh\necho ' C H A N G E: Main page for SIMIND version V9.1 '\n"
-    )
-    change.chmod(0o755)
+    simind, _ = _fake_distribution(tmp_path)
 
-    engine = _nema.detect_engine(str(binary))
+    engine = _nema.detect_engine(str(simind))
 
-    assert engine.startswith("SIMIND V9.1 [sha256:")
+    assert engine.startswith("SIMIND V9.1 [simind:sha256:")
+    assert ";simind_mpi:sha256:" in engine
     assert _nema.engine_label(engine) == "SIMIND v9"
+
+
+def test_detect_engine_changes_when_only_the_mpi_binary_changes(tmp_path, monkeypatch):
+    monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    simind, simind_mpi = _fake_distribution(tmp_path)
+    first = _nema.detect_engine(str(simind), str(simind_mpi))
+    simind_mpi.write_bytes(b"different mpi build")
+    second = _nema.detect_engine(str(simind), str(simind_mpi))
+
+    assert first != second
+
+
+def test_detect_engine_expands_home_relative_simind_bin(tmp_path, monkeypatch):
+    monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    home = tmp_path / "home"
+    simind, _ = _fake_distribution(home / "simind")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SIMIND_BIN", "~/simind/simind")
+    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+
+    engine = _nema.detect_engine()
+
+    assert engine.startswith("SIMIND V9.1 [")
+    assert _nema.engine_label(engine) == "SIMIND v9"
+
+
+def test_detect_engine_fails_closed_without_the_change_banner(tmp_path, monkeypatch):
+    monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    simind, _ = _fake_distribution(tmp_path, change=False)
+
+    with pytest.raises(RuntimeError, match="Cannot read the SIMIND version"):
+        _nema.detect_engine(str(simind))
+
+
+def test_detect_engine_fails_closed_on_an_unrecognised_banner(tmp_path, monkeypatch):
+    monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    simind, _ = _fake_distribution(
+        tmp_path, banner="#!/bin/sh\necho 'not a SIMIND banner'\n"
+    )
+
+    with pytest.raises(RuntimeError, match="Cannot read the SIMIND version"):
+        _nema.detect_engine(str(simind))
 
 
 def test_cache_key_includes_the_engine(tmp_path):

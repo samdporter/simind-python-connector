@@ -61,6 +61,24 @@ TRUE_RATIO = 8.0
 _CACHE_VERSION = 2
 
 
+def _resolve_executable(value: str) -> str:
+    """Expand ``~`` and anchor a path-bearing executable like the executor."""
+    if os.sep in value or (os.altsep and os.altsep in value):
+        return str(Path(value).expanduser().absolute())
+    return value
+
+
+def _which_executable(value: str, *, role: str) -> Path:
+    resolved = shutil.which(value)
+    if resolved is None:
+        raise RuntimeError(
+            f"SIMIND {role} {value!r} not found; set "
+            f"{'SIMIND_MPI_BIN' if role == 'MPI executable' else 'SIMIND_BIN'} "
+            "or install it on PATH before loading the shared expectation."
+        )
+    return Path(resolved).resolve()
+
+
 def _change_version(change: Path) -> str | None:
     """Read the distribution version from SIMIND's ``change`` banner.
 
@@ -71,45 +89,65 @@ def _change_version(change: Path) -> str | None:
     """
     if not change.is_file():
         return None
-    process = subprocess.Popen(
-        [str(change)],
-        cwd=str(change.parent),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        errors="replace",
-    )
+    try:
+        process = subprocess.Popen(
+            [str(change)],
+            cwd=str(change.parent),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+        )
+    except OSError:
+        return None
     try:
         output, _ = process.communicate(timeout=2)
     except subprocess.TimeoutExpired:
         process.kill()
         output, _ = process.communicate()
-    except OSError:
-        return None
     match = re.search(r"SIMIND\s+version\s+(V\d+\.\d+)", output)
     return match.group(1) if match else None
 
 
-def detect_engine(executable: str | None = None) -> str:
-    """Identify the installed SIMIND binary by version and content hash.
+def detect_engine(
+    executable: str | None = None, mpi_executable: str | None = None
+) -> str:
+    """Identify the installed SIMIND engine by version and both binary hashes.
 
-    The version comes from the sibling ``change`` program. The SHA-256 prefix
-    keeps two builds of the same nominal version apart, so a cache cannot be
-    reused across binary changes even when the banner is identical.
+    NEMA always runs under MPI, so the identity covers the selected
+    ``simind_mpi`` as well as ``simind``. The version comes from the sibling
+    ``change`` program; if that program is missing or its banner is not
+    recognised, detection fails rather than reusing a cache under an unknown
+    engine. The SHA-256 prefixes keep two builds of the same nominal version
+    apart, so a cache cannot be reused across binary changes.
     """
-    path = executable or os.environ.get("SIMIND_BIN") or "simind"
-    resolved = shutil.which(path)
-    if resolved is None:
-        raise RuntimeError(
-            f"SIMIND executable {path!r} not found; set SIMIND_BIN or install it "
-            "on PATH before loading the shared expectation."
+    serial_value = executable or os.environ.get("SIMIND_BIN") or "simind"
+    serial = _which_executable(_resolve_executable(serial_value), role="executable")
+    mpi_value = mpi_executable or os.environ.get("SIMIND_MPI_BIN")
+    if mpi_value:
+        mpi = _which_executable(_resolve_executable(mpi_value), role="MPI executable")
+    elif os.sep in _resolve_executable(serial_value):
+        mpi = _which_executable(
+            str(serial.with_name("simind_mpi")), role="MPI executable"
         )
-    binary = Path(resolved).resolve()
-    version = _change_version(binary.parent / "change")
-    digest = hashlib.sha256(binary.read_bytes()).hexdigest()[:12]
-    label = f"SIMIND {version}" if version else "SIMIND (version unknown)"
-    return f"{label} [sha256:{digest}]"
+    else:
+        mpi = _which_executable("simind_mpi", role="MPI executable")
+
+    version = _change_version(serial.parent / "change")
+    if version is None:
+        raise RuntimeError(
+            f"Cannot read the SIMIND version from {serial.parent / 'change'!s}. "
+            "The NEMA cache is keyed by the engine, so a complete SIMIND "
+            "distribution (including the change program and its version banner) "
+            "is required; point SIMIND_BIN at one."
+        )
+    serial_digest = hashlib.sha256(serial.read_bytes()).hexdigest()[:12]
+    mpi_digest = hashlib.sha256(mpi.read_bytes()).hexdigest()[:12]
+    return (
+        f"SIMIND {version} "
+        f"[simind:sha256:{serial_digest};simind_mpi:sha256:{mpi_digest}]"
+    )
 
 
 def engine_label(engine: str) -> str:
