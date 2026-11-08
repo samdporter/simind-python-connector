@@ -1042,10 +1042,6 @@ Run the tutorial
      [   0.        0.       -4.2578 -301.5039]
      [   0.        0.        0.        1.    ]]
     Target coverage: 61.6%
-    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:549: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
-      setattr(self, word, getattr(machar, word).flat[0])
-    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:89: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
-      return self._float_to_str(self.smallest_subnormal)
     Registration: zero-offset Pearson 0.9137, best integer NCC 0.9137 at [0, 0, 0]
     Registration mask: CT coverage, CT HU > -400, positive vendor attenuation and finite values
     Mask erosion: one 3-D connectivity-1 binary erosion, one voxel, border_value=0
@@ -1054,7 +1050,7 @@ Run the tutorial
     Offset (z, y, x): [0.237 0.239 0.232] voxels = [1.01 1.02 0.99] mm
     Euclidean: 0.409 voxels = 1.74 mm -> PASS
     Running the matched no-attenuation and CT-attenuation reconstructions
-    Matched reconstruction: 313.6 s
+    Matched reconstruction: 299.8 s
     Maps written to stir
 
 
@@ -1063,7 +1059,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (6 minutes 23.970 seconds)
+   **Total running time of the script:** (6 minutes 3.422 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16a_stir_ct_conversion.py:

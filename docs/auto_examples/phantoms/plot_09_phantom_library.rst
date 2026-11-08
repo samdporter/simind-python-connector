@@ -443,9 +443,9 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Sensitivity Cps/MBq: 35.4705        
      Sensitivity Cpm/uCi: 78.7445        
                                                                               
-     Simulation started.: 2026:11:04 09:22:07
-     Simulation stopped.: 2026:11:04 11:35:26
-     Elapsed time.......: 2 h, 13 m and 19 s
+     Simulation started.: 2026:11:06 10:34:01
+     Simulation stopped.: 2026:11:06 12:43:54
+     Elapsed time.......: 2 h, 9 m and 53 s
      DetectorHits.......: 188345         
      DetectorHits/CPUsec: 24             
                                                                               
@@ -459,7 +459,7 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Inifile: simind.ini
      Message: Input file used:jaszczak.inp                                         
      Command: jaszczak jaszczak /CC:ma-lehr/RR:12345/IF:jaszczak.inp/BG:1.0
-    jaszczak: projection sum 851.292 in 8000 s
+    jaszczak: projection sum 851.292 in 7794 s
     nema: 2025536 histories per view
     
 
@@ -612,9 +612,9 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Sensitivity Cps/MBq: 29.733         
      Sensitivity Cpm/uCi: 66.0072        
                                                                               
-     Simulation started.: 2026:11:04 11:35:27
-     Simulation stopped.: 2026:11:04 12:41:39
-     Elapsed time.......: 1 h, 6 m and 12 s
+     Simulation started.: 2026:11:06 12:43:54
+     Simulation stopped.: 2026:11:06 13:46:42
+     Elapsed time.......: 1 h, 2 m and 48 s
      DetectorHits.......: 53694          
      DetectorHits/CPUsec: 14             
                                                                               
@@ -627,7 +627,7 @@ Both runs use the Tc-99m 126-154 keV window and the ma-lehr collimator.
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
      Command: nema nema /CC:ma-lehr/RR:12345/NN:1/PX:0.7
-    nema: projection sum 3.99183e+06 in 3972 s
+    nema: projection sum 3.99183e+06 in 3767 s
 
 
 
@@ -675,7 +675,7 @@ colour scales because the two phantoms have different activity scales.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (199 minutes 33.464 seconds)
+   **Total running time of the script:** (192 minutes 41.996 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_09_phantom_library.py:

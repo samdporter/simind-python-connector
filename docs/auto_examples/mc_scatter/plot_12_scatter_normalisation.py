@@ -14,8 +14,12 @@ putting that estimate on the scale of the data:
 3. **Reference, trimmed.** The same, with a trimmed mean of the bin ratios.
 4. **Dewaraja, global.** One factor scales SIMIND's total to the measured data
    (Dewaraja et al., Med Phys 44:6364, 2017).
-5. **Dewaraja, pixel-wise.** The scatter fraction of SIMIND's run in each bin,
-   times the measured data, as in the same paper.
+5. **Dewaraja, pixel-wise.** SIMIND's scatter and matching total are smoothed
+   with the same Gaussian, the smoothed scatter-to-total ratio is multiplied
+   by the measured data, and the result is smoothed again, as in the same
+   paper. The final smoothing is retained because the measured noise enters
+   the estimate. The stored pixel-wise numbers below predate this 2.0.2
+   estimator order and need a rerun to refresh them.
 
 The expectation is simulated once with four histories per measured count, so
 its Monte Carlo variance is a quarter of the Poisson variance. Each strategy is
@@ -597,3 +601,9 @@ plt.show()
 # while known activity and Dewaraja global are 1.05 and pixel-wise 1.10. Three
 # realisations order those totals but do not rank the strategies within a
 # group; the printed error bars are the test.
+#
+# The stored pixel-wise numbers were produced before the 2.0.2 estimator order
+# (pre-smoothing SIMIND's scatter and total before the ratio). These runs were
+# not repeated afterwards, so the corrected estimator's effect on them is
+# unmeasured; the 14% figure is a legacy observation and not a claim about the
+# current estimator.

@@ -259,11 +259,11 @@ the scatter in that window (switch ``CA`` 2 asks for the split).
      Sensitivity Cps/MBq: 73.8959        
      Sensitivity Cpm/uCi: 164.0488       
                                                                               
-     Simulation started.: 2026:10:19 16:21:36
-     Simulation stopped.: 2026:10:19 16:25:31
-     Elapsed time.......: 0 h, 3 m and 55 s
+     Simulation started.: 2026:11:08 01:10:29
+     Simulation stopped.: 2026:11:08 01:14:45
+     Elapsed time.......: 0 h, 4 m and 16 s
      DetectorHits.......: 114581         
-     DetectorHits/CPUsec: 488            
+     DetectorHits/CPUsec: 446            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -273,7 +273,7 @@ the scatter in that window (switch ``CA`` 2 asks for the split).
      Header file: pytomo_case01.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: pytomo_case01 pytomo_case01 /NN:1/FI:tc99m/CA:2/CC:ma-lehr/RR:12345/PX:0.4
+     Command: pytomo_case01 pytomo_case01 /NN:1/FI:tc99m/CA:2/CC:ma-lehr/RR:12345/PX:0.4/FW:pytomo_case01
     Projection sum: 1272.081
 
 
@@ -425,7 +425,7 @@ Axial index 0 is on the top row, as in 07A and 07B.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (4 minutes 7.459 seconds)
+   **Total running time of the script:** (4 minutes 29.959 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_07c_pytomography_adaptor_osem.py:

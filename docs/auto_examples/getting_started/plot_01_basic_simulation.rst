@@ -323,11 +323,11 @@ so the number of views, bin size and radius are not inherited by accident.
      Sensitivity Cps/MBq: 73.2842        
      Sensitivity Cpm/uCi: 162.691        
                                                                               
-     Simulation started.: 2026:10:26 13:27:15
-     Simulation stopped.: 2026:10:26 14:16:27
-     Elapsed time.......: 0 h, 49 m and 12 s
+     Simulation started.: 2026:11:06 06:30:52
+     Simulation stopped.: 2026:11:06 07:16:40
+     Elapsed time.......: 0 h, 45 m and 48 s
      DetectorHits.......: 534196         
-     DetectorHits/CPUsec: 181            
+     DetectorHits/CPUsec: 194            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -343,7 +343,7 @@ so the number of views, bin size and radius are not inherited by accident.
     Histories per view: 9239200
     Quantization loss: 0.0000%
     Total projection sum (activity-scaled): 209.961
-    Elapsed: 2953 s
+    Elapsed: 2749 s
 
 
 
@@ -397,7 +397,7 @@ disc on the right of the body and the peak on the profile.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (49 minutes 13.287 seconds)
+   **Total running time of the script:** (45 minutes 48.983 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_01_basic_simulation.py:

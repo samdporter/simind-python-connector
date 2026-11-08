@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**326:20.375** total execution time for 6 files **from auto_examples/getting_started**:
+**243:07.886** total execution time for 6 files **from auto_examples/getting_started**:
 
 .. container::
 
@@ -32,21 +32,21 @@ Computation times
    * - Example
      - Time
      - Mem (MB)
-   * - :ref:`sphx_glr_auto_examples_getting_started_plot_03_multi_window.py` (``plot_03_multi_window.py``)
-     - 107:26.454
-     - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_02_runtime_switch_comparison.py` (``plot_02_runtime_switch_comparison.py``)
-     - 100:10.155
+     - 92:12.286
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_getting_started_plot_03_multi_window.py` (``plot_03_multi_window.py``)
+     - 58:54.179
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_05_scattwin_vs_penetrate_comparison.py` (``plot_05_scattwin_vs_penetrate_comparison.py``)
-     - 69:29.460
+     - 46:11.415
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_01_basic_simulation.py` (``plot_01_basic_simulation.py``)
-     - 49:13.287
+     - 45:48.983
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_06_schneider_density_conversion.py` (``plot_06_schneider_density_conversion.py``)
-     - 00:00.949
+     - 00:00.961
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_04_custom_config.py` (``plot_04_custom_config.py``)
-     - 00:00.070
+     - 00:00.063
      - 0.0

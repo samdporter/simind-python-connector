@@ -44,19 +44,21 @@ makes no claim about reconstruction consequences of that map.
 The page ends with a small matched reconstruction: the measured acquisition is
 reconstructed with no attenuation correction and with the project-derived
 150 keV map. The acquisition, initial support, subsets, subiterations and zero
-scatter are identical. This is a conversion sanity check, not an accuracy or
-ranking study. See :doc:`plot_17_y90_effective_energy` for the attenuation-
-energy comparison and :doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter
-case study.
+scatter are identical. To fit the rotate+sum PyTomography system matrix in the
+example container, this endpoint uses every second view and bins the detector
+2 x 2; both arms use exactly the same reduced data. This is a conversion sanity
+check, not an accuracy or ranking study. See
+:doc:`plot_17_y90_effective_energy` for the attenuation-energy comparison and
+:doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case study.
 
-.. GENERATED FROM PYTHON SOURCE LINES 35-39
+.. GENERATED FROM PYTHON SOURCE LINES 37-41
 
 Setup
 -----
 The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
 pydicom, matplotlib, SciPy and PyTomography.
 
-.. GENERATED FROM PYTHON SOURCE LINES 39-85
+.. GENERATED FROM PYTHON SOURCE LINES 41-87
 
 .. code-block:: Python
 
@@ -113,7 +115,7 @@ pydicom, matplotlib, SciPy and PyTomography.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 86-91
+.. GENERATED FROM PYTHON SOURCE LINES 88-93
 
 Read the CT series
 ------------------
@@ -121,7 +123,7 @@ A voxel-centre affine maps grid indices ``(i, j, k)`` to patient LPS
 coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
 i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
-.. GENERATED FROM PYTHON SOURCE LINES 91-205
+.. GENERATED FROM PYTHON SOURCE LINES 93-207
 
 .. code-block:: Python
 
@@ -246,7 +248,7 @@ i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 206-213
+.. GENERATED FROM PYTHON SOURCE LINES 208-215
 
 Patient-to-SPECT frame
 ----------------------
@@ -256,7 +258,7 @@ in the NM header; the CT table height (-140 mm) supplies it in the shared
 frame of reference. No origin is re-derived from the images and no recentring
 is applied.
 
-.. GENERATED FROM PYTHON SOURCE LINES 213-261
+.. GENERATED FROM PYTHON SOURCE LINES 215-263
 
 .. code-block:: Python
 
@@ -315,7 +317,7 @@ is applied.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 262-286
+.. GENERATED FROM PYTHON SOURCE LINES 264-288
 
 Registration report
 -------------------
@@ -342,7 +344,7 @@ refines the peak to subvoxel precision when the fit is negative definite,
 finite and locally bounded; otherwise the integer estimate is kept. A failed
 gate stops the tutorial before any accepted map is written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 286-481
+.. GENERATED FROM PYTHON SOURCE LINES 288-483
 
 .. code-block:: Python
 
@@ -548,7 +550,7 @@ gate stops the tutorial before any accepted map is written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 482-498
+.. GENERATED FROM PYTHON SOURCE LINES 484-500
 
 PyTomography resampling route
 -----------------------------
@@ -567,7 +569,7 @@ origin and ignores the row direction and table height, placing the target
 outside the CT. That is a property of this header and version, not a general
 statement about Mediso data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 498-572
+.. GENERATED FROM PYTHON SOURCE LINES 500-574
 
 .. code-block:: Python
 
@@ -652,12 +654,12 @@ statement about Mediso data.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 573-575
+.. GENERATED FROM PYTHON SOURCE LINES 575-577
 
 Figures and summary
 -------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 575-845
+.. GENERATED FROM PYTHON SOURCE LINES 577-847
 
 .. code-block:: Python
 
@@ -938,12 +940,12 @@ Figures and summary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 846-848
+.. GENERATED FROM PYTHON SOURCE LINES 848-850
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 848-1025
+.. GENERATED FROM PYTHON SOURCE LINES 850-1027
 
 .. code-block:: Python
 
@@ -1188,7 +1190,7 @@ Run the tutorial
     Euclidean: 0.254 voxels = 1.08 mm -> PASS
     Running the matched no-attenuation and CT-attenuation reconstructions
     PyTomography reconstruction data: (60, 64, 64) (view step 2, bin factor 2)
-    Matched reconstruction: 41.5 s
+    Matched reconstruction: 29.6 s
     Maps written to pytomography
 
 
@@ -1197,7 +1199,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (11 minutes 7.235 seconds)
+   **Total running time of the script:** (6 minutes 12.134 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16c_pytomography_ct_conversion.py:

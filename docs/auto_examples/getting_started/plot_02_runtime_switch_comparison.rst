@@ -312,11 +312,11 @@ Run both seeds
      Sensitivity Cps/MBq: 73.1795        
      Sensitivity Cpm/uCi: 162.4584       
                                                                               
-     Simulation started.: 2026:11:04 15:01:42
-     Simulation stopped.: 2026:11:04 15:20:38
-     Elapsed time.......: 0 h, 18 m and 56 s
+     Simulation started.: 2026:11:06 07:16:41
+     Simulation stopped.: 2026:11:06 07:34:02
+     Elapsed time.......: 0 h, 17 m and 21 s
      DetectorHits.......: 200197         
-     DetectorHits/CPUsec: 176            
+     DetectorHits/CPUsec: 192            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -436,11 +436,11 @@ Run both seeds
      Sensitivity Cps/MBq: 73.2565        
      Sensitivity Cpm/uCi: 162.6295       
                                                                               
-     Simulation started.: 2026:11:04 15:20:38
-     Simulation stopped.: 2026:11:04 16:41:51
-     Elapsed time.......: 1 h, 21 m and 13 s
+     Simulation started.: 2026:11:06 07:34:02
+     Simulation stopped.: 2026:11:06 08:48:53
+     Elapsed time.......: 1 h, 14 m and 51 s
      DetectorHits.......: 200464         
-     DetectorHits/CPUsec: 41             
+     DetectorHits/CPUsec: 45             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -521,7 +521,7 @@ Monte Carlo runs of the same expectation.
     Difference sum (view 0): -0.297
     Relative RMS difference: 16.825%
     Quantization loss: 0.0000%
-    Elapsed: 1136 s and 4873 s
+    Elapsed: 1041 s and 4491 s
 
 
 
@@ -529,7 +529,7 @@ Monte Carlo runs of the same expectation.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (100 minutes 10.155 seconds)
+   **Total running time of the script:** (92 minutes 12.286 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_02_runtime_switch_comparison.py:

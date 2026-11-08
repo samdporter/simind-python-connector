@@ -1015,7 +1015,7 @@ Run the tutorial
     Offset (z, y, x): [0.215 0.144 0.145] voxels = [0.92 0.61 0.62] mm
     Euclidean: 0.296 voxels = 1.26 mm -> PASS
     Running the matched no-attenuation and CT-attenuation reconstructions
-    Matched reconstruction: 373.9 s
+    Matched reconstruction: 434.9 s
     Maps written to sirf
 
 
@@ -1024,7 +1024,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (9 minutes 6.648 seconds)
+   **Total running time of the script:** (10 minutes 55.541 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16b_sirf_ct_conversion.py:

@@ -390,11 +390,11 @@ Run both routines
      Sensitivity Cps/MBq: 2.1874         
      Sensitivity Cpm/uCi: 4.8561         
                                                                               
-     Simulation started.: 2026:10:26 22:47:25
-     Simulation stopped.: 2026:10:26 23:18:26
-     Elapsed time.......: 0 h, 31 m and 1 s
+     Simulation started.: 2026:11:06 09:47:48
+     Simulation stopped.: 2026:11:06 10:10:48
+     Elapsed time.......: 0 h, 23 m and 0 s
      DetectorHits.......: 124935         
-     DetectorHits/CPUsec: 67             
+     DetectorHits/CPUsec: 91             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -524,11 +524,11 @@ Run both routines
      Sensitivity Cps/MBq: 2.1874         
      Sensitivity Cpm/uCi: 4.8561         
                                                                               
-     Simulation started.: 2026:10:26 23:18:26
-     Simulation stopped.: 2026:10:26 23:56:53
-     Elapsed time.......: 0 h, 38 m and 27 s
+     Simulation started.: 2026:11:06 10:10:48
+     Simulation stopped.: 2026:11:06 10:33:58
+     Elapsed time.......: 0 h, 23 m and 10 s
      DetectorHits.......: 124935         
-     DetectorHits/CPUsec: 54             
+     DetectorHits/CPUsec: 90             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -549,7 +549,7 @@ Run both routines
     SCATTWIN count preservation: 0.00%
     PENETRATE count preservation: -0.00%
     Routine total difference: 0.000
-    Elapsed: 1861 s and 2307 s
+    Elapsed: 1380 s and 1391 s
 
 
 
@@ -727,7 +727,7 @@ partners.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (69 minutes 29.460 seconds)
+   **Total running time of the script:** (46 minutes 11.415 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_05_scattwin_vs_penetrate_comparison.py:

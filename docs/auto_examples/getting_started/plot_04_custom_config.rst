@@ -235,7 +235,7 @@ the connector warns and runs the phantom from Index 14/15.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.070 seconds)
+   **Total running time of the script:** (0 minutes 0.063 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_04_custom_config.py:

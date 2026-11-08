@@ -43,6 +43,18 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
    frozen sphere centre, and the results do not support a robust strategy
    ranking or a quantitative superiority claim.
 
+.. note::
+   The stored pixel-wise image and numbers were produced with the legacy order:
+   form SIMIND's scatter-to-total ratio first, then smooth. The 2.0.2 estimator
+   smooths SIMIND's scatter and total with the same Gaussian before dividing
+   and then smooths the result again. Those stored pixel-wise results are kept
+   for continuity but are superseded by the estimator change. The global
+   diagnostic is unaffected and stays separate. The roughly 27% pixel-wise
+   drift is a legacy observation from those pre-fix stored results; the
+   corrected estimator's effect on it has not been measured, and the drift
+   remains unresolved. The next check is a frozen-image comparison with an
+   independent SIMIND seed, not a claim that pre-smoothing fixes it.
+
 The history-doubling and independent-seed probes run on the native 120-view
 geometry at four, eight and sixteen times the base history multiplier, so they
 test convergence rather than a reduced-geometry surrogate. The run still does
@@ -79,9 +91,10 @@ The five corrections are:
    the measured data (Dewaraja et al., Med Phys 44:6364, 2017). This arm
    collapsed in this configuration; its image and ratio are kept as a
    diagnostic and are not compared with the compartment estimates.
-5. **Dewaraja, pixel-wise.** SIMIND's scatter fraction in each bin times the
-   measured data, as in the same paper, smoothed over 3 bins including the
-   view axis.
+5. **Dewaraja, pixel-wise.** SIMIND's scatter and matching total in each bin,
+   both smoothed over 3 bins including the view axis, form the ratio that is
+   multiplied by the measured data; the result is smoothed again. The stored
+   numbers below use the legacy ratio-first order and are superseded.
 
 The baseline reconstructs the same data with a zero additive term and no
 refresh.
@@ -116,12 +129,12 @@ The Y-90 phantom data are not published for download yet. Set
 ``SIMIND_CONNECTOR_Y90_DATA`` to a directory holding ``peak.dcm``,
 ``peak.hs``, ``peak.s``, ``umap_zoomed.hv``, ``umap_zoomed.v`` and ``ctac/``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 102-104
+.. GENERATED FROM PYTHON SOURCE LINES 115-117
 
 Setup
 -----
 
-.. GENERATED FROM PYTHON SOURCE LINES 104-356
+.. GENERATED FROM PYTHON SOURCE LINES 117-369
 
 .. code-block:: Python
 
@@ -384,7 +397,7 @@ Setup
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 357-363
+.. GENERATED FROM PYTHON SOURCE LINES 370-376
 
 CT series and patient-to-SPECT frame
 ------------------------------------
@@ -393,7 +406,7 @@ The CT slices are not stored in spatial order and are sorted by
 patient-to-SPECT affine uses the NM detector centre in x and z and the CT
 table height in y; no origin is re-derived from the images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 363-514
+.. GENERATED FROM PYTHON SOURCE LINES 376-527
 
 .. code-block:: Python
 
@@ -555,7 +568,7 @@ table height in y; no origin is re-derived from the images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 515-522
+.. GENERATED FROM PYTHON SOURCE LINES 528-535
 
 Registration
 ------------
@@ -565,7 +578,7 @@ finite values, eroded once to keep the body/table boundary out of the edge
 correlation. The acceptance criterion is a Euclidean offset of at most one
 voxel. The measured offset is reported, not applied to the maps.
 
-.. GENERATED FROM PYTHON SOURCE LINES 522-707
+.. GENERATED FROM PYTHON SOURCE LINES 535-720
 
 .. code-block:: Python
 
@@ -761,7 +774,7 @@ voxel. The measured offset is reported, not applied to the maps.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 708-714
+.. GENERATED FROM PYTHON SOURCE LINES 721-727
 
 SIRF resampling
 ---------------
@@ -770,7 +783,7 @@ resampler's zero padding becomes -1000 HU. The reference is an empty image
 with the target SPECT affine and the identity transform is deliberate. The
 resampled array is transferred to a STIR image on the vendor grid.
 
-.. GENERATED FROM PYTHON SOURCE LINES 714-763
+.. GENERATED FROM PYTHON SOURCE LINES 727-776
 
 .. code-block:: Python
 
@@ -830,7 +843,7 @@ resampled array is transferred to a STIR image on the vendor grid.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 764-770
+.. GENERATED FROM PYTHON SOURCE LINES 777-783
 
 Liver VOI
 ---------
@@ -839,7 +852,7 @@ closed component of the wall on each CT slice, excluding the wall itself, air,
 the lung domes and other compartments. The mask is generated once from the CT,
 before any reconstruction, and is never changed by a strategy.
 
-.. GENERATED FROM PYTHON SOURCE LINES 770-916
+.. GENERATED FROM PYTHON SOURCE LINES 783-929
 
 .. code-block:: Python
 
@@ -996,7 +1009,7 @@ before any reconstruction, and is never changed by a strategy.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 917-930
+.. GENERATED FROM PYTHON SOURCE LINES 930-943
 
 Metrics
 -------
@@ -1012,7 +1025,7 @@ and sphere. It is affected by recovery, spillover and the VOI uncertainty.
 The activities are those at the scan; no decay correction is applied, and
 +-2% is the supplied activity uncertainty only.
 
-.. GENERATED FROM PYTHON SOURCE LINES 930-1163
+.. GENERATED FROM PYTHON SOURCE LINES 943-1184
 
 .. code-block:: Python
 
@@ -1222,8 +1235,10 @@ The activities are those at the scan; no decay correction is applied, and
     def smooth_scatter(array, fwhm_bins=SMOOTHING_FWHM_BINS, across_views=True):
         """Gaussian-smooth a projection along axial, bin and optionally view axes.
 
-        The total is preserved. With ``across_views`` the view axis wraps, which
-        assumes the views cover 360 degrees.
+        The total is preserved when it stands clear of the rounding floor of the
+        sum; a zero-sum signed field keeps its smoothed values. With
+        ``across_views`` the view axis wraps, which assumes the views cover 360
+        degrees.
         """
         values = np.asarray(array, dtype=np.float64)
         sigma = [0.0] * values.ndim
@@ -1233,9 +1248,15 @@ The activities are those at the scan; no decay correction is applied, and
             sigma[-2] = sigma[-1]
             mode[-2] = "wrap"
         smoothed = gaussian_filter(values, sigma, mode=mode)
-        total = smoothed.sum()
-        if total != 0.0:
-            smoothed *= values.sum() / total
+        # Keep the original total, but only when it stands clear of the rounding
+        # floor of the sum: a cancelling signed field sums to about zero, and so
+        # does its smoothed version, so their ratio would be an arbitrary factor
+        # (zero erases the field).
+        original_sum = values.sum()
+        if abs(original_sum) > 1e-9 * np.abs(values).sum():
+            total = smoothed.sum()
+            if total != 0.0:
+                smoothed *= original_sum / total
         return smoothed.astype(np.float32)
 
 
@@ -1256,12 +1277,12 @@ The activities are those at the scan; no decay correction is applied, and
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1164-1166
+.. GENERATED FROM PYTHON SOURCE LINES 1185-1187
 
 Scatter strategies
 ------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1166-1245
+.. GENERATED FROM PYTHON SOURCE LINES 1187-1294
 
 .. code-block:: Python
 
@@ -1273,6 +1294,8 @@ Scatter strategies
 
         values: np.ndarray
         scale: float | None
+        # Diagnostic only: the fraction of raw SIMIND total bins that are not
+        # positive. The pixel-wise division itself uses the smoothed total.
         zero_denominator_fraction: float
 
 
@@ -1288,9 +1311,16 @@ Scatter strategies
         ``raw`` holds the unmodified ``all_interactions`` and
         ``geom_coll_primary`` arrays on the common physical count scale. The
         returned additive is a new array; the raw components are not modified.
+        With smoothing, the pixel-wise strategy smooths the simulated scatter and
+        total before dividing, then smooths the scaled result again.
         """
         total = np.asarray(raw["all_interactions"], dtype=np.float64)
         primary = np.asarray(raw["geom_coll_primary"], dtype=np.float64)
+        if primary.shape != total.shape:
+            raise ValueError(
+                f"geom_coll_primary shape {primary.shape} does not match "
+                f"all_interactions shape {total.shape}"
+            )
         scatter = total - primary
         scale = 1.0
         zero_fraction = 0.0
@@ -1310,20 +1340,39 @@ Scatter strategies
             scale = float(np.asarray(measured_array, float).sum() / total_sum)
             additive = scatter * scale
         elif kind == "pixelwise":
+            measured_values = np.asarray(measured_array, dtype=np.float64)
+            if measured_values.shape != total.shape:
+                raise ValueError(
+                    f"measured shape {measured_values.shape} does not match "
+                    f"all_interactions shape {total.shape}"
+                )
             denominator = total > 0.0
             zero_fraction = float((~denominator).mean())
+            numerator = scatter
+            denominator_values = total
+            if smoothing_fwhm_bins is not None:
+                # Smooth the MC scatter and its total before dividing. In the
+                # fixed-primary, noisy-scatter control, this pre-smoothing reduced
+                # the ratio noise of the summed estimate; how a noisy ratio behaves
+                # in general depends on the covariance between numerator and
+                # denominator, so that is an observation about the control, not a
+                # general claim about MC ratios, and it does not explain the
+                # unresolved 27% drift. The final smoothing below is retained.
+                numerator = smooth_scatter(numerator, smoothing_fwhm_bins)
+                denominator_values = smooth_scatter(denominator_values, smoothing_fwhm_bins)
             fraction = np.divide(
-                scatter,
-                total,
-                out=np.zeros_like(scatter),
-                where=denominator,
+                numerator,
+                denominator_values,
+                out=np.zeros_like(numerator, dtype=float),
+                where=denominator_values > 0.0,
             )
-            additive = np.asarray(measured_array, float) * fraction
+            additive = measured_values * fraction
             scale = None
         else:
             raise ValueError(f"unknown strategy {kind!r}")
 
-        additive = smooth_scatter(additive, smoothing_fwhm_bins)
+        if smoothing_fwhm_bins is not None:
+            additive = smooth_scatter(additive, smoothing_fwhm_bins)
         return Additive(
             values=additive.astype(np.float32),
             scale=scale,
@@ -1351,12 +1400,12 @@ Scatter strategies
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1246-1248
+.. GENERATED FROM PYTHON SOURCE LINES 1295-1297
 
 Reconstruction schedule
 -----------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1248-1354
+.. GENERATED FROM PYTHON SOURCE LINES 1297-1403
 
 .. code-block:: Python
 
@@ -1473,12 +1522,12 @@ Reconstruction schedule
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1355-1357
+.. GENERATED FROM PYTHON SOURCE LINES 1404-1406
 
 SIRF and SIMIND run-time helpers
 --------------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1357-1450
+.. GENERATED FROM PYTHON SOURCE LINES 1406-1499
 
 .. code-block:: Python
 
@@ -1582,12 +1631,12 @@ SIRF and SIMIND run-time helpers
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1451-1453
+.. GENERATED FROM PYTHON SOURCE LINES 1500-1502
 
 SIMIND job
 ----------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1453-1777
+.. GENERATED FROM PYTHON SOURCE LINES 1502-1826
 
 .. code-block:: Python
 
@@ -1922,12 +1971,12 @@ SIMIND job
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1778-1780
+.. GENERATED FROM PYTHON SOURCE LINES 1827-1829
 
 Templates and measured data
 ---------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1780-1832
+.. GENERATED FROM PYTHON SOURCE LINES 1829-1881
 
 .. code-block:: Python
 
@@ -1990,11 +2039,11 @@ Templates and measured data
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1833-1834
+.. GENERATED FROM PYTHON SOURCE LINES 1882-1883
 
 Figures
 
-.. GENERATED FROM PYTHON SOURCE LINES 1834-2066
+.. GENERATED FROM PYTHON SOURCE LINES 1883-2115
 
 .. code-block:: Python
 
@@ -2237,12 +2286,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 2067-2069
+.. GENERATED FROM PYTHON SOURCE LINES 2116-2118
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 2069-3002
+.. GENERATED FROM PYTHON SOURCE LINES 2118-3051
 
 .. code-block:: Python
 
@@ -3256,26 +3305,381 @@ Run the tutorial
     SIMIND source support: 15948 voxels, 1231.0 mL
     Measured projections: (1, 128, 120, 128), sum 3783028.0
     Generating the independent attenuation-only reference reconstruction
-    Reference: 155.3 s, max 4.440, sum 95176.0
+    Reference: 115.3 s, max 4.440, sum 95176.0
     Reference hot-sphere centroid: [ -77.43 -181.69 -576.2 ] mm at voxel [64.52 53.71 45.78] (peak (63, 52, 45)); accepted centre (-77.43, -181.69, -576.2), difference 0.00 mm
     Sphere: 8.092 mL, centroid [ -77.43 -181.7  -576.21] mm
     Liver ex sphere: 978.17 mL, centroid [ -31.97 -172.15 -596.65] mm
     True liver mass 1149.49 g; the CT VOI is 14.9% smaller under the 1 g/mL approximation
     Dividing sampled liver activity by 1149.49 g instead of the VOI volume would inflate the ratio by 1.175x (4.0 -> 4.70)
     Building the reconstruction model and running the common pass
-      reusing cached SIMIND realization shared_refresh
-      reusing cached SIMIND realization Known activity
-      reusing cached SIMIND realization Reference, sum
-      reusing cached SIMIND realization Reference, trimmed
-      reusing cached SIMIND realization Dewaraja, global
-      reusing cached SIMIND realization Dewaraja, pixel-wise
-    Shared first-refresh SIMIND run: 4791 s, quantization loss 0.00%
+    The phantom (545.0 mm across) is wider than the projection field of view (545.0 mm)
+    The phantom (545.0 mm axially) is longer than the projection field of view (545.0 mm)
+    
+
+
+
+                  SIMIND Monte Carlo Simulation Program    V8.0  
+    ------------------------------------------------------------------------------
+     Phantom S : h2o       Crystal...: nai       InputFile.: shared_refresh    
+     Phantom B : bone      BackScatt.: pmt       OutputFile: shared_refresh    
+     Collimator: pb_sb2    SourceRout: smap      SourceImg.: shared_refresh_src
+     Cover.....: al        ScoreRout.: penetrate DensityImg: shared_refresh_dns
+    ------------------------------------------------------------------------------
+     PhotonEnergy.......: 150          y90       PhotonsPerProj....: 2217716        
+     EnergyResolution...: 9.2          ma-mleg   Activity..........: 6432           
+     MaxScatterOrder....: 3            SPECT     DetectorLenght....: 21.25          
+     DetectorWidth......: 27           x-rays    DetectorHeight....: 0.95           
+     UpperEneWindowTresh: 225          BScatt    Distance to det...: 30             
+     LowerEneWindowTresh: 75           Random    ShiftSource X.....: 0              
+     PixelSize  I.......: 0.42578      Cover     ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.42578      Phantom   ShiftSource Z.....: 0              
+     HalfLength S.......: 27.249       Resolut   HalfLength P......: 27.249         
+     HalfWidth  S.......: 27.249       Forced    HalfWidth  P......: 27.249         
+     HalfHeight S.......: 27.249       Header    HalfHeight P......: 27.249         
+     SourceType.........: I2 GenMap              PhantomType.......: I2 GenMap    
+    ------------------------------------------------------------------------------
+                   Projection          Hits       Scatt/Tot    Progress
+  
+  
+                    1 of 120          666922        0.737          0 %
+                    1 of 120         1284466        0.721          0 %
+                    2 of 120          665756        0.724          1 %
+                    2 of 120         1283513        0.719          1 %
+                    3 of 120          665867        0.721          2 %
+                    3 of 120         1283178        0.720          2 %
+                    4 of 120          665999        0.721          2 %
+                    4 of 120         1282769        0.720          3 %
+                    5 of 120          666000        0.721          3 %
+                    5 of 120         1283643        0.720          4 %
+                    6 of 120          666600        0.722          4 %
+                    6 of 120         1284462        0.722          4 %
+                    7 of 120          666276        0.723          5 %
+                    7 of 120         1283555        0.722          5 %
+                    8 of 120          665510        0.724          6 %
+                    8 of 120         1282554        0.723          6 %
+                    9 of 120          666834        0.725          7 %
+                    9 of 120         1283547        0.724          7 %
+                   10 of 120          665173        0.725          7 %
+                   10 of 120         1282954        0.725          8 %
+                   11 of 120          665537        0.726          8 %
+                   11 of 120         1283456        0.726          9 %
+                   12 of 120          667110        0.727          9 %
+                   12 of 120         1285488        0.727          9 %
+                   13 of 120          666209        0.728         10 %
+                   13 of 120         1284099        0.728         10 %
+                   14 of 120          667081        0.729         11 %
+                   14 of 120         1284838        0.729         11 %
+                   15 of 120          666207        0.730         12 %
+                   15 of 120         1283806        0.730         12 %
+                   16 of 120          666074        0.731         12 %
+                   16 of 120         1283293        0.731         13 %
+                   17 of 120          665591        0.732         13 %
+                   17 of 120         1284949        0.732         14 %
+                   18 of 120          665533        0.733         14 %
+                   18 of 120         1281644        0.733         14 %
+                   19 of 120          666197        0.734         15 %
+                   19 of 120         1283856        0.734         15 %
+                   20 of 120          666556        0.735         16 %
+                   20 of 120         1282333        0.735         16 %
+                   21 of 120          666532        0.735         17 %
+                   21 of 120         1283127        0.736         17 %
+                   22 of 120          666516        0.736         17 %
+                   22 of 120         1284826        0.736         18 %
+                   23 of 120          665605        0.737         18 %
+                   23 of 120         1282280        0.737         19 %
+                   24 of 120          664779        0.737         19 %
+                   24 of 120         1281971        0.738         19 %
+                   25 of 120          665809        0.738         20 %
+                   25 of 120         1282458        0.738         20 %
+                   26 of 120          666536        0.739         21 %
+                   26 of 120         1284909        0.739         21 %
+                   27 of 120          666979        0.739         22 %
+                   27 of 120         1282863        0.739         22 %
+                   28 of 120          665842        0.739         22 %
+                   28 of 120         1283381        0.739         23 %
+                   29 of 120          666009        0.739         23 %
+                   29 of 120         1283138        0.739         24 %
+                   30 of 120          665349        0.740         24 %
+                   30 of 120         1282533        0.739         24 %
+                   31 of 120          665706        0.740         25 %
+                   31 of 120         1284295        0.739         25 %
+                   32 of 120          665437        0.739         26 %
+                   32 of 120         1282277        0.739         26 %
+                   33 of 120          667173        0.739         27 %
+                   33 of 120         1284820        0.739         27 %
+                   34 of 120          666082        0.739         27 %
+                   34 of 120         1282133        0.739         28 %
+                   35 of 120          665763        0.739         28 %
+                   35 of 120         1282780        0.738         29 %
+                   36 of 120          666296        0.738         29 %
+                   36 of 120         1283956        0.738         29 %
+                   37 of 120          664468        0.738         30 %
+                   37 of 120         1280825        0.738         30 %
+                   38 of 120          665251        0.738         31 %
+                   38 of 120         1282199        0.737         31 %
+                   39 of 120          664634        0.737         32 %
+                   39 of 120         1281694        0.737         32 %
+                   40 of 120          666054        0.737         32 %
+                   40 of 120         1283375        0.736         33 %
+                   41 of 120          663966        0.736         33 %
+                   41 of 120         1280851        0.735         34 %
+                   42 of 120          664141        0.735         34 %
+                   42 of 120         1280642        0.734         34 %
+                   43 of 120          665760        0.734         35 %
+                   43 of 120         1283373        0.733         35 %
+                   44 of 120          666929        0.732         36 %
+                   44 of 120         1283751        0.731         36 %
+                   45 of 120          666130        0.730         37 %
+                   45 of 120         1282696        0.729         37 %
+                   46 of 120          665730        0.729         37 %
+                   46 of 120         1282763        0.727         38 %
+                   47 of 120          663958        0.726         38 %
+                   47 of 120         1280125        0.725         39 %
+                   48 of 120          664858        0.724         39 %
+                   48 of 120         1281589        0.723         39 %
+                   49 of 120          666793        0.722         40 %
+                   49 of 120         1283938        0.721         40 %
+                   50 of 120          664672        0.720         41 %
+                   50 of 120         1281612        0.718         41 %
+                   51 of 120          665107        0.717         42 %
+                   51 of 120         1282010        0.716         42 %
+                   52 of 120          666703        0.715         42 %
+                   52 of 120         1282958        0.714         43 %
+                   53 of 120          664673        0.713         43 %
+                   53 of 120         1280392        0.711         44 %
+                   54 of 120          666272        0.710         44 %
+                   54 of 120         1281980        0.709         44 %
+                   55 of 120          665260        0.708         45 %
+                   55 of 120         1282237        0.707         45 %
+                   56 of 120          663221        0.706         46 %
+                   56 of 120         1279268        0.705         46 %
+                   57 of 120          664423        0.704         47 %
+                   57 of 120         1281159        0.703         47 %
+                   58 of 120          665135        0.702         47 %
+                   58 of 120         1282683        0.701         48 %
+                   59 of 120          665309        0.700         48 %
+                   59 of 120         1281038        0.699         49 %
+                   60 of 120          665140        0.698         49 %
+                   60 of 120         1282013        0.698         49 %
+                   61 of 120          664710        0.697         50 %
+                   61 of 120         1280566        0.696         50 %
+                   62 of 120          665718        0.695         51 %
+                   62 of 120         1281560        0.694         51 %
+                   63 of 120          663959        0.694         52 %
+                   63 of 120         1282054        0.693         52 %
+                   64 of 120          664681        0.692         52 %
+                   64 of 120         1281141        0.692         53 %
+                   65 of 120          665161        0.691         53 %
+                   65 of 120         1281873        0.690         54 %
+                   66 of 120          665002        0.690         54 %
+                   66 of 120         1281182        0.689         54 %
+                   67 of 120          665666        0.688         55 %
+                   67 of 120         1281873        0.688         55 %
+                   68 of 120          665620        0.687         56 %
+                   68 of 120         1280234        0.687         56 %
+                   69 of 120          663704        0.686         57 %
+                   69 of 120         1280756        0.686         57 %
+                   70 of 120          663366        0.685         57 %
+                   70 of 120         1280480        0.685         58 %
+                   71 of 120          664622        0.684         58 %
+                   71 of 120         1280600        0.684         59 %
+                   72 of 120          664262        0.683         59 %
+                   72 of 120         1280955        0.683         59 %
+                   73 of 120          664928        0.683         60 %
+                   73 of 120         1281479        0.682         60 %
+                   74 of 120          666007        0.682         61 %
+                   74 of 120         1283060        0.681         61 %
+                   75 of 120          664608        0.681         62 %
+                   75 of 120         1282304        0.681         62 %
+                   76 of 120          663651        0.681         62 %
+                   76 of 120         1279996        0.680         63 %
+                   77 of 120          665613        0.680         63 %
+                   77 of 120         1282030        0.680         64 %
+                   78 of 120          665696        0.679         64 %
+                   78 of 120         1282279        0.679         64 %
+                   79 of 120          664716        0.679         65 %
+                   79 of 120         1280996        0.679         65 %
+                   80 of 120          665264        0.679         66 %
+                   80 of 120         1281561        0.678         66 %
+                   81 of 120          666243        0.678         67 %
+                   81 of 120         1281883        0.678         67 %
+                   82 of 120          665584        0.678         67 %
+                   82 of 120         1281520        0.678         68 %
+                   83 of 120          664297        0.677         68 %
+                   83 of 120         1281699        0.677         69 %
+                   84 of 120          664115        0.677         69 %
+                   84 of 120         1281492        0.677         69 %
+                   85 of 120          665706        0.677         70 %
+                   85 of 120         1282078        0.676         70 %
+                   86 of 120          664447        0.676         71 %
+                   86 of 120         1281882        0.676         71 %
+                   87 of 120          665716        0.676         72 %
+                   87 of 120         1282994        0.676         72 %
+                   88 of 120          664632        0.676         72 %
+                   88 of 120         1280944        0.676         73 %
+                   89 of 120          665086        0.676         73 %
+                   89 of 120         1281762        0.675         74 %
+                   90 of 120          665157        0.675         74 %
+                   90 of 120         1282034        0.675         74 %
+                   91 of 120          665559        0.675         75 %
+                   91 of 120         1283287        0.675         75 %
+                   92 of 120          665618        0.675         76 %
+                   92 of 120         1282552        0.675         76 %
+                   93 of 120          664958        0.675         77 %
+                   93 of 120         1281655        0.675         77 %
+                   94 of 120          666042        0.675         77 %
+                   94 of 120         1282455        0.675         78 %
+                   95 of 120          665172        0.675         78 %
+                   95 of 120         1282007        0.675         79 %
+                   96 of 120          665439        0.675         79 %
+                   96 of 120         1281577        0.675         79 %
+                   97 of 120          666282        0.675         80 %
+                   97 of 120         1281794        0.675         80 %
+                   98 of 120          665508        0.675         81 %
+                   98 of 120         1282517        0.675         81 %
+                   99 of 120          664140        0.675         82 %
+                   99 of 120         1280641        0.675         82 %
+                  100 of 120          667237        0.675         82 %
+                  100 of 120         1283778        0.675         83 %
+                  101 of 120          665984        0.675         83 %
+                  101 of 120         1283028        0.675         84 %
+                  102 of 120          665726        0.675         84 %
+                  102 of 120         1283738        0.675         84 %
+                  103 of 120          665437        0.675         85 %
+                  103 of 120         1281549        0.675         85 %
+                  104 of 120          665119        0.676         86 %
+                  104 of 120         1281759        0.676         86 %
+                  105 of 120          666430        0.676         87 %
+                  105 of 120         1283431        0.676         87 %
+                  106 of 120          664668        0.676         87 %
+                  106 of 120         1281564        0.676         88 %
+                  107 of 120          666570        0.676         88 %
+                  107 of 120         1282890        0.676         89 %
+                  108 of 120          665792        0.676         89 %
+                  108 of 120         1282499        0.676         89 %
+                  109 of 120          665029        0.677         90 %
+                  109 of 120         1281619        0.677         90 %
+                  110 of 120          665563        0.677         91 %
+                  110 of 120         1282322        0.677         91 %
+                  111 of 120          665779        0.677         92 %
+                  111 of 120         1282043        0.677         92 %
+                  112 of 120          666558        0.677         92 %
+                  112 of 120         1283224        0.677         93 %
+                  113 of 120          665785        0.677         93 %
+                  113 of 120         1282879        0.677         94 %
+                  114 of 120          666251        0.678         94 %
+                  114 of 120         1283530        0.678         94 %
+                  115 of 120          665825        0.678         95 %
+                  115 of 120         1283511        0.678         95 %
+                  116 of 120          666270        0.678         96 %
+                  116 of 120         1284103        0.678         96 %
+                  117 of 120          665345        0.678         97 %
+                  117 of 120         1283545        0.678         97 %
+                  118 of 120          665677        0.678         97 %
+                  118 of 120         1282305        0.679         98 %
+                  119 of 120          665802        0.679         98 %
+                  119 of 120         1282767        0.679         99 %
+                  120 of 120          666953        0.679         99 %
+                  120 of 120         1283801        0.679         99 %
+    ------------------------------------------------------------------------------
+     GENERAL DATA
+     keV/channel........: 4                      CutoffEnergy......: 0              
+     Photons/Bq.........: 0.03968                StartingAngle.....: 180            
+     CameraOffset X.....: 0                      CoverThickness....: 0.1            
+     CameraOffset Y.....: 0                      BackscatterThickn.: 5              
+     MatrixSize I.......: 128                    IntrinsicResolut..: 0.32           
+     MatrixSize J.......: 128                    AcceptanceAngle...: 5.10217        
+     Emission type......: 2                      Initial Weight....: 115.09088      
+     NN ScalingFactor...: 4                      Energy Channels...: 512            
+                                                                              
+     SPECT DATA
+     RotationMode.......: -360                   Nr of Projections.: 120            
+     RotationAngle......: 3                      Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 120            
+                                                                              
+     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     CollimatorCode.....: ma-mleg                CollimatorType....: Parallel 
+     HoleSize X.........: 0.19                   Distance X........: 0.05           
+     HoleSize Y.........: 0.21939                Distance Y........: 0.153          
+     CenterShift X......: 0.12                   X-Ray flag........: T              
+     CenterShift Y......: 0.20785                CollimThickness...: 2.8            
+     HoleShape..........: Hexagonal              Space Coll2Det....: 0              
+     CollDepValue [57]..: 0                      CollDepValue [58].: 0              
+     CollDepValue [59]..: 0                      CollDepValue [60].: 0              
+
+     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
+     Geometric..........:  83.02 %          83.64 %
+     Penetration........:  10.41 %           9.84 %
+     Scatter in collim..:   4.75 %           4.69 %
+     X-rays in collim...:   1.81 %           1.83 %
+                                                                              
+     K-photon1 74.16 keV:  40.36 %          50.92 %
+     K-photon2 85.36 keV:  15.41 %          49.08 %
+     K-photon3 26.27 keV:  35.69 %           0.00 %
+     K-photon4 29.83 keV:   8.54 %           0.00 %
+                                                                              
+     IMAGE-BASED PHANTOM DATA
+     RotationCentre.....:  65, 65                Bone definition...: 1170           
+     CT-Pixel size......: 0.42578                Slice thickness...: 0.42577        
+     StartImage.........: 1                      No of CT-Images...: 128            
+     MatrixSize I.......: 128                    CTmapOrientation..: 0              
+     MatrixSize J.......: 128                    StepSize..........: 0.1            
+     CenterPoint I......: 65                     ShiftPhantom X....: 0              
+     CenterPoint J......: 65                     ShiftPhantom Y....: 0              
+     CenterPoint K......: 65                     ShiftPhantom Z....: 0              
+                                                                              
+  
+    ------------------------------------------------------------------------------
+    PENETRATE ROUTINE - B=BackScatter, P=PhantomScatter
+
+                           Energy Window %      :      Total Spectrum %
+                     -B,-P  -B,+P  +B,-P   +B+P  -B,-P  -B,+P  +B,-P   +B+P
+     geometric....:  21.23  55.99   3.35   3.79  20.19  55.40   2.50   2.62
+     penetration..:   1.69   2.78   3.01   2.00   3.65   3.58   2.67   1.53
+     collim scatt.:   0.87   1.43   1.27   0.73   1.91   2.13   1.07   0.56
+     collim x-rays:   0.68   1.18   0.00   0.00   0.75   1.43   0.00   0.00
+                                                                              
+     INTERACTIONS IN THE CRYSTAL
+     MaxValue spectrum..: 0.6812E+05     
+     MaxValue projection: 9.790          
+     CountRate spectrum.: 0.1702E+05     
+     CountRate E-Window.: 8484.          
+                                                                              
+     SCATTER IN ENERGY WINDOW
+     Scatter/Primary....: 2.1152         
+     Scatter/Total......: 0.67899        
+     Scatter order 1....: 45.67 %        
+     Scatter order 2....: 33.01 %        
+     Scatter order 3....: 21.32 %        
+                                                                              
+     CALCULATED DETECTOR PARAMETERS
+     Efficiency E-window: 0.3605         
+     Efficiency spectrum: 0.7231         
+     Sensitivity Cps/MBq: 1.319          
+     Sensitivity Cpm/uCi: 2.9282         
+                                                                              
+     Simulation started.: 2026:11:07 02:04:09
+     Simulation stopped.: 2026:11:07 03:21:38
+     Elapsed time.......: 1 h, 17 m and 29 s
+     DetectorHits.......: 1407618        
+     DetectorHits/CPUsec: 303            
+                                                                              
+     OTHER INFORMATION
+     Test simulation
+     Compiled 2025:10:06 with intel Linux 
+     Current random number generator: ranmar
+     Energy resolution as function of 1/sqrt(E)
+     Header file: shared_refresh.h00
+     Linear angle sampling within acceptance angle
+     Inifile: simind.ini
+     Command: shared_refresh shared_refresh /NN:4/FI:y90/CC:ma-mlegp/PX:0.4257800102233887
+    Shared first-refresh SIMIND run: 4651 s, quantization loss 0.00%
     Second-refresh SIMIND runs (parallel):
-      Known activity: 3465 s
-      Reference, sum: 2790 s
-      Reference, trimmed: 2614 s
-      Dewaraja, global: 308 s
-      Dewaraja, pixel-wise: 4233 s
+      Known activity: 10218 s
+      Reference, sum: 9920 s
+      Reference, trimmed: 8771 s
+      Dewaraja, global: 1338 s
+      Dewaraja, pixel-wise: 10691 s
     Schedule: six SIMIND runs, two updates per corrected strategy, none for the baseline, 144 subiterations each
     Primary activity-concentration ratio (sphere/liver, truth 4.0):
       | Strategy | First corrected pass | Final ratio | Change |
@@ -3283,7 +3687,7 @@ Run the tutorial
       | Known activity | 1.640 | 1.719 | +4.79% |
       | Reference, sum | 1.671 | 1.703 | +1.90% |
       | Reference, trimmed | 1.676 | 1.699 | +1.39% |
-      | Dewaraja, pixel-wise | 1.610 | 1.658 | +2.95% |
+      | Dewaraja, pixel-wise | 1.608 | 1.643 | +2.15% |
       | Baseline | no refresh | 1.579 | - |
     Diagnostic arm (not quantitatively interpretable):
       | Diagnostic arm | First corrected-pass ratio | Final ratio | Interpretation |
@@ -3295,7 +3699,7 @@ Run the tutorial
       | Known activity | 0.344 | 42.5 | 24.20 | 24.7 | 160.80 |
       | Reference, sum | 0.408 | 50.5 | 29.00 | 29.6 | 160.80 |
       | Reference, trimmed | 0.404 | 49.9 | 28.72 | 29.4 | 160.80 |
-      | Dewaraja, pixel-wise | 0.938 | 116.0 | 68.42 | 70.0 | 160.80 |
+      | Dewaraja, pixel-wise | 0.824 | 101.8 | 60.64 | 62.0 | 160.80 |
       | Baseline | 0.533 | 65.8 | 40.78 | 41.7 | 160.80 |
       | Truth | 4.40 | 544.4 | 156.40 | 136.1 | 160.8 |
       The collapsed arm's calibrated values are retained in summary.json for diagnostics and are not compared with these compartment estimates.
@@ -3304,30 +3708,22 @@ Run the tutorial
       Known activity: nominal 1.719, 125-centre 0.986-2.051, ±1 1.295-2.022, ±2 0.986-2.051
       Reference, sum: nominal 1.703, 125-centre 1.050-1.923, ±1 1.353-1.923, ±2 1.050-1.923
       Reference, trimmed: nominal 1.699, 125-centre 1.042-1.922, ±1 1.349-1.922, ±2 1.042-1.922
-      Dewaraja, pixel-wise: nominal 1.658, 125-centre 1.188-1.791, ±1 1.404-1.791, ±2 1.188-1.791
-      combined: nominal 1.658-1.719, 125-centre 0.986-2.051, ±1 1.295-2.022, ±2 0.986-2.051
-      strategy ordering among the four corrected strategies changed in 108 of 125 centres; the baseline is not part of this count; no centre was selected
+      Dewaraja, pixel-wise: nominal 1.643, 125-centre 1.183-1.759, ±1 1.396-1.759, ±2 1.183-1.759
+      combined: nominal 1.643-1.719, 125-centre 0.986-2.051, ±1 1.295-2.022, ±2 0.986-2.051
+      strategy ordering among the four corrected strategies changed in 107 of 125 centres; the baseline is not part of this count; no centre was selected
     Statistical adequacy
       collapsed source(s), quantization gate not applicable: Dewaraja, global
       maximum source quantization loss: 0.18% (gate < 1%)
       independent-seed and history-doubling probes on the frozen source (native 120-view geometry)
-      reusing cached SIMIND realization seed_101
-      reusing cached SIMIND realization seed_202
-      reusing cached SIMIND realization nn_1
-      reusing cached SIMIND realization nn_2
-      reusing cached SIMIND realization nn_16_chunk_1
-      reusing cached SIMIND realization nn_16_chunk_2
-      reusing cached SIMIND realization nn_16_chunk_3
-      reusing cached SIMIND realization nn_16_chunk_4
       seed scatter total difference: 0.04% (gate <= 2%)
       seed smoothed-scatter relative L1: 3.19% (gate <= 5%)
       16x level: mean of four independent NN=4 realizations with seeds [301, 302, 303, 304] (same effective histories as one NN=16 run)
-      final-pass ratios at the history levels (history-doubling probe; native 120-view geometry at NN=4/8/16): Known activity 1.614/1.670/1.642, Reference, sum 0.042/0.070/0.056, Reference, trimmed 0.002/0.003/0.003, Dewaraja, pixel-wise 1.740/1.723/1.719
+      final-pass ratios at the history levels (history-doubling probe; native 120-view geometry at NN=4/8/16): Known activity 1.614/1.670/1.642, Reference, sum 0.042/0.070/0.056, Reference, trimmed 0.002/0.003/0.003, Dewaraja, pixel-wise 1.711/1.711/1.714
       largest NN ratio change NN=4->8: 80.12% (gate <= 2%); NN=8->16: 22.89% (gate <= 2%)
         Known activity: 3.45% / 1.68%
         Reference, sum: 65.64% / 20.08%
         Reference, trimmed: 80.12% / 22.89%
-        Dewaraja, pixel-wise: 0.96% / 0.24%
+        Dewaraja, pixel-wise: 0.03% / 0.15%
       collapsed arm excluded from the history-doubling gate: Dewaraja, global
       iteration-extension probe (two full iterations with the final term)
       largest ratio change after two more iterations: 0.89% (gate <= 2%)
@@ -3335,23 +3731,23 @@ Run the tutorial
         Known activity: 4.79% (gate <= 5%)
         Reference, sum: 1.90% (gate <= 5%)
         Reference, trimmed: 1.39% (gate <= 5%)
-        Dewaraja, pixel-wise: 2.95% (gate <= 5%)
+        Dewaraja, pixel-wise: 2.15% (gate <= 5%)
         Dewaraja, global: 4945.47% (diagnostic only; excluded from the gate)
     Scatter fractions of the measured counts:
       Known activity: first 10.6%, final 15.9%
       Reference, sum: first 14.5%, final 12.9%
       Reference, trimmed: first 15.5%, final 13.1%
-      Dewaraja, pixel-wise: first 31.3%, final 45.0%
+      Dewaraja, pixel-wise: first 47.1%, final 70.6%
       Dewaraja, global (diagnostic only): first 39.4%, final 59.5%
     Normalised final scatter-estimate differences (relative L1):
       Known acti Reference, Reference, Dewaraja, 
-      Known activity          0.000      0.025      0.026      0.823
-      Reference, sum          0.025      0.000      0.020      0.822
-      Reference, trimmed      0.026      0.020      0.000      0.822
-      Dewaraja, pixel-wi      0.823      0.822      0.822      0.000
+      Known activity          0.000      0.025      0.026      1.114
+      Reference, sum          0.025      0.000      0.020      1.114
+      Reference, trimmed      0.026      0.020      0.000      1.114
+      Dewaraja, pixel-wi      1.114      1.114      1.114      0.000
     Diagnostic scale: shared/measured 0.269, global factor 3.716, measured counts in zero-SIMIND bins 31.6%
-    SIMIND realizations: 14 of 14 loaded from a matching cached run (timings below are the recorded original runs)
-    Total wall time: 215.0 min
+    SIMIND realizations: 0 of 14 loaded from a matching cached run (timings below are the recorded original runs)
+    Total wall time: 1392.9 min
     Summary written to y90_mc_scatter
     WARNING: Statistical adequacy was not established; see UNACCEPTED.txt
 
@@ -3361,7 +3757,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (215 minutes 1.997 seconds)
+   **Total running time of the script:** (1392 minutes 55.862 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_18_y90_mc_scatter.py:

@@ -1346,14 +1346,14 @@ Run the tutorial
     Running the list-mode spectrum acquisition
     SIMIND command: simind y90_spectrum y90_spectrum /FI:y90/CC:ma-mlegp/PX:0.425780/OU:11
     Spectrum geometry: 24 views, 360 deg, 300 mm circular, 128 x 128 bins of 4.2578 mm, 75-225 keV
-    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 11.5 min; detector hits 928078; engine 0 h, 11 m and 30 s
+    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 11.9 min; detector hits 928078; engine 0 h, 11 m and 53 s
     Window weight 227115.8; .a00 226897.1; ratio 1.00096; .res count-rate ratio 1.00097
     Weighted mean energy: 125.6 keV; attenuation ratio to 150 keV: median 1.084
     Weighted map difference over the body: mean 0.01373 cm^-1, max 0.04273 cm^-1
     Measured acquisition shape: (1, 128, 120, 128)
     Measured counts: total 3783028, mean 1.924 per bin, maximum 32, nonzero fraction 0.632
-    Paired reconstruction: 19.5 min
-    Total runtime: 31.3 min
+    Paired reconstruction: 26.3 min
+    Total runtime: 38.6 min
     Outputs written to effective_energy
 
 
@@ -1362,7 +1362,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (31 minutes 18.872 seconds)
+   **Total running time of the script:** (38 minutes 36.699 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_17_y90_effective_energy.py:

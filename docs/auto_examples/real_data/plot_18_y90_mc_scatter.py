@@ -24,6 +24,18 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
    frozen sphere centre, and the results do not support a robust strategy
    ranking or a quantitative superiority claim.
 
+.. note::
+   The stored pixel-wise image and numbers were produced with the legacy order:
+   form SIMIND's scatter-to-total ratio first, then smooth. The 2.0.2 estimator
+   smooths SIMIND's scatter and total with the same Gaussian before dividing
+   and then smooths the result again. Those stored pixel-wise results are kept
+   for continuity but are superseded by the estimator change. The global
+   diagnostic is unaffected and stays separate. The roughly 27% pixel-wise
+   drift is a legacy observation from those pre-fix stored results; the
+   corrected estimator's effect on it has not been measured, and the drift
+   remains unresolved. The next check is a frozen-image comparison with an
+   independent SIMIND seed, not a claim that pre-smoothing fixes it.
+
 The history-doubling and independent-seed probes run on the native 120-view
 geometry at four, eight and sixteen times the base history multiplier, so they
 test convergence rather than a reduced-geometry surrogate. The run still does
@@ -60,9 +72,10 @@ The five corrections are:
    the measured data (Dewaraja et al., Med Phys 44:6364, 2017). This arm
    collapsed in this configuration; its image and ratio are kept as a
    diagnostic and are not compared with the compartment estimates.
-5. **Dewaraja, pixel-wise.** SIMIND's scatter fraction in each bin times the
-   measured data, as in the same paper, smoothed over 3 bins including the
-   view axis.
+5. **Dewaraja, pixel-wise.** SIMIND's scatter and matching total in each bin,
+   both smoothed over 3 bins including the view axis, form the ratio that is
+   multiplied by the measured data; the result is smoothed again. The stored
+   numbers below use the legacy ratio-first order and are superseded.
 
 The baseline reconstructs the same data with a zero additive term and no
 refresh.
@@ -1133,8 +1146,10 @@ def source_quantization_scale(source):
 def smooth_scatter(array, fwhm_bins=SMOOTHING_FWHM_BINS, across_views=True):
     """Gaussian-smooth a projection along axial, bin and optionally view axes.
 
-    The total is preserved. With ``across_views`` the view axis wraps, which
-    assumes the views cover 360 degrees.
+    The total is preserved when it stands clear of the rounding floor of the
+    sum; a zero-sum signed field keeps its smoothed values. With
+    ``across_views`` the view axis wraps, which assumes the views cover 360
+    degrees.
     """
     values = np.asarray(array, dtype=np.float64)
     sigma = [0.0] * values.ndim
@@ -1144,9 +1159,15 @@ def smooth_scatter(array, fwhm_bins=SMOOTHING_FWHM_BINS, across_views=True):
         sigma[-2] = sigma[-1]
         mode[-2] = "wrap"
     smoothed = gaussian_filter(values, sigma, mode=mode)
-    total = smoothed.sum()
-    if total != 0.0:
-        smoothed *= values.sum() / total
+    # Keep the original total, but only when it stands clear of the rounding
+    # floor of the sum: a cancelling signed field sums to about zero, and so
+    # does its smoothed version, so their ratio would be an arbitrary factor
+    # (zero erases the field).
+    original_sum = values.sum()
+    if abs(original_sum) > 1e-9 * np.abs(values).sum():
+        total = smoothed.sum()
+        if total != 0.0:
+            smoothed *= original_sum / total
     return smoothed.astype(np.float32)
 
 
@@ -1171,6 +1192,8 @@ class Additive:
 
     values: np.ndarray
     scale: float | None
+    # Diagnostic only: the fraction of raw SIMIND total bins that are not
+    # positive. The pixel-wise division itself uses the smoothed total.
     zero_denominator_fraction: float
 
 
@@ -1186,9 +1209,16 @@ def build_additive(
     ``raw`` holds the unmodified ``all_interactions`` and
     ``geom_coll_primary`` arrays on the common physical count scale. The
     returned additive is a new array; the raw components are not modified.
+    With smoothing, the pixel-wise strategy smooths the simulated scatter and
+    total before dividing, then smooths the scaled result again.
     """
     total = np.asarray(raw["all_interactions"], dtype=np.float64)
     primary = np.asarray(raw["geom_coll_primary"], dtype=np.float64)
+    if primary.shape != total.shape:
+        raise ValueError(
+            f"geom_coll_primary shape {primary.shape} does not match "
+            f"all_interactions shape {total.shape}"
+        )
     scatter = total - primary
     scale = 1.0
     zero_fraction = 0.0
@@ -1208,20 +1238,39 @@ def build_additive(
         scale = float(np.asarray(measured_array, float).sum() / total_sum)
         additive = scatter * scale
     elif kind == "pixelwise":
+        measured_values = np.asarray(measured_array, dtype=np.float64)
+        if measured_values.shape != total.shape:
+            raise ValueError(
+                f"measured shape {measured_values.shape} does not match "
+                f"all_interactions shape {total.shape}"
+            )
         denominator = total > 0.0
         zero_fraction = float((~denominator).mean())
+        numerator = scatter
+        denominator_values = total
+        if smoothing_fwhm_bins is not None:
+            # Smooth the MC scatter and its total before dividing. In the
+            # fixed-primary, noisy-scatter control, this pre-smoothing reduced
+            # the ratio noise of the summed estimate; how a noisy ratio behaves
+            # in general depends on the covariance between numerator and
+            # denominator, so that is an observation about the control, not a
+            # general claim about MC ratios, and it does not explain the
+            # unresolved 27% drift. The final smoothing below is retained.
+            numerator = smooth_scatter(numerator, smoothing_fwhm_bins)
+            denominator_values = smooth_scatter(denominator_values, smoothing_fwhm_bins)
         fraction = np.divide(
-            scatter,
-            total,
-            out=np.zeros_like(scatter),
-            where=denominator,
+            numerator,
+            denominator_values,
+            out=np.zeros_like(numerator, dtype=float),
+            where=denominator_values > 0.0,
         )
-        additive = np.asarray(measured_array, float) * fraction
+        additive = measured_values * fraction
         scale = None
     else:
         raise ValueError(f"unknown strategy {kind!r}")
 
-    additive = smooth_scatter(additive, smoothing_fwhm_bins)
+    if smoothing_fwhm_bins is not None:
+        additive = smooth_scatter(additive, smoothing_fwhm_bins)
     return Additive(
         values=additive.astype(np.float32),
         scale=scale,

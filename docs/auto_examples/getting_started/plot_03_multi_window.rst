@@ -329,11 +329,11 @@ window (``tot_w1`` to ``tot_w3``).
      Sensitivity Cps/MBq: 19.7881        
      Sensitivity Cpm/uCi: 43.9296        
                                                                               
-     Simulation started.: 2026:10:26 20:59:58
-     Simulation stopped.: 2026:10:26 22:47:24
-     Elapsed time.......: 1 h, 47 m and 26 s
+     Simulation started.: 2026:11:06 08:48:53
+     Simulation stopped.: 2026:11:06 09:47:47
+     Elapsed time.......: 0 h, 58 m and 54 s
      DetectorHits.......: 17391801       
-     DetectorHits/CPUsec: 2699           
+     DetectorHits/CPUsec: 4924           
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -407,7 +407,7 @@ windows are too noisy for a quantitative correction.
     TEW corrected projection sum: 22.900
     Clipped photopeak counts: 0.010%
     Clipped pixels: 13.452%
-    Elapsed: 6445 s
+    Elapsed: 3533 s
 
 
 
@@ -479,7 +479,7 @@ share a second scale. One scale for all five would hide the side windows.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (107 minutes 26.454 seconds)
+   **Total running time of the script:** (58 minutes 54.179 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_03_multi_window.py:
