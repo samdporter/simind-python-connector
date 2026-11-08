@@ -129,6 +129,7 @@ import json
 import os
 import shutil
 import sys
+import textwrap
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor
@@ -1990,7 +1991,13 @@ def save_reconstructions(path, images, titles, slice_index, vmax=None, title=Non
             if np.any(value > 0)
         )
     columns = len(raw_values)
-    figure, axes = plt.subplots(2, columns, figsize=(3.6 * columns, 7.2), squeeze=False)
+    figure, axes = plt.subplots(
+        2,
+        columns,
+        figsize=(max(5.0, 3.4 * columns), 7.2),
+        squeeze=False,
+        layout="constrained",
+    )
     for column, panel_title in enumerate(titles):
         for row, (prefix, value) in enumerate(
             (
@@ -2016,7 +2023,14 @@ def save_reconstructions(path, images, titles, slice_index, vmax=None, title=Non
         f"axial k={slice_index} through the physical hot-sphere position; "
         "top row raw, bottom row display-only 10 mm FWHM smoothing"
     )
-    figure.suptitle(heading if title is None else f"{title}\n{heading}")
+    title_text = heading if title is None else f"{title}\n{heading}"
+    wrap_width = 60 if columns == 1 else 70
+    wrapped_title = "\n".join(
+        line
+        for text_line in title_text.splitlines()
+        for line in (textwrap.wrap(text_line, width=wrap_width) or [""])
+    )
+    figure.suptitle(wrapped_title, fontsize=8.5 if columns == 1 else 11)
     figure.savefig(path, dpi=130, bbox_inches="tight")
     return vmax
 

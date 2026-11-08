@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**213:24.147** total execution time for 5 files **from auto_examples/real_data**:
+**227:47.489** total execution time for 5 files **from auto_examples/real_data**:
 
 .. container::
 
@@ -33,7 +33,7 @@ Computation times
      - Time
      - Mem (MB)
    * - :ref:`sphx_glr_auto_examples_real_data_plot_18_y90_mc_scatter.py` (``plot_18_y90_mc_scatter.py``)
-     - 139:26.220
+     - 153:49.562
      - 0.0
    * - :ref:`sphx_glr_auto_examples_real_data_plot_17_y90_effective_energy.py` (``plot_17_y90_effective_energy.py``)
      - 53:07.275

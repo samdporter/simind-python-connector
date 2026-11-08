@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**251:39.034** total execution time for 6 files **from auto_examples/getting_started**:
+**251:39.106** total execution time for 6 files **from auto_examples/getting_started**:
 
 .. container::
 
@@ -48,5 +48,5 @@ Computation times
      - 00:00.961
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_04_custom_config.py` (``plot_04_custom_config.py``)
-     - 00:00.292
+     - 00:00.365
      - 0.0

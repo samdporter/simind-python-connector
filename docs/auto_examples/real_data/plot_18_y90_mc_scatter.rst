@@ -143,7 +143,7 @@ The Y-90 phantom data are not published for download yet. Set
 Setup
 -----
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-385
+.. GENERATED FROM PYTHON SOURCE LINES 126-386
 
 .. code-block:: Python
 
@@ -153,6 +153,7 @@ Setup
     import os
     import shutil
     import sys
+    import textwrap
     import time
     import warnings
     from concurrent.futures import ProcessPoolExecutor
@@ -413,7 +414,7 @@ Setup
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 386-392
+.. GENERATED FROM PYTHON SOURCE LINES 387-393
 
 CT series and patient-to-SPECT frame
 ------------------------------------
@@ -422,7 +423,7 @@ The CT slices are not stored in spatial order and are sorted by
 patient-to-SPECT affine uses the NM detector centre in x and z and the CT
 table height in y; no origin is re-derived from the images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 392-543
+.. GENERATED FROM PYTHON SOURCE LINES 393-544
 
 .. code-block:: Python
 
@@ -584,7 +585,7 @@ table height in y; no origin is re-derived from the images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 544-551
+.. GENERATED FROM PYTHON SOURCE LINES 545-552
 
 Registration
 ------------
@@ -594,7 +595,7 @@ finite values, eroded once to keep the body/table boundary out of the edge
 correlation. The acceptance criterion is a Euclidean offset of at most one
 voxel. The measured offset is reported, not applied to the maps.
 
-.. GENERATED FROM PYTHON SOURCE LINES 551-736
+.. GENERATED FROM PYTHON SOURCE LINES 552-737
 
 .. code-block:: Python
 
@@ -790,7 +791,7 @@ voxel. The measured offset is reported, not applied to the maps.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 737-743
+.. GENERATED FROM PYTHON SOURCE LINES 738-744
 
 SIRF resampling
 ---------------
@@ -799,7 +800,7 @@ resampler's zero padding becomes -1000 HU. The reference is an empty image
 with the target SPECT affine and the identity transform is deliberate. The
 resampled array is transferred to a STIR image on the vendor grid.
 
-.. GENERATED FROM PYTHON SOURCE LINES 743-792
+.. GENERATED FROM PYTHON SOURCE LINES 744-793
 
 .. code-block:: Python
 
@@ -859,7 +860,7 @@ resampled array is transferred to a STIR image on the vendor grid.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 793-799
+.. GENERATED FROM PYTHON SOURCE LINES 794-800
 
 Liver VOI
 ---------
@@ -868,7 +869,7 @@ closed component of the wall on each CT slice, excluding the wall itself, air,
 the lung domes and other compartments. The mask is generated once from the CT,
 before any reconstruction, and is never changed by a strategy.
 
-.. GENERATED FROM PYTHON SOURCE LINES 799-945
+.. GENERATED FROM PYTHON SOURCE LINES 800-946
 
 .. code-block:: Python
 
@@ -1025,7 +1026,7 @@ before any reconstruction, and is never changed by a strategy.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 946-959
+.. GENERATED FROM PYTHON SOURCE LINES 947-960
 
 Metrics
 -------
@@ -1041,7 +1042,7 @@ and sphere. It is affected by recovery, spillover and the VOI uncertainty.
 The activities are those at the scan; no decay correction is applied, and
 +-2% is the supplied activity uncertainty only.
 
-.. GENERATED FROM PYTHON SOURCE LINES 959-1200
+.. GENERATED FROM PYTHON SOURCE LINES 960-1201
 
 .. code-block:: Python
 
@@ -1293,12 +1294,12 @@ The activities are those at the scan; no decay correction is applied, and
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1201-1203
+.. GENERATED FROM PYTHON SOURCE LINES 1202-1204
 
 Scatter strategies
 ------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1203-1310
+.. GENERATED FROM PYTHON SOURCE LINES 1204-1311
 
 .. code-block:: Python
 
@@ -1416,12 +1417,12 @@ Scatter strategies
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1311-1313
+.. GENERATED FROM PYTHON SOURCE LINES 1312-1314
 
 Reconstruction schedule
 -----------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1313-1419
+.. GENERATED FROM PYTHON SOURCE LINES 1314-1420
 
 .. code-block:: Python
 
@@ -1538,12 +1539,12 @@ Reconstruction schedule
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1420-1422
+.. GENERATED FROM PYTHON SOURCE LINES 1421-1423
 
 SIRF and SIMIND run-time helpers
 --------------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1422-1515
+.. GENERATED FROM PYTHON SOURCE LINES 1423-1516
 
 .. code-block:: Python
 
@@ -1647,12 +1648,12 @@ SIRF and SIMIND run-time helpers
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1516-1518
+.. GENERATED FROM PYTHON SOURCE LINES 1517-1519
 
 SIMIND job
 ----------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1518-1842
+.. GENERATED FROM PYTHON SOURCE LINES 1519-1843
 
 .. code-block:: Python
 
@@ -1987,12 +1988,12 @@ SIMIND job
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1843-1845
+.. GENERATED FROM PYTHON SOURCE LINES 1844-1846
 
 Templates and measured data
 ---------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1845-1897
+.. GENERATED FROM PYTHON SOURCE LINES 1846-1898
 
 .. code-block:: Python
 
@@ -2055,11 +2056,11 @@ Templates and measured data
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1898-1899
+.. GENERATED FROM PYTHON SOURCE LINES 1899-1900
 
 Figures
 
-.. GENERATED FROM PYTHON SOURCE LINES 1899-2175
+.. GENERATED FROM PYTHON SOURCE LINES 1900-2189
 
 .. code-block:: Python
 
@@ -2157,7 +2158,13 @@ Figures
                 if np.any(value > 0)
             )
         columns = len(raw_values)
-        figure, axes = plt.subplots(2, columns, figsize=(3.6 * columns, 7.2), squeeze=False)
+        figure, axes = plt.subplots(
+            2,
+            columns,
+            figsize=(max(5.0, 3.4 * columns), 7.2),
+            squeeze=False,
+            layout="constrained",
+        )
         for column, panel_title in enumerate(titles):
             for row, (prefix, value) in enumerate(
                 (
@@ -2183,7 +2190,14 @@ Figures
             f"axial k={slice_index} through the physical hot-sphere position; "
             "top row raw, bottom row display-only 10 mm FWHM smoothing"
         )
-        figure.suptitle(heading if title is None else f"{title}\n{heading}")
+        title_text = heading if title is None else f"{title}\n{heading}"
+        wrap_width = 60 if columns == 1 else 70
+        wrapped_title = "\n".join(
+            line
+            for text_line in title_text.splitlines()
+            for line in (textwrap.wrap(text_line, width=wrap_width) or [""])
+        )
+        figure.suptitle(wrapped_title, fontsize=8.5 if columns == 1 else 11)
         figure.savefig(path, dpi=130, bbox_inches="tight")
         return vmax
 
@@ -2346,12 +2360,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 2176-2178
+.. GENERATED FROM PYTHON SOURCE LINES 2190-2192
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 2178-3112
+.. GENERATED FROM PYTHON SOURCE LINES 2192-3126
 
 .. code-block:: Python
 
@@ -3366,7 +3380,7 @@ Run the tutorial
     SIMIND source support: 15948 voxels, 1231.0 mL
     Measured projections: (1, 128, 120, 128), sum 3783028.0
     Generating the independent attenuation-only reference reconstruction
-    Reference: 84.2 s, max 4.440, sum 95176.0
+    Reference: 107.3 s, max 4.440, sum 95176.0
     Reference hot-sphere centroid: [ -77.43 -181.69 -576.2 ] mm at voxel [64.52 53.71 45.78] (peak (63, 52, 45)); accepted centre (-77.43, -181.69, -576.2), difference 0.00 mm
     Sphere: 8.092 mL, centroid [ -77.43 -181.7  -576.21] mm
     Liver ex sphere: 978.17 mL, centroid [ -31.97 -172.15 -596.65] mm
@@ -3461,7 +3475,7 @@ Run the tutorial
       Dewaraja, pixel-wi      1.114      1.114      1.114      0.000
     Diagnostic scale: shared/measured 0.269, global factor 3.716, measured counts in zero-SIMIND bins 31.6%
     SIMIND realizations: 14 of 14 loaded from a matching cached run (timings below are the recorded original runs)
-    Total wall time: 139.4 min
+    Total wall time: 153.8 min
     Summary written to y90_mc_scatter
     WARNING: Statistical adequacy was not established; see UNACCEPTED.txt
 
@@ -3471,7 +3485,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (139 minutes 26.220 seconds)
+   **Total running time of the script:** (153 minutes 49.562 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_18_y90_mc_scatter.py:

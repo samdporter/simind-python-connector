@@ -174,10 +174,10 @@ A 180 degree acquisition from RAO to LPO with 32 views and a camera offset.
 
 Compare the edits
 -----------------
-The figure below reads the edited values back from the two collimator
+The thumbnail reads the edited values back from the two collimator
 configurations. It is a compact illustration of the settings above, not a
-simulation or a performance claim. The same image is the gallery thumbnail;
-the page itself is declared as a zero-figure page.
+simulation or a performance claim. The image is used only as the gallery
+thumbnail; the page itself is declared as a zero-figure page.
 
 .. GENERATED FROM PYTHON SOURCE LINES 93-128
 
@@ -292,7 +292,7 @@ the connector warns and runs the phantom from Index 14/15.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.292 seconds)
+   **Total running time of the script:** (0 minutes 0.365 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_04_custom_config.py:

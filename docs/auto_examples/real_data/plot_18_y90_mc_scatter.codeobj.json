@@ -3199,6 +3199,22 @@
    "name": "platform"
   }
  ],
+ "textwrap.wrap": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "textwrap",
+   "module_short": "textwrap",
+   "name": "wrap"
+  }
+ ],
  "time.perf_counter": [
   {
    "is_class": false,

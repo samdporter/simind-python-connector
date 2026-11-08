@@ -86,10 +86,10 @@ cardiac_config.export_yaml(str(cardiac_yaml))
 # %%
 # Compare the edits
 # -----------------
-# The figure below reads the edited values back from the two collimator
+# The thumbnail reads the edited values back from the two collimator
 # configurations. It is a compact illustration of the settings above, not a
-# simulation or a performance claim. The same image is the gallery thumbnail;
-# the page itself is declared as a zero-figure page.
+# simulation or a performance claim. The image is used only as the gallery
+# thumbnail; the page itself is declared as a zero-figure page.
 
 comparison = {
     "LEHR": lehr_config,
