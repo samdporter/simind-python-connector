@@ -3,9 +3,8 @@
 Testing
 =======
 
-This document explains the testing strategy for simind-python-connector, which handles the
-challenge of testing code that depends on optional external dependencies (SIRF,
-STIR, SIMIND, and PyTomography) that may not be available in every
+This page explains how the test suite handles optional external dependencies
+(SIRF, STIR, SIMIND, and PyTomography) that may not be available in every
 environment.
 
 Test Organization
@@ -174,10 +173,10 @@ statistics:
 * **Smoke** (default) - 16x16x16 grid, 8 views,
   ``quantization_scale=0.02 x (500 / 32767)``, correlation > 0.5, centre gap
   <= 1 bin. Fast enough for a local smoke check.
-* **Full** (``SIMIND_A3_FULL_VALIDATION=1``; the ``A3`` in the variable name is
-  historical) - 64x64x64 grid, 60 views, the default ``quantization_scale``
-  (the legacy 500-history budget), correlation > 0.9, centre gap <= 1 bin. This
-  is the full release gate.
+* **Full** (``SIMIND_A3_FULL_VALIDATION=1``; ``A3`` is retained in the variable
+  name for compatibility) - 64x64x64 grid, 60 views, the default
+  ``quantization_scale`` (a 500-history budget), correlation > 0.9, centre gap
+  <= 1 bin. This is the full release gate.
 
 The grid, view count, phantom offsets, template and thresholds are all derived
 from the selected profile, and each run prints the profile, its settings and the

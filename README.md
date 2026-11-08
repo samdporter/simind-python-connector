@@ -38,7 +38,7 @@ SIMIND v8 is the supported engine for this release. The connector uses the
 version to place voxel source and density maps in the same physical
 coordinates; the default is version 8. A constructor's `simind_version`
 overrides `SIMIND_VERSION`. V9 selection remains experimental and unvalidated
-(planned for 2.1.0); the v9.0 Linux build is known to fail in SCATTWIN.
+(planned for 2.1.0); the v9.0 Linux build can fail in SCATTWIN.
 
 Use the installed connector directly:
 
@@ -84,6 +84,8 @@ phantomgen package; the install command is in the tutorial.
 - `examples/real_data/plot_16a` / `16b` / `16c`: CT-to-SPECT conversion with
   STIR / SIRF / PyTomography for the measured Y-90 phantom.
 - `examples/real_data/plot_17`: the Y-90 effective attenuation energy with SIRF.
+- `examples/real_data/plot_18`: Monte Carlo scatter strategies on the Y-90
+  phantom with SIRF.
 
 The real-data pages are rendered case studies on restricted Y-90 input, not
 reproducible tutorials. See [datasets](docs/datasets.rst) for the availability

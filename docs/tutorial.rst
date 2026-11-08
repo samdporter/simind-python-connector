@@ -206,8 +206,8 @@ Read them in this order:
    - :doc:`CT conversion with PyTomography
      <auto_examples/real_data/plot_16c_pytomography_ct_conversion>`
 
-   Each page uses only its own backend. The SIRF route is the reusable
-   one; the later case studies take their CT preparation from it.
+   Each page uses only its own backend. The later case studies take their CT
+   preparation from the SIRF route.
 
 3. The :doc:`Y-90 effective energy case study
    <auto_examples/real_data/plot_17_y90_effective_energy>` (SIRF) compares two
@@ -217,8 +217,8 @@ Read them in this order:
    the pair is a model comparison, not an accuracy ranking.
 
 4. The :doc:`Monte Carlo scatter case study
-   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) is an audited
-   diagnostic negative result, not a passing quantitative tutorial. It compares
+   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) is a diagnostic
+   negative result, not a passing quantitative tutorial. It compares
    Monte Carlo scatter strategies on a common reconstruction schedule, but the
    global-scaling arm collapsed and is not quantitatively interpretable, the
    nominal sphere-to-liver ratios are centre-sensitive and do not support a
