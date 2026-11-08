@@ -20,7 +20,7 @@ from _gallery import BACKENDS, execution_pattern, record_gallery_build  # noqa: 
 project = "simind-python-connector"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-release = "2.0.1"
+release = "2.0.2"
 for dist_name in ("simind-python-connector",):
     try:
         release = importlib_metadata.version(dist_name)

@@ -7,6 +7,68 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+2.0.2 - 2026-11-08
+-------------------
+
+A documentation, gallery and correctness release on the 2.0.1 code base. It
+states the supported engine, raises the example statistics to publication
+quality, publishes the real-data reconstruction comparisons, and fixes the
+pixel-wise Dewaraja scatter estimator and the STIR OSEM image output.
+
+Compatibility
+~~~~~~~~~~~~~
+
+- SIMIND v8 is the supported engine. v9 remains experimental and unvalidated:
+  the v9.0 Linux build can abort or return silently corrupted projections, so
+  v9 qualification is planned for 2.1.0. The v9 failure-expectation tests, the
+  v9 validation tables and the support claims that depended on them are
+  removed.
+
+Documentation
+~~~~~~~~~~~~~
+
+- Gallery statistics are raised to publication quality. Examples 01, 02 (seed
+  reproducibility), 03 (TEW), 05 (SCATTWIN versus PENETRATE) and 09 are
+  rebuilt with their recorded settings, seeds and runtimes. Examples 10-15
+  are rebuilt on one cached high-precision SIMIND expectation, with
+  seed-to-seed uncertainty and Monte Carlo precision separated from Poisson
+  acquisition noise; example 12 draws the uncertainty bands its text
+  describes for the scale factors and the raw scatter sums.
+- The real-data tutorials gain matched reconstruction endpoints. Examples
+  16A/16B/16C compare no attenuation with the CT-derived 150 keV attenuation
+  map. Example 17 declares a matched 10 mm FWHM display treatment and keeps
+  the raw companions. Example 18 publishes the reconstruction comparisons at
+  the native 120 views with shared scales, a collapsed-global diagnostic
+  panel, profiles, scatter estimates and primary ratios, registration and
+  volume-of-interest overlays, and keeps its diagnostic negative-result
+  framing.
+- Example 18's simulation cache is keyed by the detected engine: the version
+  banner, the hashes of the serial and MPI executables and the content digest
+  of the data tree. A cache hit is refused when the tree is unhashed or the
+  engine is unknown.
+- A new gallery gate checks figure and provenance completeness, thumbnails,
+  notebooks and rendered HTML links. Example 18's missing figures would now
+  fail the release.
+- Public documentation and README prose no longer use internal process
+  framing.
+
+Fixed
+~~~~~
+
+- The Dewaraja pixel-wise scatter fraction pre-smooths the Monte Carlo
+  scatter and the total before dividing, removing the low bias that came from
+  dividing two noisy fields.
+- STIR OSEM no longer writes one Interfile image per subiteration into the
+  working directory; only the returned image is kept.
+
+Known limitations
+~~~~~~~~~~~~~~~~~
+
+- Example 18's hot sphere is present but not resolved as a separate peak in
+  the scatter-corrected display.
+- Example 13's residual arm and example 15's instability remain documented
+  negative and limited results, not validated improvements.
+
 2.0.1 - 2026-10-24
 -------------------
 
