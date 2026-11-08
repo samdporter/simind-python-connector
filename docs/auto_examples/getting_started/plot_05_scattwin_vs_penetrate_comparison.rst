@@ -39,7 +39,7 @@ Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 22-55
+.. GENERATED FROM PYTHON SOURCE LINES 22-54
 
 .. code-block:: Python
 
@@ -60,7 +60,6 @@ Check that SIMIND is installed and choose where the outputs are written.
         projection_view0,
         require_output_keys,
         source_weight_sum,
-        symmetric_limits,
         zero_history_fraction,
     )
 
@@ -83,7 +82,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 56-62
+.. GENERATED FROM PYTHON SOURCE LINES 55-61
 
 Build the phantom
 -----------------
@@ -92,7 +91,7 @@ activity confined to a hot sphere inside it. Zero voxels emit no histories,
 so the whole history budget goes to the sphere. The projection is one view of
 32 x 32 bins of 4 mm.
 
-.. GENERATED FROM PYTHON SOURCE LINES 62-97
+.. GENERATED FROM PYTHON SOURCE LINES 61-96
 
 .. code-block:: Python
 
@@ -138,7 +137,7 @@ so the whole history budget goes to the sphere. The projection is one view of
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 98-103
+.. GENERATED FROM PYTHON SOURCE LINES 97-102
 
 Define one simulation case
 --------------------------
@@ -146,7 +145,7 @@ Both cases use the same phantom, energy window, history budget and seed.
 Only the scoring routine and its required ``CA`` switch differ (1 is
 SCATTWIN, 4 is PENETRATE).
 
-.. GENERATED FROM PYTHON SOURCE LINES 103-144
+.. GENERATED FROM PYTHON SOURCE LINES 102-143
 
 .. code-block:: Python
 
@@ -198,12 +197,12 @@ SCATTWIN, 4 is PENETRATE).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 145-147
+.. GENERATED FROM PYTHON SOURCE LINES 144-146
 
 Run both routines
 -----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 147-199
+.. GENERATED FROM PYTHON SOURCE LINES 146-198
 
 .. code-block:: Python
 
@@ -390,11 +389,11 @@ Run both routines
      Sensitivity Cps/MBq: 2.1874         
      Sensitivity Cpm/uCi: 4.8561         
                                                                               
-     Simulation started.: 2026:11:06 09:47:48
-     Simulation stopped.: 2026:11:06 10:10:48
-     Elapsed time.......: 0 h, 23 m and 0 s
+     Simulation started.: 2026:11:08 01:55:42
+     Simulation stopped.: 2026:11:08 02:23:01
+     Elapsed time.......: 0 h, 27 m and 19 s
      DetectorHits.......: 124935         
-     DetectorHits/CPUsec: 91             
+     DetectorHits/CPUsec: 76             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -524,11 +523,11 @@ Run both routines
      Sensitivity Cps/MBq: 2.1874         
      Sensitivity Cpm/uCi: 4.8561         
                                                                               
-     Simulation started.: 2026:11:06 10:10:48
-     Simulation stopped.: 2026:11:06 10:33:58
-     Elapsed time.......: 0 h, 23 m and 10 s
+     Simulation started.: 2026:11:08 02:23:01
+     Simulation stopped.: 2026:11:08 02:50:22
+     Elapsed time.......: 0 h, 27 m and 21 s
      DetectorHits.......: 124935         
-     DetectorHits/CPUsec: 90             
+     DetectorHits/CPUsec: 76             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -549,20 +548,21 @@ Run both routines
     SCATTWIN count preservation: 0.00%
     PENETRATE count preservation: -0.00%
     Routine total difference: 0.000
-    Elapsed: 1380 s and 1391 s
+    Elapsed: 1640 s and 1641 s
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 200-205
+.. GENERATED FROM PYTHON SOURCE LINES 199-205
 
 Compare the projections
 -----------------------
-The total panels share one colour scale. The difference panel is centred on
-zero, so a small difference means the two routines scored the same hits on
-this one view.
+Both routines score the same simulated histories, so they return the same
+total counts on this view: the PENETRATE minus SCATTWIN difference is
+identically zero and is not plotted. The total panels share one colour scale;
+the component decomposition below shows where the routines do differ.
 
-.. GENERATED FROM PYTHON SOURCE LINES 205-232
+.. GENERATED FROM PYTHON SOURCE LINES 205-226
 
 .. code-block:: Python
 
@@ -571,9 +571,11 @@ this one view.
     pen_view0 = projection_view0(pen_total)
     difference_view0 = pen_view0 - scatt_view0
     projection_vmax = float(max(scatt_view0.max(), pen_view0.max()))
-    difference_limits = symmetric_limits(difference_view0)
+    print(
+        f"Largest PENETRATE minus SCATTWIN difference: {np.abs(difference_view0).max():.6g}"
+    )
 
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4), constrained_layout=True)
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
     axes[0].imshow(source[source.shape[0] // 2, :, :], cmap="viridis")
     axes[0].set_title("Input source")
     total_image = axes[1].imshow(scatt_view0, cmap="magma", vmin=0.0, vmax=projection_vmax)
@@ -581,14 +583,6 @@ this one view.
     fig.colorbar(total_image, ax=axes[1], shrink=0.8)
     axes[2].imshow(pen_view0, cmap="magma", vmin=0.0, vmax=projection_vmax)
     axes[2].set_title("PENETRATE total")
-    difference_image = axes[3].imshow(
-        difference_view0,
-        cmap="coolwarm",
-        vmin=difference_limits[0],
-        vmax=difference_limits[1],
-    )
-    axes[3].set_title("PENETRATE - SCATTWIN")
-    fig.colorbar(difference_image, ax=axes[3], shrink=0.8)
     for ax in axes:
         ax.axis("off")
     fig.savefig(output_dir / "routine_comparison.png", dpi=140)
@@ -597,15 +591,21 @@ this one view.
 
 
 .. image-sg:: /auto_examples/getting_started/images/sphx_glr_plot_05_scattwin_vs_penetrate_comparison_001.png
-   :alt: Input source, SCATTWIN total, PENETRATE total, PENETRATE - SCATTWIN
+   :alt: Input source, SCATTWIN total, PENETRATE total
    :srcset: /auto_examples/getting_started/images/sphx_glr_plot_05_scattwin_vs_penetrate_comparison_001.png
    :class: sphx-glr-single-img
 
 
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    Largest PENETRATE minus SCATTWIN difference: 0
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 233-240
+
+.. GENERATED FROM PYTHON SOURCE LINES 227-234
 
 Component decomposition
 -----------------------
@@ -615,7 +615,7 @@ its total. The groups are the geometric-collimated, septal-penetration,
 collimator-scatter and collimator-X-ray components, plus their backscatter
 partners.
 
-.. GENERATED FROM PYTHON SOURCE LINES 240-333
+.. GENERATED FROM PYTHON SOURCE LINES 234-327
 
 .. code-block:: Python
 
@@ -727,7 +727,7 @@ partners.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (46 minutes 11.415 seconds)
+   **Total running time of the script:** (54 minutes 42.333 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_05_scattwin_vs_penetrate_comparison.py:

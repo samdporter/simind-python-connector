@@ -36,7 +36,7 @@ different backend:
 
 All three sort the CT slices by ``ImagePositionPatient``, validate the series,
 register the CT-derived attenuation map to ``umap_zoomed``, and stop before
-writing accepted maps if the registration gate fails. The vendor attenuation
+writing maps if the registration gate fails. The vendor attenuation
 map has no recorded photon energy, so it is used only as a registration
 reference and is never converted to density.
 
@@ -54,10 +54,10 @@ The remaining two case studies use the same restricted data:
   accuracy reference.
 - ``plot_18_y90_mc_scatter.py`` (SIRF) compares Monte Carlo scatter strategies
   on a common reconstruction schedule and publishes the reconstructed-image
-  comparison, profiles, scatter estimates and overlays. It is an audited
-  diagnostic negative result, not a passing quantitative tutorial: the
+  comparison, profiles, scatter estimates and overlays. It is a diagnostic
+  negative result, not a passing quantitative tutorial: the
   global-scaling arm collapsed and is not quantitatively interpretable, the
-  nominal sphere-to-liver ratios are sensitive to the frozen sphere centre and
+  nominal sphere-to-liver ratios are sensitive to the fixed sphere centre and
   do not support a strategy ranking, and statistical adequacy was not
   established. The history probe reports NN=4, NN=8 and a chunked 16x level;
   the coarse 4-to-8 pair already fails, so the finer level cannot restore

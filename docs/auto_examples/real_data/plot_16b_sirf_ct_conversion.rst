@@ -37,22 +37,28 @@ in the SPECT frame with a linear identity transform. SIRF's resampler pads
 with zero, so the CT is written as ``HU + 1000`` and ``1000`` is subtracted
 afterwards; padding therefore arrives as -1000 HU, i.e. air.
 
+The SIRF resampler leaves low-level interpolation texture in the air region,
+visible as faint mottling in the density and attenuation maps; the STIR route is
+smoother. That texture is an artifact of the resampling, not anatomy.
+
 The page ends with a small matched reconstruction: the measured acquisition is
 reconstructed with no attenuation correction and with the CT-derived 150 keV
 map. The acquisition, initial support, subsets, subiterations and zero scatter
-are identical. This is a conversion sanity check, not an accuracy or ranking
-study. See :doc:`plot_17_y90_effective_energy` for the attenuation-energy
-comparison and :doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case
-study.
+are identical. The final figure shows the raw images and the same 10 mm FWHM
+Gaussian display smoothing applied to both arms, with the raw trace kept in the
+profile; the smoothing is display-only and is not part of the reconstruction.
+This is a conversion sanity check, not an accuracy or ranking study. See
+:doc:`plot_17_y90_effective_energy` for the attenuation-energy comparison and
+:doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case study.
 
-.. GENERATED FROM PYTHON SOURCE LINES 31-35
+.. GENERATED FROM PYTHON SOURCE LINES 37-41
 
 Setup
 -----
 The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
 pydicom, matplotlib, SciPy and nibabel.
 
-.. GENERATED FROM PYTHON SOURCE LINES 35-77
+.. GENERATED FROM PYTHON SOURCE LINES 41-89
 
 .. code-block:: Python
 
@@ -65,7 +71,7 @@ pydicom, matplotlib, SciPy and nibabel.
 
     import numpy as np
     import pydicom
-    from scipy.ndimage import binary_erosion
+    from scipy.ndimage import binary_erosion, gaussian_filter
     from scipy.ndimage import shift as shift_image
 
     from simind_python_connector.converters.attenuation import (
@@ -86,6 +92,12 @@ pydicom, matplotlib, SciPy and nibabel.
     RECON_SUBSETS = 12
     RECON_ITERATIONS = 4
     RECON_SUBITERATIONS = RECON_SUBSETS * RECON_ITERATIONS
+    # Display-only Gaussian smoothing, identical to the STIR and PyTomography
+    # routes. The measured acquisition has about two counts per projection bin, so
+    # the unregularised OSEM images are dominated by Poisson speckle. The raw panels
+    # are kept beside the smoothed ones; the reconstruction itself is unchanged.
+    DISPLAY_FWHM_MM = 10.0
+    DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_SIZE_MM
     HOT_SPHERE_CENTRE_MM = (-77.43, -181.69, -576.20)
 
 
@@ -105,7 +117,7 @@ pydicom, matplotlib, SciPy and nibabel.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 78-84
+.. GENERATED FROM PYTHON SOURCE LINES 90-96
 
 Read the CT series
 ------------------
@@ -114,7 +126,7 @@ coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
 i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted; oblique
 acquisitions would need a full direction matrix.
 
-.. GENERATED FROM PYTHON SOURCE LINES 84-198
+.. GENERATED FROM PYTHON SOURCE LINES 96-210
 
 .. code-block:: Python
 
@@ -239,7 +251,7 @@ acquisitions would need a full direction matrix.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 199-207
+.. GENERATED FROM PYTHON SOURCE LINES 211-219
 
 Patient-to-SPECT frame
 ----------------------
@@ -250,7 +262,7 @@ axis. The y position is not in the NM header; the CT table height (-140 mm)
 supplies it in the shared frame of reference. No origin is re-derived from
 the images and no recentring is applied.
 
-.. GENERATED FROM PYTHON SOURCE LINES 207-255
+.. GENERATED FROM PYTHON SOURCE LINES 219-267
 
 .. code-block:: Python
 
@@ -309,7 +321,7 @@ the images and no recentring is applied.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 256-280
+.. GENERATED FROM PYTHON SOURCE LINES 268-292
 
 Registration report
 -------------------
@@ -336,7 +348,7 @@ refines the peak to subvoxel precision when the fit is negative definite,
 finite and locally bounded; otherwise the integer estimate is kept. A failed
 gate stops the tutorial before any accepted map is written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 280-475
+.. GENERATED FROM PYTHON SOURCE LINES 292-487
 
 .. code-block:: Python
 
@@ -542,7 +554,7 @@ gate stops the tutorial before any accepted map is written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 476-485
+.. GENERATED FROM PYTHON SOURCE LINES 488-497
 
 SIRF resampling route
 ---------------------
@@ -554,7 +566,7 @@ already express the registration. The resampled array is transferred to a
 clone of the STIR target image and checked for an exact value match, so the
 same route can feed a reconstruction in the SPECT frame.
 
-.. GENERATED FROM PYTHON SOURCE LINES 485-534
+.. GENERATED FROM PYTHON SOURCE LINES 497-546
 
 .. code-block:: Python
 
@@ -614,12 +626,12 @@ same route can feed a reconstruction in the SPECT frame.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 535-537
+.. GENERATED FROM PYTHON SOURCE LINES 547-549
 
 Figures and summary
 -------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 537-724
+.. GENERATED FROM PYTHON SOURCE LINES 549-777
 
 .. code-block:: Python
 
@@ -734,7 +746,13 @@ Figures and summary
 
 
     def save_reconstruction_comparison(path, images, target_affine):
-        """Save the two matched reconstructions and a profile through the sphere."""
+        """Save raw and display-smoothed reconstructions and a sphere profile.
+
+        The display protocol shows the raw images and the same 10 mm FWHM Gaussian
+        smoothing applied to both arms. The smoothing is display-only and is not
+        part of either reconstruction. The profile keeps the raw single-voxel trace
+        beside the smoothed one.
+        """
         plt = _pyplot()
         centre_index = np.linalg.solve(
             target_affine, np.append(np.asarray(HOT_SPHERE_CENTRE_MM, float), 1.0)
@@ -743,26 +761,61 @@ Figures and summary
         j = int(round(centre_index[1]))
         names = list(images)
         arrays = [images[name] for name in names]
+        smoothed = [gaussian_filter(array, sigma=DISPLAY_SIGMA_VOX) for array in arrays]
         limit = max(
-            float(np.percentile(array[array > 0], 99.5)) for array in arrays if array.any()
+            float(np.percentile(array[array > 0], 99.5))
+            for array in smoothed
+            if array.any()
         )
-        figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
-        for axis, name, array in zip(axes[:2], names, arrays):
-            shown = axis.imshow(array[k], cmap="viridis", vmin=0.0, vmax=limit)
-            axis.set_title(name)
-            axis.axis("off")
-            figure.colorbar(shown, ax=axis, shrink=0.7, label="reconstructed value")
-        axes[2].plot(arrays[0][k, j], color="C0", label=names[0])
-        axes[2].plot(arrays[1][k, j], color="C1", label=names[1])
-        axes[2].set_xlabel("x (voxel)")
-        axes[2].set_ylabel("reconstructed value")
-        axes[2].set_title(f"Profile through the hot-sphere centre, k={k}")
-        axes[2].legend(fontsize=8)
+        short_names = {
+            "No attenuation correction": "no AC",
+            "CT 150 keV attenuation": "CT 150 keV",
+        }
+        figure = plt.figure(figsize=(11, 10), constrained_layout=True)
+        grid = figure.add_gridspec(3, 2)
+        raw_axes = [figure.add_subplot(grid[0, column]) for column in range(2)]
+        smooth_axes = [figure.add_subplot(grid[1, column]) for column in range(2)]
+        profile_axis = figure.add_subplot(grid[2, :])
+        image_axes = []
+        for axes, title, stack in (
+            (raw_axes, "Raw", arrays),
+            (smooth_axes, f"{DISPLAY_FWHM_MM:.0f} mm FWHM display-smoothed", smoothed),
+        ):
+            for axis, name, array in zip(axes, names, stack):
+                shown = axis.imshow(array[k], cmap="viridis", vmin=0.0, vmax=limit)
+                axis.set_title(f"{title}\n{short_names.get(name, name)}", fontsize=9)
+                axis.axis("off")
+                image_axes.append(axis)
+        figure.colorbar(
+            shown,
+            ax=image_axes,
+            shrink=0.6,
+            label="reconstructed value (shared raw and smoothed scale)",
+        )
+        for index, name in enumerate(names):
+            profile_axis.plot(
+                arrays[index][k, j],
+                color=f"C{index}",
+                linestyle=":",
+                linewidth=0.8,
+                label=f"{name}, raw",
+            )
+            profile_axis.plot(
+                smoothed[index][k, j],
+                color=f"C{index}",
+                linewidth=1.6,
+                label=f"{name}, display smoothed",
+            )
+        profile_axis.set_xlabel("x (voxel)")
+        profile_axis.set_ylabel("reconstructed value")
+        profile_axis.set_title(
+            f"Profile through the hot-sphere centre, k={k}; dotted is the raw trace"
+        )
+        profile_axis.legend(fontsize=8, ncol=2)
         figure.suptitle(
             f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
             "zero scatter, no PSF"
         )
-        figure.tight_layout()
         figure.savefig(path, dpi=130)
         return figure
 
@@ -817,12 +870,12 @@ Figures and summary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 725-727
+.. GENERATED FROM PYTHON SOURCE LINES 778-780
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 727-863
+.. GENERATED FROM PYTHON SOURCE LINES 780-916
 
 .. code-block:: Python
 
@@ -985,7 +1038,7 @@ Run the tutorial
     *
 
       .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_16b_sirf_ct_conversion_003.png
-         :alt: Matched OSEM, 12 subsets x 4 iterations, zero scatter, no PSF, No attenuation correction, CT 150 keV attenuation, Profile through the hot-sphere centre, k=65
+         :alt: Matched OSEM, 12 subsets x 4 iterations, zero scatter, no PSF, Raw no AC, Raw CT 150 keV, 10 mm FWHM display-smoothed no AC, 10 mm FWHM display-smoothed CT 150 keV, Profile through the hot-sphere centre, k=65; dotted is the raw trace
          :srcset: /auto_examples/real_data/images/sphx_glr_plot_16b_sirf_ct_conversion_003.png
          :class: sphx-glr-multi-img
 
@@ -1015,7 +1068,7 @@ Run the tutorial
     Offset (z, y, x): [0.215 0.144 0.145] voxels = [0.92 0.61 0.62] mm
     Euclidean: 0.296 voxels = 1.26 mm -> PASS
     Running the matched no-attenuation and CT-attenuation reconstructions
-    Matched reconstruction: 434.9 s
+    Matched reconstruction: 363.0 s
     Maps written to sirf
 
 
@@ -1024,7 +1077,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (10 minutes 55.541 seconds)
+   **Total running time of the script:** (8 minutes 47.168 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16b_sirf_ct_conversion.py:

@@ -366,7 +366,9 @@ for title in STRATEGIES:
 # Each strategy's last raw estimate against the true scatter: the sum, and the
 # sum of the absolute difference over the true sum. The additive term of the
 # last OSEM pass is a damped average of the estimates, so it is not what is
-# shown here.
+# shown here. The six ratio maps share a scale and look alike, so the final
+# panel adds the largest absolute percent deviation from the per-bin median of
+# the five strategy estimates, on a scale set by its 99th percentile.
 
 true_array = true_scatter
 last_estimates = {
@@ -383,8 +385,33 @@ for title, estimate in last_estimates.items():
 expected_array = expectation.counts
 central_view = true_array.shape[-2] // 2
 maps = {"True scatter": true_array, **last_estimates}
-fig, axes = plt.subplots(2, 3, figsize=(10, 6.5), constrained_layout=True)
-for ax, (title, scatter) in zip(axes.flat, maps.items()):
+# The six maps above share a scale and look alike. The extra panel shows where
+# the five strategies disagree: the largest absolute percent deviation from
+# their per-bin median, on a tight scale set by the 99th percentile.
+strategy_stack = np.stack([last_estimates[title] for title in STRATEGIES])
+strategy_median = np.median(strategy_stack, axis=0)
+# Percent deviation is only meaningful where the median estimate carries
+# signal. Masking the near-zero bins keeps a handful of empty edge bins from
+# setting a percent scale of millions and hiding the comparison.
+median_reference = float(np.percentile(strategy_median[strategy_median > 0], 99))
+median_floor = 0.05 * median_reference
+with np.errstate(divide="ignore", invalid="ignore"):
+    percent_deviation = np.where(
+        strategy_median > median_floor,
+        100.0 * (strategy_stack - strategy_median) / strategy_median,
+        np.nan,
+    )
+absolute_deviation = np.where(
+    np.isfinite(percent_deviation), np.abs(percent_deviation), -np.inf
+)
+strategy_spread = absolute_deviation.max(axis=0)
+strategy_spread[~np.isfinite(strategy_spread)] = np.nan
+finite_spread = strategy_spread[np.isfinite(strategy_spread)]
+spread_limit = max(float(np.percentile(finite_spread, 99)), 1.0)
+
+fig, axes = plt.subplots(2, 4, figsize=(13, 6.5), constrained_layout=True)
+flat = axes.ravel()
+for ax, (title, scatter) in zip(flat[:6], maps.items()):
     fraction = np.divide(
         scatter,
         expected_array,
@@ -394,7 +421,27 @@ for ax, (title, scatter) in zip(axes.flat, maps.items()):
     shown = ax.imshow(fraction[0][:, central_view, :], cmap="magma", vmin=0, vmax=1)
     ax.set_title(title)
     ax.axis("off")
-fig.colorbar(shown, ax=axes, label=f"scatter / expected counts, view {central_view}")
+deviation_shown = flat[6].imshow(
+    strategy_spread[0][:, central_view, :],
+    cmap="magma",
+    vmin=0,
+    vmax=spread_limit,
+)
+flat[6].set_title("Max deviation from strategy median")
+flat[6].axis("off")
+flat[7].axis("off")
+fig.colorbar(
+    shown,
+    ax=flat[:6].tolist(),
+    shrink=0.7,
+    label=f"scatter / expected counts, view {central_view}",
+)
+fig.colorbar(
+    deviation_shown,
+    ax=flat[6],
+    shrink=0.7,
+    label="max |strategy − median| (%)",
+)
 plt.show()
 
 fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)

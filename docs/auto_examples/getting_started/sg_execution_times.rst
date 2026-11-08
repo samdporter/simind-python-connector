@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**243:07.886** total execution time for 6 files **from auto_examples/getting_started**:
+**251:39.034** total execution time for 6 files **from auto_examples/getting_started**:
 
 .. container::
 
@@ -39,7 +39,7 @@ Computation times
      - 58:54.179
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_05_scattwin_vs_penetrate_comparison.py` (``plot_05_scattwin_vs_penetrate_comparison.py``)
-     - 46:11.415
+     - 54:42.333
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_01_basic_simulation.py` (``plot_01_basic_simulation.py``)
      - 45:48.983
@@ -48,5 +48,5 @@ Computation times
      - 00:00.961
      - 0.0
    * - :ref:`sphx_glr_auto_examples_getting_started_plot_04_custom_config.py` (``plot_04_custom_config.py``)
-     - 00:00.063
+     - 00:00.292
      - 0.0

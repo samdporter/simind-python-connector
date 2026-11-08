@@ -20,10 +20,12 @@ than silently resampled.
 The page ends with a small matched reconstruction: the measured acquisition is
 reconstructed with no attenuation correction and with the CT-derived 150 keV
 map. The acquisition, initial support, subsets, subiterations and zero scatter
-are identical. This is a conversion sanity check, not an accuracy or ranking
-study. See :doc:`plot_17_y90_effective_energy` for the attenuation-energy
-comparison and :doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case
-study.
+are identical. The final figure shows the raw images and the same 10 mm FWHM
+Gaussian display smoothing applied to both arms, with the raw trace kept in the
+profile; the smoothing is display-only and is not part of the reconstruction.
+This is a conversion sanity check, not an accuracy or ranking study. See
+:doc:`plot_17_y90_effective_energy` for the attenuation-energy comparison and
+:doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case study.
 """
 
 # %%
@@ -40,7 +42,7 @@ from pathlib import Path
 
 import numpy as np
 import pydicom
-from scipy.ndimage import binary_erosion
+from scipy.ndimage import binary_erosion, gaussian_filter
 from scipy.ndimage import shift as shift_image
 
 from simind_python_connector.converters.attenuation import (
@@ -60,6 +62,12 @@ ENERGY_KEV = 150.0
 RECON_SUBSETS = 12
 RECON_ITERATIONS = 4
 RECON_SUBITERATIONS = RECON_SUBSETS * RECON_ITERATIONS
+# Display-only Gaussian smoothing. The measured acquisition has about two
+# counts per projection bin, so the unregularised OSEM images are dominated by
+# Poisson speckle. The same 10 mm FWHM filter is applied to both arms and the
+# raw panels are kept beside it; the reconstruction itself is unchanged.
+DISPLAY_FWHM_MM = 10.0
+DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_SIZE_MM
 # Frozen hot-sphere centre from the independent attenuation-only reconstruction;
 # it is used to choose the displayed slice, not to fit anything.
 HOT_SPHERE_CENTRE_MM = (-77.43, -181.69, -576.20)
@@ -660,7 +668,13 @@ def reconstruct_pair(acquisition_file, target_header, hu_grid, attenuation):
 
 
 def save_reconstruction_comparison(path, images, target_affine):
-    """Save the two matched reconstructions and a profile through the sphere."""
+    """Save raw and display-smoothed reconstructions and a sphere profile.
+
+    The display protocol shows the raw images and the same 10 mm FWHM Gaussian
+    smoothing applied to both arms. The smoothing is display-only and is not
+    part of either reconstruction. The profile keeps the raw single-voxel trace
+    beside the smoothed one.
+    """
     plt = _pyplot()
     centre_index = np.linalg.solve(
         target_affine, np.append(np.asarray(HOT_SPHERE_CENTRE_MM, float), 1.0)
@@ -669,26 +683,61 @@ def save_reconstruction_comparison(path, images, target_affine):
     j = int(round(centre_index[1]))
     names = list(images)
     arrays = [images[name] for name in names]
+    smoothed = [gaussian_filter(array, sigma=DISPLAY_SIGMA_VOX) for array in arrays]
     limit = max(
-        float(np.percentile(array[array > 0], 99.5)) for array in arrays if array.any()
+        float(np.percentile(array[array > 0], 99.5))
+        for array in smoothed
+        if array.any()
     )
-    figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
-    for axis, name, array in zip(axes[:2], names, arrays):
-        shown = axis.imshow(array[k], cmap="viridis", vmin=0.0, vmax=limit)
-        axis.set_title(name)
-        axis.axis("off")
-        figure.colorbar(shown, ax=axis, shrink=0.7, label="reconstructed value")
-    axes[2].plot(arrays[0][k, j], color="C0", label=names[0])
-    axes[2].plot(arrays[1][k, j], color="C1", label=names[1])
-    axes[2].set_xlabel("x (voxel)")
-    axes[2].set_ylabel("reconstructed value")
-    axes[2].set_title(f"Profile through the hot-sphere centre, k={k}")
-    axes[2].legend(fontsize=8)
+    short_names = {
+        "No attenuation correction": "no AC",
+        "CT 150 keV attenuation": "CT 150 keV",
+    }
+    figure = plt.figure(figsize=(11, 10), constrained_layout=True)
+    grid = figure.add_gridspec(3, 2)
+    raw_axes = [figure.add_subplot(grid[0, column]) for column in range(2)]
+    smooth_axes = [figure.add_subplot(grid[1, column]) for column in range(2)]
+    profile_axis = figure.add_subplot(grid[2, :])
+    image_axes = []
+    for axes, title, stack in (
+        (raw_axes, "Raw", arrays),
+        (smooth_axes, f"{DISPLAY_FWHM_MM:.0f} mm FWHM display-smoothed", smoothed),
+    ):
+        for axis, name, array in zip(axes, names, stack):
+            shown = axis.imshow(array[k], cmap="viridis", vmin=0.0, vmax=limit)
+            axis.set_title(f"{title}\n{short_names.get(name, name)}", fontsize=9)
+            axis.axis("off")
+            image_axes.append(axis)
+    figure.colorbar(
+        shown,
+        ax=image_axes,
+        shrink=0.6,
+        label="reconstructed value (shared raw and smoothed scale)",
+    )
+    for index, name in enumerate(names):
+        profile_axis.plot(
+            arrays[index][k, j],
+            color=f"C{index}",
+            linestyle=":",
+            linewidth=0.8,
+            label=f"{name}, raw",
+        )
+        profile_axis.plot(
+            smoothed[index][k, j],
+            color=f"C{index}",
+            linewidth=1.6,
+            label=f"{name}, display smoothed",
+        )
+    profile_axis.set_xlabel("x (voxel)")
+    profile_axis.set_ylabel("reconstructed value")
+    profile_axis.set_title(
+        f"Profile through the hot-sphere centre, k={k}; dotted is the raw trace"
+    )
+    profile_axis.legend(fontsize=8, ncol=2)
     figure.suptitle(
         f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
         "zero scatter, no PSF"
     )
-    figure.tight_layout()
     figure.savefig(path, dpi=130)
     return figure
 

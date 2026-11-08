@@ -79,16 +79,17 @@ nema = nema_phantom.nema
 slice_z = nema_phantom.slice_z
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
-for ax, (title, image) in zip(
+for ax, (title, image, unit) in zip(
     axes,
     (
-        ("Activity (MBq per voxel)", nema.activity_mbq),
-        ("Density (g/cm³)", nema.density_g_cm3),
+        ("Activity", nema.activity_mbq, "MBq per voxel"),
+        ("Density", nema.density_g_cm3, "g/cm³"),
     ),
 ):
-    ax.imshow(image[slice_z], cmap="gray_r")
+    shown = ax.imshow(image[slice_z], cmap="gray_r")
     ax.set_title(title)
     ax.axis("off")
+    fig.colorbar(shown, ax=ax, shrink=0.7, label=unit)
 plt.show()
 
 activity_image = _nema.to_sirf_image(nema.activity_mbq)

@@ -36,7 +36,6 @@ from simind_python_connector.utils.projection_metrics import (
     projection_view0,
     require_output_keys,
     source_weight_sum,
-    symmetric_limits,
     zero_history_fraction,
 )
 
@@ -199,17 +198,20 @@ print(f"Elapsed: {scatt_seconds:.0f} s and {pen_seconds:.0f} s")
 # %%
 # Compare the projections
 # -----------------------
-# The total panels share one colour scale. The difference panel is centred on
-# zero, so a small difference means the two routines scored the same hits on
-# this one view.
+# Both routines score the same simulated histories, so they return the same
+# total counts on this view: the PENETRATE minus SCATTWIN difference is
+# identically zero and is not plotted. The total panels share one colour scale;
+# the component decomposition below shows where the routines do differ.
 
 scatt_view0 = projection_view0(scatt_total)
 pen_view0 = projection_view0(pen_total)
 difference_view0 = pen_view0 - scatt_view0
 projection_vmax = float(max(scatt_view0.max(), pen_view0.max()))
-difference_limits = symmetric_limits(difference_view0)
+print(
+    f"Largest PENETRATE minus SCATTWIN difference: {np.abs(difference_view0).max():.6g}"
+)
 
-fig, axes = plt.subplots(1, 4, figsize=(16, 4), constrained_layout=True)
+fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
 axes[0].imshow(source[source.shape[0] // 2, :, :], cmap="viridis")
 axes[0].set_title("Input source")
 total_image = axes[1].imshow(scatt_view0, cmap="magma", vmin=0.0, vmax=projection_vmax)
@@ -217,14 +219,6 @@ axes[1].set_title("SCATTWIN total")
 fig.colorbar(total_image, ax=axes[1], shrink=0.8)
 axes[2].imshow(pen_view0, cmap="magma", vmin=0.0, vmax=projection_vmax)
 axes[2].set_title("PENETRATE total")
-difference_image = axes[3].imshow(
-    difference_view0,
-    cmap="coolwarm",
-    vmin=difference_limits[0],
-    vmax=difference_limits[1],
-)
-axes[3].set_title("PENETRATE - SCATTWIN")
-fig.colorbar(difference_image, ax=axes[3], shrink=0.8)
 for ax in axes:
     ax.axis("off")
 fig.savefig(output_dir / "routine_comparison.png", dpi=140)

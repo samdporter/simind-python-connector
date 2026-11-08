@@ -649,31 +649,6 @@
    "name": "count_preservation_error"
   }
  ],
- "difference_image": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib.image",
-   "module_short": "matplotlib.image",
-   "name": "AxesImage"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "matplotlib",
-   "module_short": "matplotlib",
-   "name": "AxesImage"
-  }
- ],
- "difference_limits": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "tuple"
-  }
- ],
  "difference_view0": [
   {
    "is_class": false,
@@ -1600,22 +1575,6 @@
    "module": "simind_python_connector.utils.projection_metrics",
    "module_short": "simind_python_connector.utils.projection_metrics",
    "name": "source_weight_sum"
-  }
- ],
- "symmetric_limits": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "function"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "simind_python_connector.utils.projection_metrics",
-   "module_short": "simind_python_connector.utils.projection_metrics",
-   "name": "symmetric_limits"
   }
  ],
  "table": [

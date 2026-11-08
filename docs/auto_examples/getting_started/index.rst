@@ -81,7 +81,7 @@ Getting started
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Custom configuration</div>
+      <div class="sphx-glr-thumbnail-title"># sphinx_gallery_thumbnail_path = '_static/custom_config_summary.png'</div>
     </div>
 
 

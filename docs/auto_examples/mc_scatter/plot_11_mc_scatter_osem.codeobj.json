@@ -2366,6 +2366,15 @@
    "name": "builtin_function_or_method"
   }
  ],
+ "unit": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  }
+ ],
  "updater": [
   {
    "is_class": false,

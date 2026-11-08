@@ -9,9 +9,10 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
    coarse pair already fails: its largest change was 80.1%, and the
    known-activity ratio changed from 1.61 to 1.67 (3.45%, above the 2% gate).
    The reference-sum and reference-trimmed probe arms nearly collapsed
-   (sphere/liver ratios 0.042 and 0.070 at NN=4, 0.002 and 0.003 at NN=8), so
-   that maximum is dominated by those arms. The 16x level is the mean of four
-   independent NN=4 realizations (seeds 301-304), which is the same effective
+   (reference-sum 0.042 to 0.070 and reference-trimmed 0.002 to 0.003 from
+   NN=4 to NN=8), so that maximum is dominated by those arms. The 16x level is
+   the mean of four independent NN=4 realizations (seeds 301-304), which is the
+   same effective
    history budget as one NN=16 run and lets each chunk be cached; the 8-to-16
    changes are reported in the probe table. A pass there cannot repair the
    failed coarse pair, and the run does not establish adequacy. The
@@ -46,7 +47,15 @@ The figures below are published by Sphinx-Gallery: the uncorrected baseline
 and the four noncollapsed strategies on one shared display scale, the collapsed
 global arm in a separate diagnostic panel, the profiles through the physical
 hot-sphere centre, the scatter estimates and the primary ratio, and the
-registration and volume-of-interest overlays.
+registration and volume-of-interest overlays. Because the measured data have
+about two counts per projection bin, the unregularised OSEM images are dominated
+by Poisson speckle. The reconstruction panels therefore show the raw images and
+the same 10 mm FWHM Gaussian display smoothing used on the effective-energy
+page, and both rows share one scale set from the smoothed stack. The smoothing
+is display-only and is not part of any reconstruction. The profile is a 5 x 5
+voxel band mean through the fixed sphere column, with the raw single-voxel
+traces left faintly visible; it is not moved to a local maximum, and it does
+not establish that the sphere is resolved.
 
 Reconstruct a measured Y-90 phantom acquisition with SIRF OSEM and a SIMIND
 Monte Carlo scatter estimate, and compare four usable ways of putting that
@@ -213,6 +222,13 @@ NN16_SEEDS = (301, 302, 303, 304)
 QUANTIZATION_SCALE = 0.75 * DEFAULT_QUANTIZATION_SCALE
 MAX_QUANTIZATION_LOSS = 0.01
 SMOOTHING_FWHM_BINS = 3.0
+# Display-only Gaussian smoothing, the same treatment as plot_17. The measured
+# acquisition has about two counts per projection bin, so the unregularised
+# OSEM images are dominated by Poisson speckle. The raw images are kept beside
+# the smoothed ones and both share one scale; neither reconstruction uses this
+# filter.
+DISPLAY_FWHM_MM = 10.0
+DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_MM
 
 TABLE_ROW = 94
 GATE_VOXELS = 1.0
@@ -1953,29 +1969,53 @@ def save_voi_overlay(path, reference, liver, sphere, centre_voxel):
 
 
 def save_reconstructions(path, images, titles, slice_index, vmax=None, title=None):
+    """Show the raw reconstructions and identical display smoothing.
+
+    The top row is raw and the bottom row is the same 10 mm FWHM Gaussian
+    display smoothing applied to every strategy. The smoothing is display-only;
+    no reconstruction uses it. Both rows share one scale, set from the smoothed
+    stack so the strategy comparison is not dominated by Poisson speckle.
+    """
     plt = _pyplot()
     slice_index = int(slice_index)
-    values = [image[slice_index] for image in images]
+    raw_values = [image[slice_index] for image in images]
+    smoothed_values = [
+        gaussian_filter(image, sigma=DISPLAY_SIGMA_VOX)[slice_index] for image in images
+    ]
     shared = vmax is not None
     if vmax is None:
-        vmax = max(float(np.percentile(value[value > 0], 99.5)) for value in values)
-    columns = 3
-    rows = int(np.ceil(len(values) / columns))
-    figure, axes = plt.subplots(rows, columns, figsize=(4 * columns, 4 * rows))
-    for axis, panel_title, value in zip(np.ravel(axes), titles, values):
-        shown = axis.imshow(value, cmap="magma", vmin=0.0, vmax=vmax)
-        axis.set_title(panel_title)
-        axis.axis("off")
-    for axis in np.ravel(axes)[len(values) :]:
-        axis.axis("off")
+        vmax = max(
+            float(np.percentile(value[value > 0], 99.5))
+            for value in smoothed_values
+            if np.any(value > 0)
+        )
+    columns = len(raw_values)
+    figure, axes = plt.subplots(2, columns, figsize=(3.6 * columns, 7.2), squeeze=False)
+    for column, panel_title in enumerate(titles):
+        for row, (prefix, value) in enumerate(
+            (
+                ("Raw", raw_values[column]),
+                (
+                    f"Display-smoothed {DISPLAY_FWHM_MM:.0f} mm FWHM",
+                    smoothed_values[column],
+                ),
+            )
+        ):
+            axis = axes[row, column]
+            shown = axis.imshow(value, cmap="magma", vmin=0.0, vmax=vmax)
+            axis.set_title(f"{prefix}\n{panel_title}", fontsize=9)
+            axis.axis("off")
     scale = "same scale as the main panel" if shared else "shared across panels"
     figure.colorbar(
         shown,
-        ax=np.ravel(axes).tolist(),
-        shrink=0.7,
+        ax=axes.ravel().tolist(),
+        shrink=0.45,
         label=f"activity (0 to {vmax:.3g}; {scale})",
     )
-    heading = f"axial k={slice_index} through the physical hot-sphere position"
+    heading = (
+        f"axial k={slice_index} through the physical hot-sphere position; "
+        "top row raw, bottom row display-only 10 mm FWHM smoothing"
+    )
     figure.suptitle(heading if title is None else f"{title}\n{heading}")
     figure.savefig(path, dpi=130, bbox_inches="tight")
     return vmax
@@ -2011,24 +2051,44 @@ def save_scatter(path, additives):
 
 
 def save_profiles(path, images, centre_voxel):
+    """Plot a 5 x 5-voxel band mean through the fixed sphere column.
+
+    A single-voxel line through the unregularised images is dominated by
+    Poisson speckle. The solid traces average a 5 x 5 transverse band, which is
+    a presentation choice and is stated as such; the faint traces keep the raw
+    single-voxel data visible. The band stays centred on the fixed VOI column
+    and is not moved to a local maximum.
+    """
     plt = _pyplot()
-    figure, axis = plt.subplots(figsize=(8, 4.5))
+    figure, axis = plt.subplots(figsize=(9, 5))
+    k0 = int(round(float(centre_voxel[0])))
     row = int(round(float(centre_voxel[1])))
     column = int(round(float(centre_voxel[2])))
+    half_band = 2
     for index, (name, image) in enumerate(images.items()):
-        axis.plot(image[:, row, column], color=f"C{index}", label=name)
+        array = np.asarray(image)
+        raw = array[:, row, column]
+        band = array[
+            :,
+            row - half_band : row + half_band + 1,
+            column - half_band : column + half_band + 1,
+        ].mean(axis=(1, 2))
+        axis.plot(raw, color=f"C{index}", linewidth=0.7, alpha=0.45)
+        axis.plot(band, color=f"C{index}", linewidth=1.6, label=name)
     axis.axvline(
-        int(round(float(centre_voxel[0]))),
+        k0,
         color="0.5",
         linestyle=":",
         linewidth=1,
-        label="physical sphere slice",
+        label=f"fixed VOI centre k={k0}",
     )
     axis.set_xlabel("z voxel")
-    axis.set_ylabel("activity")
-    axis.set_title(f"Profiles through the hot-sphere column j={row}, i={column}")
+    axis.set_ylabel("activity (5 x 5 band mean; faint = single voxel)")
+    axis.set_title(
+        f"5 x 5 band mean through the fixed sphere column y={row}, x={column}"
+    )
 
-    axis.legend()
+    axis.legend(fontsize=8, ncol=2)
     figure.tight_layout()
     figure.savefig(path, dpi=130)
     return figure
@@ -2870,8 +2930,9 @@ def run(strict=True):
     # check passed (4.79%, gate 5%) and the two-iteration extension passed
     # (0.89%, gate 2%). The native-geometry history-doubling probe runs at
     # NN=4, 8 and 16. The coarse 4-to-8 pair fails at 80.1% because the
-    # reference-sum and reference-trimmed probe arms nearly collapsed (0.042
-    # versus 0.070 and 0.002 versus 0.003). The known-activity arm changed by
+    # reference-sum and reference-trimmed probe arms nearly collapsed
+    # (reference-sum 0.042 to 0.070 and reference-trimmed 0.002 to 0.003 from
+    # NN=4 to NN=8). The known-activity arm changed by
     # 3.45% (above the 2% gate) and the pixel-wise arm by 0.96% (within it),
     # far below the collapsed-arm changes. The 8-to-16 changes are printed with
     # the probe table; a pass there cannot repair the failed coarse pair.

@@ -8,6 +8,24 @@
    "name": "CTSeries"
   }
  ],
+ "DISPLAY_FWHM_MM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "DISPLAY_SIGMA_VOX": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float64"
+  }
+ ],
  "ENERGY_KEV": [
   {
    "is_class": false,
@@ -1017,6 +1035,22 @@
    "name": "solve"
   }
  ],
+ "np.log": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "log"
+  }
+ ],
  "np.max": [
   {
    "is_class": false,
@@ -1398,6 +1432,15 @@
    "module": "matplotlib",
    "module_short": "matplotlib",
    "name": "pyplot"
+  }
+ ],
+ "plt.figure": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "figure"
   }
  ],
  "plt.subplots": [

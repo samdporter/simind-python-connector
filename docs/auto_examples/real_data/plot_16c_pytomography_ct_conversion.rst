@@ -41,24 +41,31 @@ The project-derived/native attenuation comparison on this page is
 coefficients-only: it does not reconstruct with the all-zero native map, so it
 makes no claim about reconstruction consequences of that map.
 
+The resampled maps carry low-level interpolation texture in the air region,
+visible as faint mottling in the density and attenuation maps; the STIR route is
+smoother. That texture is an artifact of the resampling, not anatomy.
+
 The page ends with a small matched reconstruction: the measured acquisition is
 reconstructed with no attenuation correction and with the project-derived
 150 keV map. The acquisition, initial support, subsets, subiterations and zero
-scatter are identical. To fit the rotate+sum PyTomography system matrix in the
-example container, this endpoint uses every second view and bins the detector
-2 x 2; both arms use exactly the same reduced data. This is a conversion sanity
-check, not an accuracy or ranking study. See
+scatter are identical. The final figure shows the raw images and the same 10 mm
+FWHM Gaussian display smoothing applied to both arms, with the raw trace kept
+in the profile; the smoothing is display-only and is not part of the
+reconstruction. To fit the rotate+sum PyTomography system matrix in the example
+container, this endpoint uses every second view and bins the detector 2 x 2;
+both arms use exactly the same reduced data. This is a conversion sanity check,
+not an accuracy or ranking study. See
 :doc:`plot_17_y90_effective_energy` for the attenuation-energy comparison and
 :doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case study.
 
-.. GENERATED FROM PYTHON SOURCE LINES 37-41
+.. GENERATED FROM PYTHON SOURCE LINES 44-48
 
 Setup
 -----
 The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
 pydicom, matplotlib, SciPy and PyTomography.
 
-.. GENERATED FROM PYTHON SOURCE LINES 41-87
+.. GENERATED FROM PYTHON SOURCE LINES 48-100
 
 .. code-block:: Python
 
@@ -97,6 +104,12 @@ pydicom, matplotlib, SciPy and PyTomography.
     # directions; both attenuation arms use exactly the same reduced data.
     RECON_VIEW_STEP = 2
     RECON_BIN_FACTOR = 2
+    # Display-only Gaussian smoothing, identical to the STIR and SIRF routes. The
+    # measured acquisition has about two counts per projection bin, so the
+    # unregularised OSEM images are dominated by Poisson speckle. The raw panels are
+    # kept beside the smoothed ones; the reconstruction itself is unchanged.
+    DISPLAY_FWHM_MM = 10.0
+    DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_SIZE_MM
 
 
     def _shown(path):
@@ -115,7 +128,7 @@ pydicom, matplotlib, SciPy and PyTomography.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 88-93
+.. GENERATED FROM PYTHON SOURCE LINES 101-106
 
 Read the CT series
 ------------------
@@ -123,7 +136,7 @@ A voxel-centre affine maps grid indices ``(i, j, k)`` to patient LPS
 coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
 i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
-.. GENERATED FROM PYTHON SOURCE LINES 93-207
+.. GENERATED FROM PYTHON SOURCE LINES 106-220
 
 .. code-block:: Python
 
@@ -248,7 +261,7 @@ i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 208-215
+.. GENERATED FROM PYTHON SOURCE LINES 221-228
 
 Patient-to-SPECT frame
 ----------------------
@@ -258,7 +271,7 @@ in the NM header; the CT table height (-140 mm) supplies it in the shared
 frame of reference. No origin is re-derived from the images and no recentring
 is applied.
 
-.. GENERATED FROM PYTHON SOURCE LINES 215-263
+.. GENERATED FROM PYTHON SOURCE LINES 228-276
 
 .. code-block:: Python
 
@@ -317,7 +330,7 @@ is applied.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 264-288
+.. GENERATED FROM PYTHON SOURCE LINES 277-301
 
 Registration report
 -------------------
@@ -344,7 +357,7 @@ refines the peak to subvoxel precision when the fit is negative definite,
 finite and locally bounded; otherwise the integer estimate is kept. A failed
 gate stops the tutorial before any accepted map is written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 288-483
+.. GENERATED FROM PYTHON SOURCE LINES 301-496
 
 .. code-block:: Python
 
@@ -550,7 +563,7 @@ gate stops the tutorial before any accepted map is written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 484-500
+.. GENERATED FROM PYTHON SOURCE LINES 497-513
 
 PyTomography resampling route
 -----------------------------
@@ -569,7 +582,7 @@ origin and ignores the row direction and table height, placing the target
 outside the CT. That is a property of this header and version, not a general
 statement about Mediso data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 500-574
+.. GENERATED FROM PYTHON SOURCE LINES 513-587
 
 .. code-block:: Python
 
@@ -654,12 +667,12 @@ statement about Mediso data.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 575-577
+.. GENERATED FROM PYTHON SOURCE LINES 588-590
 
 Figures and summary
 -------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 577-847
+.. GENERATED FROM PYTHON SOURCE LINES 590-898
 
 .. code-block:: Python
 
@@ -853,14 +866,20 @@ Figures and summary
 
 
     def save_reconstruction_comparison(path, images):
-        """Save the two matched reconstructions and a profile through the sphere."""
+        """Save raw and display-smoothed reconstructions and a sphere profile.
+
+        The display protocol shows the raw images and the same 10 mm FWHM Gaussian
+        smoothing applied to both arms. The smoothing is display-only and is not
+        part of either reconstruction. The profile keeps the raw single-voxel trace
+        beside the smoothed one.
+        """
         plt = _pyplot()
         names = list(images)
         arrays = [images[name] for name in names]
         # PyTomography objects are (x, y, z). Pick the hottest axial slice and row
         # from a lightly smoothed copy so the same physical location is shown in
         # both arms.
-        smoothed = [gaussian_filter(array, sigma=2.0) for array in arrays]
+        smoothed = [gaussian_filter(array, sigma=DISPLAY_SIGMA_VOX) for array in arrays]
         reference = smoothed[1] if len(smoothed) > 1 else smoothed[0]
         _, j, k = np.unravel_index(int(np.argmax(reference)), reference.shape)
         limit = max(
@@ -868,23 +887,55 @@ Figures and summary
             for index in range(len(smoothed))
             if smoothed[index].any()
         )
-        figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
-        for axis, name, array in zip(axes[:2], names, arrays):
-            shown = axis.imshow(array[:, :, k].T, cmap="viridis", vmin=0.0, vmax=limit)
-            axis.set_title(name)
-            axis.axis("off")
-            figure.colorbar(shown, ax=axis, shrink=0.7, label="reconstructed value")
-        axes[2].plot(arrays[0][:, j, k], color="C0", label=names[0])
-        axes[2].plot(arrays[1][:, j, k], color="C1", label=names[1])
-        axes[2].set_xlabel("x (voxel)")
-        axes[2].set_ylabel("reconstructed value")
-        axes[2].set_title(f"Profile through the hot-sphere centre, j={j}, k={k}")
-        axes[2].legend(fontsize=8)
+        short_names = {
+            "No attenuation correction": "no AC",
+            "Project-derived 150 keV attenuation": "project-derived 150 keV",
+        }
+        figure = plt.figure(figsize=(11, 10), constrained_layout=True)
+        grid = figure.add_gridspec(3, 2)
+        raw_axes = [figure.add_subplot(grid[0, column]) for column in range(2)]
+        smooth_axes = [figure.add_subplot(grid[1, column]) for column in range(2)]
+        profile_axis = figure.add_subplot(grid[2, :])
+        image_axes = []
+        for axes, title, stack in (
+            (raw_axes, "Raw", arrays),
+            (smooth_axes, f"{DISPLAY_FWHM_MM:.0f} mm FWHM display-smoothed", smoothed),
+        ):
+            for axis, name, array in zip(axes, names, stack):
+                shown = axis.imshow(array[:, :, k].T, cmap="viridis", vmin=0.0, vmax=limit)
+                axis.set_title(f"{title}\n{short_names.get(name, name)}", fontsize=9)
+                axis.axis("off")
+                image_axes.append(axis)
+        figure.colorbar(
+            shown,
+            ax=image_axes,
+            shrink=0.6,
+            label="reconstructed value (shared raw and smoothed scale)",
+        )
+        for index, name in enumerate(names):
+            profile_axis.plot(
+                arrays[index][:, j, k],
+                color=f"C{index}",
+                linestyle=":",
+                linewidth=0.8,
+                label=f"{name}, raw",
+            )
+            profile_axis.plot(
+                smoothed[index][:, j, k],
+                color=f"C{index}",
+                linewidth=1.6,
+                label=f"{name}, display smoothed",
+            )
+        profile_axis.set_xlabel("x (voxel)")
+        profile_axis.set_ylabel("reconstructed value")
+        profile_axis.set_title(
+            f"Profile through the hot-sphere centre, j={j}, k={k}; dotted is the raw trace"
+        )
+        profile_axis.legend(fontsize=8, ncol=2)
         figure.suptitle(
             f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
             "zero scatter, no PSF"
         )
-        figure.tight_layout()
         figure.savefig(path, dpi=130)
         return figure
 
@@ -940,12 +991,12 @@ Figures and summary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 848-850
+.. GENERATED FROM PYTHON SOURCE LINES 899-901
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 850-1027
+.. GENERATED FROM PYTHON SOURCE LINES 901-1078
 
 .. code-block:: Python
 
@@ -1156,7 +1207,7 @@ Run the tutorial
     *
 
       .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_16c_pytomography_ct_conversion_004.png
-         :alt: Matched OSEM, 12 subsets x 4 iterations, zero scatter, no PSF, No attenuation correction, Project-derived 150 keV attenuation, Profile through the hot-sphere centre, j=27, k=30
+         :alt: Matched OSEM, 12 subsets x 4 iterations, zero scatter, no PSF, Raw no AC, Raw project-derived 150 keV, 10 mm FWHM display-smoothed no AC, 10 mm FWHM display-smoothed project-derived 150 keV, Profile through the hot-sphere centre, j=27, k=29; dotted is the raw trace
          :srcset: /auto_examples/real_data/images/sphx_glr_plot_16c_pytomography_ct_conversion_004.png
          :class: sphx-glr-multi-img
 
@@ -1190,7 +1241,7 @@ Run the tutorial
     Euclidean: 0.254 voxels = 1.08 mm -> PASS
     Running the matched no-attenuation and CT-attenuation reconstructions
     PyTomography reconstruction data: (60, 64, 64) (view step 2, bin factor 2)
-    Matched reconstruction: 29.6 s
+    Matched reconstruction: 20.5 s
     Maps written to pytomography
 
 
@@ -1199,7 +1250,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (6 minutes 12.134 seconds)
+   **Total running time of the script:** (4 minutes 42.674 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16c_pytomography_ct_conversion.py:

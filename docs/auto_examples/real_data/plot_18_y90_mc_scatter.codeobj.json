@@ -99,6 +99,24 @@
    "name": "builtin_function_or_method"
   }
  ],
+ "DISPLAY_FWHM_MM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "DISPLAY_SIGMA_VOX": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float64"
+  }
+ ],
  "ENERGY_KEV": [
   {
    "is_class": false,
@@ -2453,22 +2471,6 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "pi"
-  }
- ],
- "np.ravel": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "_ArrayFunctionDispatcher"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "ravel"
   }
  ],
  "np.round": [

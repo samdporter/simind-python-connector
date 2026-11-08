@@ -949,10 +949,11 @@ def save_reconstruction_comparison(
     profile_axis.plot(
         smoothed_weighted[k, j], color="C1", label="spectrum weighted, display smoothed"
     )
-    profile_axis.set_xlabel("x (voxel)")
+    profile_axis.set_xlabel("x (voxel, array axis 2)")
     profile_axis.set_ylabel("Reconstructed value")
     profile_axis.set_title(
-        "Profile through the physical hot-sphere centre; neither arm includes scatter"
+        f"Profile along x at y={j}, z={k} through the physical hot-sphere centre; "
+        "neither arm includes scatter"
     )
     profile_axis.legend(fontsize=8, ncol=2)
     figure.savefig(path, dpi=140)

@@ -22,13 +22,20 @@ The project-derived/native attenuation comparison on this page is
 coefficients-only: it does not reconstruct with the all-zero native map, so it
 makes no claim about reconstruction consequences of that map.
 
+The resampled maps carry low-level interpolation texture in the air region,
+visible as faint mottling in the density and attenuation maps; the STIR route is
+smoother. That texture is an artifact of the resampling, not anatomy.
+
 The page ends with a small matched reconstruction: the measured acquisition is
 reconstructed with no attenuation correction and with the project-derived
 150 keV map. The acquisition, initial support, subsets, subiterations and zero
-scatter are identical. To fit the rotate+sum PyTomography system matrix in the
-example container, this endpoint uses every second view and bins the detector
-2 x 2; both arms use exactly the same reduced data. This is a conversion sanity
-check, not an accuracy or ranking study. See
+scatter are identical. The final figure shows the raw images and the same 10 mm
+FWHM Gaussian display smoothing applied to both arms, with the raw trace kept
+in the profile; the smoothing is display-only and is not part of the
+reconstruction. To fit the rotate+sum PyTomography system matrix in the example
+container, this endpoint uses every second view and bins the detector 2 x 2;
+both arms use exactly the same reduced data. This is a conversion sanity check,
+not an accuracy or ranking study. See
 :doc:`plot_17_y90_effective_energy` for the attenuation-energy comparison and
 :doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case study.
 """
@@ -73,6 +80,12 @@ RECON_SUBITERATIONS = RECON_SUBSETS * RECON_ITERATIONS
 # directions; both attenuation arms use exactly the same reduced data.
 RECON_VIEW_STEP = 2
 RECON_BIN_FACTOR = 2
+# Display-only Gaussian smoothing, identical to the STIR and SIRF routes. The
+# measured acquisition has about two counts per projection bin, so the
+# unregularised OSEM images are dominated by Poisson speckle. The raw panels are
+# kept beside the smoothed ones; the reconstruction itself is unchanged.
+DISPLAY_FWHM_MM = 10.0
+DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_SIZE_MM
 
 
 def _shown(path):
@@ -764,14 +777,20 @@ def reconstruct_pair(projection_file, hu_grid, attenuation):
 
 
 def save_reconstruction_comparison(path, images):
-    """Save the two matched reconstructions and a profile through the sphere."""
+    """Save raw and display-smoothed reconstructions and a sphere profile.
+
+    The display protocol shows the raw images and the same 10 mm FWHM Gaussian
+    smoothing applied to both arms. The smoothing is display-only and is not
+    part of either reconstruction. The profile keeps the raw single-voxel trace
+    beside the smoothed one.
+    """
     plt = _pyplot()
     names = list(images)
     arrays = [images[name] for name in names]
     # PyTomography objects are (x, y, z). Pick the hottest axial slice and row
     # from a lightly smoothed copy so the same physical location is shown in
     # both arms.
-    smoothed = [gaussian_filter(array, sigma=2.0) for array in arrays]
+    smoothed = [gaussian_filter(array, sigma=DISPLAY_SIGMA_VOX) for array in arrays]
     reference = smoothed[1] if len(smoothed) > 1 else smoothed[0]
     _, j, k = np.unravel_index(int(np.argmax(reference)), reference.shape)
     limit = max(
@@ -779,23 +798,55 @@ def save_reconstruction_comparison(path, images):
         for index in range(len(smoothed))
         if smoothed[index].any()
     )
-    figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
-    for axis, name, array in zip(axes[:2], names, arrays):
-        shown = axis.imshow(array[:, :, k].T, cmap="viridis", vmin=0.0, vmax=limit)
-        axis.set_title(name)
-        axis.axis("off")
-        figure.colorbar(shown, ax=axis, shrink=0.7, label="reconstructed value")
-    axes[2].plot(arrays[0][:, j, k], color="C0", label=names[0])
-    axes[2].plot(arrays[1][:, j, k], color="C1", label=names[1])
-    axes[2].set_xlabel("x (voxel)")
-    axes[2].set_ylabel("reconstructed value")
-    axes[2].set_title(f"Profile through the hot-sphere centre, j={j}, k={k}")
-    axes[2].legend(fontsize=8)
+    short_names = {
+        "No attenuation correction": "no AC",
+        "Project-derived 150 keV attenuation": "project-derived 150 keV",
+    }
+    figure = plt.figure(figsize=(11, 10), constrained_layout=True)
+    grid = figure.add_gridspec(3, 2)
+    raw_axes = [figure.add_subplot(grid[0, column]) for column in range(2)]
+    smooth_axes = [figure.add_subplot(grid[1, column]) for column in range(2)]
+    profile_axis = figure.add_subplot(grid[2, :])
+    image_axes = []
+    for axes, title, stack in (
+        (raw_axes, "Raw", arrays),
+        (smooth_axes, f"{DISPLAY_FWHM_MM:.0f} mm FWHM display-smoothed", smoothed),
+    ):
+        for axis, name, array in zip(axes, names, stack):
+            shown = axis.imshow(array[:, :, k].T, cmap="viridis", vmin=0.0, vmax=limit)
+            axis.set_title(f"{title}\n{short_names.get(name, name)}", fontsize=9)
+            axis.axis("off")
+            image_axes.append(axis)
+    figure.colorbar(
+        shown,
+        ax=image_axes,
+        shrink=0.6,
+        label="reconstructed value (shared raw and smoothed scale)",
+    )
+    for index, name in enumerate(names):
+        profile_axis.plot(
+            arrays[index][:, j, k],
+            color=f"C{index}",
+            linestyle=":",
+            linewidth=0.8,
+            label=f"{name}, raw",
+        )
+        profile_axis.plot(
+            smoothed[index][:, j, k],
+            color=f"C{index}",
+            linewidth=1.6,
+            label=f"{name}, display smoothed",
+        )
+    profile_axis.set_xlabel("x (voxel)")
+    profile_axis.set_ylabel("reconstructed value")
+    profile_axis.set_title(
+        f"Profile through the hot-sphere centre, j={j}, k={k}; dotted is the raw trace"
+    )
+    profile_axis.legend(fontsize=8, ncol=2)
     figure.suptitle(
         f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
         "zero scatter, no PSF"
     )
-    figure.tight_layout()
     figure.savefig(path, dpi=130)
     return figure
 

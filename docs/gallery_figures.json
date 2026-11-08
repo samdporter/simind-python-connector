@@ -149,7 +149,7 @@
   },
   "getting_started/plot_04_custom_config": {
    "intentional_zero_figures": true,
-   "thumbnail": "placeholder"
+   "thumbnail": "real"
   },
   "getting_started/plot_05_scattwin_vs_penetrate_comparison": {
    "figures": [
@@ -426,7 +426,12 @@
       "sphx_glr_plot_18_y90_mc_scatter_006.png",
       "sphx_glr_plot_18_y90_mc_scatter_007.png"
      ],
-     "alt_contains": ["Profiles through", "hot-sphere column"]
+     "alt_contains": [
+      "Profiles through",
+      "hot-sphere column",
+      "5 x 5 band mean",
+      "fixed sphere column"
+     ]
     }
    ],
    "figure_count": [6, 7],
