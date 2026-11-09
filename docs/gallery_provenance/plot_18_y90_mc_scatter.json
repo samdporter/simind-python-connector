@@ -2,7 +2,7 @@
  "reported_from": "docs/auto_examples/real_data/plot_18_y90_mc_scatter.rst",
  "note": "summary.json of the reviewed gallery run; the gate re-checks its fields against the page and does not re-run the simulation.",
  "status": "quality_not_established",
- "elapsed_s": 8697.804862755991,
+ "elapsed_s": 11889.44535860105,
  "quantization_scale": 0.011444441053498948,
  "engine": {
   "version": "8",

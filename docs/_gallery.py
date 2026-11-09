@@ -739,8 +739,12 @@ def _summary_page_value(value, spec: dict) -> str:
         return f"{100.0 * float(value):.{spec.get('decimals', 2)}f}%"
     if style == "nn":
         return f"NN={int(value)}"
+    if style == "integer":
+        return str(int(value))
     if style == "number":
-        return f"{float(value):.{spec.get('decimals', 4)}g}"
+        if "decimals" in spec:
+            return f"{float(value):.{spec['decimals']}f}"
+        return f"{float(value):.4g}"
     return str(value)
 
 
@@ -806,12 +810,35 @@ def _check_run_summary(
             problems.append(_flatten_problem(key, "missing_summary_field", field))
             continue
         reported = _summary_page_value(value, binding)
-        if reported not in normalised_page:
+        label = binding.get("label")
+        if label:
+            starts = []
+            start = normalised_page.find(label)
+            while start >= 0:
+                starts.append(start)
+                start = normalised_page.find(label, start + 1)
+            if not starts:
+                problems.append(
+                    _flatten_problem(
+                        key,
+                        "summary_page_contradiction",
+                        f"{field}: page has no {label!r} label for {reported!r}",
+                    )
+                )
+                continue
+            window = int(binding.get("window", 400))
+            matched = any(
+                reported in normalised_page[start : start + window] for start in starts
+            )
+        else:
+            matched = reported in normalised_page
+        if not matched:
             problems.append(
                 _flatten_problem(
                     key,
                     "summary_page_contradiction",
-                    f"{field} is {reported!r}, which the page does not report",
+                    f"{field} is {reported!r}, which the page does not report"
+                    + (f" under {label!r}" if label else ""),
                 )
             )
 

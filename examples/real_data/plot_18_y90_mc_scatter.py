@@ -302,19 +302,27 @@ def _directory_digest(directory):
     Every regular file is streamed through SHA-256 regardless of size, so a
     same-size, same-mtime edit always changes the digest. Directory symlinks
     are not followed and make the tree incomplete, so files reachable only
-    through a linked directory can never produce a cache hit. If the tree
-    exceeds ``MAX_DATA_DIGEST_BYTES``, any file cannot be read, or any symlink
-    is encountered, the flag is ``False`` and the cache refuses the key.
+    through a linked directory can never produce a cache hit. If no tree is
+    identified, the tree exceeds ``MAX_DATA_DIGEST_BYTES``, any file or
+    directory cannot be read, or any symlink is encountered, the flag is
+    ``False`` and the cache refuses the key.
     """
     if not directory:
-        return "", True
+        return "missing:unset", False
     root = Path(directory).expanduser()
     if not root.is_dir():
         return f"missing:{root}", False
     digest = hashlib.sha256()
     total = 0
     complete = True
-    for current, directories, filenames in os.walk(root, followlinks=False):
+
+    def on_error(error):
+        nonlocal complete
+        complete = False
+
+    for current, directories, filenames in os.walk(
+        root, followlinks=False, onerror=on_error
+    ):
         current_path = Path(current)
         directories.sort()
         filenames.sort()
@@ -2930,22 +2938,22 @@ def run(strict=True):
     # methods.
     #
     # At the frozen nominal centre, the four noncollapsed corrected results
-    # were 1.66–1.77, against truth 4.0 under the stated water-equivalent
+    # were 1.643–1.719, against truth 4.0 under the stated water-equivalent
     # density approximation. Across the prespecified 125-centre sensitivity
-    # analysis, their combined range was 0.96–2.13. These are sensitivity
+    # analysis, their combined range was 0.986–2.051. These are sensitivity
     # ranges, not confidence intervals. Partial volume and centre/boundary
     # conventions are plausible contributors, not a demonstrated complete
     # explanation.
     #
-    # The nominal ordering among the four corrected strategies changed in 86
+    # The nominal ordering among the four corrected strategies changed in 107
     # of 125 centres (the baseline is not part of that count). These results
     # do not support a robust strategy ranking or quantitative superiority
     # claim.
     #
     # The shared simulated total was 0.269 times measured counts, giving a
-    # global factor of 3.718. Approximately 44% of measured counts occurred in
-    # bins with zero simulated total in this finite realization. Applying one
-    # factor across this local shape/support mismatch over-scaled populated
+    # global factor of 3.716. Approximately 31.6% of measured counts occurred
+    # in bins with zero simulated total in this finite realization. Applying
+    # one factor across this local shape/support mismatch over-scaled populated
     # sphere/liver projections.
     #
     # The underlying sensitivity/partition mismatch remains unresolved.
@@ -2961,7 +2969,7 @@ def run(strict=True):
     # reference-sum and reference-trimmed probe arms nearly collapsed
     # (reference-sum 0.042 to 0.070 and reference-trimmed 0.002 to 0.003 from
     # NN=4 to NN=8). The known-activity arm changed by
-    # 3.45% (above the 2% gate) and the pixel-wise arm by 0.96% (within it),
+    # 3.45% (above the 2% gate) and the pixel-wise arm by 0.03% (within it),
     # far below the collapsed-arm changes. The 8-to-16 changes are printed with
     # the probe table; a pass there cannot repair the failed coarse pair.
     #

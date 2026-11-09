@@ -1259,6 +1259,54 @@ def test_simulation_cache_records_the_path_resolved_executable(tmp_path, monkeyp
 
 
 @pytest.mark.unit
+def test_unidentified_data_tree_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR"):
+        monkeypatch.delenv(variable, raising=False)
+    settings = script._simulation_settings(job, density)
+    assert settings["engine"]["data_directory"] == ""
+    assert settings["engine"]["data_directory_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
+
+
+@pytest.mark.unit
+def test_unreadable_data_directory_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+
+    def failing_walk(root, *, followlinks=False, onerror=None):
+        if onerror is not None:
+            onerror(PermissionError("permission denied", str(root)))
+        return iter(())
+
+    monkeypatch.setattr(script.os, "walk", failing_walk)
+    settings = script._simulation_settings(job, density)
+    assert settings["engine"]["data_directory_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
+
+
+@pytest.mark.unit
 def test_simulation_cache_invalidates_when_engine_version_changes(
     tmp_path, monkeypatch
 ):

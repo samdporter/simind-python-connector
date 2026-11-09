@@ -137,7 +137,7 @@ The Y-90 phantom data are not published for download yet. Set
 Setup
 -----
 
-.. GENERATED FROM PYTHON SOURCE LINES 120-391
+.. GENERATED FROM PYTHON SOURCE LINES 120-399
 
 .. code-block:: Python
 
@@ -326,19 +326,27 @@ Setup
         Every regular file is streamed through SHA-256 regardless of size, so a
         same-size, same-mtime edit always changes the digest. Directory symlinks
         are not followed and make the tree incomplete, so files reachable only
-        through a linked directory can never produce a cache hit. If the tree
-        exceeds ``MAX_DATA_DIGEST_BYTES``, any file cannot be read, or any symlink
-        is encountered, the flag is ``False`` and the cache refuses the key.
+        through a linked directory can never produce a cache hit. If no tree is
+        identified, the tree exceeds ``MAX_DATA_DIGEST_BYTES``, any file or
+        directory cannot be read, or any symlink is encountered, the flag is
+        ``False`` and the cache refuses the key.
         """
         if not directory:
-            return "", True
+            return "missing:unset", False
         root = Path(directory).expanduser()
         if not root.is_dir():
             return f"missing:{root}", False
         digest = hashlib.sha256()
         total = 0
         complete = True
-        for current, directories, filenames in os.walk(root, followlinks=False):
+
+        def on_error(error):
+            nonlocal complete
+            complete = False
+
+        for current, directories, filenames in os.walk(
+            root, followlinks=False, onerror=on_error
+        ):
             current_path = Path(current)
             directories.sort()
             filenames.sort()
@@ -419,7 +427,7 @@ Setup
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 392-398
+.. GENERATED FROM PYTHON SOURCE LINES 400-406
 
 CT series and patient-to-SPECT frame
 ------------------------------------
@@ -428,7 +436,7 @@ The CT slices are not stored in spatial order and are sorted by
 patient-to-SPECT affine uses the NM detector centre in x and z and the CT
 table height in y; no origin is re-derived from the images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 398-549
+.. GENERATED FROM PYTHON SOURCE LINES 406-557
 
 .. code-block:: Python
 
@@ -590,7 +598,7 @@ table height in y; no origin is re-derived from the images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 550-557
+.. GENERATED FROM PYTHON SOURCE LINES 558-565
 
 Registration
 ------------
@@ -600,7 +608,7 @@ finite values, eroded once to keep the body/table boundary out of the edge
 correlation. The acceptance criterion is a Euclidean offset of at most one
 voxel. The measured offset is reported, not applied to the maps.
 
-.. GENERATED FROM PYTHON SOURCE LINES 557-742
+.. GENERATED FROM PYTHON SOURCE LINES 565-750
 
 .. code-block:: Python
 
@@ -796,7 +804,7 @@ voxel. The measured offset is reported, not applied to the maps.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 743-749
+.. GENERATED FROM PYTHON SOURCE LINES 751-757
 
 SIRF resampling
 ---------------
@@ -805,7 +813,7 @@ resampler's zero padding becomes -1000 HU. The reference is an empty image
 with the target SPECT affine and the identity transform is deliberate. The
 resampled array is transferred to a STIR image on the vendor grid.
 
-.. GENERATED FROM PYTHON SOURCE LINES 749-798
+.. GENERATED FROM PYTHON SOURCE LINES 757-806
 
 .. code-block:: Python
 
@@ -865,7 +873,7 @@ resampled array is transferred to a STIR image on the vendor grid.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 799-805
+.. GENERATED FROM PYTHON SOURCE LINES 807-813
 
 Liver VOI
 ---------
@@ -874,7 +882,7 @@ closed component of the wall on each CT slice, excluding the wall itself, air,
 the lung domes and other compartments. The mask is generated once from the CT,
 before any reconstruction, and is never changed by a strategy.
 
-.. GENERATED FROM PYTHON SOURCE LINES 805-951
+.. GENERATED FROM PYTHON SOURCE LINES 813-959
 
 .. code-block:: Python
 
@@ -1031,7 +1039,7 @@ before any reconstruction, and is never changed by a strategy.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 952-965
+.. GENERATED FROM PYTHON SOURCE LINES 960-973
 
 Metrics
 -------
@@ -1047,7 +1055,7 @@ and sphere. It is affected by recovery, spillover and the VOI uncertainty.
 The activities are those at the scan; no decay correction is applied, and
 +-2% is the supplied activity uncertainty only.
 
-.. GENERATED FROM PYTHON SOURCE LINES 965-1206
+.. GENERATED FROM PYTHON SOURCE LINES 973-1214
 
 .. code-block:: Python
 
@@ -1299,12 +1307,12 @@ The activities are those at the scan; no decay correction is applied, and
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1207-1209
+.. GENERATED FROM PYTHON SOURCE LINES 1215-1217
 
 Scatter strategies
 ------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1209-1316
+.. GENERATED FROM PYTHON SOURCE LINES 1217-1324
 
 .. code-block:: Python
 
@@ -1422,12 +1430,12 @@ Scatter strategies
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1317-1319
+.. GENERATED FROM PYTHON SOURCE LINES 1325-1327
 
 Reconstruction schedule
 -----------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1319-1425
+.. GENERATED FROM PYTHON SOURCE LINES 1327-1433
 
 .. code-block:: Python
 
@@ -1544,12 +1552,12 @@ Reconstruction schedule
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1426-1428
+.. GENERATED FROM PYTHON SOURCE LINES 1434-1436
 
 SIRF and SIMIND run-time helpers
 --------------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1428-1521
+.. GENERATED FROM PYTHON SOURCE LINES 1436-1529
 
 .. code-block:: Python
 
@@ -1653,12 +1661,12 @@ SIRF and SIMIND run-time helpers
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1522-1524
+.. GENERATED FROM PYTHON SOURCE LINES 1530-1532
 
 SIMIND job
 ----------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1524-1857
+.. GENERATED FROM PYTHON SOURCE LINES 1532-1865
 
 .. code-block:: Python
 
@@ -2002,12 +2010,12 @@ SIMIND job
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1858-1860
+.. GENERATED FROM PYTHON SOURCE LINES 1866-1868
 
 Templates and measured data
 ---------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1860-1912
+.. GENERATED FROM PYTHON SOURCE LINES 1868-1920
 
 .. code-block:: Python
 
@@ -2070,11 +2078,11 @@ Templates and measured data
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1913-1914
+.. GENERATED FROM PYTHON SOURCE LINES 1921-1922
 
 Figures
 
-.. GENERATED FROM PYTHON SOURCE LINES 1914-2203
+.. GENERATED FROM PYTHON SOURCE LINES 1922-2211
 
 .. code-block:: Python
 
@@ -2374,12 +2382,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 2204-2206
+.. GENERATED FROM PYTHON SOURCE LINES 2212-2214
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 2206-3140
+.. GENERATED FROM PYTHON SOURCE LINES 2214-3148
 
 .. code-block:: Python
 
@@ -3110,22 +3118,22 @@ Run the tutorial
         # methods.
         #
         # At the frozen nominal centre, the four noncollapsed corrected results
-        # were 1.66–1.77, against truth 4.0 under the stated water-equivalent
+        # were 1.643–1.719, against truth 4.0 under the stated water-equivalent
         # density approximation. Across the prespecified 125-centre sensitivity
-        # analysis, their combined range was 0.96–2.13. These are sensitivity
+        # analysis, their combined range was 0.986–2.051. These are sensitivity
         # ranges, not confidence intervals. Partial volume and centre/boundary
         # conventions are plausible contributors, not a demonstrated complete
         # explanation.
         #
-        # The nominal ordering among the four corrected strategies changed in 86
+        # The nominal ordering among the four corrected strategies changed in 107
         # of 125 centres (the baseline is not part of that count). These results
         # do not support a robust strategy ranking or quantitative superiority
         # claim.
         #
         # The shared simulated total was 0.269 times measured counts, giving a
-        # global factor of 3.718. Approximately 44% of measured counts occurred in
-        # bins with zero simulated total in this finite realization. Applying one
-        # factor across this local shape/support mismatch over-scaled populated
+        # global factor of 3.716. Approximately 31.6% of measured counts occurred
+        # in bins with zero simulated total in this finite realization. Applying
+        # one factor across this local shape/support mismatch over-scaled populated
         # sphere/liver projections.
         #
         # The underlying sensitivity/partition mismatch remains unresolved.
@@ -3141,7 +3149,7 @@ Run the tutorial
         # reference-sum and reference-trimmed probe arms nearly collapsed
         # (reference-sum 0.042 to 0.070 and reference-trimmed 0.002 to 0.003 from
         # NN=4 to NN=8). The known-activity arm changed by
-        # 3.45% (above the 2% gate) and the pixel-wise arm by 0.96% (within it),
+        # 3.45% (above the 2% gate) and the pixel-wise arm by 0.03% (within it),
         # far below the collapsed-arm changes. The 8-to-16 changes are printed with
         # the probe table; a pass there cannot repair the failed coarse pair.
         #
@@ -3394,7 +3402,7 @@ Run the tutorial
     SIMIND source support: 15948 voxels, 1231.0 mL
     Measured projections: (1, 128, 120, 128), sum 3783028.0
     Generating the independent attenuation-only reference reconstruction
-    Reference: 93.6 s, max 4.440, sum 95176.0
+    Reference: 109.7 s, max 4.440, sum 95176.0
     Reference hot-sphere centroid: [ -77.43 -181.69 -576.2 ] mm at voxel [64.52 53.71 45.78] (peak (63, 52, 45)); accepted centre (-77.43, -181.69, -576.2), difference 0.00 mm
     Sphere: 8.092 mL, centroid [ -77.43 -181.7  -576.21] mm
     Liver ex sphere: 978.17 mL, centroid [ -31.97 -172.15 -596.65] mm
@@ -3489,7 +3497,7 @@ Run the tutorial
       Dewaraja, pixel-wi      1.114      1.114      1.114      0.000
     Diagnostic scale: shared/measured 0.269, global factor 3.716, measured counts in zero-SIMIND bins 31.6%
     SIMIND realizations: 14 of 14 loaded from a matching cached run (timings below are the recorded original runs)
-    Total wall time: 145.0 min
+    Total wall time: 198.2 min
     Summary written to y90_mc_scatter
     WARNING: Statistical adequacy was not established; see UNACCEPTED.txt
 
@@ -3499,7 +3507,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (145 minutes 0.912 seconds)
+   **Total running time of the script:** (198 minutes 14.349 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_18_y90_mc_scatter.py:

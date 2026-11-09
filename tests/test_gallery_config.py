@@ -445,6 +445,78 @@ def test_gate_accepts_a_summary_that_matches_its_page(tmp_path):
 
 
 @pytest.mark.unit
+def test_gate_rejects_swapped_metric_values_on_the_page(tmp_path):
+    filler = " ".join(["context"] * 100)
+    root, _, docs, gallery_dir = _gallery_fixture(
+        tmp_path,
+        page_extra=(
+            "seed smoothed-scatter relative L1: 4.79% (gate <= 5%). "
+            f"{filler} "
+            "two-refresh stability (first versus second refresh): Known activity: "
+            "3.19% (gate <= 5%).\n"
+        ),
+        manifest_extra={
+            "run_summary": {
+                "path": "gallery_provenance/demo.json",
+                "page_values": [
+                    {
+                        "field": "gates.seed_scatter_l1",
+                        "format": "percent",
+                        "label": "seed smoothed-scatter relative L1",
+                    },
+                    {
+                        "field": "gates.stability_max_ratio_change",
+                        "format": "percent",
+                        "label": "two-refresh stability",
+                    },
+                ],
+            }
+        },
+        summary={
+            "status": "accepted",
+            "gates": {
+                "seed_scatter_l1": 0.0319,
+                "stability_max_ratio_change": 0.0479,
+            },
+        },
+    )
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "summary_page_contradiction" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_rejects_a_changed_summary_metric_on_the_page(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(
+        tmp_path,
+        page_extra=(
+            "strategy ordering among the four corrected strategies changed in "
+            "86 of 125 centres.\n"
+        ),
+        manifest_extra={
+            "run_summary": {
+                "path": "gallery_provenance/demo.json",
+                "page_values": [
+                    {
+                        "field": ("centre_sensitivity.ordering_changes_over_125"),
+                        "format": "integer",
+                        "label": (
+                            "strategy ordering among the four corrected strategies "
+                            "changed in"
+                        ),
+                    }
+                ],
+            }
+        },
+        summary={
+            "status": "accepted",
+            "centre_sensitivity": {"ordering_changes_over_125": 107},
+        },
+    )
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "summary_page_contradiction" in _codes(problems)
+
+
+@pytest.mark.unit
 def test_gate_rejects_a_quantitative_claim_with_a_failed_native_gate(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(
         tmp_path,
