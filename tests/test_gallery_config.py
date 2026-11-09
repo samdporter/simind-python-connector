@@ -405,12 +405,16 @@ def test_gate_rejects_inconsistent_summary_fields(tmp_path):
 def test_gate_rejects_a_summary_contradicting_the_page(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(
         tmp_path,
-        page_extra="The seed scatter L1 is 3.19%.\n",
+        page_extra="seed smoothed-scatter relative L1: 3.19% (gate <= 5%)\n",
         manifest_extra={
             "run_summary": {
                 "path": "gallery_provenance/demo.json",
-                "page_values": [
-                    {"field": "gates.seed_scatter_l1", "format": "percent"}
+                "page_reports": [
+                    {
+                        "prefix": "seed smoothed-scatter relative L1: ",
+                        "suffix": " (gate <= 5%)",
+                        "expected": "{gates.seed_scatter_l1:.2%}",
+                    }
                 ],
             }
         },
@@ -427,12 +431,16 @@ def test_gate_rejects_a_summary_contradicting_the_page(tmp_path):
 def test_gate_accepts_a_summary_that_matches_its_page(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(
         tmp_path,
-        page_extra="The seed scatter L1 is 3.19%.\n",
+        page_extra="seed smoothed-scatter relative L1: 3.19% (gate <= 5%)\n",
         manifest_extra={
             "run_summary": {
                 "path": "gallery_provenance/demo.json",
-                "page_values": [
-                    {"field": "gates.seed_scatter_l1", "format": "percent"}
+                "page_reports": [
+                    {
+                        "prefix": "seed smoothed-scatter relative L1: ",
+                        "suffix": " (gate <= 5%)",
+                        "expected": "{gates.seed_scatter_l1:.2%}",
+                    }
                 ],
             }
         },
@@ -445,39 +453,61 @@ def test_gate_accepts_a_summary_that_matches_its_page(tmp_path):
 
 
 @pytest.mark.unit
-def test_gate_rejects_swapped_metric_values_on_the_page(tmp_path):
-    filler = " ".join(["context"] * 100)
+def test_gate_rejects_an_individual_arm_used_as_the_stability_maximum(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(
         tmp_path,
         page_extra=(
-            "seed smoothed-scatter relative L1: 4.79% (gate <= 5%). "
-            f"{filler} "
             "two-refresh stability (first versus second refresh): Known activity: "
-            "3.19% (gate <= 5%).\n"
+            "4.79% (gate <= 5%). two-refresh stability (first versus second "
+            "refresh): Dewaraja, pixel-wise: 2.15% (gate <= 5%).\n"
         ),
         manifest_extra={
             "run_summary": {
                 "path": "gallery_provenance/demo.json",
-                "page_values": [
+                "page_reports": [
                     {
-                        "field": "gates.seed_scatter_l1",
-                        "format": "percent",
-                        "label": "seed smoothed-scatter relative L1",
-                    },
-                    {
-                        "field": "gates.stability_max_ratio_change",
-                        "format": "percent",
-                        "label": "two-refresh stability",
-                    },
+                        "prefix": (
+                            "two-refresh stability (first versus second refresh): "
+                            "Known activity: "
+                        ),
+                        "suffix": " (gate <= 5%)",
+                        "expected": "{gates.stability_max_ratio_change:.2%}",
+                    }
                 ],
             }
         },
         summary={
             "status": "accepted",
-            "gates": {
-                "seed_scatter_l1": 0.0319,
-                "stability_max_ratio_change": 0.0479,
-            },
+            "gates": {"stability_max_ratio_change": 0.021533445290141586},
+        },
+    )
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "summary_page_contradiction" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_rejects_a_conflicting_repeated_page_report(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(
+        tmp_path,
+        page_extra=(
+            "seed smoothed-scatter relative L1: 3.19% (gate <= 5%). "
+            "seed smoothed-scatter relative L1: 6.24% (gate <= 5%).\n"
+        ),
+        manifest_extra={
+            "run_summary": {
+                "path": "gallery_provenance/demo.json",
+                "page_reports": [
+                    {
+                        "prefix": "seed smoothed-scatter relative L1: ",
+                        "suffix": " (gate <= 5%)",
+                        "expected": "{gates.seed_scatter_l1:.2%}",
+                    }
+                ],
+            }
+        },
+        summary={
+            "status": "accepted",
+            "gates": {"seed_scatter_l1": 0.0319},
         },
     )
     problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
@@ -495,13 +525,15 @@ def test_gate_rejects_a_changed_summary_metric_on_the_page(tmp_path):
         manifest_extra={
             "run_summary": {
                 "path": "gallery_provenance/demo.json",
-                "page_values": [
+                "page_reports": [
                     {
-                        "field": ("centre_sensitivity.ordering_changes_over_125"),
-                        "format": "integer",
-                        "label": (
+                        "prefix": (
                             "strategy ordering among the four corrected strategies "
-                            "changed in"
+                            "changed in "
+                        ),
+                        "suffix": " of 125 centres",
+                        "expected": (
+                            "{centre_sensitivity.ordering_changes_over_125:d}"
                         ),
                     }
                 ],

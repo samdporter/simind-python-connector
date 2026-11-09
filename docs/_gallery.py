@@ -732,20 +732,20 @@ def _check_downloads(
     return problems
 
 
-def _summary_page_value(value, spec: dict) -> str:
-    """Render a summary value the way the gallery page reports it."""
-    style = spec.get("format", "text")
-    if style == "percent":
-        return f"{100.0 * float(value):.{spec.get('decimals', 2)}f}%"
-    if style == "nn":
-        return f"NN={int(value)}"
-    if style == "integer":
-        return str(int(value))
-    if style == "number":
-        if "decimals" in spec:
-            return f"{float(value):.{spec['decimals']}f}"
-        return f"{float(value):.4g}"
-    return str(value)
+_REPORT_FIELD = re.compile(r"\{([^}:]+)(?::([^}]*))?\}")
+
+
+def _render_report(template: str, summary: dict) -> str:
+    """Render a metric-specific report template from summary fields."""
+
+    def replace(match: re.Match) -> str:
+        field, spec = match.group(1), match.group(2) or ""
+        value = _get_field(summary, field)
+        if value is _MISSING:
+            raise KeyError(field)
+        return format(value, spec)
+
+    return _REPORT_FIELD.sub(replace, template)
 
 
 def _check_run_summary(
@@ -802,43 +802,52 @@ def _check_run_summary(
                 )
             )
 
-    normalised_page = re.sub(r"\s+", " ", page_text)
-    for binding in block.get("page_values", []):
-        field = binding["field"]
-        value = _get_field(summary, field)
-        if value is _MISSING:
-            problems.append(_flatten_problem(key, "missing_summary_field", field))
+    normalised_page = re.sub(r"(?m)^\s*#\s?", "", page_text)
+    normalised_page = re.sub(r"\s+", " ", normalised_page)
+    for report in block.get("page_reports", []):
+        prefix = report["prefix"]
+        suffix = report.get("suffix", "")
+        try:
+            expected = _render_report(report["expected"], summary)
+        except KeyError as error:
+            problems.append(
+                _flatten_problem(key, "missing_summary_field", str(error).strip("'"))
+            )
             continue
-        reported = _summary_page_value(value, binding)
-        label = binding.get("label")
-        if label:
-            starts = []
-            start = normalised_page.find(label)
-            while start >= 0:
-                starts.append(start)
-                start = normalised_page.find(label, start + 1)
-            if not starts:
+        starts = []
+        start = normalised_page.find(prefix)
+        while start >= 0:
+            starts.append(start)
+            start = normalised_page.find(prefix, start + 1)
+        literal = 0
+        for start in starts:
+            body_start = start + len(prefix)
+            body_end = (
+                normalised_page.find(suffix, body_start)
+                if suffix
+                else body_start + len(expected)
+            )
+            if body_end < 0:
+                continue
+            actual = normalised_page[body_start:body_end]
+            if "{" in actual or "}" in actual:
+                # A source-code f-string, not a reported value.
+                continue
+            literal += 1
+            if actual != expected:
                 problems.append(
                     _flatten_problem(
                         key,
                         "summary_page_contradiction",
-                        f"{field}: page has no {label!r} label for {reported!r}",
+                        f"{prefix!r}: page reports {actual!r}, expected {expected!r}",
                     )
                 )
-                continue
-            window = int(binding.get("window", 400))
-            matched = any(
-                reported in normalised_page[start : start + window] for start in starts
-            )
-        else:
-            matched = reported in normalised_page
-        if not matched:
+        if literal == 0:
             problems.append(
                 _flatten_problem(
                     key,
                     "summary_page_contradiction",
-                    f"{field} is {reported!r}, which the page does not report"
-                    + (f" under {label!r}" if label else ""),
+                    f"page has no reported {prefix!r} value, expected {expected!r}",
                 )
             )
 
