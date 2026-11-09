@@ -1,18 +1,96 @@
 {
  "reported_from": "docs/auto_examples/real_data/plot_18_y90_mc_scatter.rst",
- "note": "Reported summary from the reviewed gallery run; the gate does not re-run the simulation. Replace this file with the summary.json produced by the next reviewed run.",
+ "note": "summary.json of the reviewed gallery run; the gate re-checks its fields against the page and does not re-run the simulation.",
  "status": "quality_not_established",
+ "elapsed_s": 8697.804862755991,
+ "quantization_scale": 0.011444441053498948,
  "engine": {
-  "version": "8.0",
-  "binary": "simind",
-  "root": null,
-  "smc_dir": null,
-  "history_multiplier": 1,
-  "probe_geometry": "reduced 60-view geometry",
-  "seeds": [101, 202],
+  "version": "8",
+  "root": "/workspace/simind",
+  "binary": "/workspace/simind/simind",
+  "binary_sha256": "e143e2e0b0315c9cd8b6bb187d6bd28448e096c255f8d16ee0c14787d1537f9d",
+  "binary_complete": true,
+  "data_directory": "/workspace/simind/smc_dir",
+  "data_directory_digest": "b451b21a74d9d6ac128608748cbd8673c32291fe112d2bd6db66735c97a3af05",
+  "data_directory_complete": true,
+  "history_multiplier": 4,
+  "probe_geometry": "native 120-view measured geometry",
+  "seeds": [
+   101,
+   202
+  ],
   "platform": "linux"
  },
- "history_multiplier": 1,
+ "simulation_reuse": {
+  "cache_version": 2,
+  "forced_refresh": false,
+  "cached_realizations": 14,
+  "total_realizations": 14
+ },
+ "history_multiplier": 4,
+ "registration": {
+  "region_voxels": 179138,
+  "zero_pearson": 0.8642512277602566,
+  "best_integer_zyx": [
+   0,
+   0,
+   0
+  ],
+  "best_ncc": 0.8642512277602555,
+  "best_ncc_definition": "integer-search NCC",
+  "offset_zyx": [
+   0.21494326055166663,
+   0.14385897159401484,
+   0.1447564210610406
+  ],
+  "offset_mm": [
+   0.9151854147768861,
+   0.6125227292529963,
+   0.6163438895936987
+  ],
+  "euclidean_voxels": 0.29639573276798453,
+  "euclidean_mm": 1.2619937509795245,
+  "refined_by": "quadratic",
+  "passed": true,
+  "status": "pass",
+  "reason": "",
+  "coverage_fraction": 0.63739013671875,
+  "mask": {
+   "definition": "CT coverage, CT HU > -400, positive vendor attenuation and finite values",
+   "erosion": "one 3-D connectivity-1 binary erosion, one voxel, border_value=0",
+   "region_voxels": 179138
+  }
+ },
+ "vois": {
+  "liver_ct_volume_ml": 942.278448259044,
+  "liver_spect_volume_ml": 978.1663487512843,
+  "liver_spect_volume_with_sphere_ml": 985.978123211985,
+  "liver_centroid_mm": [
+   -31.972561490055863,
+   -172.15382643724647,
+   -596.6475640276931
+  ],
+  "sphere_volume_ml": 8.091584816557177,
+  "sphere_radius_mm": 12.449256419417305,
+  "sphere_centroid_mm": [
+   -77.42842549172754,
+   -181.69553303025788,
+   -576.2091147643463
+  ],
+  "sphere_centre_accepted_mm": [
+   -77.43,
+   -181.69,
+   -576.2
+  ],
+  "sphere_centre_reference_mm": [
+   -77.43383055300049,
+   -181.69263095793175,
+   -576.20109395753
+  ],
+  "sphere_centre_difference_mm": 0.004774077817293611,
+  "sphere_provenance": "Fixed 8.08 mL sphere at the centre from the independent attenuation-only reference reconstruction; not CT-visible",
+  "liver_provenance": "CT liver insert interior, walls and other compartments excluded"
+ },
  "schedule": {
   "passes": 3,
   "num_updates": 2,
@@ -21,33 +99,454 @@
   "total_subiterations": 144,
   "damping": 0.5,
   "simind_runs": 6,
-  "simind_probe_runs": 4,
-  "history_multiplier": 1,
-  "history_multiplier_probe": 2,
-  "probe_geometry": "reduced 60-view geometry",
-  "shared_refresh_seconds": 1092.0,
-  "shared_quantization_scale": 0.75
+  "simind_probe_runs": 8,
+  "simind_total_runs": 14,
+  "probe_run_detail": {
+   "seed_checks": 2,
+   "single_history_levels": 2,
+   "nn16_chunks": 4
+  },
+  "history_multiplier": 4,
+  "probe_history_multipliers": [
+   4,
+   8,
+   16
+  ],
+  "history_multiplier_probe": 16,
+  "nn16_seeds": [
+   301,
+   302,
+   303,
+   304
+  ],
+  "nn16_construction": "mean of four independent NN=4 realizations; same effective histories as one NN=16 run",
+  "probe_geometry": "native 120-view measured geometry",
+  "shared_refresh_seconds": 4651.426792127022,
+  "shared_quantization_scale": 0.011444441053498948,
+  "second_refresh_seconds": {
+   "Known activity": 10218.158101237,
+   "Reference, sum": 9920.424197736982,
+   "Reference, trimmed": 8771.432676586002,
+   "Dewaraja, global": 1338.404253760993,
+   "Dewaraja, pixel-wise": 10691.36394660399
+  }
+ },
+ "strategies": {
+  "Known activity": {
+   "body_total_mbq": 160.80000000000004,
+   "sphere_ml": 8.091584816557177,
+   "liver_ml": 978.1663487512843,
+   "sphere_mbq": 0.3440360611799673,
+   "liver_mbq": 24.197680328892623,
+   "sphere_kbq_g": 42.517759991342274,
+   "liver_kbq_g": 24.737796755923057,
+   "ratio": 1.7187367335436652,
+   "ratio_first_refresh": 1.6401185241668537,
+   "stability": 0.04793446828286264,
+   "liver_cov": 1.8393528447454586,
+   "scatter_fraction_first": 0.10599626605312967,
+   "scatter_fraction_final": 0.1592407470694618,
+   "normalisation_scale_first": 1.0,
+   "normalisation_scale_final": 1.0,
+   "zero_denominator_fraction": 0.0,
+   "source_sum": 10695.7353515625,
+   "quantization_loss": 0.0009204242431015733,
+   "quantization_scale": 0.011444441053498948,
+   "component_sums": {
+    "all_interactions": 1023018.375,
+    "geom_coll_primary": 219184.3125,
+    "septal_pen_primary": 17367.6875,
+    "coll_scatter_primary": 8982.55859375,
+    "coll_xray_primary": 7146.48876953125,
+    "geom_coll_scattered": 571114.125,
+    "septal_pen_scattered": 28459.189453125,
+    "coll_scatter_scattered": 14386.681640625,
+    "coll_xray_scattered": 12041.197265625,
+    "geom_coll_primary_back": 34441.3203125,
+    "septal_pen_primary_back": 30814.158203125,
+    "coll_scatter_primary_back": 12959.1474609375,
+    "coll_xray_primary_back": 0.07857336103916168,
+    "geom_coll_scattered_back": 38427.27734375,
+    "septal_pen_scattered_back": 20304.4765625,
+    "coll_scatter_scattered_back": 7389.7021484375,
+    "coll_xray_scattered_back": 0.0,
+    "unscattered_unattenuated": 5506058.0,
+    "unscattered_unattenuated_geom_coll": 0.0
+   },
+   "simind_seconds": 10218.158101237
+  },
+  "Reference, sum": {
+   "body_total_mbq": 160.79999999999995,
+   "sphere_ml": 8.091584816557177,
+   "liver_ml": 978.1663487512843,
+   "sphere_mbq": 0.40846243791737713,
+   "liver_mbq": 28.998724239510995,
+   "sphere_kbq_g": 50.47990562758144,
+   "liver_kbq_g": 29.646004768545172,
+   "ratio": 1.7027557683300827,
+   "ratio_first_refresh": 1.6710430815201607,
+   "stability": 0.01897777930481166,
+   "liver_cov": 1.7303726651956925,
+   "scatter_fraction_first": 0.1448554984043446,
+   "scatter_fraction_final": 0.12888961132734233,
+   "normalisation_scale_first": 1.366612911094014,
+   "normalisation_scale_final": 0.5308777800178219,
+   "zero_denominator_fraction": 0.0,
+   "source_sum": 7575.06689453125,
+   "quantization_loss": 0.0014933140113576743,
+   "quantization_scale": 0.011444441053498948,
+   "component_sums": {
+    "all_interactions": 1026086.375,
+    "geom_coll_primary": 221400.125,
+    "septal_pen_primary": 17474.779296875,
+    "coll_scatter_primary": 9038.77734375,
+    "coll_xray_primary": 7127.07177734375,
+    "geom_coll_scattered": 571579.875,
+    "septal_pen_scattered": 28372.177734375,
+    "coll_scatter_scattered": 14537.9853515625,
+    "coll_xray_scattered": 11923.4453125,
+    "geom_coll_primary_back": 34491.1796875,
+    "septal_pen_primary_back": 30946.6171875,
+    "coll_scatter_primary_back": 12996.4951171875,
+    "coll_xray_primary_back": 0.0,
+    "geom_coll_scattered_back": 38468.14453125,
+    "septal_pen_scattered_back": 20356.537109375,
+    "coll_scatter_scattered_back": 7373.17431640625,
+    "coll_xray_scattered_back": 0.0,
+    "unscattered_unattenuated": 5493182.5,
+    "unscattered_unattenuated_geom_coll": 0.0
+   },
+   "simind_seconds": 9920.424197736982
+  },
+  "Reference, trimmed": {
+   "body_total_mbq": 160.8,
+   "sphere_ml": 8.091584816557177,
+   "liver_ml": 978.1663487512843,
+   "sphere_mbq": 0.4035620929826169,
+   "liver_mbq": 28.715347986150338,
+   "sphere_kbq_g": 49.87429559619018,
+   "liver_kbq_g": 29.356303273781617,
+   "ratio": 1.698929702798559,
+   "ratio_first_refresh": 1.6757063590690446,
+   "stability": 0.013858838455692416,
+   "liver_cov": 1.7584172277527073,
+   "scatter_fraction_first": 0.1551271092679031,
+   "scatter_fraction_final": 0.13136406042424278,
+   "normalisation_scale_first": 1.4635192225121667,
+   "normalisation_scale_final": 0.505529804737656,
+   "zero_denominator_fraction": 0.0,
+   "source_sum": 6769.29541015625,
+   "quantization_loss": 0.0017548927521182822,
+   "quantization_scale": 0.011444441053498948,
+   "component_sums": {
+    "all_interactions": 1027578.0,
+    "geom_coll_primary": 222375.046875,
+    "septal_pen_primary": 17484.9296875,
+    "coll_scatter_primary": 9156.84765625,
+    "coll_xray_primary": 7123.17529296875,
+    "geom_coll_scattered": 571702.0625,
+    "septal_pen_scattered": 28275.9765625,
+    "coll_scatter_scattered": 14614.173828125,
+    "coll_xray_scattered": 11861.6005859375,
+    "geom_coll_primary_back": 34745.9296875,
+    "septal_pen_primary_back": 31040.046875,
+    "coll_scatter_primary_back": 13073.73046875,
+    "coll_xray_primary_back": 0.0,
+    "geom_coll_scattered_back": 38355.765625,
+    "septal_pen_scattered_back": 20275.9921875,
+    "coll_scatter_scattered_back": 7492.6767578125,
+    "coll_xray_scattered_back": 0.0,
+    "unscattered_unattenuated": 5488316.0,
+    "unscattered_unattenuated_geom_coll": 0.0
+   },
+   "simind_seconds": 8771.432676586002
+  },
+  "Dewaraja, global": {
+   "body_total_mbq": 160.80000000000007,
+   "sphere_ml": 8.091584816557177,
+   "liver_ml": 978.1663487512843,
+   "sphere_mbq": 0.00011236560312281361,
+   "liver_mbq": 0.24303194941347853,
+   "sphere_kbq_g": 0.013886723759341765,
+   "liver_kbq_g": 0.24845666560062127,
+   "ratio": 0.055891934819989136,
+   "ratio_first_refresh": 0.0011077642399198906,
+   "stability": 49.45472024266736,
+   "liver_cov": 36.243374987136576,
+   "scatter_fraction_first": 0.39386519636269235,
+   "scatter_fraction_final": 0.5953317425884006,
+   "normalisation_scale_first": 3.715865467867145,
+   "normalisation_scale_final": 3.906911628546493,
+   "zero_denominator_fraction": 0.0,
+   "source_sum": 1.3893262147903442,
+   "quantization_loss": 0.009375641694471862,
+   "quantization_scale": 0.06821418436467022,
+   "component_sums": {
+    "all_interactions": 968291.1875,
+    "geom_coll_primary": 196759.328125,
+    "septal_pen_primary": 16064.482421875,
+    "coll_scatter_primary": 8351.908203125,
+    "coll_xray_primary": 6503.384765625,
+    "geom_coll_scattered": 547741.5625,
+    "septal_pen_scattered": 27485.37890625,
+    "coll_scatter_scattered": 14188.640625,
+    "coll_xray_scattered": 11891.69140625,
+    "geom_coll_primary_back": 32084.01953125,
+    "septal_pen_primary_back": 29274.9765625,
+    "coll_scatter_primary_back": 12502.310546875,
+    "coll_xray_primary_back": 0.0,
+    "geom_coll_scattered_back": 37676.73046875,
+    "septal_pen_scattered_back": 20241.1875,
+    "coll_scatter_scattered_back": 7525.57470703125,
+    "coll_xray_scattered_back": 0.0,
+    "unscattered_unattenuated": 5532170.0,
+    "unscattered_unattenuated_geom_coll": 0.0
+   },
+   "simind_seconds": 1338.404253760993
+  },
+  "Dewaraja, pixel-wise": {
+   "body_total_mbq": 160.8,
+   "sphere_ml": 8.091584816557177,
+   "liver_ml": 978.1663487512843,
+   "sphere_mbq": 0.8239993058427111,
+   "liver_mbq": 60.63890672909298,
+   "sphere_kbq_g": 101.83410599078512,
+   "liver_kbq_g": 61.99242777724249,
+   "ratio": 1.642686206075133,
+   "ratio_first_refresh": 1.6080591522958587,
+   "stability": 0.021533445290141586,
+   "liver_cov": 1.4954063068886487,
+   "scatter_fraction_first": 0.4705109537320018,
+   "scatter_fraction_final": 0.7057569168255561,
+   "normalisation_scale_first": null,
+   "normalisation_scale_final": null,
+   "zero_denominator_fraction": 0.6324610392252604,
+   "source_sum": 14524.3525390625,
+   "quantization_loss": 0.0005606257012197541,
+   "quantization_scale": 0.011444441053498948,
+   "component_sums": {
+    "all_interactions": 1017540.6875,
+    "geom_coll_primary": 215986.5,
+    "septal_pen_primary": 17144.34375,
+    "coll_scatter_primary": 8894.6865234375,
+    "coll_xray_primary": 6978.84130859375,
+    "geom_coll_scattered": 569956.8125,
+    "septal_pen_scattered": 28225.841796875,
+    "coll_scatter_scattered": 14492.9326171875,
+    "coll_xray_scattered": 11928.5869140625,
+    "geom_coll_primary_back": 34024.921875,
+    "septal_pen_primary_back": 30693.048828125,
+    "coll_scatter_primary_back": 12952.9228515625,
+    "coll_xray_primary_back": 0.0,
+    "geom_coll_scattered_back": 38552.3515625,
+    "septal_pen_scattered_back": 20310.2578125,
+    "coll_scatter_scattered_back": 7398.5947265625,
+    "coll_xray_scattered_back": 0.0,
+    "unscattered_unattenuated": 5520846.5,
+    "unscattered_unattenuated_geom_coll": 0.0
+   },
+   "simind_seconds": 10691.36394660399
+  },
+  "Baseline": {
+   "body_total_mbq": 160.80000000000007,
+   "sphere_ml": 8.091584816557177,
+   "liver_ml": 978.1663487512843,
+   "sphere_mbq": 0.5326456409043578,
+   "liver_mbq": 40.78448937243248,
+   "sphere_kbq_g": 65.82710964290294,
+   "liver_kbq_g": 41.694839967146166,
+   "ratio": 1.578783122678298,
+   "liver_cov": 1.2421238064155413,
+   "scatter_fraction_final": 0.0
+  }
+ },
+ "truth": {
+  "total_mbq": 160.8,
+  "liver_mbq": 156.4,
+  "sphere_mbq": 4.4,
+  "liver_mass_g": 1149.49,
+  "sphere_mass_g": 8.082,
+  "liver_kbq_g": 136.1,
+  "sphere_kbq_g": 544.4,
+  "ratio": 4.0,
+  "activity_uncertainty": 0.02,
+  "no_decay_correction": true
  },
  "gates": {
   "registration": true,
-  "registration_voxels": 0.296,
-  "max_quantization_loss": 0.0018,
+  "registration_voxels": 0.29639573276798453,
+  "max_quantization_loss": 0.0017548927521182822,
   "quantization_passed": true,
-  "seed_scatter_total_difference": 0.0006,
-  "seed_scatter_l1": 0.0624,
-  "seed_passed": false,
-  "nn_max_ratio_change": 1.7948,
+  "seed_scatter_total_difference": 0.000363495481056608,
+  "seed_scatter_l1": 0.03187911836170568,
+  "seed_passed": true,
+  "nn_max_ratio_change": 0.22894249373204326,
+  "nn_max_ratio_change_coarse": 0.8012338211421061,
   "nn_passed": false,
-  "iteration_max_ratio_change": 0.0091,
+  "iteration_max_ratio_change": 0.008910320883805067,
   "iteration_passed": true,
-  "stability_max_ratio_change": 0.0622,
-  "stability_passed": false,
+  "stability_max_ratio_change": 0.04793446828286264,
+  "stability_passed": true,
   "valid_strategies": [
    "Known activity",
    "Reference, sum",
    "Reference, trimmed",
    "Dewaraja, pixel-wise"
   ],
-  "collapsed_strategies": ["Dewaraja, global"]
+  "collapsed_strategies": [
+   "Dewaraja, global"
+  ]
+ },
+ "valid_strategies": [
+  "Known activity",
+  "Reference, sum",
+  "Reference, trimmed",
+  "Dewaraja, pixel-wise"
+ ],
+ "collapsed_strategies": [
+  "Dewaraja, global"
+ ],
+ "scatter_differences": {
+  "Known activity": {
+   "Known activity": 0.0,
+   "Reference, sum": 0.02527987408175196,
+   "Reference, trimmed": 0.0257256813030943,
+   "Dewaraja, pixel-wise": 1.1143174926053887
+  },
+  "Reference, sum": {
+   "Known activity": 0.02527987408175196,
+   "Reference, sum": 0.0,
+   "Reference, trimmed": 0.020215748222081137,
+   "Dewaraja, pixel-wise": 1.113966468796058
+  },
+  "Reference, trimmed": {
+   "Known activity": 0.0257256813030943,
+   "Reference, sum": 0.020215748222081137,
+   "Reference, trimmed": 0.0,
+   "Dewaraja, pixel-wise": 1.1135640192387755
+  },
+  "Dewaraja, pixel-wise": {
+   "Known activity": 1.1143174926053887,
+   "Reference, sum": 1.113966468796058,
+   "Reference, trimmed": 1.1135640192387755,
+   "Dewaraja, pixel-wise": 0.0
+  }
+ },
+ "nn_ratios": {
+  "nn_1": {
+   "Known activity": 1.6143906954323701,
+   "Reference, sum": 0.04220268047912217,
+   "Reference, trimmed": 0.0018644785830192803,
+   "Dewaraja, pixel-wise": 1.7108975570063953
+  },
+  "nn_2": {
+   "Known activity": 1.6700994559690554,
+   "Reference, sum": 0.06990269058354437,
+   "Reference, trimmed": 0.003358361882529438,
+   "Dewaraja, pixel-wise": 1.711405362099811
+  },
+  "nn_4": {
+   "Known activity": 1.6419820098332236,
+   "Reference, sum": 0.05586720493284465,
+   "Reference, trimmed": 0.002589490138288509,
+   "Dewaraja, pixel-wise": 1.713903871019638
+  }
+ },
+ "nn_ratio_changes": {
+  "coarse": {
+   "Known activity": 0.034507607541534556,
+   "Reference, sum": 0.656356652941168,
+   "Reference, trimmed": 0.8012338211421061,
+   "Dewaraja, pixel-wise": 0.000296806253148358
+  },
+  "fine": {
+   "Known activity": 0.016835791446633917,
+   "Reference, sum": 0.2007860574969596,
+   "Reference, trimmed": 0.22894249373204326,
+   "Dewaraja, pixel-wise": 0.0014599164962071215
+  }
+ },
+ "iteration_ratio_changes": {
+  "Known activity": 0.008910320883805067,
+  "Reference, sum": 0.0016835852376091403,
+  "Reference, trimmed": 0.003309199643416007,
+  "Dewaraja, pixel-wise": 0.0002000664775280018
+ },
+ "seed_scatter_totals": {
+  "seed_101": 801618.0,
+  "seed_202": 801909.4375
+ },
+ "centre_sensitivity": {
+  "offsets_voxels": [
+   -2,
+   -1,
+   0,
+   1,
+   2
+  ],
+  "centres": 125,
+  "strategies": {
+   "Known activity": {
+    "nominal": 1.7187367335436652,
+    "all_min": 0.9862525741978745,
+    "all_max": 2.051120501494505,
+    "pm1_min": 1.2948044754063717,
+    "pm1_max": 2.022144511488789,
+    "pm2_min": 0.9862525741978745,
+    "pm2_max": 2.051120501494505
+   },
+   "Reference, sum": {
+    "nominal": 1.7027557683300827,
+    "all_min": 1.0502025353357187,
+    "all_max": 1.9227894823873641,
+    "pm1_min": 1.3529449972314607,
+    "pm1_max": 1.9227894823873641,
+    "pm2_min": 1.0502025353357187,
+    "pm2_max": 1.9227894823873641
+   },
+   "Reference, trimmed": {
+    "nominal": 1.698929702798559,
+    "all_min": 1.0418540874089015,
+    "all_max": 1.9224141034810092,
+    "pm1_min": 1.3486777562400096,
+    "pm1_max": 1.9224141034810092,
+    "pm2_min": 1.0418540874089015,
+    "pm2_max": 1.9224141034810092
+   },
+   "Dewaraja, pixel-wise": {
+    "nominal": 1.642686206075133,
+    "all_min": 1.1830829541515353,
+    "all_max": 1.7592270127204075,
+    "pm1_min": 1.3959403127426981,
+    "pm1_max": 1.7592270127204075,
+    "pm2_min": 1.1830829541515353,
+    "pm2_max": 1.7592270127204075
+   }
+  },
+  "combined": {
+   "nominal_min": 1.642686206075133,
+   "nominal_max": 1.7187367335436652,
+   "all_min": 0.9862525741978745,
+   "all_max": 2.051120501494505,
+   "pm1_min": 1.2948044754063717,
+   "pm1_max": 2.022144511488789,
+   "pm2_min": 0.9862525741978745,
+   "pm2_max": 2.051120501494505
+  },
+  "ordering_nominal": [
+   "Known activity",
+   "Reference, sum",
+   "Reference, trimmed",
+   "Dewaraja, pixel-wise"
+  ],
+  "ordering_changes_over_125": 107,
+  "note": "Sensitivity ranges, not confidence intervals; no centre was selected."
+ },
+ "diagnostics": {
+  "shared_to_measured": 0.2691163091472163,
+  "global_factor": 3.715865467867145,
+  "measured_zero_simind_fraction": 0.315946908138137,
+  "audited_first_additive_sphere_ray_ratio": 1.382,
+  "audited_first_additive_liver_ray_ratio": 1.263
  }
 }

@@ -25,10 +25,12 @@ Simulate "measured" data from the NEMA/IEC body phantom with a known activity,
 reconstruct it with SIRF OSEM and measure the contrast recovery of the hot
 spheres.
 
-The data are simulated by SIMIND with four histories per measured count, so
-the Monte Carlo variance is a quarter of the Poisson variance of the
-acquisition. The simulation is run once and cached; every reconstruction
-tutorial in this gallery reuses it. The reconstruction uses a SPECTUB model
+The data are simulated by SIMIND with four times the default source-history
+budget. The history count and the measured counts are reported separately; the
+tutorial does not derive a Monte Carlo precision from their ratio, because
+that ratio does not give the variance of SIMIND's weighted estimator. The
+simulation is run once and cached; every reconstruction tutorial in this
+gallery reuses it. The reconstruction uses a SPECTUB model
 with attenuation but no collimator blur and no scatter term, so OSEM treats
 scattered events as if they came from the primary distribution. Contrast
 recovery is therefore reported against the truth's own masked score, not
@@ -47,13 +49,13 @@ is the mean of the three.
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 33-36
+.. GENERATED FROM PYTHON SOURCE LINES 35-38
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 36-57
+.. GENERATED FROM PYTHON SOURCE LINES 38-59
 
 .. code-block:: Python
 
@@ -85,7 +87,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 58-64
+.. GENERATED FROM PYTHON SOURCE LINES 60-66
 
 NEMA/IEC phantom
 ----------------
@@ -94,7 +96,7 @@ Its two smallest spheres, 10 and 13 mm, are cold; the four hot spheres are
 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 the density times the attenuation coefficient of water at 140 keV.
 
-.. GENERATED FROM PYTHON SOURCE LINES 64-88
+.. GENERATED FROM PYTHON SOURCE LINES 66-90
 
 .. code-block:: Python
 
@@ -134,7 +136,7 @@ the density times the attenuation coefficient of water at 140 keV.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 89-94
+.. GENERATED FROM PYTHON SOURCE LINES 91-96
 
 Template
 --------
@@ -142,7 +144,7 @@ The template sets the projection geometry: 48 x 48 bins of 7 mm, 60 views
 over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 reconstruction take their geometry from it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 94-97
+.. GENERATED FROM PYTHON SOURCE LINES 96-99
 
 .. code-block:: Python
 
@@ -156,7 +158,7 @@ reconstruction take their geometry from it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 98-112
+.. GENERATED FROM PYTHON SOURCE LINES 100-114
 
 "Measured" data
 ---------------
@@ -173,7 +175,7 @@ Poisson noise from a seeded generator is added to the simulated counts at
 2 s per view. The three realisations use independent seeds and share the one
 expectation.
 
-.. GENERATED FROM PYTHON SOURCE LINES 112-137
+.. GENERATED FROM PYTHON SOURCE LINES 114-139
 
 .. code-block:: Python
 
@@ -183,10 +185,10 @@ expectation.
     realisations = dict(_nema.paired_realisations(expectation, template))
 
     print(f"Expectation counts: {expectation.total:.4g}")
-    print(f"Photon histories: {expectation.histories:.4g}")
+    print(f"Photon histories per projection: {expectation.histories:.4g}")
     print(
-        f"Histories per measured count: {expectation.histories_per_count:.2f} "
-        "(so the Monte Carlo variance is that fraction of the Poisson variance)"
+        f"Expectation counts per projection: {expectation.counts_per_projection:.4g} "
+        f"over {expectation.views} views"
     )
     print(f"Quantization loss: {expectation.quantization_loss:.2%}")
     for seed, measured in realisations.items():
@@ -215,11 +217,11 @@ expectation.
 
  .. code-block:: none
 
-    SIMIND v8: 48x48x48 grid, 60 views at 250 mm, 4 histories per source count, 2 s/view, 8 MPI processes
-    Reused expectation expectation_29b192da7858.npz: 2e+06 counts, 8.1e+06 histories, simulated in 144.4 min
+    SIMIND v8: 48x48x48 grid, 60 views at 250 mm, history multiplier 4, 2 s/view, 8 MPI processes
+    Reused expectation expectation_29b192da7858.npz: 2e+06 counts, 6.48e+07 histories, simulated in 144.4 min
     Expectation counts: 1.997e+06
-    Photon histories: 8.102e+06
-    Histories per measured count: 4.06 (so the Monte Carlo variance is that fraction of the Poisson variance)
+    Photon histories per projection: 6.482e+07
+    Expectation counts per projection: 3.328e+04 over 60 views
     Quantization loss: 0.29%
     Seed 12345: 1.997e+06 measured counts
     Seed 12346: 1.997e+06 measured counts
@@ -228,7 +230,7 @@ expectation.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 138-147
+.. GENERATED FROM PYTHON SOURCE LINES 140-149
 
 OSEM
 ----
@@ -240,7 +242,7 @@ background noise rises from about 0.55 to 0.71; four iterations is the first
 setting that is within that margin of the longer run without paying its
 noise.
 
-.. GENERATED FROM PYTHON SOURCE LINES 147-221
+.. GENERATED FROM PYTHON SOURCE LINES 149-223
 
 .. code-block:: Python
 
@@ -336,7 +338,7 @@ noise.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 222-227
+.. GENERATED FROM PYTHON SOURCE LINES 224-229
 
 Reconstruction and truth
 ------------------------
@@ -344,7 +346,7 @@ Both images are shown relative to their mean in the background mask, so the
 arbitrary scale of the reconstruction does not matter. The reconstruction is
 the mean of the three realisations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 227-241
+.. GENERATED FROM PYTHON SOURCE LINES 229-243
 
 .. code-block:: Python
 
@@ -374,7 +376,7 @@ the mean of the three realisations.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 242-250
+.. GENERATED FROM PYTHON SOURCE LINES 244-252
 
 Contrast recovery
 -----------------
@@ -385,7 +387,7 @@ the truth scores below 1; its score is the ceiling for the reconstruction.
 The 10 and 13 mm spheres are cold and are not scored. The error bars are the
 standard error over the three independent Poisson realisations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 250-274
+.. GENERATED FROM PYTHON SOURCE LINES 252-276
 
 .. code-block:: Python
 
@@ -437,7 +439,7 @@ standard error over the three independent Poisson realisations.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (1 minutes 27.849 seconds)
+   **Total running time of the script:** (0 minutes 48.591 seconds)
 
 
 .. _sphx_glr_download_auto_examples_phantoms_plot_10_nema_osem.py:

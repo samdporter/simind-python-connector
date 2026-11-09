@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**194:09.846** total execution time for 2 files **from auto_examples/phantoms**:
+**193:30.587** total execution time for 2 files **from auto_examples/phantoms**:
 
 .. container::
 
@@ -36,5 +36,5 @@ Computation times
      - 192:41.996
      - 0.0
    * - :ref:`sphx_glr_auto_examples_phantoms_plot_10_nema_osem.py` (``plot_10_nema_osem.py``)
-     - 01:27.849
+     - 00:48.591
      - 0.0

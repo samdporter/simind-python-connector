@@ -26,16 +26,11 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
    ranking or a quantitative superiority claim.
 
 .. note::
-   The stored pixel-wise image and numbers were produced with the legacy order:
-   form SIMIND's scatter-to-total ratio first, then smooth. The 2.0.2 estimator
-   smooths SIMIND's scatter and total with the same Gaussian before dividing
-   and then smooths the result again. Those stored pixel-wise results are kept
-   for continuity but are superseded by the estimator change. The global
-   diagnostic is unaffected and stays separate. The roughly 27% pixel-wise
-   drift is a legacy observation from those pre-fix stored results; the
-   corrected estimator's effect on it has not been measured, and the drift
-   remains unresolved. The next check is a frozen-image comparison with an
-   independent SIMIND seed, not a claim that pre-smoothing fixes it.
+   The pixel-wise arm smooths SIMIND's scatter and total with the same
+   Gaussian over three bins including the view axis before dividing, then
+   smooths the result again. The 2.15% two-refresh stability reported below
+   (gate 5%) is measured with that estimator. An earlier ratio-first order is
+   not used for any stored result or claim on this page.
 
 The history-doubling and independent-seed probes run on the native 120-view
 geometry at four, eight and sixteen times the base history multiplier, so they
@@ -83,8 +78,7 @@ The five corrections are:
    diagnostic and are not compared with the compartment estimates.
 5. **Dewaraja, pixel-wise.** SIMIND's scatter and matching total in each bin,
    both smoothed over 3 bins including the view axis, form the ratio that is
-   multiplied by the measured data; the result is smoothed again. The stored
-   numbers below use the legacy ratio-first order and are superseded.
+   multiplied by the measured data; the result is smoothed again.
 
 The baseline reconstructs the same data with a zero additive term and no
 refresh.
@@ -207,7 +201,7 @@ if HISTORY_MULTIPLIER < 1:
 # repeating the Monte Carlo simulation; the reconstruction and figures still run
 # from scratch. Bump the version when the simulator configuration changes in a
 # way that the recorded settings do not capture.
-SIMULATION_CACHE_VERSION = 1
+SIMULATION_CACHE_VERSION = 2
 REFRESH_SIMULATIONS = os.environ.get("SIMIND_Y90_REFRESH_SIMULATIONS") == "1"
 MAX_DATA_DIGEST_BYTES = 512 * 1024 * 1024
 
@@ -278,19 +272,28 @@ def _shown(path):
 
 
 def _resolved_binary():
-    """Return the executable SIMIND would actually run."""
-    binary = os.environ.get("SIMIND_BIN") or shutil.which("simind") or ""
-    return str(Path(binary).expanduser().resolve()) if binary else ""
+    """Return the executable SIMIND would actually run, as the executor finds it.
+
+    ``SimindExecutor`` uses ``$SIMIND_BIN`` when set and the bare name
+    ``simind`` otherwise, letting the operating system search ``PATH``. A
+    path-bearing value is anchored to the caller's working directory. A bare
+    name is resolved with ``shutil.which`` here so the recorded identity names
+    the file that would run, not a same-named file in the current directory.
+    """
+    configured = os.environ.get("SIMIND_BIN") or "simind"
+    if os.sep in configured or (os.altsep and os.altsep in configured):
+        return str(Path(configured).expanduser().absolute())
+    return shutil.which(configured) or ""
 
 
 def _file_digest(path):
-    """Return a content digest for a file, or a marker when it is unreadable."""
+    """Return a content digest and whether the file could be read and hashed."""
     if not path:
-        return ""
+        return "", False
     try:
-        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest(), True
     except OSError:
-        return f"unreadable:{path}"
+        return f"unreadable:{path}", False
 
 
 def _directory_digest(directory):
@@ -344,14 +347,15 @@ def _directory_digest(directory):
 def _engine_inputs():
     """Identify the effective SIMIND engine that would produce the counts.
 
-    ``SIMIND_BIN`` may be unset, in which case the executable is found on
-    ``PATH``; both cases are recorded by the resolved path and its content
-    digest. The data directory follows the connector's fallback order,
-    ``SIMIND_SMC_DIR``, ``SMC_DIR`` then ``SIMIND_DATA_DIR``, and is recorded
-    by resolved path and a content tree digest so that either a path change or
-    an in-place data change invalidates the cache.
+    ``SIMIND_BIN`` may be unset, in which case the executable is looked up on
+    ``PATH`` as the executor does; both cases are recorded by the resolved
+    path and its content digest. The data directory follows the connector's
+    fallback order, ``SIMIND_SMC_DIR``, ``SMC_DIR`` then ``SIMIND_DATA_DIR``,
+    and is recorded by resolved path and a content tree digest so that either
+    a path change or an in-place data change invalidates the cache.
     """
     binary = _resolved_binary()
+    binary_digest, binary_complete = _file_digest(binary)
     data_directory = ""
     for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR"):
         value = os.environ.get(variable)
@@ -365,7 +369,8 @@ def _engine_inputs():
         "version": os.environ.get("SIMIND_VERSION"),
         "root": os.environ.get("SIMIND_ROOT"),
         "binary": binary,
-        "binary_sha256": _file_digest(binary),
+        "binary_sha256": binary_digest,
+        "binary_complete": binary_complete,
         "data_directory": data_directory,
         "data_directory_digest": data_digest,
         "data_directory_complete": data_complete,
@@ -1271,8 +1276,8 @@ def build_additive(
             # the ratio noise of the summed estimate; how a noisy ratio behaves
             # in general depends on the covariance between numerator and
             # denominator, so that is an observation about the control, not a
-            # general claim about MC ratios, and it does not explain the
-            # unresolved 27% drift. The final smoothing below is retained.
+            # general claim about MC ratios. The final smoothing below is
+            # retained.
             numerator = smooth_scatter(numerator, smoothing_fwhm_bins)
             denominator_values = smooth_scatter(denominator_values, smoothing_fwhm_bins)
         fraction = np.divide(
@@ -1537,6 +1542,7 @@ def _array_digest(array):
 
 def _simulation_settings(job, density):
     """Describe everything a cached realization depends on."""
+    template_digest, template_complete = _file_digest(job.get("template"))
     return {
         "cache_version": SIMULATION_CACHE_VERSION,
         "prefix": job["prefix"],
@@ -1546,6 +1552,9 @@ def _simulation_settings(job, density):
         "time_per_projection_s": job["time_per_projection_s"],
         "quantization_scale": job["quantization_scale"],
         "density_digest": _array_digest(density),
+        "acquisition_template": str(job.get("template", "")),
+        "acquisition_template_sha256": template_digest,
+        "acquisition_template_complete": template_complete,
         "engine": _engine_inputs(),
     }
 
@@ -1573,7 +1582,12 @@ def _cached_simulation(output_dir, settings, source):
         return None
     if manifest.get("settings") != settings:
         return None
-    if not settings.get("engine", {}).get("data_directory_complete", False):
+    engine = settings.get("engine", {})
+    if not engine.get("binary_complete", False):
+        return None
+    if not engine.get("data_directory_complete", False):
+        return None
+    if not settings.get("acquisition_template_complete", False):
         return None
     previous_file = output_dir / "source.npy"
     if not previous_file.is_file():

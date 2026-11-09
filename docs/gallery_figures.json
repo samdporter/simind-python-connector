@@ -442,6 +442,7 @@
      "status",
      "engine.version",
      "engine.history_multiplier",
+     "schedule.history_multiplier",
      "schedule.probe_geometry",
      "gates.registration",
      "gates.quantization_passed",
@@ -449,7 +450,31 @@
      "gates.seed_scatter_l1",
      "gates.nn_passed",
      "gates.iteration_passed",
-     "gates.stability_passed"
+     "gates.stability_passed",
+     "gates.stability_max_ratio_change"
+    ],
+    "expected_values": {
+     "status": "quality_not_established",
+     "engine.version": "8",
+     "engine.history_multiplier": 4,
+     "schedule.history_multiplier": 4,
+     "schedule.probe_geometry": "native 120-view measured geometry",
+     "gates.registration": true,
+     "gates.quantization_passed": true,
+     "gates.seed_passed": true,
+     "gates.nn_passed": false,
+     "gates.iteration_passed": true,
+     "gates.stability_passed": true
+    },
+    "consistent_fields": [
+     ["history_multiplier", "engine.history_multiplier"],
+     ["history_multiplier", "schedule.history_multiplier"],
+     ["engine.probe_geometry", "schedule.probe_geometry"]
+    ],
+    "page_values": [
+     {"field": "engine.history_multiplier", "format": "nn"},
+     {"field": "gates.seed_scatter_l1", "format": "percent"},
+     {"field": "gates.stability_max_ratio_change", "format": "percent"}
     ],
     "statistical_claims": {
      "quantitative": false,

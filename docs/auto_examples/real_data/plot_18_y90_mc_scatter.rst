@@ -45,16 +45,11 @@ Y-90 reconstruction with Monte Carlo scatter: an audited negative result
    ranking or a quantitative superiority claim.
 
 .. note::
-   The stored pixel-wise image and numbers were produced with the legacy order:
-   form SIMIND's scatter-to-total ratio first, then smooth. The 2.0.2 estimator
-   smooths SIMIND's scatter and total with the same Gaussian before dividing
-   and then smooths the result again. Those stored pixel-wise results are kept
-   for continuity but are superseded by the estimator change. The global
-   diagnostic is unaffected and stays separate. The roughly 27% pixel-wise
-   drift is a legacy observation from those pre-fix stored results; the
-   corrected estimator's effect on it has not been measured, and the drift
-   remains unresolved. The next check is a frozen-image comparison with an
-   independent SIMIND seed, not a claim that pre-smoothing fixes it.
+   The pixel-wise arm smooths SIMIND's scatter and total with the same
+   Gaussian over three bins including the view axis before dividing, then
+   smooths the result again. The 2.15% two-refresh stability reported below
+   (gate 5%) is measured with that estimator. An earlier ratio-first order is
+   not used for any stored result or claim on this page.
 
 The history-doubling and independent-seed probes run on the native 120-view
 geometry at four, eight and sixteen times the base history multiplier, so they
@@ -102,8 +97,7 @@ The five corrections are:
    diagnostic and are not compared with the compartment estimates.
 5. **Dewaraja, pixel-wise.** SIMIND's scatter and matching total in each bin,
    both smoothed over 3 bins including the view axis, form the ratio that is
-   multiplied by the measured data; the result is smoothed again. The stored
-   numbers below use the legacy ratio-first order and are superseded.
+   multiplied by the measured data; the result is smoothed again.
 
 The baseline reconstructs the same data with a zero additive term and no
 refresh.
@@ -138,12 +132,12 @@ The Y-90 phantom data are not published for download yet. Set
 ``SIMIND_CONNECTOR_Y90_DATA`` to a directory holding ``peak.dcm``,
 ``peak.hs``, ``peak.s``, ``umap_zoomed.hv``, ``umap_zoomed.v`` and ``ctac/``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 124-126
+.. GENERATED FROM PYTHON SOURCE LINES 118-120
 
 Setup
 -----
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-386
+.. GENERATED FROM PYTHON SOURCE LINES 120-391
 
 .. code-block:: Python
 
@@ -231,7 +225,7 @@ Setup
     # repeating the Monte Carlo simulation; the reconstruction and figures still run
     # from scratch. Bump the version when the simulator configuration changes in a
     # way that the recorded settings do not capture.
-    SIMULATION_CACHE_VERSION = 1
+    SIMULATION_CACHE_VERSION = 2
     REFRESH_SIMULATIONS = os.environ.get("SIMIND_Y90_REFRESH_SIMULATIONS") == "1"
     MAX_DATA_DIGEST_BYTES = 512 * 1024 * 1024
 
@@ -302,19 +296,28 @@ Setup
 
 
     def _resolved_binary():
-        """Return the executable SIMIND would actually run."""
-        binary = os.environ.get("SIMIND_BIN") or shutil.which("simind") or ""
-        return str(Path(binary).expanduser().resolve()) if binary else ""
+        """Return the executable SIMIND would actually run, as the executor finds it.
+
+        ``SimindExecutor`` uses ``$SIMIND_BIN`` when set and the bare name
+        ``simind`` otherwise, letting the operating system search ``PATH``. A
+        path-bearing value is anchored to the caller's working directory. A bare
+        name is resolved with ``shutil.which`` here so the recorded identity names
+        the file that would run, not a same-named file in the current directory.
+        """
+        configured = os.environ.get("SIMIND_BIN") or "simind"
+        if os.sep in configured or (os.altsep and os.altsep in configured):
+            return str(Path(configured).expanduser().absolute())
+        return shutil.which(configured) or ""
 
 
     def _file_digest(path):
-        """Return a content digest for a file, or a marker when it is unreadable."""
+        """Return a content digest and whether the file could be read and hashed."""
         if not path:
-            return ""
+            return "", False
         try:
-            return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+            return hashlib.sha256(Path(path).read_bytes()).hexdigest(), True
         except OSError:
-            return f"unreadable:{path}"
+            return f"unreadable:{path}", False
 
 
     def _directory_digest(directory):
@@ -368,14 +371,15 @@ Setup
     def _engine_inputs():
         """Identify the effective SIMIND engine that would produce the counts.
 
-        ``SIMIND_BIN`` may be unset, in which case the executable is found on
-        ``PATH``; both cases are recorded by the resolved path and its content
-        digest. The data directory follows the connector's fallback order,
-        ``SIMIND_SMC_DIR``, ``SMC_DIR`` then ``SIMIND_DATA_DIR``, and is recorded
-        by resolved path and a content tree digest so that either a path change or
-        an in-place data change invalidates the cache.
+        ``SIMIND_BIN`` may be unset, in which case the executable is looked up on
+        ``PATH`` as the executor does; both cases are recorded by the resolved
+        path and its content digest. The data directory follows the connector's
+        fallback order, ``SIMIND_SMC_DIR``, ``SMC_DIR`` then ``SIMIND_DATA_DIR``,
+        and is recorded by resolved path and a content tree digest so that either
+        a path change or an in-place data change invalidates the cache.
         """
         binary = _resolved_binary()
+        binary_digest, binary_complete = _file_digest(binary)
         data_directory = ""
         for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR"):
             value = os.environ.get(variable)
@@ -389,7 +393,8 @@ Setup
             "version": os.environ.get("SIMIND_VERSION"),
             "root": os.environ.get("SIMIND_ROOT"),
             "binary": binary,
-            "binary_sha256": _file_digest(binary),
+            "binary_sha256": binary_digest,
+            "binary_complete": binary_complete,
             "data_directory": data_directory,
             "data_directory_digest": data_digest,
             "data_directory_complete": data_complete,
@@ -414,7 +419,7 @@ Setup
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 387-393
+.. GENERATED FROM PYTHON SOURCE LINES 392-398
 
 CT series and patient-to-SPECT frame
 ------------------------------------
@@ -423,7 +428,7 @@ The CT slices are not stored in spatial order and are sorted by
 patient-to-SPECT affine uses the NM detector centre in x and z and the CT
 table height in y; no origin is re-derived from the images.
 
-.. GENERATED FROM PYTHON SOURCE LINES 393-544
+.. GENERATED FROM PYTHON SOURCE LINES 398-549
 
 .. code-block:: Python
 
@@ -585,7 +590,7 @@ table height in y; no origin is re-derived from the images.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 545-552
+.. GENERATED FROM PYTHON SOURCE LINES 550-557
 
 Registration
 ------------
@@ -595,7 +600,7 @@ finite values, eroded once to keep the body/table boundary out of the edge
 correlation. The acceptance criterion is a Euclidean offset of at most one
 voxel. The measured offset is reported, not applied to the maps.
 
-.. GENERATED FROM PYTHON SOURCE LINES 552-737
+.. GENERATED FROM PYTHON SOURCE LINES 557-742
 
 .. code-block:: Python
 
@@ -791,7 +796,7 @@ voxel. The measured offset is reported, not applied to the maps.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 738-744
+.. GENERATED FROM PYTHON SOURCE LINES 743-749
 
 SIRF resampling
 ---------------
@@ -800,7 +805,7 @@ resampler's zero padding becomes -1000 HU. The reference is an empty image
 with the target SPECT affine and the identity transform is deliberate. The
 resampled array is transferred to a STIR image on the vendor grid.
 
-.. GENERATED FROM PYTHON SOURCE LINES 744-793
+.. GENERATED FROM PYTHON SOURCE LINES 749-798
 
 .. code-block:: Python
 
@@ -860,7 +865,7 @@ resampled array is transferred to a STIR image on the vendor grid.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 794-800
+.. GENERATED FROM PYTHON SOURCE LINES 799-805
 
 Liver VOI
 ---------
@@ -869,7 +874,7 @@ closed component of the wall on each CT slice, excluding the wall itself, air,
 the lung domes and other compartments. The mask is generated once from the CT,
 before any reconstruction, and is never changed by a strategy.
 
-.. GENERATED FROM PYTHON SOURCE LINES 800-946
+.. GENERATED FROM PYTHON SOURCE LINES 805-951
 
 .. code-block:: Python
 
@@ -1026,7 +1031,7 @@ before any reconstruction, and is never changed by a strategy.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 947-960
+.. GENERATED FROM PYTHON SOURCE LINES 952-965
 
 Metrics
 -------
@@ -1042,7 +1047,7 @@ and sphere. It is affected by recovery, spillover and the VOI uncertainty.
 The activities are those at the scan; no decay correction is applied, and
 +-2% is the supplied activity uncertainty only.
 
-.. GENERATED FROM PYTHON SOURCE LINES 960-1201
+.. GENERATED FROM PYTHON SOURCE LINES 965-1206
 
 .. code-block:: Python
 
@@ -1294,12 +1299,12 @@ The activities are those at the scan; no decay correction is applied, and
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1202-1204
+.. GENERATED FROM PYTHON SOURCE LINES 1207-1209
 
 Scatter strategies
 ------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1204-1311
+.. GENERATED FROM PYTHON SOURCE LINES 1209-1316
 
 .. code-block:: Python
 
@@ -1373,8 +1378,8 @@ Scatter strategies
                 # the ratio noise of the summed estimate; how a noisy ratio behaves
                 # in general depends on the covariance between numerator and
                 # denominator, so that is an observation about the control, not a
-                # general claim about MC ratios, and it does not explain the
-                # unresolved 27% drift. The final smoothing below is retained.
+                # general claim about MC ratios. The final smoothing below is
+                # retained.
                 numerator = smooth_scatter(numerator, smoothing_fwhm_bins)
                 denominator_values = smooth_scatter(denominator_values, smoothing_fwhm_bins)
             fraction = np.divide(
@@ -1417,12 +1422,12 @@ Scatter strategies
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1312-1314
+.. GENERATED FROM PYTHON SOURCE LINES 1317-1319
 
 Reconstruction schedule
 -----------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1314-1420
+.. GENERATED FROM PYTHON SOURCE LINES 1319-1425
 
 .. code-block:: Python
 
@@ -1539,12 +1544,12 @@ Reconstruction schedule
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1421-1423
+.. GENERATED FROM PYTHON SOURCE LINES 1426-1428
 
 SIRF and SIMIND run-time helpers
 --------------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1423-1516
+.. GENERATED FROM PYTHON SOURCE LINES 1428-1521
 
 .. code-block:: Python
 
@@ -1648,12 +1653,12 @@ SIRF and SIMIND run-time helpers
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1517-1519
+.. GENERATED FROM PYTHON SOURCE LINES 1522-1524
 
 SIMIND job
 ----------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1519-1843
+.. GENERATED FROM PYTHON SOURCE LINES 1524-1857
 
 .. code-block:: Python
 
@@ -1678,6 +1683,7 @@ SIMIND job
 
     def _simulation_settings(job, density):
         """Describe everything a cached realization depends on."""
+        template_digest, template_complete = _file_digest(job.get("template"))
         return {
             "cache_version": SIMULATION_CACHE_VERSION,
             "prefix": job["prefix"],
@@ -1687,6 +1693,9 @@ SIMIND job
             "time_per_projection_s": job["time_per_projection_s"],
             "quantization_scale": job["quantization_scale"],
             "density_digest": _array_digest(density),
+            "acquisition_template": str(job.get("template", "")),
+            "acquisition_template_sha256": template_digest,
+            "acquisition_template_complete": template_complete,
             "engine": _engine_inputs(),
         }
 
@@ -1714,7 +1723,12 @@ SIMIND job
             return None
         if manifest.get("settings") != settings:
             return None
-        if not settings.get("engine", {}).get("data_directory_complete", False):
+        engine = settings.get("engine", {})
+        if not engine.get("binary_complete", False):
+            return None
+        if not engine.get("data_directory_complete", False):
+            return None
+        if not settings.get("acquisition_template_complete", False):
             return None
         previous_file = output_dir / "source.npy"
         if not previous_file.is_file():
@@ -1988,12 +2002,12 @@ SIMIND job
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1844-1846
+.. GENERATED FROM PYTHON SOURCE LINES 1858-1860
 
 Templates and measured data
 ---------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 1846-1898
+.. GENERATED FROM PYTHON SOURCE LINES 1860-1912
 
 .. code-block:: Python
 
@@ -2056,11 +2070,11 @@ Templates and measured data
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 1899-1900
+.. GENERATED FROM PYTHON SOURCE LINES 1913-1914
 
 Figures
 
-.. GENERATED FROM PYTHON SOURCE LINES 1900-2189
+.. GENERATED FROM PYTHON SOURCE LINES 1914-2203
 
 .. code-block:: Python
 
@@ -2360,12 +2374,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 2190-2192
+.. GENERATED FROM PYTHON SOURCE LINES 2204-2206
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 2192-3126
+.. GENERATED FROM PYTHON SOURCE LINES 2206-3140
 
 .. code-block:: Python
 
@@ -3380,7 +3394,7 @@ Run the tutorial
     SIMIND source support: 15948 voxels, 1231.0 mL
     Measured projections: (1, 128, 120, 128), sum 3783028.0
     Generating the independent attenuation-only reference reconstruction
-    Reference: 107.3 s, max 4.440, sum 95176.0
+    Reference: 93.6 s, max 4.440, sum 95176.0
     Reference hot-sphere centroid: [ -77.43 -181.69 -576.2 ] mm at voxel [64.52 53.71 45.78] (peak (63, 52, 45)); accepted centre (-77.43, -181.69, -576.2), difference 0.00 mm
     Sphere: 8.092 mL, centroid [ -77.43 -181.7  -576.21] mm
     Liver ex sphere: 978.17 mL, centroid [ -31.97 -172.15 -596.65] mm
@@ -3475,7 +3489,7 @@ Run the tutorial
       Dewaraja, pixel-wi      1.114      1.114      1.114      0.000
     Diagnostic scale: shared/measured 0.269, global factor 3.716, measured counts in zero-SIMIND bins 31.6%
     SIMIND realizations: 14 of 14 loaded from a matching cached run (timings below are the recorded original runs)
-    Total wall time: 153.8 min
+    Total wall time: 145.0 min
     Summary written to y90_mc_scatter
     WARNING: Statistical adequacy was not established; see UNACCEPTED.txt
 
@@ -3485,7 +3499,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (153 minutes 49.562 seconds)
+   **Total running time of the script:** (145 minutes 0.912 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_18_y90_mc_scatter.py:

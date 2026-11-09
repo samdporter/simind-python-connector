@@ -1035,6 +1035,22 @@
    "name": "ndarray"
   }
  ],
+ "expectation.counts_per_projection": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "examples._nema",
+   "module_short": "examples._nema",
+   "name": "Expectation.counts_per_projection"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "examples",
+   "module_short": "examples",
+   "name": "Expectation.counts_per_projection"
+  }
+ ],
  "expectation.histories": [
   {
    "is_class": false,
@@ -1042,22 +1058,6 @@
    "module": "builtins",
    "module_short": "builtins",
    "name": "float"
-  }
- ],
- "expectation.histories_per_count": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "examples._nema",
-   "module_short": "examples._nema",
-   "name": "Expectation.histories_per_count"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "examples",
-   "module_short": "examples",
-   "name": "Expectation.histories_per_count"
   }
  ],
  "expectation.quantization_loss": [
@@ -1083,6 +1083,22 @@
    "module": "examples",
    "module_short": "examples",
    "name": "Expectation.total"
+  }
+ ],
+ "expectation.views": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "examples._nema",
+   "module_short": "examples._nema",
+   "name": "Expectation.views"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "examples",
+   "module_short": "examples",
+   "name": "Expectation.views"
   }
  ],
  "expectation_cov": [

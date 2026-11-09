@@ -7,9 +7,11 @@ difference prior (RDP) and CIL's stochastic variance reduced gradient (SVRG),
 and compare it with OSEM. Both reconstructions use a SIMIND scatter estimate
 that is refreshed from the current image during the run.
 
-The data are simulated by SIMIND with four histories per measured count, so
-the Monte Carlo variance of the expectation is a quarter of the Poisson
-variance of the acquisition. The reconstruction uses a fast SPECTUB model that
+The data are simulated by SIMIND with four times the default source-history
+budget. The history count and the measured counts are reported separately; no
+Monte Carlo precision is derived from their ratio, because it does not give
+the variance of SIMIND's weighted estimator. The reconstruction uses a fast
+SPECTUB model that
 has no scatter. SIMIND provides the scatter: all interactions minus the
 geometric primary, scaled to the fast model and added to its forward
 projection. The RDP is smooth, so it is part of the gradient-based objective
@@ -122,7 +124,7 @@ expectation = _nema.simulate_expectation(nema_phantom, template)
 realisations = dict(_nema.paired_realisations(expectation, template))
 print(
     f"Expectation: {expectation.total:.4g} counts from "
-    f"{expectation.histories:.4g} histories, "
+    f"{expectation.histories:.4g} histories per projection, "
     f"quantization loss {expectation.quantization_loss:.2%}"
 )
 for seed, measured in realisations.items():

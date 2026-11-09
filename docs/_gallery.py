@@ -124,12 +124,34 @@ def provenance_path(root: Path) -> Path:
     return root / "docs" / PROVENANCE_NAME
 
 
-def dependency_files(root: Path) -> list[Path]:
+def _imports_nema(path: Path) -> bool:
+    """Whether an example uses the shared NEMA helper."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError):
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "examples._nema":
+                return True
+            if node.module == "examples" and any(
+                alias.name == "_nema" for alias in node.names
+            ):
+                return True
+        elif isinstance(node, ast.Import) and any(
+            alias.name == "examples._nema" for alias in node.names
+        ):
+            return True
+    return False
+
+
+def dependency_files(root: Path, *, example: Path | None = None) -> list[Path]:
     """Files whose contents change the figures independently of the example.
 
     The example source itself is tracked by its ``.md5`` sidecar.  These are the
     shared helpers, the documentation settings and the packaged presets/data
-    that examples rely on implicitly.
+    that examples rely on implicitly.  ``examples/_nema.py`` matters only to the
+    examples that import it, so it is added to just those examples' digest.
     """
 
     package = root / "simind_python_connector"
@@ -137,6 +159,8 @@ def dependency_files(root: Path) -> list[Path]:
         root / "docs" / "conf.py",
         root / "examples" / "_python_connector_helpers.py",
     ]
+    if example is None or _imports_nema(example):
+        files.append(root / "examples" / "_nema.py")
     if package.exists():
         files.extend(
             path for path in package.rglob("*.py") if "__pycache__" not in path.parts
@@ -152,9 +176,9 @@ def dependency_files(root: Path) -> list[Path]:
     return sorted({path for path in files if path.is_file()})
 
 
-def dependency_digest(root: Path) -> str:
+def dependency_digest(root: Path, *, example: Path | None = None) -> str:
     digest = hashlib.sha256()
-    for path in dependency_files(root):
+    for path in dependency_files(root, example=example):
         digest.update(path.relative_to(root).as_posix().encode())
         digest.update(b"\0")
         digest.update(path.read_bytes())
@@ -221,7 +245,6 @@ def record_provenance(
     else:
         data = {"version": 1}
     entries = data.setdefault("examples", {})
-    digest = dependency_digest(root)
 
     for example in gallery_examples(examples_dir):
         if example_backend(example) not in backends:
@@ -234,7 +257,7 @@ def record_provenance(
         entry.update(
             {
                 "source_md5": get_md5sum(example, mode="t"),
-                "dependencies_sha256": digest,
+                "dependencies_sha256": dependency_digest(root, example=example),
                 "build_failed": bool(build_failed),
             }
         )
@@ -709,6 +732,18 @@ def _check_downloads(
     return problems
 
 
+def _summary_page_value(value, spec: dict) -> str:
+    """Render a summary value the way the gallery page reports it."""
+    style = spec.get("format", "text")
+    if style == "percent":
+        return f"{100.0 * float(value):.{spec.get('decimals', 2)}f}%"
+    if style == "nn":
+        return f"NN={int(value)}"
+    if style == "number":
+        return f"{float(value):.{spec.get('decimals', 4)}g}"
+    return str(value)
+
+
 def _check_run_summary(
     entry: dict, docs_dir: Path, key: str, page_text: str
 ) -> list[GalleryProblem]:
@@ -733,6 +768,52 @@ def _check_run_summary(
     for field in block.get("required_fields", []):
         if _get_field(summary, field) is _MISSING:
             problems.append(_flatten_problem(key, "missing_summary_field", field))
+
+    for field, expected in block.get("expected_values", {}).items():
+        actual = _get_field(summary, field)
+        if actual is _MISSING:
+            problems.append(_flatten_problem(key, "missing_summary_field", field))
+        elif actual != expected:
+            problems.append(
+                _flatten_problem(
+                    key,
+                    "contradictory_run_summary",
+                    f"{field} is {actual!r}, expected {expected!r}",
+                )
+            )
+
+    for left, right in block.get("consistent_fields", []):
+        left_value = _get_field(summary, left)
+        right_value = _get_field(summary, right)
+        if left_value is _MISSING:
+            problems.append(_flatten_problem(key, "missing_summary_field", left))
+        elif right_value is _MISSING:
+            problems.append(_flatten_problem(key, "missing_summary_field", right))
+        elif left_value != right_value:
+            problems.append(
+                _flatten_problem(
+                    key,
+                    "contradictory_run_summary",
+                    f"{left} is {left_value!r}, {right} is {right_value!r}",
+                )
+            )
+
+    normalised_page = re.sub(r"\s+", " ", page_text)
+    for binding in block.get("page_values", []):
+        field = binding["field"]
+        value = _get_field(summary, field)
+        if value is _MISSING:
+            problems.append(_flatten_problem(key, "missing_summary_field", field))
+            continue
+        reported = _summary_page_value(value, binding)
+        if reported not in normalised_page:
+            problems.append(
+                _flatten_problem(
+                    key,
+                    "summary_page_contradiction",
+                    f"{field} is {reported!r}, which the page does not report",
+                )
+            )
 
     claims = block.get("statistical_claims")
     if claims:
@@ -868,7 +949,6 @@ def check_gallery(
     entries = manifest.get("examples", {})
     provenance = load_provenance(root)
     provenance_exists = provenance_path(root).exists()
-    digest = dependency_digest(root)
     examples = [
         path
         for path in gallery_examples(examples_dir)
@@ -921,7 +1001,9 @@ def check_gallery(
                             key, "provenance_stale", "recorded source md5 differs"
                         )
                     )
-                if record.get("dependencies_sha256") != digest:
+                if record.get("dependencies_sha256") != dependency_digest(
+                    root, example=example
+                ):
                     problems.append(
                         _flatten_problem(
                             key,
@@ -1101,7 +1183,6 @@ def stale_examples(
     root = root or examples_dir.parent
     provenance = load_provenance(root)
     has_provenance = provenance_path(root).exists()
-    digest = dependency_digest(root)
     stale = []
     for path in gallery_examples(examples_dir):
         if example_backend(path) not in backends:
@@ -1117,7 +1198,8 @@ def stale_examples(
         if (
             record is None
             or record.get("source_md5") != source_md5
-            or record.get("dependencies_sha256") != digest
+            or record.get("dependencies_sha256")
+            != dependency_digest(root, example=path)
             or record.get("build_failed")
         ):
             stale.append(path)

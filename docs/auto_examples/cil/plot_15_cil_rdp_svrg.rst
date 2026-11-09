@@ -26,9 +26,11 @@ difference prior (RDP) and CIL's stochastic variance reduced gradient (SVRG),
 and compare it with OSEM. Both reconstructions use a SIMIND scatter estimate
 that is refreshed from the current image during the run.
 
-The data are simulated by SIMIND with four histories per measured count, so
-the Monte Carlo variance of the expectation is a quarter of the Poisson
-variance of the acquisition. The reconstruction uses a fast SPECTUB model that
+The data are simulated by SIMIND with four times the default source-history
+budget. The history count and the measured counts are reported separately; no
+Monte Carlo precision is derived from their ratio, because it does not give
+the variance of SIMIND's weighted estimator. The reconstruction uses a fast
+SPECTUB model that
 has no scatter. SIMIND provides the scatter: all interactions minus the
 geometric primary, scaled to the fast model and added to its forward
 projection. The RDP is smooth, so it is part of the gradient-based objective
@@ -53,13 +55,13 @@ estimate on three independent Poisson realisations.
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 39-42
+.. GENERATED FROM PYTHON SOURCE LINES 41-44
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 42-85
+.. GENERATED FROM PYTHON SOURCE LINES 44-87
 
 .. code-block:: Python
 
@@ -113,7 +115,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 86-92
+.. GENERATED FROM PYTHON SOURCE LINES 88-94
 
 NEMA/IEC phantom
 ----------------
@@ -122,7 +124,7 @@ Its two smallest spheres, 10 and 13 mm, are cold; the four hot spheres are
 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 the density times the attenuation coefficient of water at 140 keV.
 
-.. GENERATED FROM PYTHON SOURCE LINES 92-102
+.. GENERATED FROM PYTHON SOURCE LINES 94-104
 
 .. code-block:: Python
 
@@ -143,7 +145,7 @@ the density times the attenuation coefficient of water at 140 keV.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 103-108
+.. GENERATED FROM PYTHON SOURCE LINES 105-110
 
 Template
 --------
@@ -151,7 +153,7 @@ The template sets the projection geometry: 48 x 48 bins of 7 mm, 60 views
 over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 reconstruction take their geometry from it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 108-111
+.. GENERATED FROM PYTHON SOURCE LINES 110-113
 
 .. code-block:: Python
 
@@ -165,7 +167,7 @@ reconstruction take their geometry from it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 112-120
+.. GENERATED FROM PYTHON SOURCE LINES 114-122
 
 "Measured" data
 ---------------
@@ -176,7 +178,7 @@ all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
 Poisson noise from a seeded generator is added to the expectation at 2 s per
 view; the three realisations are shared by both reconstructions.
 
-.. GENERATED FROM PYTHON SOURCE LINES 120-131
+.. GENERATED FROM PYTHON SOURCE LINES 122-133
 
 .. code-block:: Python
 
@@ -185,7 +187,7 @@ view; the three realisations are shared by both reconstructions.
     realisations = dict(_nema.paired_realisations(expectation, template))
     print(
         f"Expectation: {expectation.total:.4g} counts from "
-        f"{expectation.histories:.4g} histories, "
+        f"{expectation.histories:.4g} histories per projection, "
         f"quantization loss {expectation.quantization_loss:.2%}"
     )
     for seed, measured in realisations.items():
@@ -199,9 +201,9 @@ view; the three realisations are shared by both reconstructions.
 
  .. code-block:: none
 
-    SIMIND v8: 48x48x48 grid, 60 views at 250 mm, 4 histories per source count, 2 s/view, 8 MPI processes
-    Reused expectation expectation_29b192da7858.npz: 2e+06 counts, 8.1e+06 histories, simulated in 144.4 min
-    Expectation: 1.997e+06 counts from 8.102e+06 histories, quantization loss 0.29%
+    SIMIND v8: 48x48x48 grid, 60 views at 250 mm, history multiplier 4, 2 s/view, 8 MPI processes
+    Reused expectation expectation_29b192da7858.npz: 2e+06 counts, 6.48e+07 histories, simulated in 144.4 min
+    Expectation: 1.997e+06 counts from 6.482e+07 histories per projection, quantization loss 0.29%
     Seed 12345: 1.997e+06 measured counts
     Seed 12346: 1.997e+06 measured counts
     Seed 12347: 1.997e+06 measured counts
@@ -209,7 +211,7 @@ view; the three realisations are shared by both reconstructions.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 132-143
+.. GENERATED FROM PYTHON SOURCE LINES 134-145
 
 Model and scatter updates
 -------------------------
@@ -223,7 +225,7 @@ views as well. The additive term starts at zero and averages successive
 estimates (``damping=0.5``). ``seed=None`` leaves the ``RR`` switch unset, so
 the 8 MPI processes use their fixed seeds.
 
-.. GENERATED FROM PYTHON SOURCE LINES 143-186
+.. GENERATED FROM PYTHON SOURCE LINES 145-188
 
 .. code-block:: Python
 
@@ -277,7 +279,7 @@ the 8 MPI processes use their fixed seeds.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 187-192
+.. GENERATED FROM PYTHON SOURCE LINES 189-194
 
 OSEM
 ----
@@ -285,7 +287,7 @@ The comparison uses the same recipe as the OSEM scatter tutorial: 6 subsets,
 passes of 12 subiterations and three scatter updates, 8 full iterations in
 all.
 
-.. GENERATED FROM PYTHON SOURCE LINES 192-210
+.. GENERATED FROM PYTHON SOURCE LINES 194-212
 
 .. code-block:: Python
 
@@ -420,11 +422,11 @@ all.
      Sensitivity Cps/MBq: 29.3193        
      Sensitivity Cpm/uCi: 65.0889        
                                                                               
-     Simulation started.: 2026:11:06 21:39:38
-     Simulation stopped.: 2026:11:06 21:43:35
-     Elapsed time.......: 0 h, 3 m and 57 s
+     Simulation started.: 2026:11:09 14:17:01
+     Simulation stopped.: 2026:11:09 14:20:44
+     Elapsed time.......: 0 h, 3 m and 43 s
      DetectorHits.......: 5092           
-     DetectorHits/CPUsec: 170            
+     DetectorHits/CPUsec: 182            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -541,11 +543,11 @@ all.
      Sensitivity Cps/MBq: 29.6551        
      Sensitivity Cpm/uCi: 65.8343        
                                                                               
-     Simulation started.: 2026:11:06 21:43:40
-     Simulation stopped.: 2026:11:06 21:46:31
-     Elapsed time.......: 0 h, 2 m and 51 s
+     Simulation started.: 2026:11:09 14:20:49
+     Simulation stopped.: 2026:11:09 14:23:36
+     Elapsed time.......: 0 h, 2 m and 47 s
      DetectorHits.......: 3621           
-     DetectorHits/CPUsec: 169            
+     DetectorHits/CPUsec: 172            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -662,8 +664,8 @@ all.
      Sensitivity Cps/MBq: 29.6803        
      Sensitivity Cpm/uCi: 65.8902        
                                                                               
-     Simulation started.: 2026:11:06 21:46:36
-     Simulation stopped.: 2026:11:06 21:49:10
+     Simulation started.: 2026:11:09 14:23:41
+     Simulation stopped.: 2026:11:09 14:26:15
      Elapsed time.......: 0 h, 2 m and 34 s
      DetectorHits.......: 3220           
      DetectorHits/CPUsec: 166            
@@ -783,11 +785,11 @@ all.
      Sensitivity Cps/MBq: 29.3765        
      Sensitivity Cpm/uCi: 65.2159        
                                                                               
-     Simulation started.: 2026:11:06 21:49:17
-     Simulation stopped.: 2026:11:06 21:53:32
-     Elapsed time.......: 0 h, 4 m and 15 s
+     Simulation started.: 2026:11:09 14:26:23
+     Simulation stopped.: 2026:11:09 14:30:51
+     Elapsed time.......: 0 h, 4 m and 28 s
      DetectorHits.......: 5650           
-     DetectorHits/CPUsec: 176            
+     DetectorHits/CPUsec: 168            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -904,11 +906,11 @@ all.
      Sensitivity Cps/MBq: 29.7812        
      Sensitivity Cpm/uCi: 66.1142        
                                                                               
-     Simulation started.: 2026:11:06 21:53:38
-     Simulation stopped.: 2026:11:06 21:56:49
-     Elapsed time.......: 0 h, 3 m and 11 s
+     Simulation started.: 2026:11:09 14:30:56
+     Simulation stopped.: 2026:11:09 14:34:09
+     Elapsed time.......: 0 h, 3 m and 13 s
      DetectorHits.......: 4268           
-     DetectorHits/CPUsec: 177            
+     DetectorHits/CPUsec: 176            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1025,11 +1027,11 @@ all.
      Sensitivity Cps/MBq: 29.7844        
      Sensitivity Cpm/uCi: 66.1215        
                                                                               
-     Simulation started.: 2026:11:06 21:56:54
-     Simulation stopped.: 2026:11:06 21:59:43
-     Elapsed time.......: 0 h, 2 m and 49 s
+     Simulation started.: 2026:11:09 14:34:14
+     Simulation stopped.: 2026:11:09 14:37:06
+     Elapsed time.......: 0 h, 2 m and 52 s
      DetectorHits.......: 3670           
-     DetectorHits/CPUsec: 173            
+     DetectorHits/CPUsec: 170            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1146,11 +1148,11 @@ all.
      Sensitivity Cps/MBq: 29.3293        
      Sensitivity Cpm/uCi: 65.1111        
                                                                               
-     Simulation started.: 2026:11:06 21:59:50
-     Simulation stopped.: 2026:11:06 22:03:47
-     Elapsed time.......: 0 h, 3 m and 57 s
+     Simulation started.: 2026:11:09 14:37:14
+     Simulation stopped.: 2026:11:09 14:41:06
+     Elapsed time.......: 0 h, 3 m and 52 s
      DetectorHits.......: 5267           
-     DetectorHits/CPUsec: 177            
+     DetectorHits/CPUsec: 181            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1267,11 +1269,11 @@ all.
      Sensitivity Cps/MBq: 29.674         
      Sensitivity Cpm/uCi: 65.8763        
                                                                               
-     Simulation started.: 2026:11:06 22:03:52
-     Simulation stopped.: 2026:11:06 22:06:47
-     Elapsed time.......: 0 h, 2 m and 55 s
+     Simulation started.: 2026:11:09 14:41:11
+     Simulation stopped.: 2026:11:09 14:44:00
+     Elapsed time.......: 0 h, 2 m and 49 s
      DetectorHits.......: 3804           
-     DetectorHits/CPUsec: 173            
+     DetectorHits/CPUsec: 178            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1388,11 +1390,11 @@ all.
      Sensitivity Cps/MBq: 29.7071        
      Sensitivity Cpm/uCi: 65.9499        
                                                                               
-     Simulation started.: 2026:11:06 22:06:52
-     Simulation stopped.: 2026:11:06 22:09:27
-     Elapsed time.......: 0 h, 2 m and 35 s
+     Simulation started.: 2026:11:09 14:44:05
+     Simulation stopped.: 2026:11:09 14:46:33
+     Elapsed time.......: 0 h, 2 m and 28 s
      DetectorHits.......: 3184           
-     DetectorHits/CPUsec: 163            
+     DetectorHits/CPUsec: 171            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1408,7 +1410,7 @@ all.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 211-226
+.. GENERATED FROM PYTHON SOURCE LINES 213-228
 
 RDP + SVRG
 ----------
@@ -1426,7 +1428,7 @@ throughout; it is a numerical choice, not a value tuned for recovery.
 every 12 iterations. ``CorrectionCallback`` refreshes the scatter estimate
 every three epochs and then the stored SVRG gradients.
 
-.. GENERATED FROM PYTHON SOURCE LINES 226-278
+.. GENERATED FROM PYTHON SOURCE LINES 228-280
 
 .. code-block:: Python
 
@@ -1489,7 +1491,7 @@ every three epochs and then the stored SVRG gradients.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 279-285
+.. GENERATED FROM PYTHON SOURCE LINES 281-287
 
 Prior and epoch pilot
 ---------------------
@@ -1498,7 +1500,7 @@ unregularised OSEM image and then held fixed. Only beta and the epoch count
 change, so the comparison isolates the prior. For each run we report the
 recovery at 37 mm and the background noise.
 
-.. GENERATED FROM PYTHON SOURCE LINES 285-353
+.. GENERATED FROM PYTHON SOURCE LINES 287-355
 
 .. code-block:: Python
 
@@ -1688,11 +1690,11 @@ recovery at 37 mm and the background noise.
      Sensitivity Cps/MBq: 29.6792        
      Sensitivity Cpm/uCi: 65.8879        
                                                                               
-     Simulation started.: 2026:11:06 22:09:32
-     Simulation stopped.: 2026:11:06 22:12:01
-     Elapsed time.......: 0 h, 2 m and 29 s
+     Simulation started.: 2026:11:09 14:46:37
+     Simulation stopped.: 2026:11:09 14:48:58
+     Elapsed time.......: 0 h, 2 m and 21 s
      DetectorHits.......: 3088           
-     DetectorHits/CPUsec: 165            
+     DetectorHits/CPUsec: 174            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -1717,7 +1719,7 @@ recovery at 37 mm and the background noise.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 354-360
+.. GENERATED FROM PYTHON SOURCE LINES 356-362
 
 Final RDP + SVRG and OSEM
 -------------------------
@@ -1726,7 +1728,7 @@ refreshed every three epochs, so the SVRG gradients and the additive term are
 refreshed together. The epoch count is the pilot's choice, not a value picked
 by eye.
 
-.. GENERATED FROM PYTHON SOURCE LINES 360-404
+.. GENERATED FROM PYTHON SOURCE LINES 362-406
 
 .. code-block:: Python
 
@@ -1887,11 +1889,11 @@ by eye.
      Sensitivity Cps/MBq: 39.8267        
      Sensitivity Cpm/uCi: 88.4154        
                                                                               
-     Simulation started.: 2026:11:06 22:35:27
-     Simulation stopped.: 2026:11:06 22:46:39
-     Elapsed time.......: 0 h, 11 m and 12 s
+     Simulation started.: 2026:11:09 15:09:46
+     Simulation stopped.: 2026:11:09 15:20:37
+     Elapsed time.......: 0 h, 10 m and 51 s
      DetectorHits.......: 16109          
-     DetectorHits/CPUsec: 191            
+     DetectorHits/CPUsec: 198            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2009,11 +2011,11 @@ by eye.
      Sensitivity Cps/MBq: 33.5573        
      Sensitivity Cpm/uCi: 74.4971        
                                                                               
-     Simulation started.: 2026:11:06 22:47:13
-     Simulation stopped.: 2026:11:06 22:54:22
-     Elapsed time.......: 0 h, 7 m and 9 s
+     Simulation started.: 2026:11:09 15:21:08
+     Simulation stopped.: 2026:11:09 15:28:03
+     Elapsed time.......: 0 h, 6 m and 55 s
      DetectorHits.......: 9919           
-     DetectorHits/CPUsec: 184            
+     DetectorHits/CPUsec: 191            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2131,11 +2133,11 @@ by eye.
      Sensitivity Cps/MBq: 30.7713        
      Sensitivity Cpm/uCi: 68.3122        
                                                                               
-     Simulation started.: 2026:11:06 22:54:55
-     Simulation stopped.: 2026:11:06 23:00:47
-     Elapsed time.......: 0 h, 5 m and 52 s
+     Simulation started.: 2026:11:09 15:28:31
+     Simulation stopped.: 2026:11:09 15:34:09
+     Elapsed time.......: 0 h, 5 m and 38 s
      DetectorHits.......: 8102           
-     DetectorHits/CPUsec: 183            
+     DetectorHits/CPUsec: 191            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2253,11 +2255,11 @@ by eye.
      Sensitivity Cps/MBq: 29.8932        
      Sensitivity Cpm/uCi: 66.3629        
                                                                               
-     Simulation started.: 2026:11:06 23:01:20
-     Simulation stopped.: 2026:11:06 23:06:35
-     Elapsed time.......: 0 h, 5 m and 15 s
+     Simulation started.: 2026:11:09 15:34:38
+     Simulation stopped.: 2026:11:09 15:39:44
+     Elapsed time.......: 0 h, 5 m and 6 s
      DetectorHits.......: 7055           
-     DetectorHits/CPUsec: 179            
+     DetectorHits/CPUsec: 184            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2375,11 +2377,11 @@ by eye.
      Sensitivity Cps/MBq: 29.6723        
      Sensitivity Cpm/uCi: 65.8726        
                                                                               
-     Simulation started.: 2026:11:06 23:07:08
-     Simulation stopped.: 2026:11:06 23:12:03
-     Elapsed time.......: 0 h, 4 m and 55 s
+     Simulation started.: 2026:11:09 15:40:12
+     Simulation stopped.: 2026:11:09 15:44:55
+     Elapsed time.......: 0 h, 4 m and 43 s
      DetectorHits.......: 6648           
-     DetectorHits/CPUsec: 180            
+     DetectorHits/CPUsec: 187            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2497,11 +2499,11 @@ by eye.
      Sensitivity Cps/MBq: 29.6543        
      Sensitivity Cpm/uCi: 65.8325        
                                                                               
-     Simulation started.: 2026:11:06 23:12:37
-     Simulation stopped.: 2026:11:06 23:17:22
-     Elapsed time.......: 0 h, 4 m and 45 s
+     Simulation started.: 2026:11:09 15:45:26
+     Simulation stopped.: 2026:11:09 15:49:57
+     Elapsed time.......: 0 h, 4 m and 31 s
      DetectorHits.......: 6348           
-     DetectorHits/CPUsec: 177            
+     DetectorHits/CPUsec: 186            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2618,11 +2620,11 @@ by eye.
      Sensitivity Cps/MBq: 29.7218        
      Sensitivity Cpm/uCi: 65.9824        
                                                                               
-     Simulation started.: 2026:11:06 23:17:54
-     Simulation stopped.: 2026:11:06 23:22:26
-     Elapsed time.......: 0 h, 4 m and 32 s
+     Simulation started.: 2026:11:09 15:50:25
+     Simulation stopped.: 2026:11:09 15:54:53
+     Elapsed time.......: 0 h, 4 m and 28 s
      DetectorHits.......: 6147           
-     DetectorHits/CPUsec: 180            
+     DetectorHits/CPUsec: 182            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2739,11 +2741,11 @@ by eye.
      Sensitivity Cps/MBq: 39.7455        
      Sensitivity Cpm/uCi: 88.2349        
                                                                               
-     Simulation started.: 2026:11:06 23:23:31
-     Simulation stopped.: 2026:11:06 23:35:11
-     Elapsed time.......: 0 h, 11 m and 40 s
+     Simulation started.: 2026:11:09 15:55:53
+     Simulation stopped.: 2026:11:09 16:07:18
+     Elapsed time.......: 0 h, 11 m and 25 s
      DetectorHits.......: 16654          
-     DetectorHits/CPUsec: 190            
+     DetectorHits/CPUsec: 194            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2861,11 +2863,11 @@ by eye.
      Sensitivity Cps/MBq: 33.515         
      Sensitivity Cpm/uCi: 74.4033        
                                                                               
-     Simulation started.: 2026:11:06 23:35:45
-     Simulation stopped.: 2026:11:06 23:43:14
-     Elapsed time.......: 0 h, 7 m and 29 s
+     Simulation started.: 2026:11:09 16:07:47
+     Simulation stopped.: 2026:11:09 16:14:58
+     Elapsed time.......: 0 h, 7 m and 11 s
      DetectorHits.......: 10445          
-     DetectorHits/CPUsec: 186            
+     DetectorHits/CPUsec: 193            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -2983,11 +2985,11 @@ by eye.
      Sensitivity Cps/MBq: 30.9029        
      Sensitivity Cpm/uCi: 68.6045        
                                                                               
-     Simulation started.: 2026:11:06 23:43:47
-     Simulation stopped.: 2026:11:06 23:49:58
-     Elapsed time.......: 0 h, 6 m and 11 s
+     Simulation started.: 2026:11:09 16:15:26
+     Simulation stopped.: 2026:11:09 16:21:22
+     Elapsed time.......: 0 h, 5 m and 56 s
      DetectorHits.......: 8593           
-     DetectorHits/CPUsec: 185            
+     DetectorHits/CPUsec: 193            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3105,11 +3107,11 @@ by eye.
      Sensitivity Cps/MBq: 29.8698        
      Sensitivity Cpm/uCi: 66.311         
                                                                               
-     Simulation started.: 2026:11:06 23:50:32
-     Simulation stopped.: 2026:11:06 23:56:08
-     Elapsed time.......: 0 h, 5 m and 36 s
+     Simulation started.: 2026:11:09 16:21:50
+     Simulation stopped.: 2026:11:09 16:27:05
+     Elapsed time.......: 0 h, 5 m and 15 s
      DetectorHits.......: 7381           
-     DetectorHits/CPUsec: 175            
+     DetectorHits/CPUsec: 187            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3227,11 +3229,11 @@ by eye.
      Sensitivity Cps/MBq: 29.6434        
      Sensitivity Cpm/uCi: 65.8084        
                                                                               
-     Simulation started.: 2026:11:06 23:56:41
-     Simulation stopped.: 2026:11:07 00:02:02
-     Elapsed time.......: 0 h, 5 m and 21 s
+     Simulation started.: 2026:11:09 16:27:32
+     Simulation stopped.: 2026:11:09 16:32:31
+     Elapsed time.......: 0 h, 4 m and 59 s
      DetectorHits.......: 7192           
-     DetectorHits/CPUsec: 178            
+     DetectorHits/CPUsec: 192            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3349,11 +3351,11 @@ by eye.
      Sensitivity Cps/MBq: 29.6472        
      Sensitivity Cpm/uCi: 65.8167        
                                                                               
-     Simulation started.: 2026:11:07 00:02:42
-     Simulation stopped.: 2026:11:07 00:07:57
-     Elapsed time.......: 0 h, 5 m and 15 s
+     Simulation started.: 2026:11:09 16:33:01
+     Simulation stopped.: 2026:11:09 16:37:49
+     Elapsed time.......: 0 h, 4 m and 48 s
      DetectorHits.......: 6762           
-     DetectorHits/CPUsec: 171            
+     DetectorHits/CPUsec: 187            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3470,11 +3472,11 @@ by eye.
      Sensitivity Cps/MBq: 29.734         
      Sensitivity Cpm/uCi: 66.0096        
                                                                               
-     Simulation started.: 2026:11:07 00:08:33
-     Simulation stopped.: 2026:11:07 00:13:31
-     Elapsed time.......: 0 h, 4 m and 58 s
+     Simulation started.: 2026:11:09 16:38:18
+     Simulation stopped.: 2026:11:09 16:42:56
+     Elapsed time.......: 0 h, 4 m and 38 s
      DetectorHits.......: 6478           
-     DetectorHits/CPUsec: 173            
+     DetectorHits/CPUsec: 185            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3591,11 +3593,11 @@ by eye.
      Sensitivity Cps/MBq: 39.7727        
      Sensitivity Cpm/uCi: 88.2954        
                                                                               
-     Simulation started.: 2026:11:07 00:14:38
-     Simulation stopped.: 2026:11:07 00:26:39
-     Elapsed time.......: 0 h, 12 m and 1 s
+     Simulation started.: 2026:11:09 16:43:53
+     Simulation stopped.: 2026:11:09 16:55:21
+     Elapsed time.......: 0 h, 11 m and 28 s
      DetectorHits.......: 16219          
-     DetectorHits/CPUsec: 180            
+     DetectorHits/CPUsec: 188            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3713,11 +3715,11 @@ by eye.
      Sensitivity Cps/MBq: 33.5118        
      Sensitivity Cpm/uCi: 74.3962        
                                                                               
-     Simulation started.: 2026:11:07 00:27:17
-     Simulation stopped.: 2026:11:07 00:34:53
-     Elapsed time.......: 0 h, 7 m and 36 s
+     Simulation started.: 2026:11:09 16:55:54
+     Simulation stopped.: 2026:11:09 17:03:05
+     Elapsed time.......: 0 h, 7 m and 11 s
      DetectorHits.......: 10077          
-     DetectorHits/CPUsec: 176            
+     DetectorHits/CPUsec: 186            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3835,11 +3837,11 @@ by eye.
      Sensitivity Cps/MBq: 30.9009        
      Sensitivity Cpm/uCi: 68.6           
                                                                               
-     Simulation started.: 2026:11:07 00:35:30
-     Simulation stopped.: 2026:11:07 00:41:41
-     Elapsed time.......: 0 h, 6 m and 11 s
+     Simulation started.: 2026:11:09 17:03:34
+     Simulation stopped.: 2026:11:09 17:09:48
+     Elapsed time.......: 0 h, 6 m and 14 s
      DetectorHits.......: 7822           
-     DetectorHits/CPUsec: 168            
+     DetectorHits/CPUsec: 167            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -3957,11 +3959,11 @@ by eye.
      Sensitivity Cps/MBq: 29.8054        
      Sensitivity Cpm/uCi: 66.168         
                                                                               
-     Simulation started.: 2026:11:07 00:42:19
-     Simulation stopped.: 2026:11:07 00:47:55
-     Elapsed time.......: 0 h, 5 m and 36 s
+     Simulation started.: 2026:11:09 17:10:21
+     Simulation stopped.: 2026:11:09 17:15:43
+     Elapsed time.......: 0 h, 5 m and 22 s
      DetectorHits.......: 7069           
-     DetectorHits/CPUsec: 168            
+     DetectorHits/CPUsec: 175            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -4079,11 +4081,11 @@ by eye.
      Sensitivity Cps/MBq: 29.6229        
      Sensitivity Cpm/uCi: 65.7627        
                                                                               
-     Simulation started.: 2026:11:07 00:48:34
-     Simulation stopped.: 2026:11:07 00:53:52
-     Elapsed time.......: 0 h, 5 m and 18 s
+     Simulation started.: 2026:11:09 17:16:15
+     Simulation stopped.: 2026:11:09 17:21:15
+     Elapsed time.......: 0 h, 5 m and 0 s
      DetectorHits.......: 6667           
-     DetectorHits/CPUsec: 167            
+     DetectorHits/CPUsec: 177            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -4201,11 +4203,11 @@ by eye.
      Sensitivity Cps/MBq: 29.741         
      Sensitivity Cpm/uCi: 66.025         
                                                                               
-     Simulation started.: 2026:11:07 00:54:32
-     Simulation stopped.: 2026:11:07 00:59:36
-     Elapsed time.......: 0 h, 5 m and 4 s
+     Simulation started.: 2026:11:09 17:21:46
+     Simulation stopped.: 2026:11:09 17:26:31
+     Elapsed time.......: 0 h, 4 m and 45 s
      DetectorHits.......: 6357           
-     DetectorHits/CPUsec: 167            
+     DetectorHits/CPUsec: 178            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -4322,11 +4324,11 @@ by eye.
      Sensitivity Cps/MBq: 29.6901        
      Sensitivity Cpm/uCi: 65.9121        
                                                                               
-     Simulation started.: 2026:11:07 01:00:14
-     Simulation stopped.: 2026:11:07 01:05:10
-     Elapsed time.......: 0 h, 4 m and 56 s
+     Simulation started.: 2026:11:09 17:27:02
+     Simulation stopped.: 2026:11:09 17:31:39
+     Elapsed time.......: 0 h, 4 m and 37 s
      DetectorHits.......: 6049           
-     DetectorHits/CPUsec: 163            
+     DetectorHits/CPUsec: 174            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -4338,36 +4340,36 @@ by eye.
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
      Command: svrg_estimate_12347 svrg_estimate_12347 /NN:1/CC:ma-lehr/PX:0.7
-    seed 12345 OSEM update at iteration 12: scatter sum 4.08e+05, 240 s
-    seed 12345 OSEM update at iteration 24: scatter sum 5.229e+05, 173 s
-    seed 12345 OSEM update at iteration 36: scatter sum 5.586e+05, 156 s
-    seed 12345 SVRG update at iteration 18: scatter sum 2.683e+05, 675 s
-    seed 12345 SVRG update at iteration 36: scatter sum 4.251e+05, 432 s
-    seed 12345 SVRG update at iteration 54: scatter sum 5.158e+05, 355 s
-    seed 12345 SVRG update at iteration 72: scatter sum 5.606e+05, 317 s
-    seed 12345 SVRG update at iteration 90: scatter sum 5.736e+05, 298 s
-    seed 12345 SVRG update at iteration 108: scatter sum 5.758e+05, 288 s
-    seed 12345 SVRG update at iteration 126: scatter sum 5.755e+05, 275 s
-    seed 12346 OSEM update at iteration 12: scatter sum 4.079e+05, 258 s
-    seed 12346 OSEM update at iteration 24: scatter sum 5.254e+05, 194 s
-    seed 12346 OSEM update at iteration 36: scatter sum 5.58e+05, 171 s
-    seed 12346 SVRG update at iteration 18: scatter sum 2.673e+05, 703 s
-    seed 12346 SVRG update at iteration 36: scatter sum 4.252e+05, 452 s
-    seed 12346 SVRG update at iteration 54: scatter sum 5.118e+05, 374 s
-    seed 12346 SVRG update at iteration 72: scatter sum 5.572e+05, 339 s
-    seed 12346 SVRG update at iteration 90: scatter sum 5.708e+05, 325 s
-    seed 12346 SVRG update at iteration 108: scatter sum 5.731e+05, 318 s
-    seed 12346 SVRG update at iteration 126: scatter sum 5.741e+05, 301 s
-    seed 12347 OSEM update at iteration 12: scatter sum 4.113e+05, 239 s
-    seed 12347 OSEM update at iteration 24: scatter sum 5.261e+05, 177 s
-    seed 12347 OSEM update at iteration 36: scatter sum 5.579e+05, 157 s
-    seed 12347 SVRG update at iteration 18: scatter sum 2.671e+05, 724 s
-    seed 12347 SVRG update at iteration 36: scatter sum 4.238e+05, 458 s
-    seed 12347 SVRG update at iteration 54: scatter sum 5.157e+05, 374 s
-    seed 12347 SVRG update at iteration 72: scatter sum 5.579e+05, 339 s
-    seed 12347 SVRG update at iteration 90: scatter sum 5.719e+05, 322 s
-    seed 12347 SVRG update at iteration 108: scatter sum 5.743e+05, 307 s
-    seed 12347 SVRG update at iteration 126: scatter sum 5.744e+05, 299 s
+    seed 12345 OSEM update at iteration 12: scatter sum 4.08e+05, 225 s
+    seed 12345 OSEM update at iteration 24: scatter sum 5.229e+05, 170 s
+    seed 12345 OSEM update at iteration 36: scatter sum 5.586e+05, 157 s
+    seed 12345 SVRG update at iteration 18: scatter sum 2.683e+05, 654 s
+    seed 12345 SVRG update at iteration 36: scatter sum 4.251e+05, 417 s
+    seed 12345 SVRG update at iteration 54: scatter sum 5.158e+05, 341 s
+    seed 12345 SVRG update at iteration 72: scatter sum 5.606e+05, 308 s
+    seed 12345 SVRG update at iteration 90: scatter sum 5.736e+05, 286 s
+    seed 12345 SVRG update at iteration 108: scatter sum 5.758e+05, 274 s
+    seed 12345 SVRG update at iteration 126: scatter sum 5.755e+05, 271 s
+    seed 12346 OSEM update at iteration 12: scatter sum 4.079e+05, 271 s
+    seed 12346 OSEM update at iteration 24: scatter sum 5.254e+05, 196 s
+    seed 12346 OSEM update at iteration 36: scatter sum 5.58e+05, 175 s
+    seed 12346 SVRG update at iteration 18: scatter sum 2.673e+05, 688 s
+    seed 12346 SVRG update at iteration 36: scatter sum 4.252e+05, 433 s
+    seed 12346 SVRG update at iteration 54: scatter sum 5.118e+05, 358 s
+    seed 12346 SVRG update at iteration 72: scatter sum 5.572e+05, 317 s
+    seed 12346 SVRG update at iteration 90: scatter sum 5.708e+05, 301 s
+    seed 12346 SVRG update at iteration 108: scatter sum 5.731e+05, 290 s
+    seed 12346 SVRG update at iteration 126: scatter sum 5.741e+05, 281 s
+    seed 12347 OSEM update at iteration 12: scatter sum 4.113e+05, 235 s
+    seed 12347 OSEM update at iteration 24: scatter sum 5.261e+05, 172 s
+    seed 12347 OSEM update at iteration 36: scatter sum 5.579e+05, 150 s
+    seed 12347 SVRG update at iteration 18: scatter sum 2.671e+05, 690 s
+    seed 12347 SVRG update at iteration 36: scatter sum 4.238e+05, 434 s
+    seed 12347 SVRG update at iteration 54: scatter sum 5.157e+05, 377 s
+    seed 12347 SVRG update at iteration 72: scatter sum 5.579e+05, 325 s
+    seed 12347 SVRG update at iteration 90: scatter sum 5.719e+05, 302 s
+    seed 12347 SVRG update at iteration 108: scatter sum 5.743e+05, 287 s
+    seed 12347 SVRG update at iteration 126: scatter sum 5.744e+05, 279 s
     True scatter sum: 5.703e+05
     Seed 12345 scatter fraction: true 29%, OSEM 28%, SVRG 29%
     Seed 12346 scatter fraction: true 29%, OSEM 28%, SVRG 29%
@@ -4376,7 +4378,7 @@ by eye.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 405-411
+.. GENERATED FROM PYTHON SOURCE LINES 407-413
 
 Reconstructions and profile
 ---------------------------
@@ -4385,7 +4387,7 @@ image and profile is the mean over the three realisations; the band is the
 standard deviation. The profile runs along x through the centres of the 22
 and 37 mm spheres.
 
-.. GENERATED FROM PYTHON SOURCE LINES 411-468
+.. GENERATED FROM PYTHON SOURCE LINES 413-470
 
 .. code-block:: Python
 
@@ -4477,7 +4479,7 @@ and 37 mm spheres.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 469-478
+.. GENERATED FROM PYTHON SOURCE LINES 471-480
 
 Contrast recovery and noise
 ---------------------------
@@ -4489,7 +4491,7 @@ The 10 and 13 mm spheres are cold and are not scored. The noise is the
 coefficient of variation in the background mask. The error bars are the
 standard error over the three independent realisations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 478-517
+.. GENERATED FROM PYTHON SOURCE LINES 480-519
 
 .. code-block:: Python
 
@@ -4553,7 +4555,7 @@ standard error over the three independent realisations.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 518-524
+.. GENERATED FROM PYTHON SOURCE LINES 520-526
 
 The printed table and the profile show the trade-off rather than a ranking:
 RDP + SVRG is smoother and its background noise and sphere recovery are
@@ -4565,7 +4567,7 @@ two methods, and the 10 and 13 mm spheres remain cold.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (206 minutes 14.840 seconds)
+   **Total running time of the script:** (195 minutes 12.872 seconds)
 
 
 .. _sphx_glr_download_auto_examples_cil_plot_15_cil_rdp_svrg.py:

@@ -43,8 +43,10 @@ SUPERSAMPLE = 4
 # other time per view, because the counts are linear in the acquisition time.
 REFERENCE_TIME_S = 2.0
 # Default quantization is the legacy 500-history budget at full signed-range
-# resolution; four times the histories leaves four histories per measured
-# count, so the Monte Carlo variance is a quarter of the Poisson variance.
+# resolution; four times that budget raises the histories per projection. The
+# history-to-count ratio does not establish the variance of SIMIND's weighted
+# scatter or primary estimator, so these tutorials keep the accounting but do
+# not turn it into a Monte Carlo precision claim.
 HISTORY_MULTIPLIER = 4
 QUANTIZATION_SCALE = DEFAULT_QUANTIZATION_SCALE
 
@@ -299,7 +301,13 @@ def scaled_counts(counts: np.ndarray, time_per_view_s: float) -> np.ndarray:
 
 @dataclass(frozen=True)
 class Expectation:
-    """Simulated expectation of one 2 s projection, and its geometric primary."""
+    """Simulated expectation of one 2 s projection, and its geometric primary.
+
+    ``histories`` counts the photon histories per projection, including the
+    replicated MPI runs. It is kept separate from the counts because it
+    describes how much simulation was run, not the variance of a weighted
+    estimator built from those histories.
+    """
 
     counts: np.ndarray
     primary: np.ndarray
@@ -313,9 +321,14 @@ class Expectation:
         return float(self.counts.sum())
 
     @property
-    def histories_per_count(self) -> float:
-        """Monte Carlo histories per measured count; its variance is the inverse."""
-        return self.histories / self.total
+    def views(self) -> int:
+        """Number of views in the projection stack."""
+        return int(self.counts.shape[-2])
+
+    @property
+    def counts_per_projection(self) -> float:
+        """Mean measured counts in one projection."""
+        return self.total / self.views
 
     @property
     def true_scatter(self) -> np.ndarray:
@@ -353,6 +366,19 @@ def _expectation_settings(
     }
 
 
+def _stored_histories(meta: dict) -> float:
+    """Histories per projection from cache metadata, including MPI replication.
+
+    Older cache files recorded the serial source-map budget only. Multiplying
+    by the recorded process count puts those files on the same per-projection
+    scale without resimulating; the counts themselves are unchanged.
+    """
+    histories = float(meta["histories"])
+    if not meta.get("histories_include_mpi_replicas", False):
+        histories *= int(meta.get("mpi_processes", 1))
+    return histories
+
+
 def expectation_cache_file(
     phantom: Phantom,
     *,
@@ -386,7 +412,7 @@ def simulate_expectation(
     cache_dir: Path | None = None,
     engine: str | None = None,
 ) -> Expectation:
-    """Simulate (or reuse) the high-precision expectation of one reference view.
+    """Simulate (or reuse) the high-precision expectation of one acquisition.
 
     The cache key holds the engine and every setting that changes the result.
     A reused file must name the same engine and settings; a mismatch is an
@@ -410,7 +436,7 @@ def simulate_expectation(
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     print(
         f"{engine_label(engine)}: {GRID[0]}x{GRID[1]}x{GRID[2]} grid, {VIEWS} views "
-        f"at {RADIUS_MM:.0f} mm, {histories} histories per source count, "
+        f"at {RADIUS_MM:.0f} mm, history multiplier {histories}, "
         f"{REFERENCE_TIME_S:g} s/view, {MPI_PROCESSES} MPI processes"
     )
 
@@ -429,13 +455,13 @@ def simulate_expectation(
             )
         print(
             f"Reused expectation {cache_file.name}: {meta['total']:.3g} counts, "
-            f"{meta['histories']:.3g} histories, "
+            f"{_stored_histories(meta):.3g} histories, "
             f"simulated in {meta['seconds'] / 60:.1f} min"
         )
         return Expectation(
             counts=data["counts"],
             primary=data["primary"],
-            histories=meta["histories"],
+            histories=_stored_histories(meta),
             quantization_loss=meta["quantization_loss"],
             seconds=meta["seconds"],
             reused=True,
@@ -458,13 +484,16 @@ def simulate_expectation(
     counts = outputs["all_interactions"].as_array()
     primary = outputs["geom_coll_primary"].as_array()
     loss = quantization_loss(activity, quantization_scale)
-    histories_run = float(source_map(activity, quantization_scale).sum() * histories)
+    histories_run = float(
+        source_map(activity, quantization_scale).sum() * histories * MPI_PROCESSES
+    )
     meta = {
         "settings": settings,
         "engine": engine,
         "mpi_processes": MPI_PROCESSES,
         "total": float(counts.sum()),
         "histories": histories_run,
+        "histories_include_mpi_replicas": True,
         "quantization_loss": loss,
         "seconds": seconds,
     }

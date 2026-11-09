@@ -18,15 +18,16 @@ putting that estimate on the scale of the data:
    with the same Gaussian, the smoothed scatter-to-total ratio is multiplied
    by the measured data, and the result is smoothed again, as in the same
    paper. The final smoothing is retained because the measured noise enters
-   the estimate. The stored pixel-wise numbers below predate this 2.0.2
-   estimator order and need a rerun to refresh them.
+   the estimate.
 
-The expectation is simulated once with four histories per measured count, so
-its Monte Carlo variance is a quarter of the Poisson variance. Each strategy is
+The expectation is simulated once with four times the default source-history
+budget. The history count and the measured counts are reported separately; no
+Monte Carlo precision is derived from their ratio, because it does not give
+the variance of SIMIND's weighted estimator. Each strategy is
 run on the same three independent Poisson realisations of it, with the same
 OSEM schedule, smoothing and damping, so the comparison is paired. The scatter
-estimates use a fortieth of the expectation's history budget; the smoothing
-over 3 bins and across views suppresses their Monte Carlo noise.
+estimates use a fortieth of the expectation's per-projection history budget;
+the smoothing over 3 bins and across views suppresses their Monte Carlo noise.
 
 .. warning::
    The first tutorial run simulates the shared expectation and takes about an
@@ -641,16 +642,10 @@ plt.show()
 # %%
 # All five strategies raise the sphere recovery above the uncorrected arm and
 # stay below the truth's own score. Their per-seed mean raw scatter sums are
-# 5.71e5, 5.68e5 and 5.72e5 for known activity, against a true 5.70e5;
-# Dewaraja global is about 1% above, pixel-wise about 14% below, and the two
-# reference normalisations about 20% and 22% above. In the reconstruction's
+# 5.72e5, 5.71e5 and 5.69e5 for known activity, against a true 5.70e5;
+# Dewaraja global is about 1% above, pixel-wise about 0.5% above, and the two
+# reference normalisations about 20% and 21% above. In the reconstruction's
 # total activity the reference normalisations are closest to 1 (1.00-1.01),
-# while known activity and Dewaraja global are 1.05 and pixel-wise 1.10. Three
+# while known activity, Dewaraja global and pixel-wise are all 1.05. Three
 # realisations order those totals but do not rank the strategies within a
 # group; the printed error bars are the test.
-#
-# The stored pixel-wise numbers were produced before the 2.0.2 estimator order
-# (pre-smoothing SIMIND's scatter and total before the ratio). These runs were
-# not repeated afterwards, so the corrected estimator's effect on them is
-# unmeasured; the 14% figure is a legacy observation and not a claim about the
-# current estimator.

@@ -38,9 +38,10 @@ pixel-wise Dewaraja scatter estimator and the STIR OSEM image output.
   volume-of-interest overlays, and keeps its diagnostic negative-result
   framing.
 - Example 18's simulation cache is keyed by the detected engine: the version
-  banner, the hashes of the serial and MPI executables and the content digest
-  of the data tree. A cache hit is refused when the tree is unhashed or the
-  engine is unknown.
+  banner, the resolved serial executable's content hash looked up on `PATH`
+  like the executor, the content digest of the data tree, and the digest of the
+  effective acquisition template. A cache hit is refused when the tree, the
+  executable or the template cannot be hashed.
 - A new gallery gate checks figure and provenance completeness, thumbnails,
   notebooks and rendered HTML links. Example 18's missing figures would now
   fail the release.

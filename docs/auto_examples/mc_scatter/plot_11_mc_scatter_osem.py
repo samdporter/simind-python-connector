@@ -6,9 +6,11 @@ Reconstruct a simulated NEMA/IEC phantom acquisition twice with SIRF OSEM: once
 without scatter correction, and once with a SIMIND scatter estimate that is
 refreshed from the current image between OSEM passes.
 
-The data are simulated by SIMIND with four histories per measured count, so
-the Monte Carlo variance of the expectation is a quarter of the Poisson
-variance of the acquisition. The reconstruction uses a fast SPECTUB model with
+The data are simulated by SIMIND with four times the default source-history
+budget. The history count and the measured counts are reported separately; no
+Monte Carlo precision is derived from their ratio, because it does not give
+the variance of SIMIND's weighted estimator. The reconstruction uses a fast
+SPECTUB model with
 attenuation but no collimator blur and no scatter. SIMIND provides the scatter:
 all interactions minus the geometric primary, scaled to the fast model and
 added to its forward projection.
@@ -120,7 +122,7 @@ expectation = _nema.simulate_expectation(nema_phantom, template)
 realisations = dict(_nema.paired_realisations(expectation, template))
 print(
     f"Expectation: {expectation.total:.4g} counts from "
-    f"{expectation.histories:.4g} histories, "
+    f"{expectation.histories:.4g} histories per projection, "
     f"quantization loss {expectation.quantization_loss:.2%}"
 )
 for seed, measured in realisations.items():
@@ -186,7 +188,9 @@ for seed, measured in realisations.items():
 # (``damping=0.5``). The image at the first update is not corrected for
 # scatter, so the first estimate is too high.
 #
-# The estimate uses a quarter of the expectation's history budget. It is one
+# The estimate uses a fortieth of the expectation's per-projection history
+# budget: a tenth of the quantization scale with the source map's history
+# multiplier unset. It is one
 # simulation for all three realisations of an update only if the images are the
 # same; here each realisation has its own image, so each makes its own estimates.
 # ``seed=None`` leaves the ``RR`` switch unset, so the 8 MPI processes use their

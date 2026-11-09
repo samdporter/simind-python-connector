@@ -316,6 +316,28 @@ def test_gate_rejects_a_changed_shared_dependency(tmp_path):
 
 
 @pytest.mark.unit
+def test_gate_rejects_a_changed_nema_helper(tmp_path):
+    root, example, docs, gallery_dir = _gallery_fixture(
+        tmp_path, source="from examples import _nema\n\nx = 1\n"
+    )
+    _write(root / "examples" / "_nema.py", "HISTORY_MULTIPLIER = 4\n")
+    assert gallery.stale_examples(root / "examples", gallery_dir, root=root) == [
+        example
+    ]
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "dependency_changed" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_nema_helper_is_tracked_only_for_examples_that_import_it(tmp_path):
+    root, example, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(root / "examples" / "_nema.py", "HISTORY_MULTIPLIER = 4\n")
+    assert gallery.stale_examples(root / "examples", gallery_dir, root=root) == []
+    assert gallery.check_gallery(root / "examples", gallery_dir, docs, root=root) == []
+    assert example.exists()
+
+
+@pytest.mark.unit
 def test_gate_rejects_a_failed_backend_build(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
     gallery.record_provenance(
@@ -339,6 +361,87 @@ def test_gate_rejects_missing_run_summary_metadata(tmp_path):
     )
     problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
     assert "missing_summary_field" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_rejects_a_summary_contradicting_an_expected_value(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(
+        tmp_path,
+        manifest_extra={
+            "run_summary": {
+                "path": "gallery_provenance/demo.json",
+                "expected_values": {"engine.history_multiplier": 4},
+            }
+        },
+        summary={"status": "accepted", "engine": {"history_multiplier": 1}},
+    )
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "contradictory_run_summary" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_rejects_inconsistent_summary_fields(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(
+        tmp_path,
+        manifest_extra={
+            "run_summary": {
+                "path": "gallery_provenance/demo.json",
+                "consistent_fields": [
+                    ["engine.probe_geometry", "schedule.probe_geometry"]
+                ],
+            }
+        },
+        summary={
+            "status": "accepted",
+            "engine": {"probe_geometry": "native 120-view geometry"},
+            "schedule": {"probe_geometry": "reduced 60-view geometry"},
+        },
+    )
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "contradictory_run_summary" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_rejects_a_summary_contradicting_the_page(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(
+        tmp_path,
+        page_extra="The seed scatter L1 is 3.19%.\n",
+        manifest_extra={
+            "run_summary": {
+                "path": "gallery_provenance/demo.json",
+                "page_values": [
+                    {"field": "gates.seed_scatter_l1", "format": "percent"}
+                ],
+            }
+        },
+        summary={
+            "status": "accepted",
+            "gates": {"seed_scatter_l1": 0.0624},
+        },
+    )
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "summary_page_contradiction" in _codes(problems)
+
+
+@pytest.mark.unit
+def test_gate_accepts_a_summary_that_matches_its_page(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(
+        tmp_path,
+        page_extra="The seed scatter L1 is 3.19%.\n",
+        manifest_extra={
+            "run_summary": {
+                "path": "gallery_provenance/demo.json",
+                "page_values": [
+                    {"field": "gates.seed_scatter_l1", "format": "percent"}
+                ],
+            }
+        },
+        summary={
+            "status": "accepted",
+            "gates": {"seed_scatter_l1": 0.0319},
+        },
+    )
+    assert gallery.check_gallery(root / "examples", gallery_dir, docs, root=root) == []
 
 
 @pytest.mark.unit

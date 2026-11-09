@@ -2661,6 +2661,22 @@
    "name": "zeros_like"
   }
  ],
+ "os.altsep": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "NoneType"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os",
+   "module_short": "os",
+   "name": "altsep"
+  }
+ ],
  "os.environ.get": [
   {
    "is_class": false,
@@ -2759,6 +2775,22 @@
    "module": "os.environ",
    "module_short": "os.environ",
    "name": "get"
+  }
+ ],
+ "os.sep": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os",
+   "module_short": "os",
+   "name": "sep"
   }
  ],
  "os.walk": [

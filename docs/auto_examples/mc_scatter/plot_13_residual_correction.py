@@ -14,11 +14,14 @@ model, as in Fu & Qi, Med Phys 37:704, 2010. The scatter arm uses the same
 SIMIND projection but removes only the scatter, all interactions minus the
 geometric primary.
 
-The expectation is simulated once with four histories per measured count, so
-its Monte Carlo variance is a quarter of the Poisson variance. Every arm uses
+The expectation is simulated once with four times the default source-history
+budget. The history count and the measured counts are reported separately; no
+Monte Carlo precision is derived from their ratio, because it does not give
+the variance of SIMIND's weighted estimator. Every arm uses
 the same three independent Poisson realisations of it, 6 subsets, three passes
 of 12 subiterations (8 full iterations) and the same initial image. The scatter
-and residual estimates use a fortieth of the expectation's history budget.
+and residual estimates use a fortieth of the expectation's per-projection
+history budget.
 
 .. warning::
    The first tutorial run simulates the shared expectation and takes about an
@@ -110,7 +113,7 @@ expectation = _nema.simulate_expectation(nema_phantom, template)
 realisations = dict(_nema.paired_realisations(expectation, template))
 print(
     f"Expectation: {expectation.total:.4g} counts from "
-    f"{expectation.histories:.4g} histories, "
+    f"{expectation.histories:.4g} histories per projection, "
     f"quantization loss {expectation.quantization_loss:.2%}"
 )
 for seed, measured in realisations.items():

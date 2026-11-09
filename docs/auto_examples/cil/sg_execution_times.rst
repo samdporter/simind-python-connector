@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**276:05.118** total execution time for 2 files **from auto_examples/cil**:
+**266:28.741** total execution time for 2 files **from auto_examples/cil**:
 
 .. container::
 
@@ -33,8 +33,8 @@ Computation times
      - Time
      - Mem (MB)
    * - :ref:`sphx_glr_auto_examples_cil_plot_15_cil_rdp_svrg.py` (``plot_15_cil_rdp_svrg.py``)
-     - 206:14.840
+     - 195:12.872
      - 0.0
    * - :ref:`sphx_glr_auto_examples_cil_plot_14_cil_scatter.py` (``plot_14_cil_scatter.py``)
-     - 69:50.278
+     - 71:15.868
      - 0.0

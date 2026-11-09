@@ -6,10 +6,12 @@ Simulate "measured" data from the NEMA/IEC body phantom with a known activity,
 reconstruct it with SIRF OSEM and measure the contrast recovery of the hot
 spheres.
 
-The data are simulated by SIMIND with four histories per measured count, so
-the Monte Carlo variance is a quarter of the Poisson variance of the
-acquisition. The simulation is run once and cached; every reconstruction
-tutorial in this gallery reuses it. The reconstruction uses a SPECTUB model
+The data are simulated by SIMIND with four times the default source-history
+budget. The history count and the measured counts are reported separately; the
+tutorial does not derive a Monte Carlo precision from their ratio, because
+that ratio does not give the variance of SIMIND's weighted estimator. The
+simulation is run once and cached; every reconstruction tutorial in this
+gallery reuses it. The reconstruction uses a SPECTUB model
 with attenuation but no collimator blur and no scatter term, so OSEM treats
 scattered events as if they came from the primary distribution. Contrast
 recovery is therefore reported against the truth's own masked score, not
@@ -115,10 +117,10 @@ TIME_PER_VIEW_S = _nema.REFERENCE_TIME_S
 realisations = dict(_nema.paired_realisations(expectation, template))
 
 print(f"Expectation counts: {expectation.total:.4g}")
-print(f"Photon histories: {expectation.histories:.4g}")
+print(f"Photon histories per projection: {expectation.histories:.4g}")
 print(
-    f"Histories per measured count: {expectation.histories_per_count:.2f} "
-    "(so the Monte Carlo variance is that fraction of the Poisson variance)"
+    f"Expectation counts per projection: {expectation.counts_per_projection:.4g} "
+    f"over {expectation.views} views"
 )
 print(f"Quantization loss: {expectation.quantization_loss:.2%}")
 for seed, measured in realisations.items():

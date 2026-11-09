@@ -1104,6 +1104,8 @@ def _cache_fixture(tmp_path, monkeypatch):
     monkeypatch.setenv("SIMIND_ROOT", str(tmp_path))
     output = tmp_path / "job"
     output.mkdir()
+    template = tmp_path / "template.hs"
+    template.write_text("original acquisition geometry\n")
     source = np.ones((2, 2, 2), dtype=np.float32)
     density = np.ones((2, 2, 2), dtype=np.float32)
     sums = {"all_interactions": 8.0, "geom_coll_primary": 6.0}
@@ -1117,6 +1119,7 @@ def _cache_fixture(tmp_path, monkeypatch):
         "activity_mbq": 1.0,
         "time_per_projection_s": 1.0,
         "quantization_scale": 0.1,
+        "template": str(template),
     }
     settings = script._simulation_settings(job, density)
     (output / "manifest.json").write_text(
@@ -1144,6 +1147,82 @@ def test_simulation_cache_invalidates_when_engine_binary_changes(tmp_path, monke
     changed = script._simulation_settings(job, density)
     assert changed["engine"]["binary_sha256"] != settings["engine"]["binary_sha256"]
     assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_bare_simind_bin_is_looked_up_on_path_not_the_working_directory(
+    tmp_path, monkeypatch
+):
+    working = tmp_path / "work"
+    working.mkdir()
+    (working / "simind").write_bytes(b"local-decoy")
+    bin_directory = tmp_path / "bin"
+    bin_directory.mkdir()
+    binary = bin_directory / "simind"
+    binary.write_bytes(b"path-engine")
+    binary.chmod(0o755)
+    monkeypatch.chdir(working)
+    monkeypatch.setenv("SIMIND_BIN", "simind")
+    monkeypatch.setenv(
+        "PATH", str(bin_directory) + os.pathsep + os.environ.get("PATH", "")
+    )
+    inputs = script._engine_inputs()
+    assert inputs["binary"] == str(binary.resolve())
+    assert inputs["binary_complete"] is True
+
+
+@pytest.mark.unit
+def test_unidentifiable_executable_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIMIND_BIN", str(tmp_path / "missing-simind"))
+    settings = script._simulation_settings(job, density)
+    assert settings["engine"]["binary_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_the_acquisition_template_changes(
+    tmp_path, monkeypatch
+):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    Path(job["template"]).write_text("changed orbit radii and view angles\n")
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["acquisition_template_sha256"]
+        != settings["acquisition_template_sha256"]
+    )
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_unreadable_acquisition_template_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    Path(job["template"]).unlink()
+    settings = script._simulation_settings(job, density)
+    assert settings["acquisition_template_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
 
 
 @pytest.mark.unit

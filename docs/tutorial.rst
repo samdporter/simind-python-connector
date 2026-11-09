@@ -118,10 +118,11 @@ NEMA/IEC phantom and reconstructs it with SIRF OSEM:
 
 Install SIRF and phantomgen; see :doc:`installation`. The tutorial simulates 60
 views with 8 MPI processes at the default quantization and four times the
-histories, adds seeded Poisson noise at 2 s per view, and reconstructs with
-SPECTUB attenuation but no collimator blur or scatter. The four histories per
-measured count put the Monte Carlo variance below the Poisson variance, so the
-tutorial can separate the two noise sources. Inspect the measured counts, the
+source-history budget, adds seeded Poisson noise at 2 s per view, and
+reconstructs with SPECTUB attenuation but no collimator blur or scatter. It
+reports the histories and measured counts separately and does not derive a
+Monte Carlo precision from their ratio, because that ratio does not give the
+variance of SIMIND's weighted estimator. Inspect the measured counts, the
 reconstruction and truth slices, and the contrast-recovery bars under
 ``output/nema_osem``. It scores the 17-37 mm hot spheres only; the 10 and
 13 mm spheres are cold, and every score is shown against the truth's own

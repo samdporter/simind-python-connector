@@ -181,7 +181,43 @@ def test_expectation_is_simulated_once_and_then_reused(tmp_path, monkeypatch):
     cache = _nema.expectation_cache_file(
         _FakePhantom(), cache_dir=tmp_path, histories=4
     )
-    assert json.loads(str(np.load(cache)["meta"]))["settings"]["histories"] == 4
+    meta = json.loads(str(np.load(cache)["meta"]))
+    assert meta["settings"]["histories"] == 4
+    expected_histories = (
+        _nema.source_map(_FakePhantom().activity, _nema.QUANTIZATION_SCALE).sum()
+        * 4
+        * _nema.MPI_PROCESSES
+    )
+    assert meta["histories"] == pytest.approx(expected_histories)
+    assert meta["histories_include_mpi_replicas"] is True
+    assert first.histories == pytest.approx(expected_histories)
+
+
+def test_history_accounting_counts_per_projection_and_mpi_replicas():
+    counts = np.arange(1.0, 31.0).reshape(1, 2, 5, 3)
+    expectation = _nema.Expectation(
+        counts=counts,
+        primary=np.zeros_like(counts),
+        histories=800.0,
+        quantization_loss=0.0,
+        seconds=0.0,
+        reused=False,
+    )
+
+    assert expectation.views == 5
+    assert expectation.counts_per_projection == pytest.approx(counts.sum() / 5)
+
+
+def test_old_cache_histories_are_scaled_by_the_recorded_processes():
+    meta = {"histories": 100.0, "mpi_processes": 8}
+    assert _nema._stored_histories(meta) == pytest.approx(800.0)
+    assert _nema._stored_histories(
+        {
+            "histories": 800.0,
+            "mpi_processes": 8,
+            "histories_include_mpi_replicas": True,
+        }
+    ) == pytest.approx(800.0)
 
 
 def test_expectation_preserves_the_total_activity_and_reference_time(
