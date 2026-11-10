@@ -13,6 +13,20 @@ pytestmark = pytest.mark.unit
 
 _REAL_DETECT = _nema.detect_engine
 
+_SIMIND_ENV_VARS = (
+    "SIMIND_BIN",
+    "SIMIND_MPI_BIN",
+    "SIMIND_ROOT",
+    "SIMIND_SMC_DIR",
+    "SIMIND_DATA_DIR",
+)
+
+
+def _isolate_simind_env(monkeypatch):
+    """Drop ambient SIMIND configuration so detection uses only the fake tree."""
+    for name in _SIMIND_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+
 
 @pytest.fixture(autouse=True)
 def _fixed_engine(monkeypatch):
@@ -285,7 +299,9 @@ def test_detect_engine_reads_the_change_banner_and_hashes_both_binaries(
     tmp_path, monkeypatch
 ):
     monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
-    simind, _ = _fake_distribution(tmp_path)
+    _isolate_simind_env(monkeypatch)
+    simind, simind_mpi = _fake_distribution(tmp_path)
+    monkeypatch.setenv("SIMIND_MPI_BIN", str(simind_mpi))
 
     engine = _nema.detect_engine(str(simind))
 
@@ -296,6 +312,7 @@ def test_detect_engine_reads_the_change_banner_and_hashes_both_binaries(
 
 def test_detect_engine_changes_when_only_the_mpi_binary_changes(tmp_path, monkeypatch):
     monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    _isolate_simind_env(monkeypatch)
     simind, simind_mpi = _fake_distribution(tmp_path)
     first = _nema.detect_engine(str(simind), str(simind_mpi))
     simind_mpi.write_bytes(b"different mpi build")
@@ -306,7 +323,8 @@ def test_detect_engine_changes_when_only_the_mpi_binary_changes(tmp_path, monkey
 
 def test_detect_engine_uses_the_symlinked_executors_mpi_sibling(tmp_path, monkeypatch):
     monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
-    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
+    _isolate_simind_env(monkeypatch)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
     real = tmp_path / "real"
     link = tmp_path / "link"
     _fake_distribution(real)
@@ -333,11 +351,12 @@ def test_detect_engine_uses_the_symlinked_executors_mpi_sibling(tmp_path, monkey
 
 def test_detect_engine_expands_home_relative_simind_bin(tmp_path, monkeypatch):
     monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
+    _isolate_simind_env(monkeypatch)
     home = tmp_path / "home"
     simind, _ = _fake_distribution(home / "simind")
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
     monkeypatch.setenv("SIMIND_BIN", "~/simind/simind")
-    monkeypatch.delenv("SIMIND_MPI_BIN", raising=False)
 
     engine = _nema.detect_engine()
 
@@ -347,7 +366,9 @@ def test_detect_engine_expands_home_relative_simind_bin(tmp_path, monkeypatch):
 
 def test_detect_engine_fails_closed_without_the_change_banner(tmp_path, monkeypatch):
     monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
-    simind, _ = _fake_distribution(tmp_path, change=False)
+    _isolate_simind_env(monkeypatch)
+    simind, simind_mpi = _fake_distribution(tmp_path, change=False)
+    monkeypatch.setenv("SIMIND_MPI_BIN", str(simind_mpi))
 
     with pytest.raises(RuntimeError, match="Cannot read the SIMIND version"):
         _nema.detect_engine(str(simind))
@@ -355,9 +376,11 @@ def test_detect_engine_fails_closed_without_the_change_banner(tmp_path, monkeypa
 
 def test_detect_engine_fails_closed_on_an_unrecognised_banner(tmp_path, monkeypatch):
     monkeypatch.setattr(_nema, "detect_engine", _REAL_DETECT)
-    simind, _ = _fake_distribution(
+    _isolate_simind_env(monkeypatch)
+    simind, simind_mpi = _fake_distribution(
         tmp_path, banner="#!/bin/sh\necho 'not a SIMIND banner'\n"
     )
+    monkeypatch.setenv("SIMIND_MPI_BIN", str(simind_mpi))
 
     with pytest.raises(RuntimeError, match="Cannot read the SIMIND version"):
         _nema.detect_engine(str(simind))
