@@ -9,7 +9,7 @@ SIMIND project and Lund University.
 
 See the [workflow tutorial](docs/tutorial.rst) for an ordered path through a
 core simulation, known-activity NEMA phantom, reconstruction, scatter
-correction, and measured-data calibration. The [gallery](docs/auto_examples/index.rst)
+correction, and measured-data calibration. The [gallery](docs/example_pages/index.rst)
 has every tutorial with its figures and printed output. Rendered documentation,
 including the gallery, is built from the tagged repository; source distributions
 contain the example sources rather than the generated gallery. The
@@ -61,7 +61,7 @@ print(outputs["tot_w1"].projection.shape)
 Run a complete core simulation example from a source checkout:
 
 ```bash
-python docs/example_pages/scripts/plot_01_basic_simulation.py
+python examples/getting_started/plot_01_basic_simulation.py
 ```
 
 The core connector does not require STIR, SIRF, or PyTomography. Install only
@@ -71,11 +71,11 @@ phantomgen package; the install command is in the tutorial.
 
 ## Example map
 
-- `docs/example_pages/scripts/plot_01`–`plot_06` and `plot_09`: authored
-  tutorials for core simulations, windows, configurations, scoring, density
-  conversion and the phantom library.
-- `docs/example_pages/scripts/plot_07a` / `07b` / `07c`: STIR / SIRF /
-  PyTomography adaptors.
+- `examples/getting_started/plot_01`–`plot_06` and `examples/phantoms/plot_09`:
+  authored tutorials for core simulations, windows, configurations, scoring,
+  density conversion and the phantom library.
+- `examples/backends/plot_07a` / `07b` / `07c`: STIR / SIRF / PyTomography
+  adaptors.
 - `docs/example_pages/dicom_recipe.rst`: DICOM setup snippets for STIR, SIRF
   and PyTomography with a reader-supplied file.
 - `examples/phantoms/plot_10`: a known-activity NEMA/IEC simulation

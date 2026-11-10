@@ -14,12 +14,12 @@ Two short SIMIND runs of four 360-degree views, 32 x 32 bins of 4 mm, with
 ``NN=8``. Each run writes its projection under
 ``$SIMIND_EXAMPLES_OUTPUT/basic_simulation``.
 
-.. literalinclude:: scripts/plot_01_basic_simulation.py
+.. literalinclude:: /examples/getting_started/plot_01_basic_simulation.py
    :language: python
    :linenos:
 
 Download the script: :download:`plot_01_basic_simulation.py
-<scripts/plot_01_basic_simulation.py>`.
+</examples/getting_started/plot_01_basic_simulation.py>`.
 
 Results
 -------

@@ -12,12 +12,12 @@ Cost and runtime
 Seconds of Python work. The figure is written under
 ``$SIMIND_EXAMPLES_OUTPUT/schneider_density``.
 
-.. literalinclude:: scripts/plot_06_schneider_density_conversion.py
+.. literalinclude:: /examples/getting_started/plot_06_schneider_density_conversion.py
    :language: python
    :linenos:
 
 Download the script: :download:`plot_06_schneider_density_conversion.py
-<scripts/plot_06_schneider_density_conversion.py>`.
+</examples/getting_started/plot_06_schneider_density_conversion.py>`.
 
 Results
 -------

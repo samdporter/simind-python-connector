@@ -1,8 +1,9 @@
-Tutorial pages
-==============
+Examples
+========
 
-Long-form worked tutorials. Each page is authored RST that includes the
-current example script and displays reviewed figures from the earlier run.
+Worked tutorials and the generated gallery. Authored pages include the current
+example script and reviewed figures; the generated sections keep the remaining
+Sphinx-Gallery examples.
 
 .. toctree::
    :maxdepth: 1
@@ -17,3 +18,7 @@ current example script and displays reviewed figures from the earlier run.
    sirf_osem
    pytomography_osem
    dicom_recipe
+   /auto_examples/phantoms/index
+   /auto_examples/mc_scatter/index
+   /auto_examples/cil/index
+   /auto_examples/real_data/index

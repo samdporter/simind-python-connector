@@ -12,12 +12,12 @@ Cost and runtime
 Seconds of Python work. The exported YAML files are written under
 ``$SIMIND_EXAMPLES_OUTPUT/custom_config``.
 
-.. literalinclude:: scripts/plot_04_custom_config.py
+.. literalinclude:: /examples/getting_started/plot_04_custom_config.py
    :language: python
    :linenos:
 
 Download the script: :download:`plot_04_custom_config.py
-<scripts/plot_04_custom_config.py>`.
+</examples/getting_started/plot_04_custom_config.py>`.
 
 Workflow
 --------

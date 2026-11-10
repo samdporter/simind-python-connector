@@ -28,29 +28,29 @@ os.chdir(parent_dir)
 # List of core examples to run (now in ../examples from scripts/)
 EXAMPLES = [
     {
-        "name": "docs/example_pages/scripts/plot_01_basic_simulation.py",
+        "name": "examples/getting_started/plot_01_basic_simulation.py",
         "description": "Basic SIMIND simulation with a seed check",
         "estimated_time": "1 minute",
     },
     {
-        "name": "docs/example_pages/scripts/plot_03_multi_window.py",
+        "name": "examples/getting_started/plot_03_multi_window.py",
         "description": "Multi-energy window simulation (TEW method)",
         "estimated_time": "1 minute",
     },
     {
-        "name": "docs/example_pages/scripts/plot_04_custom_config.py",
+        "name": "examples/getting_started/plot_04_custom_config.py",
         "description": "Custom configuration creation and YAML workflow",
         "estimated_time": "< 1 minute",
     },
     {
         "name": (
-            "docs/example_pages/scripts/plot_05_scattwin_vs_penetrate_comparison.py"
+            "examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py"
         ),
         "description": "Comparison of SCATTWIN vs PENETRATE scoring routines",
         "estimated_time": "3 minutes",
     },
     {
-        "name": "docs/example_pages/scripts/plot_06_schneider_density_conversion.py",
+        "name": "examples/getting_started/plot_06_schneider_density_conversion.py",
         "description": "Schneider2000 density conversion demonstration",
         "estimated_time": "< 1 minute",
     },

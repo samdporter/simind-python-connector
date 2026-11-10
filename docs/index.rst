@@ -15,7 +15,7 @@ simind-python-connector Documentation
    simind_validation
    backends
    datasets
-   auto_examples/index
+   example_pages/index
    api
 
 .. toctree::

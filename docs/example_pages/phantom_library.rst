@@ -14,12 +14,12 @@ Cost and runtime
 Seconds to build both phantoms; the figure is written under
 ``$SIMIND_EXAMPLES_OUTPUT/phantom_library``.
 
-.. literalinclude:: scripts/plot_09_phantom_library.py
+.. literalinclude:: /examples/phantoms/plot_09_phantom_library.py
    :language: python
    :linenos:
 
 Download the script: :download:`plot_09_phantom_library.py
-<scripts/plot_09_phantom_library.py>`.
+</examples/phantoms/plot_09_phantom_library.py>`.
 
 Results
 -------

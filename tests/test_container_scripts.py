@@ -1,6 +1,7 @@
 """Tests for example-runner scripts and container helper scripts."""
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -133,8 +134,7 @@ def test_only_sirf_runs_07b_and_builds_only_sirf(examples_runner):
     assert build_services(argv_log) == ["sirf"]
     runs = compose_run_lines(argv_log)
     assert any(
-        "docs/example_pages/scripts/plot_07b_sirf_adaptor_osem.py" in line
-        for line in runs
+        "examples/backends/plot_07b_sirf_adaptor_osem.py" in line for line in runs
     ), runs
     assert not any("plot_07a_stir_adaptor_osem" in line for line in runs), runs
     assert not any("plot_07c_pytomography_adaptor_osem" in line for line in runs), runs
@@ -154,10 +154,10 @@ def test_default_selection_runs_every_group(examples_runner):
     }
     runs = compose_run_lines(argv_log)
     for example in (
-        "docs/example_pages/scripts/plot_01_basic_simulation.py",
-        "docs/example_pages/scripts/plot_07a_stir_adaptor_osem.py",
-        "docs/example_pages/scripts/plot_07b_sirf_adaptor_osem.py",
-        "docs/example_pages/scripts/plot_07c_pytomography_adaptor_osem.py",
+        "examples/getting_started/plot_01_basic_simulation.py",
+        "examples/backends/plot_07a_stir_adaptor_osem.py",
+        "examples/backends/plot_07b_sirf_adaptor_osem.py",
+        "examples/backends/plot_07c_pytomography_adaptor_osem.py",
     ):
         assert any(example in line for line in runs), (example, runs)
 
@@ -374,3 +374,19 @@ def test_validation_script_fails_without_sibling_simind_mpi(tmp_path):
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "simind_mpi" in result.stderr
+
+
+def test_configured_container_example_paths_exist():
+    """Every example path named by the container defaults must exist."""
+    sources = [
+        ROOT / "docker" / "compose.yaml",
+        ROOT / "docker" / "README.md",
+        ROOT / "scripts" / "run_container_examples.sh",
+        ROOT / "scripts" / "run_container_validation.sh",
+    ]
+    paths = set()
+    for source in sources:
+        paths.update(re.findall(r"examples/[\w/]+\.py", source.read_text()))
+    assert paths
+    missing = sorted(path for path in paths if not (ROOT / path).is_file())
+    assert not missing, missing

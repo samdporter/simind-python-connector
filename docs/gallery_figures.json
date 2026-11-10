@@ -116,53 +116,53 @@
  },
  "authored_pages": {
   "example_pages/basic_simulation": {
-   "source": "docs/example_pages/scripts/plot_01_basic_simulation.py",
+   "source": "examples/getting_started/plot_01_basic_simulation.py",
    "figures": [
     "_static/examples/basic_simulation/basic_simulation.png"
    ]
   },
   "example_pages/multi_window": {
-   "source": "docs/example_pages/scripts/plot_03_multi_window.py",
+   "source": "examples/getting_started/plot_03_multi_window.py",
    "figures": [
     "_static/examples/multi_window/multi_window.png"
    ]
   },
   "example_pages/custom_configuration": {
-   "source": "docs/example_pages/scripts/plot_04_custom_config.py",
+   "source": "examples/getting_started/plot_04_custom_config.py",
    "figures": []
   },
   "example_pages/scattwin_vs_penetrate": {
-   "source": "docs/example_pages/scripts/plot_05_scattwin_vs_penetrate_comparison.py",
+   "source": "examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py",
    "figures": [
     "_static/examples/scattwin_vs_penetrate/decomposition.png"
    ]
   },
   "example_pages/density_conversion": {
-   "source": "docs/example_pages/scripts/plot_06_schneider_density_conversion.py",
+   "source": "examples/getting_started/plot_06_schneider_density_conversion.py",
    "figures": [
     "_static/examples/density_conversion/density_conversion.png"
    ]
   },
   "example_pages/phantom_library": {
-   "source": "docs/example_pages/scripts/plot_09_phantom_library.py",
+   "source": "examples/phantoms/plot_09_phantom_library.py",
    "figures": [
     "_static/examples/phantom_library/phantom_library.png"
    ]
   },
   "example_pages/stir_osem": {
-   "source": "docs/example_pages/scripts/plot_07a_stir_adaptor_osem.py",
+   "source": "examples/backends/plot_07a_stir_adaptor_osem.py",
    "figures": [
     "_static/examples/stir_osem/stir_osem.png"
    ]
   },
   "example_pages/sirf_osem": {
-   "source": "docs/example_pages/scripts/plot_07b_sirf_adaptor_osem.py",
+   "source": "examples/backends/plot_07b_sirf_adaptor_osem.py",
    "figures": [
     "_static/examples/sirf_osem/sirf_osem.png"
    ]
   },
   "example_pages/pytomography_osem": {
-   "source": "docs/example_pages/scripts/plot_07c_pytomography_adaptor_osem.py",
+   "source": "examples/backends/plot_07c_pytomography_adaptor_osem.py",
    "figures": [
     "_static/examples/pytomography_osem/pytomography_osem.png"
    ]

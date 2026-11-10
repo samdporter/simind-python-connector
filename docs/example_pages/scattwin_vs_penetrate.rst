@@ -14,12 +14,12 @@ Two SIMIND runs of one 32 x 32 view at 4 mm with ``NN=120``: one SCATTWIN run
 and one PENETRATE run. The outputs are written under
 ``$SIMIND_EXAMPLES_OUTPUT/routine_comparison``.
 
-.. literalinclude:: scripts/plot_05_scattwin_vs_penetrate_comparison.py
+.. literalinclude:: /examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py
    :language: python
    :linenos:
 
 Download the script: :download:`plot_05_scattwin_vs_penetrate_comparison.py
-<scripts/plot_05_scattwin_vs_penetrate_comparison.py>`.
+</examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py>`.
 
 Results
 -------

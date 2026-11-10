@@ -37,11 +37,11 @@ your local release manual and the observations in :doc:`simind_validation`
 before relying on a particular component name. Keep each binary paired with
 its own data directory. Start with the :doc:`basic simulation tutorial
 <example_pages/basic_simulation>`, at
-``docs/example_pages/scripts/plot_01_basic_simulation.py``:
+``examples/getting_started/plot_01_basic_simulation.py``:
 
 .. code-block:: bash
 
-    python docs/example_pages/scripts/plot_01_basic_simulation.py
+    python examples/getting_started/plot_01_basic_simulation.py
 
 It uses a small voxel phantom, one energy window, four views, the default
 source quantization and ``NN=8``. Inspect the saved source, density, and total
@@ -65,7 +65,7 @@ and is currently installed from GitHub, not PyPI:
 .. code-block:: bash
 
     python -m pip install 'phantomgen @ git+https://github.com/varzakis/phantomgen'
-    python docs/example_pages/scripts/plot_09_phantom_library.py
+    python examples/phantoms/plot_09_phantom_library.py
 
 The NEMA/IEC body phantom has explicit activity in MBq per voxel, density, and
 named masks. The tutorial builds both phantoms without simulating them: the

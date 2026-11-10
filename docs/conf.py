@@ -6,8 +6,6 @@ from datetime import datetime
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
-from sphinx_gallery.sorting import ExplicitOrder
-
 
 # Add the package to the path
 sys.path.insert(0, os.path.abspath(".."))
@@ -121,24 +119,25 @@ if backend and backend not in BACKENDS:
     )
 
 sphinx_gallery_conf = {
-    "examples_dirs": "../examples",
-    "gallery_dirs": "auto_examples",
+    "examples_dirs": [
+        "../examples/phantoms",
+        "../examples/mc_scatter",
+        "../examples/cil",
+        "../examples/real_data",
+    ],
+    "gallery_dirs": [
+        "auto_examples/phantoms",
+        "auto_examples/mc_scatter",
+        "auto_examples/cil",
+        "auto_examples/real_data",
+    ],
     "filename_pattern": (
         execution_pattern(Path("../examples").resolve(), backend) if backend else r"^$"
     ),
     "plot_gallery": "True" if backend else "False",
-    "ignore_pattern": r"^(?!plot_)[^/]*\.py$",
+    "ignore_pattern": r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$",
     "within_subsection_order": "FileNameSortKey",
-    "subsection_order": ExplicitOrder(
-        [
-            "../examples/phantoms",
-            "../examples/mc_scatter",
-            "../examples/cil",
-            "../examples/real_data",
-        ]
-    ),
     "abort_on_example_error": True,
-    "copyfile_regex": r"^index\.rst$",
     "remove_config_comments": True,
     "download_all_examples": False,
     "image_scrapers": ("matplotlib",),

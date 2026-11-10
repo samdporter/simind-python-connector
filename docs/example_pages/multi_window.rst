@@ -14,12 +14,12 @@ One SIMIND run of four 360-degree views, 32 x 32 bins of 4 mm, with ``NN=10``
 and three Lu-177 energy windows. Outputs are written under
 ``$SIMIND_EXAMPLES_OUTPUT/multi_window``.
 
-.. literalinclude:: scripts/plot_03_multi_window.py
+.. literalinclude:: /examples/getting_started/plot_03_multi_window.py
    :language: python
    :linenos:
 
 Download the script: :download:`plot_03_multi_window.py
-<scripts/plot_03_multi_window.py>`.
+</examples/getting_started/plot_03_multi_window.py>`.
 
 Results
 -------

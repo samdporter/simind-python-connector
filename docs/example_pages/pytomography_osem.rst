@@ -13,12 +13,12 @@ One short SIMIND run with a low history budget plus two PyTomography OSEM
 reconstructions. Outputs are written under
 ``$SIMIND_EXAMPLES_OUTPUT/pytomography_adaptor_osem``.
 
-.. literalinclude:: scripts/plot_07c_pytomography_adaptor_osem.py
+.. literalinclude:: /examples/backends/plot_07c_pytomography_adaptor_osem.py
    :language: python
    :linenos:
 
 Download the script: :download:`plot_07c_pytomography_adaptor_osem.py
-<scripts/plot_07c_pytomography_adaptor_osem.py>`.
+</examples/backends/plot_07c_pytomography_adaptor_osem.py>`.
 
 Results
 -------
