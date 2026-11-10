@@ -1,6 +1,6 @@
 .. Copy this file to example_pages/<slug>.rst, add <slug> to the toctree in
    example_pages/index.rst, and add an authored_pages entry in
-   docs/gallery_figures.json. Keep the runnable script under examples/.
+   docs/example_pages.json. Keep the runnable script under examples/.
 
 <Page title>
 ===========

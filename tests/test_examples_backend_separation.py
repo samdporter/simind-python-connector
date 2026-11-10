@@ -7,7 +7,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("gallery", ROOT / "docs" / "_gallery.py")
+spec = importlib.util.spec_from_file_location("gallery", ROOT / "docs" / "_docs.py")
 gallery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gallery)
 SCRIPTS = ROOT / "examples"

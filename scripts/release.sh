@@ -94,4 +94,4 @@ echo "     builds the docs at the tag, checks v${NEW_VERSION} against pyproject.
 echo "     and uploads to PyPI. Pushing the tag alone does not publish to PyPI."
 echo "  6. After the release, activate v${NEW_VERSION} in Read the Docs if needed and"
 echo "     confirm the build from the tag succeeds with no warnings and that the"
-echo "     gallery and download links resolve."
+echo "     example and download links resolve."

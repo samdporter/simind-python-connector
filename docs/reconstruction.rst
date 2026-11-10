@@ -292,4 +292,4 @@ alone, the SIMIND scatter estimate and the full residual.
 
 The :doc:`SIRF OSEM <example_pages/mc_scatter_osem>`,
 :doc:`CIL ISTA <example_pages/cil_scatter>` and residual correction
-tutorials show complete workflows; see :doc:`the gallery <example_pages/index>`.
+tutorials show complete workflows; see :doc:`the example pages <example_pages/index>`.

@@ -1,11 +1,11 @@
 {
- "schema": 2,
+ "schema": 3,
  "notes": [
-  "Every generated gallery page has an entry in examples; every authored tutorial page has an entry in authored_pages.",
-  "figures lists the image filenames the page publishes. The gate checks that each file exists, is a readable PNG and is referenced by the page.",
-  "run_summary points at the committed numerical summary for a page with a retained summary table. The gate never re-runs a simulation."
+  "Every authored page under docs/example_pages has an entry here.",
+  "figures lists the image filenames the page publishes. The check requires each file to exist, be readable and be referenced by the page.",
+  "run_summary optionally points at a committed numerical summary for a page with a retained table.",
+  "Optional source points at the runnable script a page includes; recipe-only pages omit it."
  ],
- "examples": {},
  "authored_pages": {
   "example_pages/basic_simulation": {
    "source": "examples/getting_started/plot_01_basic_simulation.py",

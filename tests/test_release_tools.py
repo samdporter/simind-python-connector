@@ -625,13 +625,10 @@ def test_docs_workflow_builds_without_execution_and_fails_on_warnings() -> None:
 
     assert "workflow_call" in _on(workflow)
     build = next(
-        step
-        for step in steps
-        if step.get("name") == "Build the documentation without executing examples"
+        step for step in steps if step.get("name") == "Build the documentation"
     )
-    assert build["env"]["SIMIND_GALLERY_BACKEND"] == ""
     assert "-W" in build["run"]
-    assert "docs/auto_examples" in text
+    assert "scripts/check_docs.py" in text
     assert "actions/upload-artifact" in text
 
 

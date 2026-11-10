@@ -115,12 +115,11 @@ updates the machine version surfaces.
    **not** publish to PyPI.
 
 8. Confirm the public documentation. Read the Docs builds the released tag from
-   ``.readthedocs.yaml``: it installs the package, builds ``docs/conf.py`` with
-   ``plot_gallery=False`` (the gallery is rendered from its committed outputs,
-   not executed) and fails on any warning. Activate ``vX.Y.Z`` in the Read the
-   Docs version selector if it is not active yet, wait for the build, then check
-   that the version selector shows ``vX.Y.Z`` and that the gallery pages,
-   example downloads and API pages load without a 404.
+   ``.readthedocs.yaml``: it installs the package, builds ``docs/conf.py`` and
+   fails on any warning. Activate ``vX.Y.Z`` in the Read the Docs version
+   selector if it is not active yet, wait for the build, then check that the
+   version selector shows ``vX.Y.Z`` and that the example pages, script
+   downloads and API pages load without a 404.
 
 You can verify the eight version surfaces without changing anything:
 

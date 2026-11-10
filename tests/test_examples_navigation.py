@@ -29,7 +29,6 @@ def test_examples_navigation_has_one_duplication_free_root():
     root = ROOT / "docs" / "example_pages" / "index.rst"
     assert root.is_file()
     entries = _toctree_entries(root)
-    assert not any(entry.startswith("/auto_examples/") for entry in entries)
     assert entries == [
         "basic_simulation",
         "multi_window",
@@ -54,5 +53,4 @@ def test_examples_navigation_has_one_duplication_free_root():
 
     index_entries = _toctree_entries(ROOT / "docs" / "index.rst")
     assert index_entries.count("example_pages/index") == 1
-    assert "auto_examples/index" not in index_entries
     assert not (ROOT / "docs" / "examples.rst").exists()

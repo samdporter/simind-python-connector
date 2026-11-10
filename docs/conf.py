@@ -4,14 +4,11 @@ import os
 import sys
 from datetime import datetime
 from importlib import metadata as importlib_metadata
-from pathlib import Path
 
 
 # Add the package to the path
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("."))
-
-from _gallery import BACKENDS, GALLERY_IGNORE_PATTERN, execution_pattern  # noqa: E402
 
 
 # Project information
@@ -36,7 +33,6 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx_autodoc_typehints",
     "myst_parser",
-    "sphinx_gallery.gen_gallery",
 ]
 source_suffix = {
     ".rst": "restructuredtext",
@@ -109,31 +105,3 @@ myst_enable_extensions = [
     "substitution",
     "tasklist",
 ]
-
-# Sphinx-gallery: each build executes only the examples of one backend, the
-# rest render from their committed outputs.
-backend = os.environ.get("SIMIND_GALLERY_BACKEND")
-if backend and backend not in BACKENDS:
-    raise ValueError(
-        f"SIMIND_GALLERY_BACKEND must be one of {BACKENDS}, got {backend!r}"
-    )
-
-sphinx_gallery_conf = {
-    "examples_dirs": [],
-    "gallery_dirs": [],
-    "filename_pattern": (
-        execution_pattern(Path("../examples").resolve(), backend) if backend else r"^$"
-    ),
-    "plot_gallery": "True" if backend else "False",
-    "ignore_pattern": GALLERY_IGNORE_PATTERN,
-    "within_subsection_order": "FileNameSortKey",
-    "abort_on_example_error": True,
-    "remove_config_comments": True,
-    "download_all_examples": False,
-    "image_scrapers": ("matplotlib",),
-    "matplotlib_animations": False,
-}
-
-
-def setup(app):
-    return {"parallel_read_safe": True, "parallel_write_safe": True}

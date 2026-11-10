@@ -36,7 +36,7 @@ RUN python -m pip install --upgrade pip \
     && pip install "phantomgen @ git+https://github.com/varzakis/phantomgen@d9196118d5caef3f1bd2c27e5732bc03b48aed2a" \
     && python - <<'PY'
 import importlib
-for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner", "phantomgen", "pooch", "sphinx_gallery"):
+for module in ("sirf.STIR", "pytest", "cil", "sirf.contrib.partitioner", "phantomgen", "pooch"):
     importlib.import_module(module)
 print("SIRF Python modules available")
 PY

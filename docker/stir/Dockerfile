@@ -39,7 +39,6 @@ import stir  # noqa: F401
 import pytest  # noqa: F401
 import phantomgen  # noqa: F401
 import pooch  # noqa: F401
-import sphinx_gallery  # noqa: F401
 from simind_python_connector.utils import _import_stir_extra
 
 _import_stir_extra()

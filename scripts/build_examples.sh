@@ -9,10 +9,10 @@ SIMIND_VERSION=8
 
 usage() {
     cat <<'USAGE'
-Usage: bash scripts/build_gallery.sh [--backend B]... [--simind-version 8|9]
+Usage: bash scripts/build_examples.sh [--backend B]... [--simind-version 8|9]
 
-Builds the gallery once per backend in its container, executing only that
-backend's examples, then checks that every example of the built backends has current outputs.
+Builds the documentation once per backend in its container, with that backend
+installed, then runs the authored docs check.
 Backends: python, stir, sirf, pytomography (default: all, in that order).
 USAGE
 }
@@ -59,10 +59,9 @@ for backend in "${BACKENDS[@]}"; do
     if [[ "$backend" == python ]]; then
         user_args=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
     fi
-    echo "[gallery] $backend (SIMIND v$SIMIND_VERSION)"
+    echo "[examples] $backend (SIMIND v$SIMIND_VERSION)"
     DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
         "${user_args[@]}" \
-        -e SIMIND_GALLERY_BACKEND="$backend" \
         -e SIMIND_EXAMPLES_OUTPUT=/workspace/output \
         -e SIMIND_CONNECTOR_Y90_DATA=/workspace/tmp/y90_data \
         -e SIMIND_VERSION="$SIMIND_VERSION" \
@@ -76,4 +75,4 @@ done
 
 DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f "$COMPOSE_FILE" run --rm \
     --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    python bash -lc "python scripts/check_gallery_current.py ${BACKENDS[*]/#/--backend } --html-dir /workspace/docs/_build/html"
+    python bash -lc "python scripts/check_docs.py --html-dir /workspace/docs/_build/html"
