@@ -40,12 +40,16 @@ need the same out-of-volume handling.
 STIR recipe
 -----------
 
+Apply the registration gate above before conversion; on failure, stop before writing maps.
+
 Write the CT as an Interfile image in the SPECT frame and call ``zoom_image``
 with ``preserve_values``; HU are not count-scaled. Convert HU to attenuation at
 150 keV and to Schneider density after resampling.
 
 SIRF recipe
 -----------
+
+Apply the registration gate above before conversion; on failure, stop before writing maps.
 
 Write the CT and an empty SPECT reference as NIfTI images in RAS coordinates,
 then use ``sirf.Reg.NiftyResample`` with linear interpolation and zero padding.
@@ -54,6 +58,8 @@ image and verify the values survived the transfer before conversion.
 
 PyTomography recipe
 -------------------
+
+Apply the registration gate above before conversion; on failure, stop before writing maps.
 
 Read the CT with PyTomography's DICOM reader and its attenuation table. Its
 Mediso projection affine uses the detector x position and needs the

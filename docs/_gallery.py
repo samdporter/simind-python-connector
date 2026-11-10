@@ -25,7 +25,7 @@ from sphinx_gallery.utils import get_md5sum
 
 
 BACKENDS = ("python", "stir", "sirf", "pytomography")
-GENERATED_SECTIONS = ("real_data",)
+GENERATED_SECTIONS = ()  # all examples are authored pages now
 GALLERY_IGNORE_PATTERN = (
     r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$|^plot_1[1-8]_.*\.py$"
 )

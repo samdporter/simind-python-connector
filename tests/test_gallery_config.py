@@ -16,6 +16,12 @@ gallery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gallery)
 
 
+@pytest.fixture(autouse=True)
+def _coverage_section(monkeypatch):
+    """Keep generated-section coverage tests active without a real gallery."""
+    monkeypatch.setattr(gallery, "GENERATED_SECTIONS", ("real_data",))
+
+
 def _write(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
