@@ -1,39 +1,19 @@
-.. Copy this file to example_pages/<slug>.rst, add <slug> to the toctree in
-   example_pages/index.rst, and add an authored_pages entry in
+.. Copy this file to example_pages/<slug>.rst and register it in
    docs/example_pages.json. Keep the runnable script under examples/.
 
-<Page title>
-===========
+<Title>
+=======
 
-Prerequisites
--------------
+<What the example demonstrates.> Requires <dependencies>.
 
-What the reader needs before starting (SIMIND, a backend, or data).
+<Runtime and output location, or a link to the :doc:`shared setup <index>`.
 
-Cost and runtime
-----------------
-
-Approximate runtime, history budget, and output location.
-
-.. literalinclude:: /examples/<section>/plot_XX_<name>.py
-   :language: python
-   :linenos:
-
-Download the script: :download:`plot_XX_<name>.py
-</examples/<section>/plot_XX_<name>.py>`.
-
-Results
--------
+Download the script: :download:`<script.py> </examples/<section>/<script.py>>`.
 
 .. figure:: /_static/examples/<slug>/<figure>.png
    :alt: <what the image shows>
    :width: 100%
 
-   Figure 1. <caption in sentence case.>
+   Figure 1. <caption.>
 
-<One or two paragraphs interpreting the result.>
-
-.. note::
-
-   Retained figures come from the earlier reviewed run and were not
-   re-executed for this editorial revision.
+<Result with a number. One limitation only if it changes interpretation.>

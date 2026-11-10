@@ -44,8 +44,8 @@ def _fixture(tmp_path: Path, *, figure: bool = True):
                 "Demo",
                 "====",
                 "",
-                ".. literalinclude:: /examples/s/plot_01_demo.py",
-                "   :language: python",
+                "Download the script: :download:`plot_01_demo.py",
+                "</examples/s/plot_01_demo.py>`.",
                 "",
                 ".. figure:: /_static/examples/demo/plot.png",
                 "",
@@ -87,10 +87,10 @@ def test_missing_or_corrupt_figure_fails(tmp_path):
 
 
 @pytest.mark.unit
-def test_mismatched_literalinclude_fails(tmp_path):
-    _, docs, page = _fixture(tmp_path)
-    page.write_text(page.read_text().replace("plot_01_demo.py", "other.py"))
-    assert "included_source_mismatch" in _codes(docs_check.check_docs(docs))
+def test_missing_source_fails(tmp_path):
+    _, docs, _ = _fixture(tmp_path)
+    (docs.parent / "examples" / "s" / "plot_01_demo.py").unlink()
+    assert "source_missing" in _codes(docs_check.check_docs(docs))
 
 
 @pytest.mark.unit
@@ -123,7 +123,9 @@ def test_unreferenced_or_decoy_figures_fail(tmp_path, replacement):
     if "other" in replacement:
         _png(docs / "_static" / "examples" / "other" / "plot.png")
     page.write_text(
-        "Demo\n====\n\n.. literalinclude:: /examples/s/plot_01_demo.py\n" + replacement
+        "Demo\n====\n\n"
+        "Download the script: :download:`plot_01_demo.py "
+        "</examples/s/plot_01_demo.py>`.\n" + replacement
     )
     assert "figure_not_referenced" in _codes(docs_check.check_docs(docs))
 
@@ -133,7 +135,8 @@ def test_single_quoted_raw_html_image_passes(tmp_path):
     _, docs, page = _fixture(tmp_path)
     page.write_text(
         "Demo\n====\n\n"
-        ".. literalinclude:: /examples/s/plot_01_demo.py\n\n"
+        "Download the script: :download:`plot_01_demo.py "
+        "</examples/s/plot_01_demo.py>`.\n\n"
         ".. raw:: html\n\n"
         "   <img src='/_static/examples/demo/plot.png'>\n"
     )

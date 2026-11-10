@@ -1,7 +1,7 @@
 """Exit non-zero when the authored documentation inventory is inconsistent.
 
 Checks every authored page has an inventory entry, its figures exist and are
-referenced, its literalinclude uses the declared source, and, when an HTML
+referenced, its declared source exists and uses one backend, and, when an HTML
 build is available, local links and images resolve.  It never executes an
 example.
 """
