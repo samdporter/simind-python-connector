@@ -174,11 +174,64 @@ def test_manifest_inventory_matches_generated_sources():
 @pytest.mark.unit
 def test_gate_rejects_a_generated_source_without_inventory(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
-    _write(root / "examples" / "phantoms" / "plot_02_missing.py", "x = 1\n")
+    _write(root / "examples" / "phantoms" / "plot_20_missing.py", "x = 1\n")
     problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
     assert any(
         problem.code == "manifest_missing"
-        and "examples/phantoms/plot_02_missing.py" in problem.detail
+        and "examples/phantoms/plot_20_missing.py" in problem.detail
+        for problem in problems
+    )
+
+
+@pytest.mark.unit
+def test_generated_coverage_is_checked_for_other_backends(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(root / "examples" / "phantoms" / "plot_20_missing.py", "x = 1\n")
+    problems = gallery.check_gallery(
+        root / "examples", gallery_dir, docs, ("stir",), root=root
+    )
+    assert any(
+        problem.code == "manifest_missing"
+        and "examples/phantoms/plot_20_missing.py" in problem.detail
+        for problem in problems
+    )
+
+
+@pytest.mark.unit
+def test_generated_coverage_finds_nested_sources(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _write(
+        root / "examples" / "phantoms" / "nested" / "plot_20_missing.py",
+        "x = 1\n",
+    )
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert any(
+        problem.code == "manifest_missing"
+        and "examples/phantoms/nested/plot_20_missing.py" in problem.detail
+        for problem in problems
+    )
+
+
+@pytest.mark.unit
+def test_authored_entry_cannot_exempt_a_source_that_is_still_generated(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _add_authored_fixture(root, docs, gallery_dir)
+    _write(root / "examples" / "phantoms" / "plot_20_authored.py", "x = 1\n")
+    _write(
+        docs / "example_pages" / "excluded.rst",
+        "Excluded\n========\n\n"
+        ".. literalinclude:: /examples/phantoms/plot_20_authored.py\n",
+    )
+    manifest = json.loads((docs / "gallery_figures.json").read_text())
+    manifest["authored_pages"]["example_pages/excluded"] = {
+        "source": "examples/phantoms/plot_20_authored.py",
+        "figures": [],
+    }
+    _write(docs / "gallery_figures.json", json.dumps(manifest))
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert any(
+        problem.code == "manifest_missing"
+        and "examples/phantoms/plot_20_authored.py" in problem.detail
         for problem in problems
     )
 

@@ -26,6 +26,7 @@ from sphinx_gallery.utils import get_md5sum
 
 BACKENDS = ("python", "stir", "sirf", "pytomography")
 GENERATED_SECTIONS = ("phantoms", "mc_scatter", "cil", "real_data")
+GALLERY_IGNORE_PATTERN = r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$"
 MANIFEST_NAME = "gallery_figures.json"
 
 _ADAPTOR_ROOTS = {
@@ -167,13 +168,25 @@ def example_backend(path: Path) -> str:
 
 
 def gallery_examples(examples_dir: Path) -> list[Path]:
-    return sorted(examples_dir.glob("*/plot_*.py"))
+    return sorted(examples_dir.rglob("plot_*.py"))
 
 
 def example_key(path: Path) -> str:
     """Return the manifest key for a gallery source file."""
 
     return f"{path.parent.name}/{path.stem}"
+
+
+def source_key(path: Path, examples_dir: Path) -> str:
+    """Return the repository-relative key for a gallery source."""
+
+    return path.relative_to(examples_dir).with_suffix("").as_posix()
+
+
+def gallery_ignores(path: Path) -> bool:
+    """Match Sphinx-Gallery's filename-only ignore rule."""
+
+    return re.search(GALLERY_IGNORE_PATTERN, path.name) is not None
 
 
 def execution_pattern(examples_dir: Path, backend: str) -> str:
@@ -185,7 +198,7 @@ def execution_pattern(examples_dir: Path, backend: str) -> str:
     if not paths:
         return r"^$"
     names = "|".join(
-        f"{path.parent.name}/{path.name}".replace(".", r"\.") for path in paths
+        path.relative_to(examples_dir).as_posix().replace(".", r"\.") for path in paths
     )
     return f"/examples/({names})$"
 
@@ -505,38 +518,36 @@ def check_gallery(
     manifest = load_manifest(docs_dir)
     entries = manifest["examples"]
     authored = manifest["authored_pages"]
-    authored_sources = {
-        entry["source"] for entry in authored.values() if entry.get("source")
-    }
-    examples = [
-        path
-        for path in gallery_examples(examples_dir)
-        if example_backend(path) in backends
-    ]
+    all_examples = gallery_examples(examples_dir)
     problems: list[GalleryProblem] = []
     checked_examples = []
 
-    for example in examples:
-        key = example_key(example)
+    # Coverage is independent of the requested backend: every source that
+    # Sphinx-Gallery would generate needs an inventory entry.
+    for example in all_examples:
+        generated = example.relative_to(examples_dir).parts[
+            0
+        ] in GENERATED_SECTIONS and not gallery_ignores(example)
+        key = source_key(example, examples_dir)
         entry = entries.get(key)
-        if entry is None:
+        if generated and entry is None:
             source = example.relative_to(examples_dir.parent).as_posix()
-            if (
-                example.parent.name in GENERATED_SECTIONS
-                and source not in authored_sources
-            ):
-                problems.append(
-                    GalleryProblem(
-                        key,
-                        "manifest_missing",
-                        f"{source} has no inventory entry",
-                    )
+            problems.append(
+                GalleryProblem(
+                    key,
+                    "manifest_missing",
+                    f"{source} has no inventory entry",
                 )
+            )
+            continue
+        if entry is None:
+            continue
+        if example_backend(example) not in backends:
             continue
         checked_examples.append(example)
         problems.extend(_check_generated_page(example, entry, gallery_dir))
 
-    all_keys = {example_key(path) for path in gallery_examples(examples_dir)}
+    all_keys = {source_key(path, examples_dir) for path in all_examples}
     for key in sorted(entries):
         if key not in all_keys:
             problems.append(

@@ -11,7 +11,12 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("."))
 
-from _gallery import BACKENDS, GENERATED_SECTIONS, execution_pattern  # noqa: E402
+from _gallery import (  # noqa: E402
+    BACKENDS,
+    GALLERY_IGNORE_PATTERN,
+    GENERATED_SECTIONS,
+    execution_pattern,
+)
 
 
 # Project information
@@ -125,7 +130,7 @@ sphinx_gallery_conf = {
         execution_pattern(Path("../examples").resolve(), backend) if backend else r"^$"
     ),
     "plot_gallery": "True" if backend else "False",
-    "ignore_pattern": r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$",
+    "ignore_pattern": GALLERY_IGNORE_PATTERN,
     "within_subsection_order": "FileNameSortKey",
     "abort_on_example_error": True,
     "remove_config_comments": True,
