@@ -30,11 +30,76 @@ _ADAPTOR_ROOTS = {
 }
 _ANCHOR_TAG = re.compile(r"<a\b([^>]*)>")
 _IMAGE_TAG = re.compile(r"<img\b([^>]*)>")
-_ATTR = re.compile(r'([\w-]+)="([^"]*)"')
+_ATTR = re.compile(r"""([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
 _LITERALINCLUDE = re.compile(r"^\s*\.\.\s+literalinclude::\s+(\S+)\s*$", re.M)
 _IMAGE_DIRECTIVE = re.compile(
     r"^\s*\.\.\s+(?:figure|image|image-sg)::\s+(\S+)\s*$", re.M
 )
+_CODE_DIRECTIVE = re.compile(
+    r"^\s*\.\.\s+(?:code|code-block|sourcecode|literalinclude)::"
+)
+_LITERAL_INTRO = re.compile(r"^(?!\.\.\s).*::\s*$")
+
+
+def _attributes(raw: str) -> dict[str, str]:
+    return {
+        match.group(1): (
+            match.group(2) if match.group(2) is not None else match.group(3)
+        )
+        for match in _ATTR.finditer(raw)
+    }
+
+
+def _visible_text(text: str) -> str:
+    """Drop literal and code blocks so samples cannot fake real content."""
+
+    lines = text.splitlines(keepends=True)
+    visible = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        directive = _CODE_DIRECTIVE.match(line)
+        if directive:
+            visible.append(line)
+            index += 1
+            indent = len(line) - len(line.lstrip())
+            while index < len(lines):
+                candidate = lines[index]
+                if not candidate.strip():
+                    index += 1
+                    continue
+                if len(candidate) - len(candidate.lstrip()) > indent:
+                    index += 1
+                    continue
+                break
+            continue
+
+        if _LITERAL_INTRO.match(line):
+            visible.append(line)
+            index += 1
+            blanks = index
+            while index < len(lines) and not lines[index].strip():
+                index += 1
+            if index < len(lines):
+                indent = len(lines[index]) - len(lines[index].lstrip())
+                intro_indent = len(line) - len(line.lstrip())
+                if indent > intro_indent:
+                    while index < len(lines):
+                        candidate = lines[index]
+                        if not candidate.strip():
+                            index += 1
+                            continue
+                        if len(candidate) - len(candidate.lstrip()) >= indent:
+                            index += 1
+                            continue
+                        break
+                    continue
+            visible.extend(lines[blanks:index])
+            continue
+
+        visible.append(line)
+        index += 1
+    return "".join(visible)
 
 
 def _resolved_image_target(raw: str, page: Path, docs_dir: Path) -> Path | None:
@@ -49,14 +114,14 @@ def _resolved_image_target(raw: str, page: Path, docs_dir: Path) -> Path | None:
 def _referenced_images(page: Path, docs_dir: Path) -> set[Path]:
     """Return the resolved targets of real image directives on a page."""
 
-    text = page.read_text(encoding="utf-8")
+    text = _visible_text(page.read_text(encoding="utf-8"))
     targets = set()
     for raw in _IMAGE_DIRECTIVE.findall(text):
         target = _resolved_image_target(raw, page, docs_dir)
         if target is not None:
             targets.add(target)
     for attributes in _IMAGE_TAG.findall(text):
-        source = dict(_ATTR.findall(attributes)).get("src")
+        source = _attributes(attributes).get("src")
         if source:
             target = _resolved_image_target(source, page, docs_dir)
             if target is not None:
@@ -288,7 +353,7 @@ def _html_targets(page: Path) -> list[tuple[str, str]]:
         ("image", _IMAGE_TAG.findall(text)),
     ):
         for raw in attributes:
-            attrs = dict(_ATTR.findall(raw))
+            attrs = _attributes(raw)
             target = attrs.get("href") if tag == "link" else attrs.get("src")
             if target:
                 targets.append((tag, target))
