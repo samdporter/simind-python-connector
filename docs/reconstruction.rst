@@ -287,9 +287,9 @@ Schedule guidance:
   scatter low. Use damping 1.0 with the noise-free PSF model.
 
 The :doc:`residual correction tutorial
-<auto_examples/mc_scatter/plot_13_residual_correction>` compares the fast model
+<example_pages/residual_correction>` compares the fast model
 alone, the SIMIND scatter estimate and the full residual.
 
 The :doc:`SIRF OSEM <example_pages/mc_scatter_osem>`,
-:doc:`CIL ISTA <auto_examples/cil/plot_14_cil_scatter>` and residual correction
+:doc:`CIL ISTA <example_pages/cil_scatter>` and residual correction
 tutorials show complete workflows; see :doc:`the gallery <example_pages/index>`.

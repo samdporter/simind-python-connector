@@ -15,10 +15,12 @@ Sphinx-Gallery examples.
    density_conversion
    phantom_library
    mc_scatter_osem
+   scatter_normalisation
+   residual_correction
+   cil_scatter
+   cil_rdp_svrg
    stir_osem
    sirf_osem
    pytomography_osem
    dicom_recipe
-   /auto_examples/mc_scatter/index
-   /auto_examples/cil/index
    /auto_examples/real_data/index

@@ -6,41 +6,6 @@
   "run_summary points at the committed numerical summary for a page with a retained summary table. The gate never re-runs a simulation."
  ],
  "examples": {
-  "cil/plot_14_cil_scatter": {
-   "figures": [
-    "sphx_glr_plot_14_cil_scatter_001.png",
-    "sphx_glr_plot_14_cil_scatter_002.png",
-    "sphx_glr_plot_14_cil_scatter_003.png",
-    "sphx_glr_plot_14_cil_scatter_004.png"
-   ]
-  },
-  "cil/plot_15_cil_rdp_svrg": {
-   "figures": [
-    "sphx_glr_plot_15_cil_rdp_svrg_001.png",
-    "sphx_glr_plot_15_cil_rdp_svrg_002.png",
-    "sphx_glr_plot_15_cil_rdp_svrg_003.png",
-    "sphx_glr_plot_15_cil_rdp_svrg_004.png",
-    "sphx_glr_plot_15_cil_rdp_svrg_005.png"
-   ]
-  },
-  "mc_scatter/plot_12_scatter_normalisation": {
-   "figures": [
-    "sphx_glr_plot_12_scatter_normalisation_001.png",
-    "sphx_glr_plot_12_scatter_normalisation_002.png",
-    "sphx_glr_plot_12_scatter_normalisation_003.png",
-    "sphx_glr_plot_12_scatter_normalisation_004.png",
-    "sphx_glr_plot_12_scatter_normalisation_005.png",
-    "sphx_glr_plot_12_scatter_normalisation_006.png",
-    "sphx_glr_plot_12_scatter_normalisation_007.png"
-   ]
-  },
-  "mc_scatter/plot_13_residual_correction": {
-   "figures": [
-    "sphx_glr_plot_13_residual_correction_001.png",
-    "sphx_glr_plot_13_residual_correction_002.png",
-    "sphx_glr_plot_13_residual_correction_003.png"
-   ]
-  },
   "real_data/plot_16a_stir_ct_conversion": {
    "figures": [
     "sphx_glr_plot_16a_stir_ct_conversion_001.png",
@@ -157,6 +122,34 @@
    "figures": [
     "_static/examples/mc_scatter_osem/reconstructions.png",
     "_static/examples/mc_scatter_osem/recovery.png"
+   ]
+  },
+  "example_pages/scatter_normalisation": {
+   "source": "examples/mc_scatter/plot_12_scatter_normalisation.py",
+   "figures": [
+    "_static/examples/scatter_normalisation/scale_scatter.png",
+    "_static/examples/scatter_normalisation/recovery.png"
+   ]
+  },
+  "example_pages/residual_correction": {
+   "source": "examples/mc_scatter/plot_13_residual_correction.py",
+   "figures": [
+    "_static/examples/residual_correction/reconstructions.png",
+    "_static/examples/residual_correction/recovery.png"
+   ]
+  },
+  "example_pages/cil_scatter": {
+   "source": "examples/cil/plot_14_cil_scatter.py",
+   "figures": [
+    "_static/examples/cil_scatter/reconstructions.png",
+    "_static/examples/cil_scatter/recovery.png"
+   ]
+  },
+  "example_pages/cil_rdp_svrg": {
+   "source": "examples/cil/plot_15_cil_rdp_svrg.py",
+   "figures": [
+    "_static/examples/cil_rdp_svrg/reconstructions.png",
+    "_static/examples/cil_rdp_svrg/recovery.png"
    ]
   }
  }

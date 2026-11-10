@@ -80,10 +80,9 @@ phantomgen package; the install command is in the tutorial.
   and PyTomography with a reader-supplied file.
 - `examples/mc_scatter/plot_11`: authored Monte Carlo scatter correction in
   SIRF OSEM, including the NEMA/IEC fixture.
-- `examples/mc_scatter/plot_12`–`plot_13`: Monte Carlo scatter
-  normalisation and residual correction.
-- `examples/cil/plot_14` / `plot_15`: CIL scatter correction, and an
-  RDP-regularised SVRG reconstruction.
+- `examples/mc_scatter/plot_12` / `plot_13` and `examples/cil/plot_14` /
+  `plot_15`: authored tutorials for scatter normalisation, residual
+  correction, CIL scatter correction and RDP-regularised SVRG.
 - `examples/real_data/plot_16a` / `16b` / `16c`: CT-to-SPECT conversion with
   STIR / SIRF / PyTomography for the measured Y-90 phantom.
 - `examples/real_data/plot_17`: the Y-90 effective attenuation energy with SIRF.

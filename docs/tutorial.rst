@@ -139,18 +139,17 @@ and, in the last tutorial, by the SVRG subset gradients:
 
 - :doc:`Monte Carlo scatter correction in OSEM <example_pages/mc_scatter_osem>`
 - :doc:`Normalising the Monte Carlo scatter
-  <auto_examples/mc_scatter/plot_12_scatter_normalisation>`
+  <example_pages/scatter_normalisation>`
 - :doc:`Residual correction with SIMIND as the accurate model
-  <auto_examples/mc_scatter/plot_13_residual_correction>`
+  <example_pages/residual_correction>`
 - :doc:`Monte Carlo scatter correction with CIL
-  <auto_examples/cil/plot_14_cil_scatter>`
+  <example_pages/cil_scatter>`
 - :doc:`RDP-regularised reconstruction with SVRG
-  <auto_examples/cil/plot_15_cil_rdp_svrg>`
+  <example_pages/cil_rdp_svrg>`
 
-The CIL tutorials additionally need CIL. Inspect the update records and
-reconstruction metrics printed by each run. These tutorials use a fast SPECTUB
+The CIL tutorials additionally need CIL. These tutorials use a fast SPECTUB
 model; the expectation is high precision, while the scatter estimates use a
-tenth of its history budget and are smoothed. The objective, noise, and update
+fortieth of its history budget and are smoothed. The objective, noise, and update
 cadence are demonstration choices, not evidence of quantitative accuracy. See
 :doc:`reconstruction` for the model, damping, floor, and calibration details.
 For quantitative work, establish an accurate reference and validate the
