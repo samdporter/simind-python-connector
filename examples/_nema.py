@@ -1,4 +1,4 @@
-"""Shared NEMA/IEC setup for the reconstruction tutorials (examples 10-15).
+"""Shared NEMA/IEC setup for the reconstruction tutorials (examples 11-15).
 
 Every tutorial uses the same phantom, projection template and simulated
 acquisition, so the comparisons share one high-precision expectation instead

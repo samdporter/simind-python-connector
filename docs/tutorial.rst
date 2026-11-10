@@ -36,7 +36,7 @@ SIMIND releases may differ in their data files and output components. Check
 your local release manual and the observations in :doc:`simind_validation`
 before relying on a particular component name. Keep each binary paired with
 its own data directory. Start with the :doc:`basic simulation tutorial
-<auto_examples/getting_started/plot_01_basic_simulation>`, at
+<example_pages/basic_simulation>`, at
 ``examples/getting_started/plot_01_basic_simulation.py``:
 
 .. code-block:: bash
@@ -57,7 +57,7 @@ Build the phantoms
 ------------------
 
 The :doc:`phantom library tutorial
-<auto_examples/phantoms/plot_09_phantom_library>` simulates SIMIND's analytic
+<example_pages/phantom_library>` builds SIMIND's analytic
 multiple-inserts phantom and the NEMA/IEC body phantom. The NEMA phantom comes
 from `phantomgen <https://github.com/varzakis/phantomgen>`_, which is optional
 and is currently installed from GitHub, not PyPI:
@@ -68,13 +68,10 @@ and is currently installed from GitHub, not PyPI:
     python examples/phantoms/plot_09_phantom_library.py
 
 The NEMA/IEC body phantom has explicit activity in MBq per voxel, density, and
-named masks. The example builds it before either simulation, so a missing
-phantomgen stops there rather than after the analytic run. It writes both
-projections under ``output/phantom_library`` and plots a central source slice
-and the first projection view of each phantom. The 24 views are kept, but the
-history budget is raised: the analytic branch uses Index 26 = 4 (four million
-histories per projection) and the voxel NEMA branch uses the default
-quantization, which gives its hottest voxel 500 histories.
+named masks. The tutorial builds both phantoms without simulating them: the
+analytic phantom is voxelised to relative source weights, and the NEMA object
+is returned with its activity, density and masks. It plots a central source
+slice and the hottest NEMA activity slice under ``output/phantom_library``.
 
 For a quick smoke run, reduce ``quantization_scale`` and the number of views,
 or threshold the source to a mostly-zero map. Use ``NN >= 1``. For quantitative
@@ -108,26 +105,24 @@ and SIMIND version; see :doc:`simind_validation` for the observed map.
 Reconstruct the simulated acquisition
 -------------------------------------
 
-The :doc:`NEMA simulation and OSEM tutorial
-<auto_examples/phantoms/plot_10_nema_osem>` simulates the known-activity
-NEMA/IEC phantom and reconstructs it with SIRF OSEM:
+The :doc:`Monte Carlo scatter correction tutorial
+<example_pages/mc_scatter_osem>` simulates the known-activity NEMA/IEC phantom
+and reconstructs it with SIRF OSEM, without and with a SIMIND scatter estimate:
 
 .. code-block:: bash
 
-    python examples/phantoms/plot_10_nema_osem.py
+    python examples/mc_scatter/plot_11_mc_scatter_osem.py
 
 Install SIRF and phantomgen; see :doc:`installation`. The tutorial simulates 60
 views with 8 MPI processes at the default quantization and four times the
-source-history budget, adds seeded Poisson noise at 2 s per view, and
-reconstructs with SPECTUB attenuation but no collimator blur or scatter. It
-reports the histories and measured counts separately and does not derive a
-Monte Carlo precision from their ratio, because that ratio does not give the
-variance of SIMIND's weighted estimator. Inspect the measured counts, the
-reconstruction and truth slices, and the contrast-recovery bars under
-``output/nema_osem``. It scores the 17-37 mm hot spheres only; the 10 and
-13 mm spheres are cold, and every score is shown against the truth's own
-masked score. The first run takes about an hour, nearly all of it in SIMIND;
-the other reconstruction tutorials reuse the cached expectation.
+source-history budget, adds three paired seeded Poisson realisations at 2 s per
+view, and reconstructs with SPECTUB attenuation but no collimator blur or
+scatter. It reports the expectation histories and counts separately and does
+not derive a Monte Carlo precision from their ratio, because that ratio does not
+give the variance of SIMIND's weighted estimator. It scores the 17-37 mm hot
+spheres only; the 10 and 13 mm spheres are cold, and every score is shown
+against the truth's own masked score. The first run takes about an hour, nearly
+all of it in SIMIND; later tutorials reuse the cached expectation.
 Matching dimensions do not verify axis, view-angle, or orbit alignment, and a
 finite image is not evidence of absolute sensitivity. For quantitative work,
 validate voxel spacing, view angles, center of rotation, axis orientation, and
@@ -142,21 +137,19 @@ the first tutorial pays for it and the rest reuse it. Each tutorial then takes
 between about half an hour and three hours, dominated by the scatter estimates
 and, in the last tutorial, by the SVRG subset gradients:
 
-- :doc:`Monte Carlo scatter correction in OSEM
-  <auto_examples/mc_scatter/plot_11_mc_scatter_osem>`
+- :doc:`Monte Carlo scatter correction in OSEM <example_pages/mc_scatter_osem>`
 - :doc:`Normalising the Monte Carlo scatter
-  <auto_examples/mc_scatter/plot_12_scatter_normalisation>`
+  <example_pages/scatter_normalisation>`
 - :doc:`Residual correction with SIMIND as the accurate model
-  <auto_examples/mc_scatter/plot_13_residual_correction>`
+  <example_pages/residual_correction>`
 - :doc:`Monte Carlo scatter correction with CIL
-  <auto_examples/cil/plot_14_cil_scatter>`
+  <example_pages/cil_scatter>`
 - :doc:`RDP-regularised reconstruction with SVRG
-  <auto_examples/cil/plot_15_cil_rdp_svrg>`
+  <example_pages/cil_rdp_svrg>`
 
-The CIL tutorials additionally need CIL. Inspect the update records and
-reconstruction metrics printed by each run. These tutorials use a fast SPECTUB
+The CIL tutorials additionally need CIL. These tutorials use a fast SPECTUB
 model; the expectation is high precision, while the scatter estimates use a
-tenth of its history budget and are smoothed. The objective, noise, and update
+fortieth of its history budget and are smoothed. The objective, noise, and update
 cadence are demonstration choices, not evidence of quantitative accuracy. See
 :doc:`reconstruction` for the model, damping, floor, and calibration details.
 For quantitative work, establish an accurate reference and validate the
@@ -166,13 +159,12 @@ approximation, and the non-zero positivity floor can affect low-count regions.
 Measured projections and DICOM calibration
 ------------------------------------------
 
-The :doc:`STIR <auto_examples/backends/plot_08a_stir_adaptor_from_dicom>`,
-:doc:`SIRF <auto_examples/backends/plot_08b_sirf_adaptor_from_dicom>` and
-:doc:`PyTomography <auto_examples/backends/plot_08c_pytomography_adaptor_from_dicom>`
-DICOM tutorials read projection geometry from the Y-90 NM dataset named by
-``SIMIND_CONNECTOR_Y90_DATA``; no path argument is needed (see
-:doc:`datasets`). They build STIR, SIRF or PyTomography projection objects and
-plot the projection.
+The :doc:`DICOM projection recipe <example_pages/dicom_recipe>` shows the
+STIR, SIRF and PyTomography call sequences for a reader-supplied DICOM NM
+projection file. The dataset used during development is restricted and is not
+redistributed (see :doc:`datasets`). Each snippet builds the matching
+projection object; the recipe preserves the backend-specific view-order
+qualifications.
 Compare the DICOM-derived geometry with the simulated header before use. A
 DICOM geometry match does not calibrate absolute sensitivity. For a calibrated
 comparison, document the activity, acquisition time, decay reference, energy
@@ -182,46 +174,20 @@ simulation. Treat any resulting factor as specific to those assumptions.
 Real Y-90 data
 --------------
 
-The rest of the measured Y-90 study is in the :doc:`Real Y-90 data
-<auto_examples/real_data/index>` gallery section. These pages are rendered
-case studies, not generally reproducible tutorials: the data are not
-redistributed at this time, there is no public download or other access
-route, and the pages cannot be reproduced without the restricted input.
-Setting ``SIMIND_CONNECTOR_Y90_DATA`` to a local copy is the only current
-route; see :doc:`datasets` for the availability statement. Every page below
-reads the data through ``fetch_y90_phantom`` and takes no path argument.
+The measured Y-90 material is in two authored pages. The data are not
+redistributed at this time, there is no public download or other access route,
+and the pages cannot be reproduced without the restricted input. Setting
+``SIMIND_CONNECTOR_Y90_DATA`` to a local copy is the only current route; see
+:doc:`datasets` for the availability statement.
 
-Read them in this order:
+- :doc:`Y-90 CT conversion <example_pages/y90_ct_conversion>` documents the
+  common CT preparation and gives separate STIR, SIRF and PyTomography
+  resampling recipes, then converts HU to density and attenuation. The backend
+  routes are not claimed equivalent, and the vendor map is not a known-energy
+  reference.
+- :doc:`Y-90 effective attenuation energy <example_pages/y90_effective_energy>`
+  compares a 150 keV map with a map weighted by the simulated detected
+  spectrum, and checks the list-mode window weight against the engine counts.
+  The spectrum is simulated and the weighted map is an approximation; neither
+  is an accuracy reference.
 
-1. The DICOM pages above (examples 08A, 08B, 08C) read ``peak.dcm`` and
-   build the STIR, SIRF or PyTomography projection object.
-
-2. The CT-to-SPECT conversion case studies read the CT series of the same
-   phantom, register it onto the SPECT grid, and stop with diagnostics
-   instead of publishing maps when the registration check fails:
-
-   - :doc:`CT conversion with STIR
-     <auto_examples/real_data/plot_16a_stir_ct_conversion>`
-   - :doc:`CT conversion with SIRF
-     <auto_examples/real_data/plot_16b_sirf_ct_conversion>`
-   - :doc:`CT conversion with PyTomography
-     <auto_examples/real_data/plot_16c_pytomography_ct_conversion>`
-
-   Each page uses only its own backend. The later case studies take their CT
-   preparation from the SIRF route.
-
-3. The :doc:`Y-90 effective energy case study
-   <auto_examples/real_data/plot_17_y90_effective_energy>` (SIRF) compares two
-   reconstructions of the measured projections that differ only in the
-   attenuation model: a single 150-keV map against a map weighted across the
-   detected 75-225 keV spectrum. Neither reconstruction includes scatter, so
-   the pair is a model comparison, not an accuracy ranking.
-
-4. The :doc:`Monte Carlo scatter case study
-   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) is a diagnostic
-   negative result, not a passing quantitative tutorial. It compares
-   Monte Carlo scatter strategies on a common reconstruction schedule, but the
-   global-scaling arm collapsed and is not quantitatively interpretable, the
-   nominal sphere-to-liver ratios are centre-sensitive and do not support a
-   strategy ranking, and statistical adequacy was not established. Read the
-   page's quality warning and gate table before using any number from it.

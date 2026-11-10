@@ -4,16 +4,11 @@ import os
 import sys
 from datetime import datetime
 from importlib import metadata as importlib_metadata
-from pathlib import Path
-
-from sphinx_gallery.sorting import ExplicitOrder
 
 
 # Add the package to the path
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("."))
-
-from _gallery import BACKENDS, execution_pattern, record_gallery_build  # noqa: E402
 
 
 # Project information
@@ -38,7 +33,6 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx_autodoc_typehints",
     "myst_parser",
-    "sphinx_gallery.gen_gallery",
 ]
 source_suffix = {
     ".rst": "restructuredtext",
@@ -111,60 +105,3 @@ myst_enable_extensions = [
     "substitution",
     "tasklist",
 ]
-
-# Sphinx-gallery: each build executes only the examples of one backend, the
-# rest render from their committed outputs.
-backend = os.environ.get("SIMIND_GALLERY_BACKEND")
-if backend and backend not in BACKENDS:
-    raise ValueError(
-        f"SIMIND_GALLERY_BACKEND must be one of {BACKENDS}, got {backend!r}"
-    )
-
-sphinx_gallery_conf = {
-    "examples_dirs": "../examples",
-    "gallery_dirs": "auto_examples",
-    "filename_pattern": (
-        execution_pattern(Path("../examples").resolve(), backend) if backend else r"^$"
-    ),
-    "plot_gallery": "True" if backend else "False",
-    "ignore_pattern": r"^(?!plot_)[^/]*\.py$",
-    "within_subsection_order": "FileNameSortKey",
-    "subsection_order": ExplicitOrder(
-        [
-            "../examples/getting_started",
-            "../examples/backends",
-            "../examples/phantoms",
-            "../examples/mc_scatter",
-            "../examples/cil",
-            "../examples/real_data",
-        ]
-    ),
-    "abort_on_example_error": True,
-    "remove_config_comments": True,
-    "download_all_examples": False,
-    "image_scrapers": ("matplotlib",),
-    "matplotlib_animations": False,
-}
-
-
-def _gallery_build_finished(app, exception):
-    """Record or invalidate gallery provenance after a backend build.
-
-    The offline documentation build leaves provenance untouched; only a build
-    that executed a backend owns the artifacts it just produced.
-    """
-
-    if not backend:
-        return
-    docs_dir = Path(app.srcdir).resolve()
-    record_gallery_build(
-        root=docs_dir.parent,
-        docs_dir=docs_dir,
-        backend=backend,
-        exception=exception,
-    )
-
-
-def setup(app):
-    app.connect("build-finished", _gallery_build_finished)
-    return {"parallel_read_safe": True, "parallel_write_safe": True}

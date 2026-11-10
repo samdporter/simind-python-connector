@@ -32,7 +32,7 @@ RUN python -m pip install --upgrade pip \
     && pip install "phantomgen @ git+https://github.com/varzakis/phantomgen@d9196118d5caef3f1bd2c27e5732bc03b48aed2a" \
     && python - <<'PY'
 import importlib
-for module in ("numpy", "matplotlib", "pytest", "phantomgen", "pooch", "sphinx_gallery"):
+for module in ("numpy", "matplotlib", "pytest", "phantomgen", "pooch"):
     importlib.import_module(module)
 print("Core Python modules available")
 PY

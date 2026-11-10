@@ -1,6 +1,7 @@
 """Tests for example-runner scripts and container helper scripts."""
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -373,3 +374,19 @@ def test_validation_script_fails_without_sibling_simind_mpi(tmp_path):
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "simind_mpi" in result.stderr
+
+
+def test_configured_container_example_paths_exist():
+    """Every example path named by the container defaults must exist."""
+    sources = [
+        ROOT / "docker" / "compose.yaml",
+        ROOT / "docker" / "README.md",
+        ROOT / "scripts" / "run_container_examples.sh",
+        ROOT / "scripts" / "run_container_validation.sh",
+    ]
+    paths = set()
+    for source in sources:
+        paths.update(re.findall(r"examples/[\w/]+\.py", source.read_text()))
+    assert paths
+    missing = sorted(path for path in paths if not (ROOT / path).is_file())
+    assert not missing, missing

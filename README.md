@@ -9,10 +9,10 @@ SIMIND project and Lund University.
 
 See the [workflow tutorial](docs/tutorial.rst) for an ordered path through a
 core simulation, known-activity NEMA phantom, reconstruction, scatter
-correction, and measured-data calibration. The [gallery](docs/auto_examples/index.rst)
-has every tutorial with its figures and printed output. Rendered documentation,
-including the gallery, is built from the tagged repository; source distributions
-contain the example sources rather than the generated gallery. The
+correction, and measured-data calibration. The [example pages](docs/example_pages/index.rst)
+collect the tutorials and their retained figures. Rendered documentation,
+including the example pages, is built from the tagged repository; source
+distributions contain the example sources rather than rendered pages. The
 [documentation](https://simind-python-connector.readthedocs.io/) explains
 installation, geometry, normalisation, backend options, and the
 [observed SIMIND output-component mapping](docs/simind_validation.md).
@@ -71,24 +71,26 @@ phantomgen package; the install command is in the tutorial.
 
 ## Example map
 
-- `examples/getting_started/plot_01`–`plot_06`: core NumPy simulations, windows, configurations, scoring,
-  and density conversion.
-- `examples/backends/plot_07a` / `07b` / `07c`: STIR / SIRF / PyTomography adaptors.
-- `examples/backends/plot_08a` / `08b` / `08c`: DICOM setup for STIR / SIRF / PyTomography.
-- `examples/phantoms/plot_09` / `plot_10`: the SIMIND analytic phantom library,
-  and a known-activity NEMA/IEC simulation reconstructed with SIRF OSEM.
-- `examples/mc_scatter/plot_11`–`plot_13`: Monte Carlo scatter in SIRF OSEM,
-  scatter normalisation, and residual correction.
-- `examples/cil/plot_14` / `plot_15`: CIL scatter correction, and an
-  RDP-regularised SVRG reconstruction.
-- `examples/real_data/plot_16a` / `16b` / `16c`: CT-to-SPECT conversion with
-  STIR / SIRF / PyTomography for the measured Y-90 phantom.
-- `examples/real_data/plot_17`: the Y-90 effective attenuation energy with SIRF.
-- `examples/real_data/plot_18`: Monte Carlo scatter strategies on the Y-90
-  phantom with SIRF.
+- `examples/getting_started/plot_01`, `plot_03`–`plot_06` and
+  `examples/phantoms/plot_09`:
+  authored tutorials for core simulations, windows, configurations, scoring,
+  density conversion and the phantom library.
+- `examples/backends/plot_07a` / `07b` / `07c`: STIR / SIRF / PyTomography
+  adaptors.
+- `docs/example_pages/dicom_recipe.rst`: DICOM setup snippets for STIR, SIRF
+  and PyTomography with a reader-supplied file.
+- `examples/mc_scatter/plot_11`: authored Monte Carlo scatter correction in
+  SIRF OSEM, including the NEMA/IEC fixture.
+- `examples/mc_scatter/plot_12` / `plot_13` and `examples/cil/plot_14` /
+  `plot_15`: authored tutorials for scatter normalisation, residual
+  correction, CIL scatter correction and RDP-regularised SVRG.
+- `docs/example_pages/y90_ct_conversion.rst`: Y-90 CT preparation with
+  STIR / SIRF / PyTomography resampling recipes.
+- `examples/real_data/plot_17_y90_effective_energy.py`: authored Y-90
+  effective attenuation-energy page.
 
-The real-data pages are rendered case studies on restricted Y-90 input, not
-reproducible tutorials. See [datasets](docs/datasets.rst) for the availability
+The real-data pages use restricted Y-90 input and are not reproducible
+tutorials. See [datasets](docs/datasets.rst) for the availability
 statement.
 
 Lower `quantization_scale`, fewer projections, or a mostly-zero source map can

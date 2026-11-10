@@ -2,16 +2,15 @@
 # --------------------------
 # The sdist ships the complete source tree needed to install the package, build
 # the documentation, run the examples and run the shipped test suite: package
-# sources and bundled data, Sphinx sources, gallery example sources, release and
+# sources and bundled data, Sphinx sources, example sources, release and
 # container scripts, tests and their fixtures, and the CI/docker support files
 # those tests read.
 #
-# Generated output is deliberately excluded. The rendered gallery under
-# docs/auto_examples (pages, images, notebooks, checksums and execution times),
-# Sphinx build trees and generated execution-time files are not shipped.
-# Rendered documentation is built from the tagged repository; the sdist keeps
-# only the sources from which it is generated. Local-only agent notes, audits,
-# build artefacts and simulation data are never shipped.
+# Generated output is deliberately excluded. Sphinx build trees and generated
+# execution-time files are not shipped. Rendered documentation is built from
+# the tagged repository; the sdist keeps only the sources from which it is
+# generated. Local-only agent notes, audits, build artefacts and simulation
+# data are never shipped.
 
 include README.md
 include LICENSE
@@ -26,19 +25,19 @@ include .readthedocs.yaml
 recursive-include simind_python_connector/data *.atn *.json
 recursive-include simind_python_connector/configs *.smc *.yaml
 
-# Documentation sources, not generated gallery output.
-recursive-include docs *.rst *.md *.py LICENSE
+# Documentation sources and the authored-page inventory.
+recursive-include docs *.rst *.rst.txt *.md *.py LICENSE
+include docs/example_pages.json
+recursive-include docs/_static/examples *
 include docs/_static/.gitkeep
-prune docs/auto_examples
-prune docs/examples
+include docs/examples
 prune docs/_build
 prune docs/_generated
-exclude docs/sg_execution_times.rst
 
 # Example sources and their READMEs/helpers.
 recursive-include examples *.py *.rst
 
-# Release, gallery, validation and container scripts.
+# Release, docs-check, validation and container scripts.
 recursive-include scripts *.py *.sh
 
 # Container definitions and the import guard used by the isolation tests.

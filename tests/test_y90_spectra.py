@@ -1,7 +1,6 @@
 """Tests for the Y-90 effective-energy tutorial."""
 
 import importlib.util
-import os
 from pathlib import Path
 
 import numpy as np
@@ -213,53 +212,6 @@ def test_weighted_mean_energy_uses_the_channel_weights():
 
 
 @pytest.mark.unit
-def test_subiteration_count_matches_full_iterations():
-    assert script.subiteration_count(12, 12) == 144
-    assert script.subiteration_count(3, 4) == 12
-
-
-def _y90_data():
-    directory = os.environ.get("SIMIND_CONNECTOR_Y90_DATA")
-    if not directory or not (Path(directory) / "peak.hs").is_file():
-        pytest.skip("SIMIND_CONNECTOR_Y90_DATA is not set to the Y-90 phantom")
-    return Path(directory)
-
-
-@pytest.mark.integration
-@pytest.mark.requires_sirf
-def test_paired_reconstruction_shares_grid_and_initialisation(tmp_path):
-    data_directory = _y90_data()
-    ct_series = script.read_ct_series(data_directory / "ctac")
-    affine = script.patient_to_spect_affine(
-        data_directory / "peak.dcm", ct_series.table_height, ct_series.frame_uid
-    )
-    hu_grid, grid = script.resample_ct(
-        ct_series, affine, data_directory / "umap_zoomed.hv", tmp_path
-    )
-    attenuation_150 = hu_to_attenuation(hu_grid, 150.0).astype(np.float32)
-    attenuation_weighted = script.weighted_attenuation(
-        hu_grid, np.array([100.0, 150.0, 200.0]), np.array([1.0, 1.0, 1.0])
-    ).astype(np.float32)
-
-    flipped = script.spectub_image(grid, attenuation_150)
-    np.testing.assert_allclose(flipped.as_array(), attenuation_150[..., ::-1])
-
-    import sirf.STIR as sirf
-
-    sirf.AcquisitionData.set_storage_scheme("memory")
-    acquisition = sirf.AcquisitionData(str(data_directory / "peak.hs"))
-    images = script.paired_reconstruction(
-        acquisition, grid, hu_grid, attenuation_150, attenuation_weighted
-    )
-
-    first, second = images.values()
-    assert first.dimensions() == second.dimensions()
-    assert first.voxel_sizes() == second.voxel_sizes()
-    assert np.isfinite(first.as_array()).all()
-    assert np.isfinite(second.as_array()).all()
-    assert np.any(np.asarray(first.as_array()) != np.asarray(second.as_array()))
-
-
 @pytest.mark.integration
 @pytest.mark.requires_simind
 def test_live_y90_source_and_list_mode_spectrum(tmp_path):

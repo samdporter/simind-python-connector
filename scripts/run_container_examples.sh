@@ -264,12 +264,11 @@ echo "[2/2] Running selected examples..."
 if [[ "$RUN_CORE" -eq 1 ]]; then
     if [[ "$SIMIND_AVAILABLE" -eq 1 ]]; then
         run_service python "python examples/getting_started/plot_01_basic_simulation.py"
-        run_service python "python examples/getting_started/plot_02_runtime_switch_comparison.py"
         run_service python "python examples/getting_started/plot_03_multi_window.py"
         run_service python "python examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py"
     else
         echo
-        echo "[python] Skipping 01/02/03/05 (SIMIND not found at '$SIMIND_PATH')."
+        echo "[python] Skipping 01/03/05 (SIMIND not found at '$SIMIND_PATH')."
     fi
 
     run_service python "python examples/getting_started/plot_04_custom_config.py"

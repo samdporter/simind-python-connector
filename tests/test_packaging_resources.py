@@ -29,7 +29,7 @@ REQUIRED_DATA = (
 )
 
 # The sdist ships the sources needed to install, build the documentation, run
-# the examples and run the shipped tests. The rendered gallery and other
+# the examples and run the shipped tests. Rendered pages and other
 # generated output are excluded; rendered documentation is built from the
 # tagged repository.
 SDIST_REQUIRED = {
@@ -42,7 +42,8 @@ SDIST_REQUIRED = {
     ".readthedocs.yaml",
     "uv.lock",
     "docs/conf.py",
-    "docs/_gallery.py",
+    "docs/_docs.py",
+    "docs/example_pages.json",
     "docs/index.rst",
     "docs/changelog.rst",
     "docs/contributing.rst",
@@ -50,8 +51,13 @@ SDIST_REQUIRED = {
     "docs/spectub_cache_interference.md",
     "examples/README.rst",
     "examples/_python_connector_helpers.py",
-    "examples/getting_started/README.rst",
+    "docs/example_pages/index.rst",
+    "docs/example_pages/_template.rst.txt",
+    "docs/example_pages/basic_simulation.rst",
     "examples/getting_started/plot_01_basic_simulation.py",
+    "docs/examples/getting_started/plot_01_basic_simulation.py",
+    "examples/backends/plot_07a_stir_adaptor_osem.py",
+    "scripts/check_docs.py",
     "scripts/make_y90_bundle.py",
     "scripts/check_wheel_resources.py",
     "scripts/run_container_examples.sh",
@@ -66,8 +72,6 @@ SDIST_REQUIRED = {
     ".github/workflows/docs.yml",
 }
 SDIST_FORBIDDEN_PREFIXES = (
-    "docs/auto_examples/",
-    "docs/examples/",
     "docs/superpowers/",
     "docs/_build/",
     "docs/_generated/",
@@ -83,7 +87,6 @@ SDIST_FORBIDDEN = {
     "CLAUDE.md",
     "opencode.jsonc",
     "simind_manual.pdf",
-    "docs/sg_execution_times.rst",
 }
 
 

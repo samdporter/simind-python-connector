@@ -6,7 +6,7 @@ Datasets
 Y-90 phantom data
 -----------------
 
-The real-data gallery uses one measured Y-90 bremsstrahlung study of a
+The real-data pages use one measured Y-90 bremsstrahlung study of a
 phantom, together with the CT series of the same phantom. The examples
 locate the files with ``fetch_y90_phantom``, from
 ``simind_python_connector.datasets``.
@@ -21,10 +21,10 @@ DOI, or other access route. Setting ``SIMIND_CONNECTOR_Y90_DATA`` to a local
 copy is the only current route, and readers without a copy cannot reproduce
 the real-data pages.
 
-The real-data gallery (examples 08A/B/C, 16A/B/C, 17 and 18) consists of
-rendered case studies produced from data available to the authors. The pages
-are not generally reproducible tutorials: without the restricted input they
-cannot be run or regenerated.
+The real-data pages consist of the DICOM projection recipe and two authored
+Y-90 pages produced from data available to the authors. They are not
+generally reproducible tutorials: without the restricted input they cannot be
+run or regenerated.
 
 The examples fail fast with a clear message when the data are absent.
 
@@ -89,6 +89,6 @@ the activity only.
 Where the data are used
 -----------------------
 
-- The :doc:`workflow tutorial <tutorial>` lists the real-data case studies in
-  their recommended order.
-- :doc:`examples` points at the gallery sections that contain them.
+- The :doc:`workflow tutorial <tutorial>` lists the real-data pages in their
+  recommended order.
+- :doc:`The examples root <example_pages/index>` points at them.

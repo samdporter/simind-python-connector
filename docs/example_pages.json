@@ -1,0 +1,114 @@
+{
+ "schema": 3,
+ "notes": [
+  "Every authored page under docs/example_pages has an entry here.",
+  "figures lists the image filenames the page publishes. The check requires each file to exist, be readable and be referenced by the page.",
+  "run_summary optionally points at a committed numerical summary for a page with a retained table.",
+  "Optional source points at the runnable script a page includes; recipe-only pages omit it."
+ ],
+ "authored_pages": {
+  "example_pages/basic_simulation": {
+   "source": "examples/getting_started/plot_01_basic_simulation.py",
+   "figures": [
+    "_static/examples/basic_simulation/basic_simulation.png"
+   ]
+  },
+  "example_pages/multi_window": {
+   "source": "examples/getting_started/plot_03_multi_window.py",
+   "figures": [
+    "_static/examples/multi_window/multi_window.png"
+   ]
+  },
+  "example_pages/custom_configuration": {
+   "source": "examples/getting_started/plot_04_custom_config.py",
+   "figures": []
+  },
+  "example_pages/scattwin_vs_penetrate": {
+   "source": "examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py",
+   "figures": [
+    "_static/examples/scattwin_vs_penetrate/decomposition.png"
+   ]
+  },
+  "example_pages/density_conversion": {
+   "source": "examples/getting_started/plot_06_schneider_density_conversion.py",
+   "figures": [
+    "_static/examples/density_conversion/density_conversion.png"
+   ]
+  },
+  "example_pages/phantom_library": {
+   "source": "examples/phantoms/plot_09_phantom_library.py",
+   "figures": [
+    "_static/examples/phantom_library/phantom_library.png"
+   ]
+  },
+  "example_pages/stir_osem": {
+   "source": "examples/backends/plot_07a_stir_adaptor_osem.py",
+   "figures": [
+    "_static/examples/stir_osem/stir_osem.png"
+   ]
+  },
+  "example_pages/sirf_osem": {
+   "source": "examples/backends/plot_07b_sirf_adaptor_osem.py",
+   "figures": [
+    "_static/examples/sirf_osem/sirf_osem.png"
+   ]
+  },
+  "example_pages/pytomography_osem": {
+   "source": "examples/backends/plot_07c_pytomography_adaptor_osem.py",
+   "figures": [
+    "_static/examples/pytomography_osem/pytomography_osem.png"
+   ]
+  },
+  "example_pages/dicom_recipe": {
+   "figures": []
+  },
+  "example_pages/mc_scatter_osem": {
+   "source": "examples/mc_scatter/plot_11_mc_scatter_osem.py",
+   "figures": [
+    "_static/examples/mc_scatter_osem/reconstructions.png",
+    "_static/examples/mc_scatter_osem/recovery.png"
+   ]
+  },
+  "example_pages/scatter_normalisation": {
+   "source": "examples/mc_scatter/plot_12_scatter_normalisation.py",
+   "figures": [
+    "_static/examples/scatter_normalisation/scale_scatter.png",
+    "_static/examples/scatter_normalisation/recovery.png"
+   ]
+  },
+  "example_pages/residual_correction": {
+   "source": "examples/mc_scatter/plot_13_residual_correction.py",
+   "figures": [
+    "_static/examples/residual_correction/reconstructions.png",
+    "_static/examples/residual_correction/recovery.png"
+   ]
+  },
+  "example_pages/cil_scatter": {
+   "source": "examples/cil/plot_14_cil_scatter.py",
+   "figures": [
+    "_static/examples/cil_scatter/reconstructions.png",
+    "_static/examples/cil_scatter/recovery.png"
+   ]
+  },
+  "example_pages/cil_rdp_svrg": {
+   "source": "examples/cil/plot_15_cil_rdp_svrg.py",
+   "figures": [
+    "_static/examples/cil_rdp_svrg/reconstructions.png",
+    "_static/examples/cil_rdp_svrg/recovery.png"
+   ]
+  },
+  "example_pages/y90_ct_conversion": {
+   "figures": [
+    "_static/examples/y90_ct_conversion/registration.png",
+    "_static/examples/y90_ct_conversion/maps.png"
+   ]
+  },
+  "example_pages/y90_effective_energy": {
+   "source": "examples/real_data/plot_17_y90_effective_energy.py",
+   "figures": [
+    "_static/examples/y90_effective_energy/detected_spectrum.png",
+    "_static/examples/y90_effective_energy/attenuation_maps.png"
+   ]
+  }
+ }
+}

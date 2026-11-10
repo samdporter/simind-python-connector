@@ -14,9 +14,8 @@ simind-python-connector Documentation
    phantoms
    simind_validation
    backends
-   examples
    datasets
-   auto_examples/index
+   example_pages/index
    api
 
 .. toctree::

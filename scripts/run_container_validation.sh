@@ -323,7 +323,6 @@ echo "[4/4] Handling SIMIND-dependent examples/tests..."
 if [[ "$RUN_SIMIND_TESTS" == "1" ]]; then
     if [[ "$RUN_CORE" -eq 1 ]]; then
         run_service python "python examples/getting_started/plot_01_basic_simulation.py"
-        run_service python "python examples/getting_started/plot_02_runtime_switch_comparison.py"
         run_service python "python examples/getting_started/plot_03_multi_window.py"
         run_service python "python examples/getting_started/plot_05_scattwin_vs_penetrate_comparison.py"
         run_service python "python -m pytest tests/test_simind_mpi.py -q -s"

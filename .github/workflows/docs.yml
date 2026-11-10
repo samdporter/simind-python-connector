@@ -37,17 +37,11 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match version v${version}"
             exit 1
           fi
-      - name: Build the documentation without executing examples
-        env:
-          SIMIND_GALLERY_BACKEND: ""
+      - name: Build the documentation
         run: |
           python -m sphinx -b html -W --keep-going docs docs/_build/html
-      - name: Check the gallery figures and provenance
-        run: python scripts/check_gallery_current.py --html-dir docs/_build/html
-      - name: Check the generated gallery indexes are committed
-        run: |
-          git status --porcelain -- docs/auto_examples
-          test -z "$(git status --porcelain -- docs/auto_examples)"
+      - name: Check authored documentation inventory and figures
+        run: python scripts/check_docs.py --html-dir docs/_build/html
       - name: Upload the built documentation
         uses: actions/upload-artifact@v4
         with:

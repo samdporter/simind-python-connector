@@ -1,60 +1,36 @@
 Real Y-90 data
 --------------
 
-These pages are restricted-data case studies, not generally reproducible
-tutorials. They use a measured Y-90 phantom acquisition: a Mediso AnyScan
-bremsstrahlung study with 120 views over 360 degrees, 128 x 128 bins of
+These authored pages use restricted-data case studies, not generally
+reproducible tutorials. They use a measured Y-90 phantom acquisition: a Mediso
+AnyScan bremsstrahlung study with 120 views over 360 degrees, 128 x 128 bins of
 4.2578 mm and a 75-225 keV window, together with the CT series of the same
 phantom. The reconstruction grid is the vendor ``umap_zoomed`` grid of 128
 voxels at 4.2578 mm.
 
-The data are not redistributed at this time. There is no public download,
-DOI, or other access route, and the pages cannot be reproduced without the
-restricted input. Setting ``SIMIND_CONNECTOR_Y90_DATA`` to a local copy is
-the only current route; see :doc:`/datasets` for the availability statement.
+The data are not redistributed. Setting ``SIMIND_CONNECTOR_Y90_DATA`` to a
+local copy is the only current route; see :doc:`/datasets` for the availability
+statement. Provide a directory containing ``peak.dcm``, ``peak.hs``, ``peak.s``,
+``umap_zoomed.hv``, ``umap_zoomed.v`` and the ``ctac`` directory of DICOM
+slices.
 
-For that local copy, provide a directory containing ``peak.dcm``, ``peak.hs``,
-``peak.s``, ``umap_zoomed.hv``, ``umap_zoomed.v`` and the ``ctac`` directory
-of DICOM slices. The pages read the CT series from that directory and write
-their figures and summaries under
-``$SIMIND_EXAMPLES_OUTPUT/real_data/ct_conversion`` (or ``output`` when the
-variable is unset).
+The pages are:
 
-The three CT conversion case studies show the same registration chain with a
-different backend:
+- :doc:`/example_pages/y90_ct_conversion` documents the shared CT preparation,
+  gives separate STIR, SIRF and PyTomography resampling recipes, and converts
+  HU to density and attenuation. The vendor attenuation map has no recorded
+  photon energy, so it is a registration reference only and is never converted
+  to density. All routes use the same one-voxel registration gate and stop
+  before producing maps when it fails.
+- :doc:`/example_pages/y90_effective_energy` uses the retained
+  ``plot_17_y90_effective_energy.py`` script. It compares a 150 keV map with
+  one weighted by the simulated detected spectrum, checks the list-mode window
+  weight against the engine counts, and keeps the detected-spectrum and
+  attenuation-map figures. The spectrum is simulated and the weighted map is an
+  approximation; neither is an accuracy reference.
 
-- ``plot_16a_stir_ct_conversion.py`` builds the CT in the STIR frame and
-  resamples it with ``zoom_image``.
-- ``plot_16b_sirf_ct_conversion.py`` writes the CT as a NIfTI image and
-  resamples it with SIRF's NiftyResample.
-- ``plot_16c_pytomography_ct_conversion.py`` uses PyTomography's CT reader and
-  attenuation table with a corrected patient-to-SPECT affine.
-
-All three sort the CT slices by ``ImagePositionPatient``, validate the series,
-register the CT-derived attenuation map to ``umap_zoomed``, and stop before
-writing maps if the registration gate fails. The vendor attenuation
-map has no recorded photon energy, so it is used only as a registration
-reference and is never converted to density.
-
-The pages need NumPy, pydicom, matplotlib and SciPy. The SIRF case study
-also needs nibabel. All three need the matching backend.
-
-The remaining two case studies use the same restricted data:
-
-- ``plot_17_y90_effective_energy.py`` (SIRF) compares a single 150-keV
-  attenuation map with one weighted by the detected 75-225 keV spectrum, using
-  two otherwise identical reconstructions that both omit scatter. The measured
-  data have about two counts per projection bin, so the figure shows the raw
-  OSEM images and an identical 10 mm FWHM Gaussian display smoothing; the
-  smoothing is display-only. Neither arm includes scatter and neither is an
-  accuracy reference.
-- ``plot_18_y90_mc_scatter.py`` (SIRF) compares Monte Carlo scatter strategies
-  on a common reconstruction schedule and publishes the reconstructed-image
-  comparison, profiles, scatter estimates and overlays. It is a diagnostic
-  negative result, not a passing quantitative tutorial: the
-  global-scaling arm collapsed and is not quantitatively interpretable, the
-  nominal sphere-to-liver ratios are sensitive to the fixed sphere centre and
-  do not support a strategy ranking, and statistical adequacy was not
-  established. The history probe reports NN=4, NN=8 and a chunked 16x level;
-  the coarse 4-to-8 pair already fails, so the finer level cannot restore
-  adequacy. The page reports every failed or inconclusive quality gate.
+The CT page needs NumPy, pydicom and SciPy, plus STIR, SIRF or PyTomography
+for the matching recipe. The SIRF route also requires ``nibabel`` for its NIfTI
+resampling step. The effective-energy page needs SIMIND,
+SIRF, NumPy, Matplotlib, pydicom and nibabel. No paired reconstructions,
+profiles or Monte Carlo case study remain.
