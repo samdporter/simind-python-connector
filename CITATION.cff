@@ -11,7 +11,7 @@ authors:
 - family-names: Thielemans
   given-names: Kris
   orcid: "https://orcid.org/0000-0001-6353-9538"
-date-released: 2026-11-08
+date-released: 2026-11-10
 version: 2.0.2
 url: "https://github.com/samdporter/simind-python-connector"
 doi: 10.5281/zenodo.19605198

@@ -7,12 +7,13 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-2.0.2 - 2026-11-08
+2.0.2 - 2026-11-10
 -------------------
 
-A documentation, gallery and correctness release on the 2.0.1 code base. It
-states the supported engine and fixes the pixel-wise Dewaraja scatter estimator
-and the STIR OSEM image output.
+A v8 compatibility, documentation and correctness release on the 2.0.1 code
+base. It states the supported engine, replaces the generated gallery with short
+authored tutorials, and fixes the pixel-wise Dewaraja scatter estimator and the
+STIR OSEM image output.
 
 Compatibility
 ~~~~~~~~~~~~~
@@ -20,13 +21,19 @@ Compatibility
 - SIMIND v8 is the supported engine. v9 remains experimental and unvalidated:
   the v9.0 Linux build can abort or return silently corrupted projections, so
   v9 qualification is planned for 2.1.0.
+- The v9 failure-expectation tests, the v9 validation tables and the support
+  claims that depended on them are removed.
 
 Documentation
 ~~~~~~~~~~~~~
 
-- Gallery examples were rebuilt with recorded settings, seeds and runtimes.
-  Examples 10-15 share one cached high-precision SIMIND expectation and
-  separate seed-to-seed uncertainty from Poisson acquisition noise.
+- Each tutorial is now a short authored page: the explanation, the figures and
+  the result, with the runnable script linked rather than reproduced.
+- The example set is consolidated: 02 into 01, 08A/08B/08C into one DICOM
+  recipe, 10 into 11, and 16A/16B/16C into one CT case study. Example 18 is
+  removed.
+- The generated gallery and its provenance machinery are removed. Figures come
+  from recorded runs and were not regenerated for the rewrite.
 
 Fixed
 ~~~~~
@@ -40,9 +47,8 @@ Fixed
 Known limitations
 ~~~~~~~~~~~~~~~~~
 
-- The Y-90 dataset behind the 16A/B/C, 17 and 18 pages is restricted and is
-  not redistributed: there is no public download or other access route, so the
-  case-study pages cannot be regenerated without a local copy.
+- Example 13's residual arm and example 15's instability remain documented
+  limited results, not validated improvements.
 
 2.0.1 - 2026-10-24
 -------------------

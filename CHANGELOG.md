@@ -7,46 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.2] - 2026-11-08
+## [2.0.2] - 2026-11-10
 
-A documentation, gallery and correctness release on the 2.0.1 code base. It
-states the supported engine, raises the example statistics to publication
-quality, publishes the real-data reconstruction comparisons, and fixes the
-pixel-wise Dewaraja scatter estimator and the STIR OSEM image output.
+A v8 compatibility, documentation and correctness release on the 2.0.1 code
+base. It states the supported engine, replaces the generated gallery with
+short authored tutorials, and fixes the pixel-wise Dewaraja scatter estimator
+and the STIR OSEM image output.
 
 ### Compatibility
 - SIMIND v8 is the supported engine. v9 remains experimental and unvalidated:
   the v9.0 Linux build can abort or return silently corrupted projections, so
-  v9 qualification is planned for 2.1.0. The v9 failure-expectation tests, the
-  v9 validation tables and the support claims that depended on them are
-  removed.
+  v9 qualification is planned for 2.1.0.
+- The v9 failure-expectation tests, the v9 validation tables and the support
+  claims that depended on them are removed.
 
 ### Documentation
-- Gallery statistics are raised to publication quality. Examples 01, 02 (seed
-  reproducibility), 03 (TEW), 05 (SCATTWIN versus PENETRATE) and 09 are
-  rebuilt with their recorded settings, seeds and runtimes. Examples 10–15 are
-  rebuilt on one cached high-precision SIMIND expectation, with seed-to-seed
-  uncertainty and Monte Carlo precision separated from Poisson acquisition
-  noise; example 12 draws the uncertainty bands its text describes for the
-  scale factors and the raw scatter sums.
-- The real-data tutorials gain matched reconstruction endpoints. Examples
-  16A/16B/16C compare no attenuation with the CT-derived 150 keV attenuation
-  map. Example 17 declares a matched 10 mm FWHM display treatment and keeps
-  the raw companions. Example 18 publishes the reconstruction comparisons at
-  the native 120 views with shared scales, a collapsed-global diagnostic
-  panel, profiles, scatter estimates and primary ratios, registration and
-  volume-of-interest overlays, and keeps its diagnostic negative-result
-  framing.
-- Example 18's simulation cache is keyed by the detected engine: the version
-  banner, the resolved serial executable's content hash looked up on `PATH`
-  like the executor, the content digest of the data tree, and the digest of the
-  effective acquisition template. A cache hit is refused when the tree, the
-  executable or the template cannot be hashed.
-- A new gallery gate checks figure and provenance completeness, thumbnails,
-  notebooks and rendered HTML links. Example 18's missing figures would now
-  fail the release.
-- Public documentation and README prose no longer use internal process
-  framing.
+- Each tutorial is now a short authored page: the explanation, the figures and
+  the result, with the runnable script linked rather than reproduced.
+- The example set is consolidated: 02 into 01, 08A/08B/08C into one DICOM
+  recipe, 10 into 11, and 16A/16B/16C into one CT case study. Example 18 is
+  removed.
+- The generated gallery and its provenance machinery are removed. Figures come
+  from recorded runs and were not regenerated for the rewrite.
 
 ### Fixed
 - The Dewaraja pixel-wise scatter fraction pre-smooths the Monte Carlo
@@ -56,10 +38,8 @@ pixel-wise Dewaraja scatter estimator and the STIR OSEM image output.
   working directory; only the returned image is kept.
 
 ### Known limitations
-- Example 18's hot sphere is present but not resolved as a separate peak in
-  the scatter-corrected display.
 - Example 13's residual arm and example 15's instability remain documented
-  negative and limited results, not validated improvements.
+  limited results, not validated improvements.
 
 ## [2.0.1] - 2026-10-24
 
