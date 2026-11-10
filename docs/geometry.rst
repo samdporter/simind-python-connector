@@ -12,25 +12,18 @@ At-a-Glance Axis Conventions
   ``(tof, axial, view, bin)``. For these, **view 0** is ``arr[0, :, 0, :]``.
 - Raw Interfile projection loading in ``utils.interfile`` is exposed as
   ``(view, axial, bin)`` when no singleton TOF axis is present.
-- ``PyTomographySimindAdaptor`` public object-space tensors are ``(x, y, z)``.
-- PyTomography object space is ``(x, y, z)`` (``Lx, Ly, Lz``).
-- PyTomography SIMIND projections from ``pytomography.io.SPECT.simind`` are
-  ``(theta, r, z)``, which is ``(view, bin, axial)``.
-- ``PyTomographySimindAdaptor`` uses that same ``(view, bin, axial)`` layout
-  even on its fallback path (without PyTomography installed): the core
-  ``(view, axial, bin)`` array is transposed and its axial direction reversed
-  to match the reader.
-- ``PyTomographySimindAdaptor.get_output_header_path`` is a SIMIND header
-  (start angle in SIMIND's convention) when PyTomography is installed, which is
-  what ``pytomography.io.SPECT.simind.get_metadata`` expects. Without
-  PyTomography it is the converted ``.hs``. SIMIND writes no
-  per-key ``.h00`` for PENETRATE components or derived ``pri_wN``/``sca_wN``,
-  so the adaptor writes ``{prefix}_{key}.h00`` from SIMIND's own header (v8
-  ``{prefix}.h00``, v9 ``{prefix}.hNN``, ``tot_wN`` for derived outputs). Do not
-  give PyTomography the converted ``.hs`` headers: their start angle is STIR's,
-  SIMIND's + 180 degrees, and the reconstruction comes out rotated 180 degrees
-  about z. ``get_output_metadata`` is read from the ``.hs`` and so also reports
-  STIR's start angle.
+- ``PyTomographySimindAdaptor`` public tensors are ``(x, y, z)`` in object
+  space; SIMIND projections from ``pytomography.io.SPECT.simind`` are
+  ``(theta, r, z)``, which is ``(view, bin, axial)``. The adaptor uses that
+  layout on its fallback path too, transposing the core ``(view, axial, bin)``
+  array and reversing its axial direction.
+- ``PyTomographySimindAdaptor.get_output_header_path`` is a SIMIND header (in
+  SIMIND's start-angle convention) when PyTomography is installed, which is
+  what ``pytomography.io.SPECT.simind.get_metadata`` expects; otherwise it is
+  the converted ``.hs``. Do not give PyTomography the converted ``.hs``
+  headers: their start angle is STIR's, SIMIND's + 180 degrees, and the
+  reconstruction comes out rotated 180 degrees about z. ``get_output_metadata``
+  reads the ``.hs`` and so also reports STIR's start angle.
 - PyTomography DICOM projections (``pytomography.io.SPECT.dicom.get_projections``)
   are also ``(theta, r, z)``, but the views are sorted by PyTomography's
   detector angle, ``(gantry angle + 180) mod 360``, and ``z`` runs from the
@@ -64,28 +57,6 @@ Units
 - STIR/SIRF adaptors read voxel sizes in mm in ``(z, y, x)`` order: SIRF from
   ``voxel_sizes()``, STIR from the 1-based ``get_grid_spacing()`` coordinate
   (``[1]`` is z).
-
-Example Configuration Guardrails
---------------------------------
-
-The OSEM examples pin key simulation parameters so geometry checks are
-reproducible:
-
-- ``NN=1`` (runtime switch) for faster, deterministic iteration.
-- ``config[29]=24`` for projection count.
-- ``config[53]=0`` to keep collimator modeling geometric-only in these tests.
-- ``config[19]=2`` to keep the mapping used by the examples.
-
-Debug Checklist
----------------
-
-If reconstruction geometry looks wrong:
-
-1. Confirm array shape and axis order before plotting/reconstruction.
-2. Confirm you are extracting projection **view 0** from the correct axis.
-3. Confirm PyTomography object-space tensors are in ``(x, y, z)``.
-4. Confirm attenuation-map orientation matches the reconstruction backend.
-5. Compare hotspot center-of-mass between source and recon in a common axis convention.
 
 Simulating a Measured Acquisition
 ---------------------------------
@@ -176,19 +147,13 @@ columns (x, Index 78 and 79) and rows (y, Index 81 and 82) of the maps are set
 separately, and a SIMIND test checks that non-square slices give the same
 projections as the same slices padded to square.
 
-SIMIND v8 is the supported engine and remains the default. The v9 code path is
-experimental and unvalidated in this release (planned for 2.1.0). SIMIND v9
-uses a different transverse origin for image-based source and density maps;
-select it with ``simind_version=9`` or ``SIMIND_VERSION=9`` only for
-experimental work. For v9 voxel maps, the connector adds source shifts to
-Indexes 17/18 and density-map origin offsets to Indexes 36/37 in the saved run
-configuration. The shifts use the source map's effective ``PX`` and the
-density pixel size in Index 31, preserving the input arrays and the caller's
-in-memory origin offsets. This compensation is implementation behaviour, not
-evidence of validated physics; it has only been exercised for the default
-orientation (``DI=0``, density Index 32 = 0, and no ``OR`` switch). Other v9
-voxel-map orientations are rejected before engine launch. Analytic phantoms and
-v8 voxel maps do not receive these offsets.
+SIMIND v8 is the supported engine and the default. The v9 path is experimental
+and unvalidated: it uses a different transverse origin for image-based source
+and density maps, so the connector adds source shifts to Indexes 17/18 and
+density-map offsets to Indexes 36/37 in the saved run configuration. This
+requires the default orientation (``DI=0``, density Index 32 = 0, and no ``OR``
+switch); other v9 voxel-map orientations are rejected before engine launch.
+Analytic phantoms and v8 voxel maps are unaffected.
 
 Mu-maps can be given as attenuation (``mu_map_type="attenuation"``, cm^-1 at
 ``mu_map_energy_kev``, which defaults to ``abs(Index 1)``), density
