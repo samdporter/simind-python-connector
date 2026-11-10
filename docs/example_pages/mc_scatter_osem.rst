@@ -44,7 +44,8 @@ The phantom is phantomgen's ``pet`` preset: 8:1 sphere-to-background activity
 in MBq per voxel, four hot spheres (17, 22, 28 and 37 mm), two cold spheres
 (10 and 13 mm), and named masks. SIMIND simulates one expectation with the
 known total activity and 2 s per view, so the projections are in counts. Three
-seeded Poisson draws share that expectation and both arms. Recovery is the
+seeded Poisson draws (seeds 12345, 12346 and 12347) share that expectation
+and both arms. Recovery is the
 hot-sphere mask mean over the background mean, divided by the true ratio; the
 masks include edge voxels, so the truth's own score is the ceiling. The
 recorded recovery rises from 0.33 to 0.36 at 17 mm, 0.38 to 0.43 at 22 mm,
