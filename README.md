@@ -78,10 +78,10 @@ phantomgen package; the install command is in the tutorial.
   adaptors.
 - `docs/example_pages/dicom_recipe.rst`: DICOM setup snippets for STIR, SIRF
   and PyTomography with a reader-supplied file.
-- `examples/phantoms/plot_10`: a known-activity NEMA/IEC simulation
-  reconstructed with SIRF OSEM.
-- `examples/mc_scatter/plot_11`–`plot_13`: Monte Carlo scatter in SIRF OSEM,
-  scatter normalisation, and residual correction.
+- `examples/mc_scatter/plot_11`: authored Monte Carlo scatter correction in
+  SIRF OSEM, including the NEMA/IEC fixture.
+- `examples/mc_scatter/plot_12`–`plot_13`: Monte Carlo scatter
+  normalisation and residual correction.
 - `examples/cil/plot_14` / `plot_15`: CIL scatter correction, and an
   RDP-regularised SVRG reconstruction.
 - `examples/real_data/plot_16a` / `16b` / `16c`: CT-to-SPECT conversion with

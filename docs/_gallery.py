@@ -25,8 +25,8 @@ from sphinx_gallery.utils import get_md5sum
 
 
 BACKENDS = ("python", "stir", "sirf", "pytomography")
-GENERATED_SECTIONS = ("phantoms", "mc_scatter", "cil", "real_data")
-GALLERY_IGNORE_PATTERN = r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$"
+GENERATED_SECTIONS = ("mc_scatter", "cil", "real_data")
+GALLERY_IGNORE_PATTERN = r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$|^plot_11_.*\.py$"
 MANIFEST_NAME = "gallery_figures.json"
 
 _ADAPTOR_ROOTS = {

@@ -23,16 +23,6 @@
     "sphx_glr_plot_15_cil_rdp_svrg_005.png"
    ]
   },
-  "mc_scatter/plot_11_mc_scatter_osem": {
-   "figures": [
-    "sphx_glr_plot_11_mc_scatter_osem_001.png",
-    "sphx_glr_plot_11_mc_scatter_osem_002.png",
-    "sphx_glr_plot_11_mc_scatter_osem_003.png",
-    "sphx_glr_plot_11_mc_scatter_osem_004.png",
-    "sphx_glr_plot_11_mc_scatter_osem_005.png",
-    "sphx_glr_plot_11_mc_scatter_osem_006.png"
-   ]
-  },
   "mc_scatter/plot_12_scatter_normalisation": {
    "figures": [
     "sphx_glr_plot_12_scatter_normalisation_001.png",
@@ -49,14 +39,6 @@
     "sphx_glr_plot_13_residual_correction_001.png",
     "sphx_glr_plot_13_residual_correction_002.png",
     "sphx_glr_plot_13_residual_correction_003.png"
-   ]
-  },
-  "phantoms/plot_10_nema_osem": {
-   "figures": [
-    "sphx_glr_plot_10_nema_osem_001.png",
-    "sphx_glr_plot_10_nema_osem_002.png",
-    "sphx_glr_plot_10_nema_osem_003.png",
-    "sphx_glr_plot_10_nema_osem_004.png"
    ]
   },
   "real_data/plot_16a_stir_ct_conversion": {
@@ -169,6 +151,13 @@
   },
   "example_pages/dicom_recipe": {
    "figures": []
+  },
+  "example_pages/mc_scatter_osem": {
+   "source": "examples/mc_scatter/plot_11_mc_scatter_osem.py",
+   "figures": [
+    "_static/examples/mc_scatter_osem/reconstructions.png",
+    "_static/examples/mc_scatter_osem/recovery.png"
+   ]
   }
  }
 }

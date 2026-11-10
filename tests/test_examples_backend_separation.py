@@ -46,7 +46,6 @@ def test_adaptor_examples_import_only_their_backend(name: str, backend: str):
 @pytest.mark.parametrize(
     "relative_path,backend",
     [
-        ("phantoms/plot_10_nema_osem.py", "sirf"),
         ("mc_scatter/plot_11_mc_scatter_osem.py", "sirf"),
         ("mc_scatter/plot_12_scatter_normalisation.py", "sirf"),
         ("mc_scatter/plot_13_residual_correction.py", "sirf"),

@@ -14,11 +14,11 @@ Sphinx-Gallery examples.
    scattwin_vs_penetrate
    density_conversion
    phantom_library
+   mc_scatter_osem
    stir_osem
    sirf_osem
    pytomography_osem
    dicom_recipe
-   /auto_examples/phantoms/index
    /auto_examples/mc_scatter/index
    /auto_examples/cil/index
    /auto_examples/real_data/index

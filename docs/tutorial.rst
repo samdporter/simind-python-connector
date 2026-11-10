@@ -105,26 +105,24 @@ and SIMIND version; see :doc:`simind_validation` for the observed map.
 Reconstruct the simulated acquisition
 -------------------------------------
 
-The :doc:`NEMA simulation and OSEM tutorial
-<auto_examples/phantoms/plot_10_nema_osem>` simulates the known-activity
-NEMA/IEC phantom and reconstructs it with SIRF OSEM:
+The :doc:`Monte Carlo scatter correction tutorial
+<example_pages/mc_scatter_osem>` simulates the known-activity NEMA/IEC phantom
+and reconstructs it with SIRF OSEM, without and with a SIMIND scatter estimate:
 
 .. code-block:: bash
 
-    python examples/phantoms/plot_10_nema_osem.py
+    python examples/mc_scatter/plot_11_mc_scatter_osem.py
 
 Install SIRF and phantomgen; see :doc:`installation`. The tutorial simulates 60
 views with 8 MPI processes at the default quantization and four times the
-source-history budget, adds seeded Poisson noise at 2 s per view, and
-reconstructs with SPECTUB attenuation but no collimator blur or scatter. It
-reports the histories and measured counts separately and does not derive a
-Monte Carlo precision from their ratio, because that ratio does not give the
-variance of SIMIND's weighted estimator. Inspect the measured counts, the
-reconstruction and truth slices, and the contrast-recovery bars under
-``output/nema_osem``. It scores the 17-37 mm hot spheres only; the 10 and
-13 mm spheres are cold, and every score is shown against the truth's own
-masked score. The first run takes about an hour, nearly all of it in SIMIND;
-the other reconstruction tutorials reuse the cached expectation.
+source-history budget, adds three paired seeded Poisson realisations at 2 s per
+view, and reconstructs with SPECTUB attenuation but no collimator blur or
+scatter. It reports the expectation histories and counts separately and does
+not derive a Monte Carlo precision from their ratio, because that ratio does not
+give the variance of SIMIND's weighted estimator. It scores the 17-37 mm hot
+spheres only; the 10 and 13 mm spheres are cold, and every score is shown
+against the truth's own masked score. The first run takes about an hour, nearly
+all of it in SIMIND; later tutorials reuse the cached expectation.
 Matching dimensions do not verify axis, view-angle, or orbit alignment, and a
 finite image is not evidence of absolute sensitivity. For quantitative work,
 validate voxel spacing, view angles, center of rotation, axis orientation, and
@@ -139,8 +137,7 @@ the first tutorial pays for it and the rest reuse it. Each tutorial then takes
 between about half an hour and three hours, dominated by the scatter estimates
 and, in the last tutorial, by the SVRG subset gradients:
 
-- :doc:`Monte Carlo scatter correction in OSEM
-  <auto_examples/mc_scatter/plot_11_mc_scatter_osem>`
+- :doc:`Monte Carlo scatter correction in OSEM <example_pages/mc_scatter_osem>`
 - :doc:`Normalising the Monte Carlo scatter
   <auto_examples/mc_scatter/plot_12_scatter_normalisation>`
 - :doc:`Residual correction with SIMIND as the accurate model

@@ -6,7 +6,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SECTIONS = ("phantoms", "mc_scatter", "cil", "real_data")
+SECTIONS = ("mc_scatter", "cil", "real_data")
 
 
 def _toctree_entries(path: Path) -> list[str]:
@@ -33,13 +33,14 @@ def test_examples_navigation_has_one_duplication_free_root():
     assert entries[-len(SECTIONS) :] == [
         f"/auto_examples/{name}/index" for name in SECTIONS
     ]
-    assert entries[:10] == [
+    assert entries[:11] == [
         "basic_simulation",
         "multi_window",
         "custom_configuration",
         "scattwin_vs_penetrate",
         "density_conversion",
         "phantom_library",
+        "mc_scatter_osem",
         "stir_osem",
         "sirf_osem",
         "pytomography_osem",
