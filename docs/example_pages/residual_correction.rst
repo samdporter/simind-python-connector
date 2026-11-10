@@ -41,7 +41,9 @@ Results
 The residual arm recovers 0.37/0.41/0.54/0.60 against 0.36/0.43/0.56/0.61 for
 the scatter arm and 0.33/0.38/0.49/0.54 for fast-only OSEM. Its background CoV
 is 0.91, against 0.69 for scatter and 0.64 for fast-only, so the small 17 mm
-gain comes with much higher background variability. The recorded effective
+gain comes with much higher background variability. Only the scatter arm
+smooths its estimate over 3 bins and views; the residual arm is unsmoothed, so
+the CoV difference is not a like-for-like smoothing comparison. The recorded effective
 objective becomes less negative after each residual update (for example
 -3.945e6, -3.729e6, -3.672e6 for seed 12345), so the accurate-model fit
 worsens rather than improving. This is not an unqualified improvement over

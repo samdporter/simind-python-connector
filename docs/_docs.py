@@ -213,13 +213,24 @@ def _check_run_summary(entry: dict, docs_dir: Path, key: str) -> list[DocsProble
     return problems
 
 
+def _canonical_source(path: Path, docs_dir: Path) -> Path:
+    """Map a copied ``docs/examples`` tree back to the shipped root examples."""
+    mirror = docs_dir / "examples"
+    try:
+        relative = path.relative_to(mirror)
+    except ValueError:
+        return path
+    return (docs_dir.parent / "examples" / relative).resolve()
+
+
 def _literalinclude_paths(page: Path, docs_dir: Path) -> list[Path]:
     paths = []
     for raw in _LITERALINCLUDE.findall(page.read_text(encoding="utf-8")):
         if raw.startswith("/"):
-            paths.append((docs_dir / raw.lstrip("/")).resolve())
+            target = (docs_dir / raw.lstrip("/")).resolve()
         else:
-            paths.append((page.parent / raw).resolve())
+            target = (page.parent / raw).resolve()
+        paths.append(_canonical_source(target, docs_dir))
     return paths
 
 

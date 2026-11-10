@@ -15,9 +15,11 @@ adds ``A_acc(x) - A_fast(x)`` to the fast model, where ``A_acc`` is SIMIND's all
 interactions scaled to the fast model and ``A_fast`` is the fast projection of
 the same image. Only the forward projection is accurate; the update stays with
 the fast model. Both corrected arms use the same three updates of 12
-subiterations (8 full iterations with 6 subsets), smoothing over 3 bins and
-across views, and damping 0.5. The estimate uses a fortieth of the
-expectation's history budget.
+subiterations (8 full iterations with 6 subsets) and damping 0.5. Only the
+scatter arm smooths its estimate over 3 bins and across views; the residual
+correction is unsmoothed. That unequal smoothing matters when comparing the
+residual arm's higher background variability. The estimate uses a fortieth of
+the expectation's history budget.
 """
 
 import os

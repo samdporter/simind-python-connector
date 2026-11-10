@@ -30,7 +30,7 @@ recursive-include docs *.rst *.rst.txt *.md *.py LICENSE
 include docs/example_pages.json
 recursive-include docs/_static/examples *
 include docs/_static/.gitkeep
-prune docs/examples
+include docs/examples
 prune docs/_build
 prune docs/_generated
 

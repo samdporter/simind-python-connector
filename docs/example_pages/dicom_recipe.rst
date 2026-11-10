@@ -28,13 +28,16 @@ STIR
    from pathlib import Path
    import stir
    from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
+   from simind_python_connector.utils import get_array
 
    dicom_file = Path("/path/to/peak.dcm")
    builder = STIRSPECTAcquisitionDataBuilder(backend="stir")
    builder.update_header_from_dicom(str(dicom_file))
-   acq = builder.build(output_path=Path("output/stir_from_dicom"))
-   # STIR ProjData order is (view, radial, axial); views follow the DICOM
-   # detector angles.
+   output_path = Path("output/stir_from_dicom")
+   output_path.parent.mkdir(parents=True, exist_ok=True)
+   acq = builder.build(output_path=output_path)
+   projection = get_array(acq)  # (1, axial, view, bin)
+   plane = projection[0, :, 0, :]  # axial rows, bins; view 0
 
 SIRF
 ----
@@ -44,12 +47,16 @@ SIRF
    from pathlib import Path
    import sirf.STIR as sirf
    from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
+   from simind_python_connector.utils import get_array
 
    dicom_file = Path("/path/to/peak.dcm")
    builder = STIRSPECTAcquisitionDataBuilder(backend="sirf")
    builder.update_header_from_dicom(str(dicom_file))
-   acq = builder.build(output_path=Path("output/sirf_from_dicom"))
-   # SIRF AcquisitionData shares STIR's accounting; convert with get_array().
+   output_path = Path("output/sirf_from_dicom")
+   output_path.parent.mkdir(parents=True, exist_ok=True)
+   acq = builder.build(output_path=output_path)
+   projection = get_array(acq)  # (1, axial, view, bin)
+   plane = projection[0, :, 0, :]  # axial rows, bins; view 0
 
 PyTomography
 ------------
@@ -68,7 +75,8 @@ PyTomography
 Orientation qualifications
 --------------------------
 
-The three backends do not expose the same view order. STIR and SIRF keep the
-DICOM frame order, while PyTomography rotates it by half a turn. Display code
+The three backends do not expose the same array order. STIR and SIRF return
+``(1, axial, view, bin)``; PyTomography returns ``(theta, r, z)``. STIR and SIRF
+keep the DICOM frame order, while PyTomography rotates it by half a turn. Display code
 must therefore match the backend to the array order rather than assuming a
 shared convention. The examples above do not include a display step.

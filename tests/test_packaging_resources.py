@@ -55,6 +55,7 @@ SDIST_REQUIRED = {
     "docs/example_pages/_template.rst.txt",
     "docs/example_pages/basic_simulation.rst",
     "examples/getting_started/plot_01_basic_simulation.py",
+    "docs/examples/getting_started/plot_01_basic_simulation.py",
     "examples/backends/plot_07a_stir_adaptor_osem.py",
     "scripts/check_docs.py",
     "scripts/make_y90_bundle.py",
@@ -71,7 +72,6 @@ SDIST_REQUIRED = {
     ".github/workflows/docs.yml",
 }
 SDIST_FORBIDDEN_PREFIXES = (
-    "docs/examples/",
     "docs/superpowers/",
     "docs/_build/",
     "docs/_generated/",
