@@ -37,10 +37,21 @@ SIRF padding is air: the CT is written as ``HU + 1000`` and 1000 is subtracted
 after resampling, so outside the CT becomes -1000 HU. STIR and PyTomography
 need the same out-of-volume handling.
 
+Registration gate
+-----------------
+
+After resampling, every route computes normalized cross-correlation between
+the CT-derived attenuation map and ``umap_zoomed`` on the once-eroded
+intersection of CT coverage, HU > -400, positive vendor attenuation and finite
+values. The gate is a one-voxel Euclidean limit on that eroded CT/vendor
+intersection. On failure each route writes ``summary.json`` and
+``UNACCEPTED.txt`` and stops before producing density or attenuation maps.
+
 STIR recipe
 -----------
 
-Apply the registration gate above before conversion; on failure, stop before writing maps.
+Apply the registration gate before conversion; on failure, stop before writing
+maps.
 
 Write the CT as an Interfile image in the SPECT frame and call ``zoom_image``
 with ``preserve_values``; HU are not count-scaled. Convert HU to attenuation at
@@ -49,7 +60,8 @@ with ``preserve_values``; HU are not count-scaled. Convert HU to attenuation at
 SIRF recipe
 -----------
 
-Apply the registration gate above before conversion; on failure, stop before writing maps.
+Apply the registration gate before conversion; on failure, stop before writing
+maps.
 
 Write the CT and an empty SPECT reference as NIfTI images in RAS coordinates,
 then use ``sirf.Reg.NiftyResample`` with linear interpolation and zero padding.
@@ -59,7 +71,8 @@ image and verify the values survived the transfer before conversion.
 PyTomography recipe
 -------------------
 
-Apply the registration gate above before conversion; on failure, stop before writing maps.
+Apply the registration gate before conversion; on failure, stop before writing
+maps.
 
 Read the CT with PyTomography's DICOM reader and its attenuation table. Its
 Mediso projection affine uses the detector x position and needs the
