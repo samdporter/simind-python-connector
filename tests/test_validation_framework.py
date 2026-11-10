@@ -81,14 +81,35 @@ def test_report_marks_missing_engines_with_a_dash(tmp_path):
         validation.record_result(
             path, V8, "sensitivity", "b", 0.37, expected=0.3957, rel=0.01
         )
-    validation.record_result(
-        tmp_path / "v9-linux.jsonl", V9, "other", "c", 1.0, expected=1, abs_tol=0.1
-    )
-    text = report.render(tmp_path)
+    text = report.render(tmp_path, engines=("v8-linux", "v8-darwin"))
     assert "### sensitivity" in text
-    assert "| case | expected | v8-linux | v9-linux | smoke |" in text
+    assert "| case | expected | v8-linux | v8-darwin | smoke |" in text
     assert "| a | 0.3957 | pass 0.4 | — | no |" in text
     assert "FAIL 0.37" in text
+
+
+def test_report_publishes_only_release_engines(tmp_path):
+    report = _load_report()
+    validation.record_result(
+        tmp_path / "v8-linux.jsonl", V8, "sensitivity", "a", 0.4, expected=0.4, rel=0.04
+    )
+    validation.record_result(
+        tmp_path / "v9-linux.jsonl",
+        V9,
+        "sensitivity",
+        "stale",
+        0.9,
+        expected=0.9,
+        rel=0.04,
+    )
+
+    text = report.render(tmp_path)
+
+    assert "v9" not in text
+    assert "| case | expected | v8-linux | smoke |" in text
+    assert "| a | 0.4 | pass 0.4 | no |" in text
+    assert "stale" not in text
+    assert report.RELEASE_ENGINES == ("v8-linux",)
 
 
 def test_report_writes_between_markers_and_keeps_the_rest(tmp_path):
@@ -114,7 +135,7 @@ def test_report_writes_between_markers_and_keeps_the_rest(tmp_path):
 def test_validation_tests_are_excluded_from_the_ci_selection():
     pyproject = (ROOT / "pyproject.toml").read_text()
     assert '"validation: ' in pyproject
-    assert '"macos_v9: ' in pyproject
+    assert '"macos_v9: ' not in pyproject
 
     for path in sorted((ROOT / "tests" / "validation").glob("test_*.py")):
         tree = ast.parse(path.read_text())

@@ -24,20 +24,22 @@ Custom configuration
 This example shows how to create and modify SIMIND configurations, including
 exporting them to YAML for easy editing and version control.
 
-.. GENERATED FROM PYTHON SOURCE LINES 10-14
+.. GENERATED FROM PYTHON SOURCE LINES 11-15
 
 Setup
 -----
 Every configuration starts from the bundled ``input.smc`` template and is
 exported to YAML in the output directory.
 
-.. GENERATED FROM PYTHON SOURCE LINES 14-26
+.. GENERATED FROM PYTHON SOURCE LINES 15-29
 
 .. code-block:: Python
 
 
     import os
     from pathlib import Path
+
+    import matplotlib.pyplot as plt
 
     from simind_python_connector import SimulationConfig, configs
 
@@ -54,14 +56,14 @@ exported to YAML in the output directory.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 27-31
+.. GENERATED FROM PYTHON SOURCE LINES 30-34
 
 Low-energy high-resolution (LEHR) collimator
 --------------------------------------------
 Collimator geometry, intrinsic resolution and energy resolution are set by
 parameter name.
 
-.. GENERATED FROM PYTHON SOURCE LINES 31-45
+.. GENERATED FROM PYTHON SOURCE LINES 34-48
 
 .. code-block:: Python
 
@@ -92,13 +94,13 @@ parameter name.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 46-49
+.. GENERATED FROM PYTHON SOURCE LINES 49-52
 
 High-energy general-purpose (HEGP) collimator
 ---------------------------------------------
 A thicker collimator with wider holes, set up for I-131 at 364 keV.
 
-.. GENERATED FROM PYTHON SOURCE LINES 49-65
+.. GENERATED FROM PYTHON SOURCE LINES 52-68
 
 .. code-block:: Python
 
@@ -131,13 +133,13 @@ A thicker collimator with wider holes, set up for I-131 at 364 keV.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 66-69
+.. GENERATED FROM PYTHON SOURCE LINES 69-72
 
 Cardiac SPECT
 -------------
 A 180 degree acquisition from RAO to LPO with 32 views and a camera offset.
 
-.. GENERATED FROM PYTHON SOURCE LINES 69-83
+.. GENERATED FROM PYTHON SOURCE LINES 72-86
 
 .. code-block:: Python
 
@@ -168,14 +170,69 @@ A 180 degree acquisition from RAO to LPO with 32 views and a camera offset.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 84-88
+.. GENERATED FROM PYTHON SOURCE LINES 87-93
+
+Compare the edits
+-----------------
+The thumbnail reads the edited values back from the two collimator
+configurations. It is a compact illustration of the settings above, not a
+simulation or a performance claim. The image is used only as the gallery
+thumbnail; the page itself is declared as a zero-figure page.
+
+.. GENERATED FROM PYTHON SOURCE LINES 93-128
+
+.. code-block:: Python
+
+
+    comparison = {
+        "LEHR": lehr_config,
+        "HEGP": hegp_config,
+    }
+    hole_mm = [
+        10.0 * float(config.get_value("hole_size_x")) for config in comparison.values()
+    ]
+    thickness_mm = [
+        10.0 * float(config.get_value("collimator_thickness"))
+        for config in comparison.values()
+    ]
+    energy_kev = [
+        float(config.get_value("photon_energy")) for config in comparison.values()
+    ]
+
+    summary_figure, summary_axes = plt.subplots(
+        1, 3, figsize=(9, 3.2), constrained_layout=True
+    )
+    for axis, values, title, unit in zip(
+        summary_axes,
+        (hole_mm, thickness_mm, energy_kev),
+        ("Hole diameter", "Collimator thickness", "Photon energy"),
+        ("mm", "mm", "keV"),
+    ):
+        axis.bar(list(comparison), values, color=("C0", "C1"))
+        axis.set_title(f"{title} ({unit})")
+        axis.set_ylim(0.0, max(values) * 1.2)
+        for position, value in enumerate(values):
+            axis.text(position, value, f"{value:.3g}", ha="center", va="bottom")
+    summary_figure.savefig(output_dir / "custom_config_summary.png", dpi=130)
+    # Close it so the page stays a declared zero-figure page; the thumbnail is set
+    # explicitly in the module docstring.
+    plt.close(summary_figure)
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 129-133
 
 Modify a configuration through YAML
 -----------------------------------
 Load the exported LEHR YAML back into a fresh configuration, change more
 values, validate it and save it under a new name.
 
-.. GENERATED FROM PYTHON SOURCE LINES 88-102
+.. GENERATED FROM PYTHON SOURCE LINES 133-147
 
 .. code-block:: Python
 
@@ -209,7 +266,7 @@ values, validate it and save it under a new name.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 103-123
+.. GENERATED FROM PYTHON SOURCE LINES 148-168
 
 Use a configuration with the connector
 --------------------------------------
@@ -235,7 +292,7 @@ the connector warns and runs the phantom from Index 14/15.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 0.070 seconds)
+   **Total running time of the script:** (0 minutes 0.365 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_04_custom_config.py:

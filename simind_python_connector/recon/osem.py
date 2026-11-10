@@ -28,7 +28,8 @@ def run_osem_with_corrections(
     Each pass builds a fresh model, objective and reconstructor, continuing
     from the preceding pass's image. initial_image is cloned and not modified.
     updater.update_now is called between passes at completed subiterations;
-    updater.schedule is not used.
+    updater.schedule is not used. Intermediate subiteration images are not
+    written to disk; only the returned image is produced.
     """
     # Each pass rebuilds a reconstructor that restarts at subset 0, so a
     # remainder would use some subsets more often and others never.
@@ -51,6 +52,9 @@ def run_osem_with_corrections(
         reconstructor.set_objective_function(objective)
         reconstructor.set_num_subsets(num_subsets)
         reconstructor.set_num_subiterations(subiterations_per_update)
+        # STIR otherwise writes one Interfile image per subiteration into the
+        # process working directory. Callers only need the returned image.
+        reconstructor.disable_output()
         reconstructor.set_input(acquisition_data)
         reconstructor.set_up(image)
         reconstructor.reconstruct(image)

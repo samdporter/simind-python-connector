@@ -36,26 +36,37 @@ physical frame as the target, then calls ``zoom_image`` with
 axis-aligned CT geometry is accepted; an oblique series is rejected rather
 than silently resampled.
 
-.. GENERATED FROM PYTHON SOURCE LINES 22-26
+The page ends with a small matched reconstruction: the measured acquisition is
+reconstructed with no attenuation correction and with the CT-derived 150 keV
+map. The acquisition, initial support, subsets, subiterations and zero scatter
+are identical. The final figure shows the raw images and the same 10 mm FWHM
+Gaussian display smoothing applied to both arms, with the raw trace kept in the
+profile; the smoothing is display-only and is not part of the reconstruction.
+This is a conversion sanity check, not an accuracy or ranking study. See
+:doc:`plot_17_y90_effective_energy` for the attenuation-energy comparison and
+:doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case study.
+
+.. GENERATED FROM PYTHON SOURCE LINES 32-36
 
 Setup
 -----
 The tutorial needs the Y-90 data (set ``SIMIND_CONNECTOR_Y90_DATA``), NumPy,
 pydicom, matplotlib, SciPy and STIR.
 
-.. GENERATED FROM PYTHON SOURCE LINES 26-59
+.. GENERATED FROM PYTHON SOURCE LINES 36-85
 
 .. code-block:: Python
 
 
     import json
     import os
+    import time
     from dataclasses import dataclass
     from pathlib import Path
 
     import numpy as np
     import pydicom
-    from scipy.ndimage import binary_erosion
+    from scipy.ndimage import binary_erosion, gaussian_filter
     from scipy.ndimage import shift as shift_image
 
     from simind_python_connector.converters.attenuation import (
@@ -69,6 +80,21 @@ pydicom, matplotlib, SciPy and STIR.
     MATRIX_SIZE = 128
     GRID_CENTRE = (MATRIX_SIZE - 1) / 2.0
     ENERGY_KEV = 150.0
+    # Small matched reconstruction endpoint: the same measured acquisition, initial
+    # support, subset count and subiteration budget in both arms. The only change is
+    # the CT-derived 150 keV attenuation map. No scatter and no PSF are modelled.
+    RECON_SUBSETS = 12
+    RECON_ITERATIONS = 4
+    RECON_SUBITERATIONS = RECON_SUBSETS * RECON_ITERATIONS
+    # Display-only Gaussian smoothing. The measured acquisition has about two
+    # counts per projection bin, so the unregularised OSEM images are dominated by
+    # Poisson speckle. The same 10 mm FWHM filter is applied to both arms and the
+    # raw panels are kept beside it; the reconstruction itself is unchanged.
+    DISPLAY_FWHM_MM = 10.0
+    DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_SIZE_MM
+    # Frozen hot-sphere centre from the independent attenuation-only reconstruction;
+    # it is used to choose the displayed slice, not to fit anything.
+    HOT_SPHERE_CENTRE_MM = (-77.43, -181.69, -576.20)
 
 
     def _shown(path):
@@ -87,7 +113,7 @@ pydicom, matplotlib, SciPy and STIR.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 60-65
+.. GENERATED FROM PYTHON SOURCE LINES 86-91
 
 Read the CT series
 ------------------
@@ -95,7 +121,7 @@ A voxel-centre affine maps grid indices ``(i, j, k)`` to patient LPS
 coordinates ``(x, y, z)``. The volume itself is stored as ``(k, j, i)``,
 i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
-.. GENERATED FROM PYTHON SOURCE LINES 65-179
+.. GENERATED FROM PYTHON SOURCE LINES 91-205
 
 .. code-block:: Python
 
@@ -220,7 +246,7 @@ i.e. ``(z, y, x)``. Only axial, axis-aligned geometry is accepted.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 180-187
+.. GENERATED FROM PYTHON SOURCE LINES 206-213
 
 Patient-to-SPECT frame
 ----------------------
@@ -230,7 +256,7 @@ in the NM header; the CT table height (-140 mm) supplies it in the shared
 frame of reference. No origin is re-derived from the images and no recentring
 is applied.
 
-.. GENERATED FROM PYTHON SOURCE LINES 187-222
+.. GENERATED FROM PYTHON SOURCE LINES 213-248
 
 .. code-block:: Python
 
@@ -276,7 +302,7 @@ is applied.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 223-247
+.. GENERATED FROM PYTHON SOURCE LINES 249-273
 
 Registration report
 -------------------
@@ -303,7 +329,7 @@ refines the peak to subvoxel precision when the fit is negative definite,
 finite and locally bounded; otherwise the integer estimate is kept. A failed
 gate stops the tutorial before any accepted map is written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 247-432
+.. GENERATED FROM PYTHON SOURCE LINES 273-458
 
 .. code-block:: Python
 
@@ -499,7 +525,7 @@ gate stops the tutorial before any accepted map is written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 433-443
+.. GENERATED FROM PYTHON SOURCE LINES 459-469
 
 STIR resampling route
 ---------------------
@@ -512,7 +538,7 @@ images in one physical frame is what makes the identity resampling correct.
 Coverage keeps only voxels that are fully inside the CT; partial edge voxels
 are treated as air so the resampler's default padding cannot look like tissue.
 
-.. GENERATED FROM PYTHON SOURCE LINES 443-530
+.. GENERATED FROM PYTHON SOURCE LINES 469-556
 
 .. code-block:: Python
 
@@ -610,12 +636,12 @@ are treated as air so the resampler's default padding cannot look like tissue.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 531-533
+.. GENERATED FROM PYTHON SOURCE LINES 557-559
 
 Figures and summary
 -------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 533-647
+.. GENERATED FROM PYTHON SOURCE LINES 559-796
 
 .. code-block:: Python
 
@@ -683,6 +709,128 @@ Figures and summary
         figure.savefig(path, dpi=130)
 
 
+    def reconstruct_pair(acquisition_file, target_header, hu_grid, attenuation):
+        """Reconstruct the measured data without and with the CT attenuation map.
+
+        Both arms use the same acquisition, initial body support, 12 subsets and
+        48 subiterations. The only difference is the SPECTUB attenuation image.
+        """
+        import stir
+
+        stir.Verbosity.set(0)
+        acquisition = stir.ProjData.read_from_file(str(acquisition_file))
+        target = stir.FloatVoxelsOnCartesianGrid.read_from_file(str(target_header))
+        support = np.ascontiguousarray((hu_grid > -400.0).astype(np.float32))
+        attenuation_image = target.get_empty_copy()
+        attenuation_image.fill(
+            np.ascontiguousarray(np.asarray(attenuation, dtype=np.float32)[..., ::-1])
+        )
+
+        def reconstruct(use_attenuation):
+            matrix = stir.ProjMatrixByBinSPECTUB()
+            matrix.set_resolution_model(0.0, 0.0, False)
+            if use_attenuation:
+                matrix.set_attenuation_image_sptr(attenuation_image)
+            projector = stir.ProjectorByBinPairUsingProjMatrixByBin()
+            projector.set_proj_matrix_sptr(matrix)
+            objective = stir.PoissonLogLikelihoodWithLinearModelForMeanAndProjData3DFloat()
+            objective.set_proj_data_sptr(acquisition)
+            objective.set_projector_pair_sptr(projector)
+            objective.set_num_subsets(RECON_SUBSETS)
+            reconstruction = stir.OSMAPOSLReconstruction3DFloat()
+            reconstruction.set_objective_function(objective)
+            reconstruction.set_num_subsets(RECON_SUBSETS)
+            reconstruction.set_num_subiterations(RECON_SUBITERATIONS)
+            # Do not write per-subiteration Interfile images into the working
+            # directory; only the arrays below are needed.
+            reconstruction.set_disable_output(True)
+            image = target.get_empty_copy()
+            image.fill(support)
+            reconstruction.set_up(image)
+            reconstruction.reconstruct(image)
+            return np.asarray(image.as_array(), dtype=np.float32)
+
+        return {
+            "No attenuation correction": reconstruct(False),
+            "CT 150 keV attenuation": reconstruct(True),
+        }
+
+
+    def save_reconstruction_comparison(path, images, target_affine):
+        """Save raw and display-smoothed reconstructions and a sphere profile.
+
+        The display protocol shows the raw images and the same 10 mm FWHM Gaussian
+        smoothing applied to both arms. The smoothing is display-only and is not
+        part of either reconstruction. The profile keeps the raw single-voxel trace
+        beside the smoothed one.
+        """
+        plt = _pyplot()
+        centre_index = np.linalg.solve(
+            target_affine, np.append(np.asarray(HOT_SPHERE_CENTRE_MM, float), 1.0)
+        )
+        k = int(round(centre_index[2]))
+        j = int(round(centre_index[1]))
+        names = list(images)
+        arrays = [images[name] for name in names]
+        smoothed = [gaussian_filter(array, sigma=DISPLAY_SIGMA_VOX) for array in arrays]
+        limit = max(
+            float(np.percentile(array[array > 0], 99.5))
+            for array in smoothed
+            if array.any()
+        )
+        short_names = {
+            "No attenuation correction": "no AC",
+            "CT 150 keV attenuation": "CT 150 keV",
+        }
+        figure = plt.figure(figsize=(11, 10), constrained_layout=True)
+        grid = figure.add_gridspec(3, 2)
+        raw_axes = [figure.add_subplot(grid[0, column]) for column in range(2)]
+        smooth_axes = [figure.add_subplot(grid[1, column]) for column in range(2)]
+        profile_axis = figure.add_subplot(grid[2, :])
+        image_axes = []
+        for axes, title, stack in (
+            (raw_axes, "Raw", arrays),
+            (smooth_axes, f"{DISPLAY_FWHM_MM:.0f} mm FWHM display-smoothed", smoothed),
+        ):
+            for axis, name, array in zip(axes, names, stack):
+                shown = axis.imshow(array[k], cmap="viridis", vmin=0.0, vmax=limit)
+                axis.set_title(f"{title}\n{short_names.get(name, name)}", fontsize=9)
+                axis.axis("off")
+                image_axes.append(axis)
+        figure.colorbar(
+            shown,
+            ax=image_axes,
+            shrink=0.6,
+            label="reconstructed value (shared raw and smoothed scale)",
+        )
+        for index, name in enumerate(names):
+            profile_axis.plot(
+                arrays[index][k, j],
+                color=f"C{index}",
+                linestyle=":",
+                linewidth=0.8,
+                label=f"{name}, raw",
+            )
+            profile_axis.plot(
+                smoothed[index][k, j],
+                color=f"C{index}",
+                linewidth=1.6,
+                label=f"{name}, display smoothed",
+            )
+        profile_axis.set_xlabel("x (voxel)")
+        profile_axis.set_ylabel("reconstructed value")
+        profile_axis.set_title(
+            f"Profile through the hot-sphere centre, k={k}; dotted is the raw trace"
+        )
+        profile_axis.legend(fontsize=8, ncol=2)
+        figure.suptitle(
+            f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
+            "zero scatter, no PSF"
+        )
+        figure.savefig(path, dpi=130)
+        return figure
+
+
     def save_json(path, payload):
         with open(path, "w") as stream:
             json.dump(payload, stream, indent=1)
@@ -692,6 +840,7 @@ Figures and summary
         """Remove earlier accepted results so a rerun cannot present them as current."""
         for name in (
             "maps.png",
+            "reconstruction_comparison.png",
             "summary.json",
             "registration.json",
             "registration_overlay.png",
@@ -740,12 +889,12 @@ Figures and summary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 648-650
+.. GENERATED FROM PYTHON SOURCE LINES 797-799
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 650-773
+.. GENERATED FROM PYTHON SOURCE LINES 799-948
 
 .. code-block:: Python
 
@@ -866,6 +1015,32 @@ Run the tutorial
         }
         save_json(output_directory / "summary.json", summary)
         save_maps(output_directory / "maps.png", hu_grid, density, attenuation)
+        print("Running the matched no-attenuation and CT-attenuation reconstructions")
+        recon_start = time.perf_counter()
+        reconstructions = reconstruct_pair(
+            data_directory / "peak.hs",
+            data_directory / "umap_zoomed.hv",
+            hu_grid,
+            attenuation,
+        )
+        recon_seconds = time.perf_counter() - recon_start
+        save_reconstruction_comparison(
+            output_directory / "reconstruction_comparison.png",
+            reconstructions,
+            target_affine,
+        )
+        summary["reconstruction"] = {
+            "subsets": RECON_SUBSETS,
+            "iterations": RECON_ITERATIONS,
+            "subiterations": RECON_SUBITERATIONS,
+            "initial": "unit body support (HU > -400)",
+            "additive_scatter": "zero in both",
+            "resolution_model": "none",
+            "attenuation_arms": list(reconstructions),
+            "seconds": recon_seconds,
+        }
+        save_json(output_directory / "summary.json", summary)
+        print(f"Matched reconstruction: {recon_seconds:.1f} s")
         print(f"Maps written to {_shown(output_directory)}")
         _pyplot().show()
 
@@ -892,6 +1067,13 @@ Run the tutorial
          :srcset: /auto_examples/real_data/images/sphx_glr_plot_16a_stir_ct_conversion_002.png
          :class: sphx-glr-multi-img
 
+    *
+
+      .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_16a_stir_ct_conversion_003.png
+         :alt: Matched OSEM, 12 subsets x 4 iterations, zero scatter, no PSF, Raw no AC, Raw CT 150 keV, 10 mm FWHM display-smoothed no AC, 10 mm FWHM display-smoothed CT 150 keV, Profile through the hot-sphere centre, k=65; dotted is the raw trace
+         :srcset: /auto_examples/real_data/images/sphx_glr_plot_16a_stir_ct_conversion_003.png
+         :class: sphx-glr-multi-img
+
 
 .. rst-class:: sphx-glr-script-out
 
@@ -909,6 +1091,10 @@ Run the tutorial
      [   0.        0.       -4.2578 -301.5039]
      [   0.        0.        0.        1.    ]]
     Target coverage: 61.6%
+    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:549: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
+      setattr(self, word, getattr(machar, word).flat[0])
+    /opt/conda/lib/python3.12/site-packages/numpy/core/getlimits.py:89: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
+      return self._float_to_str(self.smallest_subnormal)
     Registration: zero-offset Pearson 0.9137, best integer NCC 0.9137 at [0, 0, 0]
     Registration mask: CT coverage, CT HU > -400, positive vendor attenuation and finite values
     Mask erosion: one 3-D connectivity-1 binary erosion, one voxel, border_value=0
@@ -916,6 +1102,8 @@ Run the tutorial
     Historical un-eroded mask (diagnostic only): 224335 voxels, 1.453 voxels = 6.18 mm (fail)
     Offset (z, y, x): [0.237 0.239 0.232] voxels = [1.01 1.02 0.99] mm
     Euclidean: 0.409 voxels = 1.74 mm -> PASS
+    Running the matched no-attenuation and CT-attenuation reconstructions
+    Matched reconstruction: 369.0 s
     Maps written to stir
 
 
@@ -924,7 +1112,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (1 minutes 9.472 seconds)
+   **Total running time of the script:** (7 minutes 20.810 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_16a_stir_ct_conversion.py:

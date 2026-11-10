@@ -8,6 +8,24 @@
    "name": "CTSeries"
   }
  ],
+ "DISPLAY_FWHM_MM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "DISPLAY_SIGMA_VOX": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float64"
+  }
+ ],
  "ENERGY_KEV": [
   {
    "is_class": false,
@@ -33,6 +51,15 @@
    "module": "builtins",
    "module_short": "builtins",
    "name": "float"
+  }
+ ],
+ "HOT_SPHERE_CENTRE_MM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
   }
  ],
  "LPS_TO_RAS": [
@@ -115,6 +142,33 @@
    "module": "pathlib.Path",
    "module_short": "pathlib.Path",
    "name": "cwd"
+  }
+ ],
+ "RECON_ITERATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_SUBITERATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_SUBSETS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
   }
  ],
  "Reg.AffineTransformation": [
@@ -300,6 +354,22 @@
    "name": "fetch_y90_phantom"
   }
  ],
+ "gaussian_filter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "scipy.ndimage",
+   "module_short": "scipy.ndimage",
+   "name": "gaussian_filter"
+  }
+ ],
  "get_array": [
   {
    "is_class": false,
@@ -437,6 +507,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "any"
+  }
+ ],
+ "np.append": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "append"
   }
  ],
  "np.arange": [
@@ -895,6 +981,22 @@
    "name": "solve"
   }
  ],
+ "np.log": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "log"
+  }
+ ],
  "np.max": [
   {
    "is_class": false,
@@ -1021,6 +1123,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "outer"
+  }
+ ],
+ "np.percentile": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "percentile"
   }
  ],
  "np.round": [
@@ -1262,6 +1380,15 @@
    "name": "pyplot"
   }
  ],
+ "plt.figure": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "figure"
+  }
+ ],
  "plt.subplots": [
   {
    "is_class": false,
@@ -1306,6 +1433,15 @@
   }
  ],
  "read_umap": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "reconstruct_pair": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -1368,6 +1504,15 @@
    "name": "function"
   }
  ],
+ "save_reconstruction_comparison": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "save_registration_overlay": [
   {
    "is_class": false,
@@ -1391,6 +1536,67 @@
    "module": "scipy.ndimage",
    "module_short": "scipy.ndimage",
    "name": "shift"
+  }
+ ],
+ "sirf.AcquisitionData": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionData"
+  }
+ ],
+ "sirf.AcquisitionModelUsingMatrix": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "AcquisitionModelUsingMatrix"
+  }
+ ],
+ "sirf.OSMAPOSLReconstructor": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "OSMAPOSLReconstructor"
+  }
+ ],
+ "sirf.SPECTUBMatrix": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "SPECTUBMatrix"
+  }
+ ],
+ "sirf.make_Poisson_loglikelihood": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "sirf.STIR",
+   "module_short": "sirf.STIR",
+   "name": "make_Poisson_loglikelihood"
+  }
+ ],
+ "time.perf_counter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "time",
+   "module_short": "time",
+   "name": "perf_counter"
   }
  ],
  "write_unaccepted_summary": [

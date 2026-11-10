@@ -8,6 +8,24 @@
    "name": "CTSeries"
   }
  ],
+ "DISPLAY_FWHM_MM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "DISPLAY_SIGMA_VOX": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float64"
+  }
+ ],
  "ENERGY_KEV": [
   {
    "is_class": false,
@@ -117,6 +135,87 @@
    "name": "cwd"
   }
  ],
+ "RECON_BIN_FACTOR": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_ITERATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_SUBITERATIONS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_SUBSETS": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "RECON_VIEW_STEP": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "SPECTAttenuationTransform": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.transforms.SPECT",
+   "module_short": "pytomography.transforms.SPECT",
+   "name": "SPECTAttenuationTransform"
+  }
+ ],
+ "SPECTObjectMeta": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.metadata.SPECT",
+   "module_short": "pytomography.metadata.SPECT",
+   "name": "SPECTObjectMeta"
+  }
+ ],
+ "SPECTProjMeta": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.metadata.SPECT",
+   "module_short": "pytomography.metadata.SPECT",
+   "name": "SPECTProjMeta"
+  }
+ ],
+ "SPECTSystemMatrix": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.projectors.SPECT",
+   "module_short": "pytomography.projectors.SPECT",
+   "name": "SPECTSystemMatrix"
+  }
+ ],
  "VOXEL_SIZE_MM": [
   {
    "is_class": false,
@@ -214,6 +313,15 @@
    "name": "affine_transform"
   }
  ],
+ "algorithms.OSEM": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.algorithms",
+   "module_short": "pytomography.algorithms",
+   "name": "OSEM"
+  }
+ ],
  "binary_erosion": [
   {
    "is_class": false,
@@ -291,6 +399,24 @@
    "name": "get_attenuation_map_from_CT_slices"
   }
  ],
+ "dicom.get_metadata": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.io.SPECT.dicom",
+   "module_short": "pytomography.io.SPECT.dicom",
+   "name": "get_metadata"
+  }
+ ],
+ "dicom.get_projections": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.io.SPECT.dicom",
+   "module_short": "pytomography.io.SPECT",
+   "name": "get_projections"
+  }
+ ],
  "dicom.open_multifile": [
   {
    "is_class": false,
@@ -314,6 +440,22 @@
    "module": "simind_python_connector.datasets",
    "module_short": "simind_python_connector.datasets",
    "name": "fetch_y90_phantom"
+  }
+ ],
+ "gaussian_filter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "scipy.ndimage",
+   "module_short": "scipy.ndimage",
+   "name": "gaussian_filter"
   }
  ],
  "hu_to_attenuation": [
@@ -362,6 +504,15 @@
    "module": "json",
    "module_short": "json",
    "name": "dump"
+  }
+ ],
+ "likelihoods.PoissonLogLikelihood": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pytomography.likelihoods",
+   "module_short": "pytomography.likelihoods",
+   "name": "PoissonLogLikelihood"
   }
  ],
  "np.abs": [
@@ -444,6 +595,22 @@
    "name": "arange"
   }
  ],
+ "np.argmax": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "argmax"
+  }
+ ],
  "np.argsort": [
   {
    "is_class": false,
@@ -506,6 +673,22 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "asarray"
+  }
+ ],
+ "np.ascontiguousarray": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ascontiguousarray"
   }
  ],
  "np.clip": [
@@ -852,6 +1035,22 @@
    "name": "solve"
   }
  ],
+ "np.log": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "log"
+  }
+ ],
  "np.max": [
   {
    "is_class": false,
@@ -1060,6 +1259,22 @@
    "name": "std"
   }
  ],
+ "np.unravel_index": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "unravel_index"
+  }
+ ],
  "np.vstack": [
   {
    "is_class": false,
@@ -1219,6 +1434,15 @@
    "name": "pyplot"
   }
  ],
+ "plt.figure": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "figure"
+  }
+ ],
  "plt.subplots": [
   {
    "is_class": false,
@@ -1263,6 +1487,15 @@
   }
  ],
  "read_umap": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "reconstruct_pair": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -1334,6 +1567,15 @@
    "name": "function"
   }
  ],
+ "save_reconstruction_comparison": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "save_registration_overlay": [
   {
    "is_class": false,
@@ -1357,6 +1599,31 @@
    "module": "scipy.ndimage",
    "module_short": "scipy.ndimage",
    "name": "shift"
+  }
+ ],
+ "time.perf_counter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "time",
+   "module_short": "time",
+   "name": "perf_counter"
+  }
+ ],
+ "torch.from_numpy": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "torch",
+   "module_short": "torch",
+   "name": "from_numpy"
   }
  ],
  "write_unaccepted_summary": [

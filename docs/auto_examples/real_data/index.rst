@@ -36,7 +36,7 @@ different backend:
 
 All three sort the CT slices by ``ImagePositionPatient``, validate the series,
 register the CT-derived attenuation map to ``umap_zoomed``, and stop before
-writing accepted maps if the registration gate fails. The vendor attenuation
+writing maps if the registration gate fails. The vendor attenuation
 map has no recorded photon energy, so it is used only as a registration
 reference and is never converted to density.
 
@@ -47,14 +47,21 @@ The remaining two case studies use the same restricted data:
 
 - ``plot_17_y90_effective_energy.py`` (SIRF) compares a single 150-keV
   attenuation map with one weighted by the detected 75-225 keV spectrum, using
-  two otherwise identical reconstructions that both omit scatter.
+  two otherwise identical reconstructions that both omit scatter. The measured
+  data have about two counts per projection bin, so the figure shows the raw
+  OSEM images and an identical 10 mm FWHM Gaussian display smoothing; the
+  smoothing is display-only. Neither arm includes scatter and neither is an
+  accuracy reference.
 - ``plot_18_y90_mc_scatter.py`` (SIRF) compares Monte Carlo scatter strategies
-  on a common reconstruction schedule. It is an audited diagnostic negative
-  result, not a passing quantitative tutorial: the global-scaling arm collapsed
-  and is not quantitatively interpretable, the nominal sphere-to-liver ratios
-  are sensitive to the frozen sphere centre and do not support a strategy
-  ranking, and statistical adequacy was not established. The page reports
-  every failed or inconclusive quality gate.
+  on a common reconstruction schedule and publishes the reconstructed-image
+  comparison, profiles, scatter estimates and overlays. It is a diagnostic
+  negative result, not a passing quantitative tutorial: the
+  global-scaling arm collapsed and is not quantitatively interpretable, the
+  nominal sphere-to-liver ratios are sensitive to the fixed sphere centre and
+  do not support a strategy ranking, and statistical adequacy was not
+  established. The history probe reports NN=4, NN=8 and a chunked 16x level;
+  the coarse 4-to-8 pair already fails, so the finer level cannot restore
+  adequacy. The page reports every failed or inconclusive quality gate.
 
 
 .. raw:: html
@@ -138,7 +145,7 @@ The remaining two case studies use the same restricted data:
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="The history-doubling probe uses a reduced 60-view geometry to keep its cost down. The reference-sum and reference-trimmed arms collapsed in that probe (NN=1/NN=2 ratios 0.107/0.218 and 0.008/0.023), so the 179.48% largest change is a probe artefact rather than native-geometry evidence. The known-activity (+10.2%) and pixel-wise (+1.6%) changes are usable. A native-geometry history check was not established.">
+    <div class="sphx-glr-thumbcontainer" tooltip="The history-doubling and independent-seed probes run on the native 120-view geometry at four, eight and sixteen times the base history multiplier, so they test convergence rather than a reduced-geometry surrogate. The run still does not establish statistical adequacy where a gate fails, and no strategy ranking or calibrated recovery is claimed.">
 
 .. only:: html
 

@@ -138,21 +138,15 @@ def test_scale_stable_across_seeds(setup, reference_run, validate):
     validate("scale_stable_across_seeds", ratio, expected=1.0, rel=0.03, smoke=True)
 
 
-def test_scale_per_unit_activity_image_independent(setup, validate, engine, request):
+def test_scale_per_unit_activity_image_independent(setup, validate):
     """Scale per unit activity for a uniform cylinder and an off-centre sphere.
 
     This measures SPECTUB-vs-SIMIND model consistency between the two
-    objects. The observed deviation (7 % on v8, 10 % on v9) is systematic,
+    objects. The observed deviation on v8 is about 7 % and systematic,
     since the seed-to-seed spread is about 1 %. It is likely a position-
     dependent collimator response that SPECTUB without PSF does not model;
     the cause is not established.
     """
-    if engine.label == "v9-linux":
-        request.applymarker(
-            pytest.mark.xfail(
-                strict=True, reason="the v9 Linux deviation exceeds the 10 % limit"
-            )
-        )
     body, hot = _masks()
     uniform = np.where(body, 1.0, 0.0)
     sphere = np.where(hot, 1.0, 0.0)

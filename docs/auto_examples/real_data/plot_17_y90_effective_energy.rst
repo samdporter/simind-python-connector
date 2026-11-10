@@ -42,8 +42,15 @@ The spectrum-weighted attenuation map is a global effective-map approximation:
 one map, used for every projection, that reproduces the average attenuation of
 the detected spectrum. Both reconstructions omit scatter and are presented to
 show the effect of the attenuation map only, not as an accuracy ranking.
+Neither arm includes scatter and neither is an accuracy reference.
 
-.. GENERATED FROM PYTHON SOURCE LINES 29-34
+The measured data contain about two counts per projection bin, so twelve
+unregularised OSEM iterations leave heavy Poisson speckle. The figure therefore
+shows the raw images and the same 10 mm FWHM Gaussian display smoothing applied
+to both arms. The smoothing is display-only: neither reconstruction model uses
+a prior or a post-filter. The raw images are kept as the honest companions.
+
+.. GENERATED FROM PYTHON SOURCE LINES 36-41
 
 Setup
 -----
@@ -51,7 +58,7 @@ The tutorial needs the Y-90 phantom data (set
 ``SIMIND_CONNECTOR_Y90_DATA``), SIMIND, SIRF, NumPy, matplotlib, pydicom and
 nibabel. Outputs go to ``$SIMIND_EXAMPLES_OUTPUT`` or ``output/``.
 
-.. GENERATED FROM PYTHON SOURCE LINES 34-80
+.. GENERATED FROM PYTHON SOURCE LINES 41-95
 
 .. code-block:: Python
 
@@ -66,6 +73,7 @@ nibabel. Outputs go to ``$SIMIND_EXAMPLES_OUTPUT`` or ``output/``.
     from pathlib import Path
 
     import numpy as np
+    from scipy.ndimage import gaussian_filter
 
     from simind_python_connector import configs
     from simind_python_connector.connectors import SimindPythonConnector
@@ -85,6 +93,13 @@ nibabel. Outputs go to ``$SIMIND_EXAMPLES_OUTPUT`` or ``output/``.
     WINDOW_HIGH_KEV = 225.0
     SPECTRUM_VIEWS = 24
     CHANNEL_KEV = 4.0
+    # Display-only Gaussian smoothing. The measured acquisition contains about two
+    # counts per projection bin, so the unregularised OSEM images are dominated by
+    # Poisson speckle. The same 10 mm FWHM filter is applied to both arms for the
+    # display panels; the unsmoothed images are kept alongside so the raw result is
+    # not hidden. The reconstruction itself is unchanged.
+    DISPLAY_FWHM_MM = 10.0
+    DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_SIZE_MM
     # The hot sphere is not visible on CT. This centre was established once from an
     # attenuation-only reconstruction of the measured data, before any comparison.
     HOT_SPHERE_CENTRE_MM = (-77.43, -181.69, -576.20)
@@ -108,7 +123,7 @@ nibabel. Outputs go to ``$SIMIND_EXAMPLES_OUTPUT`` or ``output/``.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 81-88
+.. GENERATED FROM PYTHON SOURCE LINES 96-103
 
 Isotope spectra
 ---------------
@@ -118,7 +133,7 @@ it the file lists discrete gamma lines. The ``y90_frey`` model names a
 companion ``y90.cpd`` file that is not part of the SIMIND installation, and
 the NUDAT file is a single 2186.2 keV line outside the imaging window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 88-188
+.. GENERATED FROM PYTHON SOURCE LINES 103-203
 
 .. code-block:: Python
 
@@ -229,7 +244,7 @@ the NUDAT file is a single 2186.2 keV line outside the imaging window.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 189-195
+.. GENERATED FROM PYTHON SOURCE LINES 204-210
 
 List-mode records
 -----------------
@@ -238,7 +253,7 @@ little-endian records: three crystal coordinates in cm x 100, the crystal
 energy in keV x 10, and the event weight. A negative weight marks the first
 event of a new projection. The weight magnitude is kept.
 
-.. GENERATED FROM PYTHON SOURCE LINES 195-312
+.. GENERATED FROM PYTHON SOURCE LINES 210-327
 
 .. code-block:: Python
 
@@ -366,7 +381,7 @@ event of a new projection. The weight magnitude is kept.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 313-321
+.. GENERATED FROM PYTHON SOURCE LINES 328-336
 
 CT preparation
 --------------
@@ -377,7 +392,7 @@ whose attenuation map has no recorded photon energy and is used only as the
 target geometry. SIRF's resampler pads with zero, so the CT is written as
 ``HU + 1000`` and 1000 is subtracted afterwards: padding becomes -1000 HU.
 
-.. GENERATED FROM PYTHON SOURCE LINES 321-479
+.. GENERATED FROM PYTHON SOURCE LINES 336-494
 
 .. code-block:: Python
 
@@ -546,7 +561,7 @@ target geometry. SIRF's resampler pads with zero, so the CT is written as
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 480-489
+.. GENERATED FROM PYTHON SOURCE LINES 495-504
 
 Detected spectrum acquisition
 -----------------------------
@@ -558,7 +573,7 @@ spectrum acquisition, not a substitute for the projection simulation. The
 records include the detector energy broadening and the total detected
 spectrum, without separation into PENETRATE components.
 
-.. GENERATED FROM PYTHON SOURCE LINES 489-586
+.. GENERATED FROM PYTHON SOURCE LINES 504-601
 
 .. code-block:: Python
 
@@ -666,7 +681,7 @@ spectrum, without separation into PENETRATE components.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 587-593
+.. GENERATED FROM PYTHON SOURCE LINES 602-608
 
 Count check
 -----------
@@ -675,7 +690,7 @@ reader. The engine's ``.a00`` projection is already windowed and restricted to
 the projection matrix, and ``.res`` gives the per-projection count rate. Their
 agreement checks the record interpretation and the window.
 
-.. GENERATED FROM PYTHON SOURCE LINES 593-631
+.. GENERATED FROM PYTHON SOURCE LINES 608-664
 
 .. code-block:: Python
 
@@ -717,6 +732,22 @@ agreement checks the record interpretation and the window.
         }
 
 
+    def engine_elapsed_text(metadata_text, measured_seconds):
+        """Return a believable engine elapsed time.
+
+        SIMIND reads the wall clock, so a host clock change can make its reported
+        elapsed time negative. In that case report the measured wall time instead
+        and say why the engine value is unavailable.
+        """
+        text = (metadata_text or "").strip()
+        if text and not text.startswith("-"):
+            return text
+        if text:
+            return (
+                "not reported (host clock changed during acquisition; "
+                f"{measured_seconds / 60.0:.1f} min measured wall time)"
+            )
+        return f"{measured_seconds / 60.0:.1f} min measured wall time"
 
 
 
@@ -724,12 +755,14 @@ agreement checks the record interpretation and the window.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 632-634
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 665-667
 
 Weighted attenuation map
 ------------------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 634-676
+.. GENERATED FROM PYTHON SOURCE LINES 667-711
 
 .. code-block:: Python
 
@@ -768,6 +801,8 @@ Weighted attenuation map
         reconstructor.set_objective_function(objective)
         reconstructor.set_num_subsets(num_subsets)
         reconstructor.set_num_subiterations(subiteration_count(num_iterations, num_subsets))
+        # Do not write per-subiteration Interfile images into the working directory.
+        reconstructor.disable_output()
         reconstructor.set_input(acquisition)
         image = initial.clone()
         reconstructor.set_up(image)
@@ -782,7 +817,7 @@ Weighted attenuation map
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 677-688
+.. GENERATED FROM PYTHON SOURCE LINES 712-725
 
 Paired reconstruction
 ---------------------
@@ -794,9 +829,11 @@ attenuation image is x-mirrored at the SPECTUB boundary because STIR's
 SPECTUB implementation mirrors x relative to the image; the activity image
 and the support are not mirrored. The two images are not a ranking: neither
 models scatter, and the weighted map is a global approximation of the
-energy-dependent attenuation.
+energy-dependent attenuation. With roughly two measured counts per bin, both
+raw OSEM images are speckled; the figure adds an identical 10 mm FWHM
+Gaussian display smoothing and keeps the raw panels beside it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 688-716
+.. GENERATED FROM PYTHON SOURCE LINES 725-753
 
 .. code-block:: Python
 
@@ -835,12 +872,12 @@ energy-dependent attenuation.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 717-719
+.. GENERATED FROM PYTHON SOURCE LINES 754-756
 
 Figures
 -------
 
-.. GENERATED FROM PYTHON SOURCE LINES 719-863
+.. GENERATED FROM PYTHON SOURCE LINES 756-968
 
 .. code-block:: Python
 
@@ -945,42 +982,110 @@ Figures
     def save_reconstruction_comparison(
         path, images, hu_grid, target_affine, centre_mm=HOT_SPHERE_CENTRE_MM
     ):
-        """Show both reconstructions, their difference and a profile through the sphere."""
+        """Show raw and identically smoothed reconstructions and a sphere profile.
+
+        The measured data have about two counts per projection bin. Twelve
+        unregularised OSEM iterations therefore produce heavy Poisson speckle. The
+        display protocol shows the raw images and a common 10 mm FWHM Gaussian
+        display smoothing; both attenuation arms receive exactly the same
+        treatment. The smoothing is display-only and is not part of either
+        reconstruction.
+        """
         plt = _pyplot()
         recon_150 = np.asarray(images["150 keV"].as_array(), dtype=np.float32)
         recon_weighted = np.asarray(
             images["spectrum weighted"].as_array(), dtype=np.float32
         )
-        difference = recon_weighted - recon_150
+        smoothed_150 = gaussian_filter(recon_150, sigma=DISPLAY_SIGMA_VOX)
+        smoothed_weighted = gaussian_filter(recon_weighted, sigma=DISPLAY_SIGMA_VOX)
+        raw_difference = recon_weighted - recon_150
+        smooth_difference = smoothed_weighted - smoothed_150
         centre_index = np.linalg.solve(
             target_affine, np.append(np.asarray(centre_mm, dtype=float), 1.0)
         )
         k = int(round(centre_index[2]))
         j = int(round(centre_index[1]))
-        limit = float(np.percentile(np.maximum(recon_150, recon_weighted), 99.5))
+        limit = float(np.percentile(np.maximum(smoothed_150, smoothed_weighted), 99.5))
+        difference_limit = float(np.percentile(np.abs(smooth_difference), 99.5))
 
-        figure = plt.figure(figsize=(14, 7), constrained_layout=True)
-        grid = figure.add_gridspec(2, 3)
-        panels = [
-            (recon_150[k], "150 keV attenuation", "viridis", 0.0, limit),
-            (recon_weighted[k], "Spectrum-weighted attenuation", "viridis", 0.0, limit),
-            (difference[k], "Weighted minus 150 keV", "coolwarm", -limit / 4, limit / 4),
+        figure = plt.figure(figsize=(15, 10), constrained_layout=True)
+        grid = figure.add_gridspec(3, 3)
+        raw_panels = [
+            (recon_150[k], "Raw OSEM, 150 keV attenuation", "viridis", 0.0, limit),
+            (
+                recon_weighted[k],
+                "Raw OSEM, spectrum-weighted attenuation",
+                "viridis",
+                0.0,
+                limit,
+            ),
+            (
+                raw_difference[k],
+                "Raw weighted minus 150 keV",
+                "coolwarm",
+                -difference_limit,
+                difference_limit,
+            ),
         ]
-        for column, (image, title, cmap, low, high) in enumerate(panels):
-            axis = figure.add_subplot(grid[0, column])
-            shown = axis.imshow(image, cmap=cmap, vmin=low, vmax=high)
-            axis.set_title(title)
-            axis.axis("off")
-            figure.colorbar(shown, ax=axis, shrink=0.75)
+        smooth_panels = [
+            (
+                smoothed_150[k],
+                f"Display-smoothed {DISPLAY_FWHM_MM:.0f} mm FWHM, 150 keV",
+                "viridis",
+                0.0,
+                limit,
+            ),
+            (
+                smoothed_weighted[k],
+                f"Display-smoothed {DISPLAY_FWHM_MM:.0f} mm FWHM, spectrum weighted",
+                "viridis",
+                0.0,
+                limit,
+            ),
+            (
+                smooth_difference[k],
+                "Smoothed weighted minus 150 keV",
+                "coolwarm",
+                -difference_limit,
+                difference_limit,
+            ),
+        ]
+        for row, panels in enumerate((raw_panels, smooth_panels)):
+            for column, (image, title, cmap, low, high) in enumerate(panels):
+                axis = figure.add_subplot(grid[row, column])
+                shown = axis.imshow(image, cmap=cmap, vmin=low, vmax=high)
+                axis.set_title(title)
+                axis.axis("off")
+                figure.colorbar(shown, ax=axis, shrink=0.75)
 
-        profile_axis = figure.add_subplot(grid[1, :])
-        profile_axis.plot(recon_150[k, j], label="150 keV attenuation")
-        profile_axis.plot(recon_weighted[k, j], label="Spectrum-weighted attenuation")
-        profile_axis.set_xlabel("x (voxel)")
+        profile_axis = figure.add_subplot(grid[2, :])
+        profile_axis.plot(
+            recon_150[k, j],
+            color="C0",
+            linestyle=":",
+            linewidth=1,
+            label="150 keV, raw",
+        )
+        profile_axis.plot(
+            recon_weighted[k, j],
+            color="C1",
+            linestyle=":",
+            linewidth=1,
+            label="spectrum weighted, raw",
+        )
+        profile_axis.plot(smoothed_150[k, j], color="C0", label="150 keV, display smoothed")
+        profile_axis.plot(
+            smoothed_weighted[k, j], color="C1", label="spectrum weighted, display smoothed"
+        )
+        profile_axis.set_xlabel("x (voxel, array axis 2)")
         profile_axis.set_ylabel("Reconstructed value")
-        profile_axis.set_title("Profile through the hot-sphere centre; both omit scatter")
-        profile_axis.legend()
+        profile_axis.set_title(
+            f"Profile along x at y={j}, z={k} through the physical hot-sphere centre; "
+            "neither arm includes scatter"
+        )
+        profile_axis.legend(fontsize=8, ncol=2)
         figure.savefig(path, dpi=140)
+        return figure
 
 
     def save_json(path, payload):
@@ -995,12 +1100,12 @@ Figures
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 864-866
+.. GENERATED FROM PYTHON SOURCE LINES 969-971
 
 Run the tutorial
 ----------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 866-1037
+.. GENERATED FROM PYTHON SOURCE LINES 971-1157
 
 .. code-block:: Python
 
@@ -1067,6 +1172,7 @@ Run the tutorial
         events = read_list_mode(spectrum_prefix.with_suffix(".lmf"))
         counts, edges = histogram_spectrum(events.energies_kev, events.weights)
         check = check_window_counts(spectrum_prefix, events)
+        engine_elapsed = engine_elapsed_text(check["elapsed"], spectrum_seconds)
         print(
             f"Spectrum geometry: {check['views']} views, 360 deg, 300 mm circular, "
             f"{MATRIX_SIZE} x {MATRIX_SIZE} bins of {VOXEL_SIZE_MM} mm, "
@@ -1076,7 +1182,7 @@ Run the tutorial
             f"Spectrum: {events.energies_kev.size} records, "
             f"energy {events.energies_kev.min():.1f} to "
             f"{events.energies_kev.max():.1f} keV, {spectrum_seconds / 60.0:.1f} min; "
-            f"detector hits {check['detector_hits']}; engine {check['elapsed']}"
+            f"detector hits {check['detector_hits']}; engine {engine_elapsed}"
         )
         print(
             f"Window weight {check['list_mode_window']:.1f}; .a00 "
@@ -1115,6 +1221,13 @@ Run the tutorial
         sirf.AcquisitionData.set_storage_scheme("memory")
         acquisition = sirf.AcquisitionData(str(data_directory / "peak.hs"))
         print(f"Measured acquisition shape: {acquisition.dimensions()}")
+        measured_array = np.asarray(acquisition.as_array(), dtype=float)
+        mean_counts = float(measured_array.mean())
+        print(
+            f"Measured counts: total {measured_array.sum():.0f}, mean "
+            f"{mean_counts:.3f} per bin, maximum {measured_array.max():.0f}, "
+            f"nonzero fraction {np.count_nonzero(measured_array) / measured_array.size:.3f}"
+        )
 
         recon_start = time.perf_counter()
         images = paired_reconstruction(
@@ -1148,7 +1261,7 @@ Run the tutorial
                 "ratio_to_projection": check["ratio_to_projection"],
                 "ratio_to_count_rate": check["ratio_to_count_rate"],
                 "detector_hits": check["detector_hits"],
-                "engine_elapsed": check["elapsed"],
+                "engine_elapsed": engine_elapsed,
                 "acquisition_seconds": spectrum_seconds,
                 "detector_broadening_fwhm_kev_at_140_5": 20.5,
             },
@@ -1163,6 +1276,13 @@ Run the tutorial
                 "subiterations": subiteration_count(12, 12),
                 "initial": "unit body support (HU > -400)",
                 "additive_scatter": "zero in both",
+                "measured_counts_total": float(measured_array.sum()),
+                "measured_counts_mean_per_bin": mean_counts,
+                "measured_counts_max": float(measured_array.max()),
+                "display_smoothing_fwhm_mm": DISPLAY_FWHM_MM,
+                "display_smoothing_scope": (
+                    "display only, identical for both arms; raw images also shown"
+                ),
                 "seconds": recon_seconds,
             },
             "total_seconds": time.perf_counter() - start,
@@ -1205,7 +1325,7 @@ Run the tutorial
     *
 
       .. image-sg:: /auto_examples/real_data/images/sphx_glr_plot_17_y90_effective_energy_004.png
-         :alt: 150 keV attenuation, Spectrum-weighted attenuation, Weighted minus 150 keV, Profile through the hot-sphere centre; both omit scatter
+         :alt: Raw OSEM, 150 keV attenuation, Raw OSEM, spectrum-weighted attenuation, Raw weighted minus 150 keV, Display-smoothed 10 mm FWHM, 150 keV, Display-smoothed 10 mm FWHM, spectrum weighted, Smoothed weighted minus 150 keV, Profile along x at y=54, z=65 through the physical hot-sphere centre; neither arm includes scatter
          :srcset: /auto_examples/real_data/images/sphx_glr_plot_17_y90_effective_energy_004.png
          :class: sphx-glr-multi-img
 
@@ -1227,13 +1347,14 @@ Run the tutorial
     Running the list-mode spectrum acquisition
     SIMIND command: simind y90_spectrum y90_spectrum /FI:y90/CC:ma-mlegp/PX:0.425780/OU:11
     Spectrum geometry: 24 views, 360 deg, 300 mm circular, 128 x 128 bins of 4.2578 mm, 75-225 keV
-    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 10.6 min; detector hits 928078; engine 0 h, 10 m and 37 s
+    Spectrum: 21076461 records, energy 0.0 to 2007.6 keV, 17.9 min; detector hits 928078; engine 0 h, 17 m and 52 s
     Window weight 227115.8; .a00 226897.1; ratio 1.00096; .res count-rate ratio 1.00097
     Weighted mean energy: 125.6 keV; attenuation ratio to 150 keV: median 1.084
     Weighted map difference over the body: mean 0.01373 cm^-1, max 0.04273 cm^-1
     Measured acquisition shape: (1, 128, 120, 128)
-    Paired reconstruction: 18.3 min
-    Total runtime: 29.2 min
+    Measured counts: total 3783028, mean 1.924 per bin, maximum 32, nonzero fraction 0.632
+    Paired reconstruction: 34.9 min
+    Total runtime: 53.1 min
     Outputs written to effective_energy
 
 
@@ -1242,7 +1363,7 @@ Run the tutorial
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (29 minutes 11.431 seconds)
+   **Total running time of the script:** (53 minutes 7.275 seconds)
 
 
 .. _sphx_glr_download_auto_examples_real_data_plot_17_y90_effective_energy.py:

@@ -1,15 +1,13 @@
 """Real-SIMIND regression smokes for the diagnostics/boundary port.
 
-Run with SIMIND on PATH and SIMIND_VERSION matching the executable. The
-component cases need a build supporting SCATTWIN CA=2; the supplied v9 Linux
-Intel build crashes in that mode, while v8 Linux and v9 macOS ARM pass it.
+Run against SIMIND v8 with the executable on ``PATH`` and ``SIMIND_VERSION=8``.
+The component cases need a build supporting SCATTWIN CA=2.
 
 The SCATTWIN window smokes run the same 16^3 / four-view / mostly-zero point
-source with HISTORIES=0.02, CA=0 and a 300 s timeout. On the native macOS ARM64
-SIMIND v9.0 build (2026-09-27), generated windows were selected with a
-conflicting stale ``scattwin.win`` left byte-identical, and explicit
-``FW=scattwin`` selected that file's single window. These are smoke checks, not
-quantitative validation.
+source with HISTORIES=0.02, CA=0 and a 300 s timeout. They check that generated
+windows are selected while a conflicting stale ``scattwin.win`` is left
+byte-identical, and that explicit ``FW=scattwin`` selects that file's single
+window. These are smoke checks, not quantitative validation.
 """
 
 from __future__ import annotations
@@ -174,7 +172,7 @@ def _assert_nonzero_finite_total(outputs: dict, key: str) -> None:
 def test_scattwin_generated_windows_ignore_stale_default(tmp_path: Path) -> None:
     """Smoke: connector-written windows beat a conflicting stale scattwin.win.
 
-    Engine: native macOS ARM64 SIMIND v9.0 (2026-09-27 build). Command:
+    Run against SIMIND v8 (``SIMIND_VERSION=8``). Command:
     ``genwin genwin /PX:0.4/FI:tc99m/CC:ma-lehr/RR:7/CA:0/FW:genwin``.
     16^3 grid, four views, 4 mm voxels, HISTORIES=0.02, CA=0, 300 s timeout.
     """
@@ -194,7 +192,7 @@ def test_scattwin_generated_windows_ignore_stale_default(tmp_path: Path) -> None
 def test_scattwin_explicit_default_window_selection(tmp_path: Path) -> None:
     """Smoke: FW=scattwin opts into the existing default-named one-window file.
 
-    Engine: native macOS ARM64 SIMIND v9.0 (2026-09-27 build). Command:
+    Run against SIMIND v8 (``SIMIND_VERSION=8``). Command:
     ``fwsel fwsel /PX:0.4/FI:tc99m/CC:ma-lehr/RR:7/CA:0/FW:scattwin``.
     Two connector-written windows are configured first, so only w1 proves the
     explicit selection; 16^3 grid, four views, HISTORIES=0.02, CA=0, 300 s.

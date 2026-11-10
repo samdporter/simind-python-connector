@@ -18,6 +18,26 @@ outside the CT field of view. This tutorial keeps PyTomography's CT reader and
 HU-to-attenuation table but replaces that affine with the patient-to-SPECT
 affine validated on the landmarks, including the ``TableHeight = -140 mm``
 convention. The correction is dataset-local; no PyTomography code is patched.
+The project-derived/native attenuation comparison on this page is
+coefficients-only: it does not reconstruct with the all-zero native map, so it
+makes no claim about reconstruction consequences of that map.
+
+The resampled maps carry low-level interpolation texture in the air region,
+visible as faint mottling in the density and attenuation maps; the STIR route is
+smoother. That texture is an artifact of the resampling, not anatomy.
+
+The page ends with a small matched reconstruction: the measured acquisition is
+reconstructed with no attenuation correction and with the project-derived
+150 keV map. The acquisition, initial support, subsets, subiterations and zero
+scatter are identical. The final figure shows the raw images and the same 10 mm
+FWHM Gaussian display smoothing applied to both arms, with the raw trace kept
+in the profile; the smoothing is display-only and is not part of the
+reconstruction. To fit the rotate+sum PyTomography system matrix in the example
+container, this endpoint uses every second view and bins the detector 2 x 2;
+both arms use exactly the same reduced data. This is a conversion sanity check,
+not an accuracy or ranking study. See
+:doc:`plot_17_y90_effective_energy` for the attenuation-energy comparison and
+:doc:`plot_18_y90_mc_scatter` for the Monte Carlo scatter case study.
 """
 
 # %%
@@ -28,12 +48,13 @@ convention. The correction is dataset-local; no PyTomography code is patched.
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pydicom
-from scipy.ndimage import affine_transform, binary_erosion
+from scipy.ndimage import affine_transform, binary_erosion, gaussian_filter
 from scipy.ndimage import shift as shift_image
 
 from simind_python_connector.converters.attenuation import (
@@ -47,6 +68,24 @@ VOXEL_SIZE_MM = 4.2578
 MATRIX_SIZE = 128
 GRID_CENTRE = (MATRIX_SIZE - 1) / 2.0
 ENERGY_KEV = 150.0
+# Small matched reconstruction endpoint: the same measured acquisition, initial
+# support, subset count and subiteration budget in both arms. The only change is
+# the project-derived 150 keV attenuation map. No scatter and no PSF are modelled.
+RECON_SUBSETS = 12
+RECON_ITERATIONS = 4
+RECON_SUBITERATIONS = RECON_SUBSETS * RECON_ITERATIONS
+# The full 120-view, 128 x 128 projection volume is too large for the
+# rotate+sum PyTomography system matrix in the example container. This small
+# endpoint uses every second view and bins the detector by two in both
+# directions; both attenuation arms use exactly the same reduced data.
+RECON_VIEW_STEP = 2
+RECON_BIN_FACTOR = 2
+# Display-only Gaussian smoothing, identical to the STIR and SIRF routes. The
+# measured acquisition has about two counts per projection bin, so the
+# unregularised OSEM images are dominated by Poisson speckle. The raw panels are
+# kept beside the smoothed ones; the reconstruction itself is unchanged.
+DISPLAY_FWHM_MM = 10.0
+DISPLAY_SIGMA_VOX = DISPLAY_FWHM_MM / (2.0 * np.sqrt(2.0 * np.log(2.0))) / VOXEL_SIZE_MM
 
 
 def _shown(path):
@@ -650,6 +689,168 @@ def save_conversion_comparison(path, hu_xyz, pytomography_mu, summary):
     figure.savefig(path, dpi=130)
 
 
+def reconstruct_pair(projection_file, hu_grid, attenuation):
+    """Reconstruct the measured data without and with the project attenuation map.
+
+    Both arms use the same acquisition, initial body support, 12 subsets and
+    48 subiterations. The only difference is the attenuation transform. The
+    native PyTomography map is all-zero for this header and is not used here;
+    the comparison above is coefficients-only.
+    """
+    import torch
+    from pytomography import algorithms, likelihoods
+    from pytomography.io.SPECT import dicom
+    from pytomography.metadata.SPECT import SPECTObjectMeta, SPECTProjMeta
+    from pytomography.projectors.SPECT import SPECTSystemMatrix
+    from pytomography.transforms.SPECT import SPECTAttenuationTransform
+
+    projections = dicom.get_projections(str(projection_file), index_peak=0)
+    _, proj_meta = dicom.get_metadata(str(projection_file), index_peak=0)
+    projections = projections[::RECON_VIEW_STEP, ::RECON_BIN_FACTOR, ::RECON_BIN_FACTOR]
+    proj_meta = SPECTProjMeta(
+        projection_shape=list(projections.shape[1:]),
+        dr=[
+            proj_meta.dr[0] * RECON_BIN_FACTOR,
+            proj_meta.dr[1] * RECON_BIN_FACTOR,
+        ],
+        angles=proj_meta.angles[::RECON_VIEW_STEP],
+        radii=(None if proj_meta.radii is None else proj_meta.radii[::RECON_VIEW_STEP]),
+    )
+    object_size = projections.shape[1]
+    object_meta = SPECTObjectMeta(
+        dr=[proj_meta.dr[0], proj_meta.dr[0], proj_meta.dr[0]],
+        shape=[object_size, object_size, object_size],
+    )
+
+    def block_reduce(array):
+        factor = RECON_BIN_FACTOR
+        x, y, z = array.shape
+        return array.reshape(
+            x // factor, factor, y // factor, factor, z // factor, factor
+        ).mean(axis=(1, 3, 5))
+
+    print(
+        "PyTomography reconstruction data: "
+        f"{tuple(projections.shape)} (view step {RECON_VIEW_STEP}, "
+        f"bin factor {RECON_BIN_FACTOR})"
+    )
+    support = torch.from_numpy(
+        np.ascontiguousarray(
+            block_reduce((hu_grid > -400.0).transpose(2, 1, 0).astype(np.float32))
+            > 0.5,
+            dtype=np.float32,
+        )
+    )
+    attenuation_map = torch.from_numpy(
+        np.ascontiguousarray(
+            block_reduce(attenuation.transpose(2, 1, 0).astype(np.float32)),
+            dtype=np.float32,
+        )
+    )
+
+    def reconstruct(use_attenuation):
+        transforms = (
+            [SPECTAttenuationTransform(attenuation_map=attenuation_map)]
+            if use_attenuation
+            else []
+        )
+        system_matrix = SPECTSystemMatrix(
+            obj2obj_transforms=transforms,
+            proj2proj_transforms=[],
+            object_meta=object_meta,
+            proj_meta=proj_meta,
+        )
+        likelihood = likelihoods.PoissonLogLikelihood(
+            system_matrix=system_matrix,
+            projections=projections,
+        )
+        reconstruction = algorithms.OSEM(
+            likelihood=likelihood, object_initial=support.clone()
+        )
+        image = reconstruction(RECON_ITERATIONS, n_subsets=RECON_SUBSETS)
+        return np.asarray(image.detach().cpu(), dtype=np.float32)
+
+    return {
+        "No attenuation correction": reconstruct(False),
+        "Project-derived 150 keV attenuation": reconstruct(True),
+    }
+
+
+def save_reconstruction_comparison(path, images):
+    """Save raw and display-smoothed reconstructions and a sphere profile.
+
+    The display protocol shows the raw images and the same 10 mm FWHM Gaussian
+    smoothing applied to both arms. The smoothing is display-only and is not
+    part of either reconstruction. The profile keeps the raw single-voxel trace
+    beside the smoothed one.
+    """
+    plt = _pyplot()
+    names = list(images)
+    arrays = [images[name] for name in names]
+    # PyTomography objects are (x, y, z). Pick the hottest axial slice and row
+    # from a lightly smoothed copy so the same physical location is shown in
+    # both arms.
+    smoothed = [gaussian_filter(array, sigma=DISPLAY_SIGMA_VOX) for array in arrays]
+    reference = smoothed[1] if len(smoothed) > 1 else smoothed[0]
+    _, j, k = np.unravel_index(int(np.argmax(reference)), reference.shape)
+    limit = max(
+        float(np.percentile(smoothed[index][smoothed[index] > 0], 99.5))
+        for index in range(len(smoothed))
+        if smoothed[index].any()
+    )
+    short_names = {
+        "No attenuation correction": "no AC",
+        "Project-derived 150 keV attenuation": "project-derived 150 keV",
+    }
+    figure = plt.figure(figsize=(11, 10), constrained_layout=True)
+    grid = figure.add_gridspec(3, 2)
+    raw_axes = [figure.add_subplot(grid[0, column]) for column in range(2)]
+    smooth_axes = [figure.add_subplot(grid[1, column]) for column in range(2)]
+    profile_axis = figure.add_subplot(grid[2, :])
+    image_axes = []
+    for axes, title, stack in (
+        (raw_axes, "Raw", arrays),
+        (smooth_axes, f"{DISPLAY_FWHM_MM:.0f} mm FWHM display-smoothed", smoothed),
+    ):
+        for axis, name, array in zip(axes, names, stack):
+            shown = axis.imshow(array[:, :, k].T, cmap="viridis", vmin=0.0, vmax=limit)
+            axis.set_title(f"{title}\n{short_names.get(name, name)}", fontsize=9)
+            axis.axis("off")
+            image_axes.append(axis)
+    figure.colorbar(
+        shown,
+        ax=image_axes,
+        shrink=0.6,
+        label="reconstructed value (shared raw and smoothed scale)",
+    )
+    for index, name in enumerate(names):
+        profile_axis.plot(
+            arrays[index][:, j, k],
+            color=f"C{index}",
+            linestyle=":",
+            linewidth=0.8,
+            label=f"{name}, raw",
+        )
+        profile_axis.plot(
+            smoothed[index][:, j, k],
+            color=f"C{index}",
+            linewidth=1.6,
+            label=f"{name}, display smoothed",
+        )
+    profile_axis.set_xlabel("x (voxel)")
+    profile_axis.set_ylabel("reconstructed value")
+    profile_axis.set_title(
+        f"Profile through the hot-sphere centre, j={j}, k={k}; dotted is the raw trace"
+    )
+    profile_axis.legend(fontsize=8, ncol=2)
+    figure.suptitle(
+        f"Matched OSEM, {RECON_SUBSETS} subsets x {RECON_ITERATIONS} iterations, "
+        "zero scatter, no PSF"
+    )
+    figure.savefig(path, dpi=130)
+    return figure
+
+
 def save_json(path, payload):
     with open(path, "w") as stream:
         json.dump(payload, stream, indent=1)
@@ -659,6 +860,7 @@ def clear_stale_outputs(output_directory):
     """Remove earlier accepted results so a rerun cannot present them as current."""
     for name in (
         "maps.png",
+        "reconstruction_comparison.png",
         "summary.json",
         "registration.json",
         "registration_overlay.png",
@@ -843,6 +1045,30 @@ def run():
         pytomography_mu_ct,
         conversion,
     )
+    print("Running the matched no-attenuation and CT-attenuation reconstructions")
+    recon_start = time.perf_counter()
+    reconstructions = reconstruct_pair(
+        data_directory / "peak.dcm", hu_grid, pytomography_grid
+    )
+    recon_seconds = time.perf_counter() - recon_start
+    save_reconstruction_comparison(
+        output_directory / "reconstruction_comparison.png", reconstructions
+    )
+    summary["reconstruction"] = {
+        "subsets": RECON_SUBSETS,
+        "iterations": RECON_ITERATIONS,
+        "subiterations": RECON_SUBITERATIONS,
+        "initial": "unit body support (HU > -400)",
+        "additive_scatter": "zero in both",
+        "resolution_model": "none",
+        "view_step": RECON_VIEW_STEP,
+        "bin_factor": RECON_BIN_FACTOR,
+        "attenuation_arms": list(reconstructions),
+        "native_map_role": "coefficients-only comparison; not reconstructed",
+        "seconds": recon_seconds,
+    }
+    save_json(output_directory / "summary.json", summary)
+    print(f"Matched reconstruction: {recon_seconds:.1f} s")
     print(f"Maps written to {_shown(output_directory)}")
     _pyplot().show()
 

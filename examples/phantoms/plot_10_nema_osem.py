@@ -6,17 +6,26 @@ Simulate "measured" data from the NEMA/IEC body phantom with a known activity,
 reconstruct it with SIRF OSEM and measure the contrast recovery of the hot
 spheres.
 
-The data are simulated by SIMIND and reconstructed with a SPECTUB model that
-does not include the collimator blur or a scatter term, so OSEM treats
-scattered events as if they came from the primary distribution. The model is
-close to the physics that made the data, by construction, so the recovery
-shown here is an optimistic best case.
+The data are simulated by SIMIND with four times the default source-history
+budget. The history count and the measured counts are reported separately; the
+tutorial does not derive a Monte Carlo precision from their ratio, because
+that ratio does not give the variance of SIMIND's weighted estimator. The
+simulation is run once and cached; every reconstruction tutorial in this
+gallery reuses it. The reconstruction uses a SPECTUB model
+with attenuation but no collimator blur and no scatter term, so OSEM treats
+scattered events as if they came from the primary distribution. Contrast
+recovery is therefore reported against the truth's own masked score, not
+against an idealised 1.
+
+Each of three independent Poisson realisations is reconstructed, and the bars
+show the mean and standard error over those realisations. The displayed image
+is the mean of the three.
 
 .. warning::
-   This example takes about three to four minutes, nearly all of it in the SIMIND
-   run. With a collimator, only a tiny fraction of the simulated photons reach
-   the detector, and too few histories give speckled projections that do not
-   reconstruct. The run uses 8 MPI processes.
+   The first tutorial run simulates the shared expectation and takes about an
+   hour with 8 MPI processes. Later tutorials in this gallery reuse the cached
+   expectation and skip the simulation. The reconstruction itself takes
+   seconds.
 
 The phantom needs phantomgen:
 ``pip install "phantomgen @ git+https://github.com/varzakis/phantomgen"``.
@@ -35,17 +44,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sirf.STIR as sirf
 
-from simind_python_connector import SirfSimindAdaptor, configs
-from simind_python_connector.builders import (
-    STIRSPECTAcquisitionDataBuilder,
-    STIRSPECTImageDataBuilder,
-)
-from simind_python_connector.converters.attenuation import get_attenuation_coefficient
-from simind_python_connector.core.types import (
-    DEFAULT_QUANTIZATION_SCALE,
-    ScoringRoutine,
-)
-from simind_python_connector.phantoms import nema_iec_phantom
+from examples import _nema
 
 
 if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
@@ -57,9 +56,6 @@ if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
 output_dir = Path(os.environ.get("SIMIND_EXAMPLES_OUTPUT", "output")) / "nema_osem"
 output_dir.mkdir(parents=True, exist_ok=True)
 
-GRID = (48, 48, 48)
-VOXEL_MM = 7.0
-
 # %%
 # NEMA/IEC phantom
 # ----------------
@@ -68,44 +64,28 @@ VOXEL_MM = 7.0
 # 17, 22, 28 and 37 mm. The activity is in MBq per voxel. The attenuation map is
 # the density times the attenuation coefficient of water at 140 keV.
 
-nema = nema_iec_phantom(GRID, (VOXEL_MM,) * 3, preset="pet", supersample=4)
-mu = nema.density_g_cm3 * get_attenuation_coefficient("water", 140.0)
-slice_z = round(np.argwhere(nema.masks["sphere_6"]).mean(axis=0)[0])
+nema_phantom = _nema.phantom()
+nema = nema_phantom.nema
+slice_z = nema_phantom.slice_z
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
-for ax, (title, image) in zip(
+for ax, (title, image, unit) in zip(
     axes,
     (
-        ("Activity (MBq per voxel)", nema.activity_mbq),
-        ("Density (g/cm³)", nema.density_g_cm3),
+        ("Activity", nema.activity_mbq, "MBq per voxel"),
+        ("Density", nema.density_g_cm3, "g/cm³"),
     ),
 ):
-    ax.imshow(image[slice_z], cmap="gray_r")
+    shown = ax.imshow(image[slice_z], cmap="gray_r")
     ax.set_title(title)
     ax.axis("off")
+    fig.colorbar(shown, ax=ax, shrink=0.7, label=unit)
 plt.show()
 
-
-def to_sirf_image(array):
-    builder = STIRSPECTImageDataBuilder(
-        {
-            "!matrix size [1]": str(GRID[2]),
-            "!matrix size [2]": str(GRID[1]),
-            "!matrix size [3]": str(GRID[0]),
-            "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-            "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-            "scaling factor (mm/pixel) [3]": str(VOXEL_MM),
-        },
-        backend="sirf",
-    )
-    builder.set_pixel_array(array.astype(np.float32))
-    return builder.build()
-
-
-activity_image = to_sirf_image(nema.activity_mbq)
-mu_image = to_sirf_image(mu)
+activity_image = _nema.to_sirf_image(nema.activity_mbq)
+mu_image = _nema.to_sirf_image(nema_phantom.mu)
 # STIR SPECTUB mirrors x relative to the mu map (UCL/STIR#452)
-spectub_mu_image = to_sirf_image(mu[..., ::-1])
+spectub_mu_image = _nema.to_sirf_image(nema_phantom.mu[..., ::-1])
 
 # %%
 # Template
@@ -114,20 +94,7 @@ spectub_mu_image = to_sirf_image(mu[..., ::-1])
 # over 360 degrees and a detector radius of 250 mm. Both the simulation and the
 # reconstruction take their geometry from it.
 
-sirf.AcquisitionData.set_storage_scheme("memory")
-template = STIRSPECTAcquisitionDataBuilder(
-    header_overrides={
-        "!matrix size [1]": "48",
-        "!matrix size [2]": "48",
-        "!number of projections": "60",
-        "scaling factor (mm/pixel) [1]": str(VOXEL_MM),
-        "scaling factor (mm/pixel) [2]": str(VOXEL_MM),
-        "!direction of rotation": "CW",
-        "start angle": "180",
-        "Radius": "250",
-    },
-    backend="sirf",
-).build(output_path=output_dir / "template")
+template = _nema.template(output_dir)
 
 # %%
 # "Measured" data
@@ -136,37 +103,31 @@ template = STIRSPECTAcquisitionDataBuilder(
 # ma-lehr collimator. The total activity and the time per view are given, so the
 # projections come out in counts (Index 25). The 8 MPI processes each simulate
 # all views and SIMIND sums them; without an ``RR`` switch their seeds are fixed.
-# Poisson noise from a seeded generator is added to the simulated counts.
+#
+# The expectation uses the default quantization (a 500-history budget at the
+# full signed range) multiplied by four. The printed quantization loss is the
+# L1 error of the integer source map against the float map; it is below 1%.
+#
+# Poisson noise from a seeded generator is added to the simulated counts at
+# 2 s per view. The three realisations use independent seeds and share the one
+# expectation.
 
-TOTAL_MBQ = float(nema.activity_mbq.sum())
-TIME_PER_VIEW_S = 2.0
+expectation = _nema.simulate_expectation(nema_phantom, template)
+TIME_PER_VIEW_S = _nema.REFERENCE_TIME_S
+realisations = dict(_nema.paired_realisations(expectation, template))
 
-adaptor = SirfSimindAdaptor(
-    configs.get("Example.yaml"),
-    str(output_dir),
-    "measured",
-    scoring_routine=ScoringRoutine.PENETRATE,
-    quantization_scale=0.06 * DEFAULT_QUANTIZATION_SCALE,
+print(f"Expectation counts: {expectation.total:.4g}")
+print(f"Photon histories per projection: {expectation.histories:.4g}")
+print(
+    f"Expectation counts per projection: {expectation.counts_per_projection:.4g} "
+    f"over {expectation.views} views"
 )
-adaptor.set_template(template)
-adaptor.set_source(activity_image)
-adaptor.set_mu_map(mu_image)
-# PENETRATE takes its energy window from Indexes 20 (upper) and 21 (lower).
-adaptor.add_config_value(20, 154.0)
-adaptor.add_config_value(21, 126.0)
-adaptor.add_runtime_switch("CC", "ma-lehr")
-adaptor.set_mpi(8)
-adaptor.add_config_value(1, 140.0)
-adaptor.set_activity(TOTAL_MBQ, TIME_PER_VIEW_S)
-expected = adaptor.run()["all_interactions"]
-
-rng = np.random.default_rng(12345)
-measured = expected.clone()
-measured.fill(rng.poisson(np.maximum(expected.as_array(), 0)).astype(np.float32))
-print(f"Measured counts: {measured.sum():.4g}")
+print(f"Quantization loss: {expectation.quantization_loss:.2%}")
+for seed, measured in realisations.items():
+    print(f"Seed {seed}: {measured.sum():.4g} measured counts")
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
-counts = measured.as_array()[0]  # axial, view, bin
+counts = next(iter(realisations.values())).as_array()[0]  # axial, view, bin
 axes[0].imshow(counts[:, 0, :], cmap="magma")
 axes[0].set_title("Projection, view 0")
 axes[1].imshow(counts[counts.shape[0] // 2], cmap="magma")
@@ -179,37 +140,97 @@ plt.show()
 # OSEM
 # ----
 # The model is SPECTUB with the flipped attenuation map and no PSF. OSEM runs
-# with 6 subsets of 10 views each, for 4 full iterations.
+# with 6 subsets. We reconstruct each realisation for 2, 4 and 8 full
+# iterations and compare the contrast recovery and the background noise.
+# Recovery rises by at most 0.02 from four to eight iterations, while the
+# background noise rises from about 0.55 to 0.71; four iterations is the first
+# setting that is within that margin of the longer run without paying its
+# noise.
 
 acq_matrix = sirf.SPECTUBMatrix()
 acq_matrix.set_attenuation_image(spectub_mu_image)
 acq_matrix.set_resolution_model(0.0, 0.0, False)
 acq_model = sirf.AcquisitionModelUsingMatrix(acq_matrix)
 
-objective = sirf.make_Poisson_loglikelihood(measured)
-objective.set_acquisition_model(acq_model)
-objective.set_num_subsets(6)
 
-recon = sirf.OSMAPOSLReconstructor()
-recon.set_objective_function(objective)
-recon.set_num_subsets(6)
-recon.set_num_subiterations(24)
-recon.set_input(measured)
-reconstruction = activity_image.get_uniform_copy(1.0)
-recon.set_up(reconstruction)
-recon.reconstruct(reconstruction)
-reconstruction.write(str(output_dir / "nema_osem.hv"))
+def osem(data, iterations):
+    objective = sirf.make_Poisson_loglikelihood(data)
+    objective.set_acquisition_model(acq_model)
+    objective.set_num_subsets(_nema.NUM_SUBSETS)
+    recon = sirf.OSMAPOSLReconstructor()
+    recon.set_objective_function(objective)
+    recon.set_num_subsets(_nema.NUM_SUBSETS)
+    recon.set_num_subiterations(_nema.NUM_SUBSETS * iterations)
+    recon.set_input(data)
+    image = activity_image.get_uniform_copy(1.0)
+    recon.set_up(image)
+    recon.reconstruct(image)
+    return image
+
+
+truth_array = nema_phantom.relative_to_background(nema.activity_mbq)
+truth_recovery = _nema.contrast_recovery(nema.activity_mbq, nema_phantom)
+truth_cov = _nema.background_cov(nema.activity_mbq, nema_phantom)
+
+print(f"{'':10}{'17 mm':>8}{'22 mm':>8}{'28 mm':>8}{'37 mm':>8}{'CoV':>8}")
+print(
+    f"{'Truth':<10}"
+    + "".join(f"{value:8.2f}" for value in truth_recovery)
+    + f"{truth_cov:8.2f}"
+)
+
+# The expectation on its own has no acquisition noise. Reconstructing it shows
+# what the fast model can recover when the data are exact, so the difference to
+# the Poisson arms is the acquisition noise and the reconstruction's response
+# to it, not Monte Carlo noise.
+expectation_image = osem(
+    _nema.to_acquisition(expectation.counts, template), _nema.OSEM_ITERATIONS
+)
+expectation_recovery = _nema.contrast_recovery(
+    expectation_image.as_array(), nema_phantom
+)
+expectation_cov = _nema.background_cov(expectation_image.as_array(), nema_phantom)
+print(
+    f"{'Expectation':<10}"
+    + "".join(f"{value:8.2f}" for value in expectation_recovery)
+    + f"{expectation_cov:8.2f}"
+)
+
+stopping = {}
+for iterations in (2, 4, 8):
+    images = [osem(data, iterations) for data in realisations.values()]
+    recovery, recovery_sem = _nema.mean_and_sem(
+        [_nema.contrast_recovery(image.as_array(), nema_phantom) for image in images]
+    )
+    _, cov_sem = _nema.mean_and_sem(
+        [_nema.background_cov(image.as_array(), nema_phantom) for image in images]
+    )
+    cov = np.mean(
+        [_nema.background_cov(image.as_array(), nema_phantom) for image in images]
+    )
+    stopping[iterations] = (images, recovery, recovery_sem, cov, cov_sem)
+    print(
+        f"{iterations:>2} it     "
+        + "".join(f"{value:8.2f}" for value in recovery)
+        + f"{cov:8.2f}"
+    )
+
+# The expectation row has no acquisition noise. Its recovery differs from the
+# four-iteration Poisson row by at most 0.01, while the background CoV rises
+# from 0.43 to 0.55. The fast model and the stopping rule therefore set the
+# recovery ceiling, and the acquisition noise mostly adds background texture.
 
 # %%
 # Reconstruction and truth
 # ------------------------
 # Both images are shown relative to their mean in the background mask, so the
-# arbitrary scale of the reconstruction does not matter.
+# arbitrary scale of the reconstruction does not matter. The reconstruction is
+# the mean of the three realisations.
 
-background = nema.masks["background"] > 0
-truth_array = nema.activity_mbq / nema.activity_mbq[background].mean()
-recon_array = reconstruction.as_array()
-recon_array = recon_array / recon_array[background].mean()
+images, recovery, recovery_sem, cov, cov_sem = stopping[_nema.OSEM_ITERATIONS]
+recon_array = nema_phantom.relative_to_background(
+    np.mean([image.as_array() for image in images], axis=0)
+)
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
 for ax, (title, image) in zip(axes, (("Truth", truth_array), ("OSEM", recon_array))):
@@ -226,31 +247,29 @@ plt.show()
 # mask, divided by the true ratio of 8. A value of 1 is full recovery. The
 # masks include voxels on the sphere edge, which hold less activity, so even
 # the truth scores below 1; its score is the ceiling for the reconstruction.
-# The 10 and 13 mm spheres are cold and are not scored. The simulation has a
-# modest number of photons, so the recovery is noisy and need not rise
-# smoothly with the sphere size.
+# The 10 and 13 mm spheres are cold and are not scored. The error bars are the
+# standard error over the three independent Poisson realisations.
 
-SPHERES = {"sphere_3": 17, "sphere_4": 22, "sphere_5": 28, "sphere_6": 37}
-TRUE_RATIO = 8.0
-
-
-def contrast_recovery(image, sphere_name):
-    sphere = nema.masks[sphere_name] > 0
-    return image[sphere].mean() / image[background].mean() / TRUE_RATIO
-
-
-diameters = [str(d) for d in SPHERES.values()]
-recovery = [contrast_recovery(recon_array, name) for name in SPHERES]
-ceiling = [contrast_recovery(truth_array, name) for name in SPHERES]
-for diameter, value, limit in zip(diameters, recovery, ceiling):
-    print(f"{diameter} mm sphere: contrast recovery {value:.2f} (truth {limit:.2f})")
-
+diameters = [str(d) for d in _nema.SPHERES.values()]
 x = np.arange(len(diameters))
 fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
-ax.bar(x - 0.2, ceiling, 0.4, label="Truth")
-ax.bar(x + 0.2, recovery, 0.4, label="OSEM")
+ax.bar(x - 0.2, truth_recovery, 0.4, label="Truth")
+ax.bar(
+    x + 0.2,
+    recovery,
+    0.4,
+    yerr=recovery_sem,
+    capsize=3,
+    label=f"OSEM, {_nema.OSEM_ITERATIONS} iterations",
+)
 ax.set_xticks(x, diameters)
 ax.set_xlabel("Sphere diameter (mm)")
 ax.set_ylabel("Contrast recovery")
+ax.set_ylim(0, max(truth_recovery) * 1.15)
 ax.legend()
 plt.show()
+
+for diameter, value, error, limit in zip(
+    diameters, recovery, recovery_sem, truth_recovery
+):
+    print(f"{diameter} mm sphere: {value:.2f} ± {error:.2f} (truth {limit:.2f})")

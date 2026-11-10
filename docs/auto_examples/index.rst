@@ -41,7 +41,7 @@ Getting started
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example runs SIMIND with voxelized NumPy inputs and reads projections back as NumPy arrays via SimindPythonConnector. It is a quick low-history run, so the projection is noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example runs SIMIND with voxelized NumPy inputs and reads projections back as NumPy arrays via SimindPythonConnector. It uses the default source quantization and a history multiplier large enough for the body and the hot sphere to be resolved in the projection, rather than a smoke-test run.">
 
 .. only:: html
 
@@ -58,7 +58,7 @@ Getting started
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example runs two SIMIND cases with different runtime switch settings and compares the resulting projection view. It is a quick low-history run, so the seed-to-seed noise is large.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example runs the same simulation twice with two independent random seeds and compares the projections. The only runtime switch that differs is RR, so the difference isolates Monte Carlo noise, not a change of physics.">
 
 .. only:: html
 
@@ -69,13 +69,13 @@ Getting started
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Runtime-switch comparison</div>
+      <div class="sphx-glr-thumbnail-title">Seed reproducibility</div>
     </div>
 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example runs a multi-window (TEW-style) simulation of Lu-177 with the pure Python connector and builds a triple-energy-window scatter correction. It is a quick low-history run, so the projections are noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example runs a multi-window (TEW-style) simulation of Lu-177 with the pure Python connector and builds a triple-energy-window scatter correction. It uses the default source quantization, a history multiplier of 10 and four 360-degree views of 32 x 32 bins at 4 mm.">
 
 .. only:: html
 
@@ -103,13 +103,13 @@ Getting started
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Custom configuration</div>
+      <div class="sphx-glr-thumbnail-title"># sphinx_gallery_thumbnail_path = '_static/custom_config_summary.png'</div>
     </div>
 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This example compares the SCATTWIN and PENETRATE scoring routines of SIMIND on the same phantom using the pure Python connector. It is a quick low-history run, so the component counts are noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="This example compares the SCATTWIN and PENETRATE scoring routines of SIMIND on the same phantom, with the same geometry, histories and detector acceptance. It replaces the earlier 16 x 16 preview with a 32 x 32 grid of 4 mm bins and a history budget large enough for the component decomposition.">
 
 .. only:: html
 
@@ -287,7 +287,7 @@ Phantoms and reconstruction
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Simulate phantoms that need no hand-made voxel maps: SIMIND&#x27;s analytic multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from phantomgen. Both are Tc-99m runs with 24 views, so the projections are noisy.">
+    <div class="sphx-glr-thumbcontainer" tooltip="Simulate phantoms that need no hand-made voxel maps: SIMIND&#x27;s analytic multiple-inserts (Jaszczak-like) phantom and the NEMA/IEC body phantom from phantomgen. Both are Tc-99m runs with 24 views.">
 
 .. only:: html
 
@@ -486,7 +486,7 @@ different backend:
 
 All three sort the CT slices by ``ImagePositionPatient``, validate the series,
 register the CT-derived attenuation map to ``umap_zoomed``, and stop before
-writing accepted maps if the registration gate fails. The vendor attenuation
+writing maps if the registration gate fails. The vendor attenuation
 map has no recorded photon energy, so it is used only as a registration
 reference and is never converted to density.
 
@@ -497,14 +497,21 @@ The remaining two case studies use the same restricted data:
 
 - ``plot_17_y90_effective_energy.py`` (SIRF) compares a single 150-keV
   attenuation map with one weighted by the detected 75-225 keV spectrum, using
-  two otherwise identical reconstructions that both omit scatter.
+  two otherwise identical reconstructions that both omit scatter. The measured
+  data have about two counts per projection bin, so the figure shows the raw
+  OSEM images and an identical 10 mm FWHM Gaussian display smoothing; the
+  smoothing is display-only. Neither arm includes scatter and neither is an
+  accuracy reference.
 - ``plot_18_y90_mc_scatter.py`` (SIRF) compares Monte Carlo scatter strategies
-  on a common reconstruction schedule. It is an audited diagnostic negative
-  result, not a passing quantitative tutorial: the global-scaling arm collapsed
-  and is not quantitatively interpretable, the nominal sphere-to-liver ratios
-  are sensitive to the frozen sphere centre and do not support a strategy
-  ranking, and statistical adequacy was not established. The page reports
-  every failed or inconclusive quality gate.
+  on a common reconstruction schedule and publishes the reconstructed-image
+  comparison, profiles, scatter estimates and overlays. It is a diagnostic
+  negative result, not a passing quantitative tutorial: the
+  global-scaling arm collapsed and is not quantitatively interpretable, the
+  nominal sphere-to-liver ratios are sensitive to the fixed sphere centre and
+  do not support a strategy ranking, and statistical adequacy was not
+  established. The history probe reports NN=4, NN=8 and a chunked 16x level;
+  the coarse 4-to-8 pair already fails, so the finer level cannot restore
+  adequacy. The page reports every failed or inconclusive quality gate.
 
 
 .. raw:: html
@@ -588,7 +595,7 @@ The remaining two case studies use the same restricted data:
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="The history-doubling probe uses a reduced 60-view geometry to keep its cost down. The reference-sum and reference-trimmed arms collapsed in that probe (NN=1/NN=2 ratios 0.107/0.218 and 0.008/0.023), so the 179.48% largest change is a probe artefact rather than native-geometry evidence. The known-activity (+10.2%) and pixel-wise (+1.6%) changes are usable. A native-geometry history check was not established.">
+    <div class="sphx-glr-thumbcontainer" tooltip="The history-doubling and independent-seed probes run on the native 120-view geometry at four, eight and sixteen times the base history multiplier, so they test convergence rather than a reduced-geometry surrogate. The run still does not establish statistical adequacy where a gate fails, and no strategy ranking or calibrated recovery is claimed.">
 
 .. only:: html
 

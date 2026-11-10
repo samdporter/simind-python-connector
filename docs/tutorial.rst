@@ -16,20 +16,21 @@ directory. The executor uses ``SIMIND_BIN`` when set and otherwise searches
 
 .. code-block:: bash
 
-    export SIMIND_BIN=/path/to/simind-v9/simind
-    export SMC_DIR=/path/to/simind-v9/smc_dir/
-    export PATH=/path/to/simind-v9:$PATH
-    export SIMIND_VERSION=9
+    export SIMIND_BIN=/path/to/simind-v8/simind
+    export SMC_DIR=/path/to/simind-v8/smc_dir/
+    export PATH=/path/to/simind-v8:$PATH
+    export SIMIND_VERSION=8
     python -m pip install -e '.[examples]'
     python -c 'import shutil; print(shutil.which("simind"))'
 
-Set ``SIMIND_VERSION=8`` for v8. The default is 8. In Python, pass
-``simind_version=8`` or ``simind_version=9`` to the connector or adaptor to
-override the environment. Version selection also controls voxel-map origin
-handling; using the wrong value can displace the source and attenuation map.
+SIMIND v8 is the supported engine for this release, and 8 is the default. In
+Python, pass ``simind_version=8`` to the connector or adaptor to override the
+environment. Version selection also controls voxel-map origin handling; using
+the wrong value can displace the source and attenuation map.
 
-For SCATTWIN, use v8 or the macOS v9 build: the v9.0 Linux build can abort or
-silently return corrupted projections (see :doc:`simind_validation`).
+SIMIND v9 selection remains experimental and unvalidated, and is planned for
+2.1.0. The v9.0 Linux build can abort or silently return corrupted projections
+(see :doc:`simind_validation`).
 
 SIMIND releases may differ in their data files and output components. Check
 your local release manual and the observations in :doc:`simind_validation`
@@ -42,14 +43,15 @@ its own data directory. Start with the :doc:`basic simulation tutorial
 
     python examples/getting_started/plot_01_basic_simulation.py
 
-It uses a small voxel phantom, one energy window, few projections, and
-``NN=1``. Inspect the saved source, density, and total projection under
-``output/basic_simulation``. The example requests SCATTWIN ``CA=0`` for its
-126–154 keV window, which is available across the checked Linux builds. This is a
-smoke run: its noisy counts are not a quantitative reference. For a quantitative
-run, use the activity and
-time for the acquisition, enough histories for stable statistics, the intended
-number of views, and the matching collimator, windows, and detector settings.
+It uses a small voxel phantom, one energy window, four views, the default
+source quantization and ``NN=8``. Inspect the saved source, density, and total
+projection under ``output/basic_simulation``. The example requests SCATTWIN
+``CA=0`` for its 126–154 keV window, which is available across the checked
+Linux builds. The four views and eightfold history budget resolve the body and
+the hot sphere; this is a teaching run, not a clinical acquisition. For a
+quantitative study, use the activity and time for the acquisition, enough
+histories for stable statistics, the intended number of views, and the matching
+collimator, windows, and detector settings.
 
 Build the phantoms
 ------------------
@@ -69,8 +71,10 @@ The NEMA/IEC body phantom has explicit activity in MBq per voxel, density, and
 named masks. The example builds it before either simulation, so a missing
 phantomgen stops there rather than after the analytic run. It writes both
 projections under ``output/phantom_library`` and plots a central source slice
-and the first projection view of each phantom. The 24 views and low history
-count make the projections noisy.
+and the first projection view of each phantom. The 24 views are kept, but the
+history budget is raised: the analytic branch uses Index 26 = 4 (four million
+histories per projection) and the voxel NEMA branch uses the default
+quantization, which gives its hottest voxel 500 histories.
 
 For a quick smoke run, reduce ``quantization_scale`` and the number of views,
 or threshold the source to a mostly-zero map. Use ``NN >= 1``. For quantitative
@@ -97,11 +101,9 @@ the budget before interpreting contrast or activity recovery.
 Energy-window bounds and order select the output windows. SCATTWIN and
 PENETRATE score different interaction components. Keep the raw SIMIND outputs
 when comparing routines or releases. Example 05 requests SCATTWIN ``CA=2`` and
-reads its raw total, scatter, and primary components; this mode works in the
-checked v8 build and the macOS ARM v9 build. The checked Linux Intel v9 build
-aborts with an engine error for that mode, so use its total-only ``CA=0`` example
-or PENETRATE workflow there. The output component names depend on scoring
-routine and SIMIND version; see :doc:`simind_validation` for the observed map.
+reads its raw total, scatter, and primary components; this mode is checked in
+the supported v8 build. The output component names depend on scoring routine
+and SIMIND version; see :doc:`simind_validation` for the observed map.
 
 Reconstruct the simulated acquisition
 -------------------------------------
@@ -115,15 +117,19 @@ NEMA/IEC phantom and reconstructs it with SIRF OSEM:
     python examples/phantoms/plot_10_nema_osem.py
 
 Install SIRF and phantomgen; see :doc:`installation`. The tutorial simulates 60
-views with 8 MPI processes, adds seeded Poisson noise, and reconstructs with
-SPECTUB attenuation but no collimator blur or scatter. That model is close to
-the one that made the data by construction, so the reported sphere recovery is
-a best case. Inspect the measured counts, the reconstruction and truth slices,
-and the contrast-recovery bars under ``output/nema_osem``. It scores the 17-37
-mm hot spheres only; the 10 and 13 mm spheres are cold. The run takes a few
-minutes, nearly all of it in SIMIND. Matching dimensions do not verify axis,
-view-angle, or orbit alignment, and a finite image is not evidence of absolute
-sensitivity. For quantitative work, increase histories and iterations and
+views with 8 MPI processes at the default quantization and four times the
+source-history budget, adds seeded Poisson noise at 2 s per view, and
+reconstructs with SPECTUB attenuation but no collimator blur or scatter. It
+reports the histories and measured counts separately and does not derive a
+Monte Carlo precision from their ratio, because that ratio does not give the
+variance of SIMIND's weighted estimator. Inspect the measured counts, the
+reconstruction and truth slices, and the contrast-recovery bars under
+``output/nema_osem``. It scores the 17-37 mm hot spheres only; the 10 and
+13 mm spheres are cold, and every score is shown against the truth's own
+masked score. The first run takes about an hour, nearly all of it in SIMIND;
+the other reconstruction tutorials reuse the cached expectation.
+Matching dimensions do not verify axis, view-angle, or orbit alignment, and a
+finite image is not evidence of absolute sensitivity. For quantitative work,
 validate voxel spacing, view angles, center of rotation, axis orientation, and
 absolute calibration.
 
@@ -131,7 +137,10 @@ Monte Carlo scatter and residual correction
 -------------------------------------------
 
 The Monte Carlo tutorials simulate the NEMA/IEC phantom and reconstruct it with
-SIRF or CIL. Each takes about 10–40 minutes, nearly all of it in SIMIND:
+SIRF or CIL. The shared expectation is simulated once per output directory;
+the first tutorial pays for it and the rest reuse it. Each tutorial then takes
+between about half an hour and three hours, dominated by the scatter estimates
+and, in the last tutorial, by the SVRG subset gradients:
 
 - :doc:`Monte Carlo scatter correction in OSEM
   <auto_examples/mc_scatter/plot_11_mc_scatter_osem>`
@@ -146,8 +155,9 @@ SIRF or CIL. Each takes about 10–40 minutes, nearly all of it in SIMIND:
 
 The CIL tutorials additionally need CIL. Inspect the update records and
 reconstruction metrics printed by each run. These tutorials use a fast SPECTUB
-model and small Monte Carlo runs. The objective, noise, and update cadence are
-demonstration choices, not evidence of quantitative accuracy. See
+model; the expectation is high precision, while the scatter estimates use a
+tenth of its history budget and are smoothed. The objective, noise, and update
+cadence are demonstration choices, not evidence of quantitative accuracy. See
 :doc:`reconstruction` for the model, damping, floor, and calibration details.
 For quantitative work, establish an accurate reference and validate the
 scatter or residual estimate against it; a faster objective remains an
@@ -197,8 +207,8 @@ Read them in this order:
    - :doc:`CT conversion with PyTomography
      <auto_examples/real_data/plot_16c_pytomography_ct_conversion>`
 
-   Each page uses only its own backend. The SIRF route is the reusable
-   one; the later case studies take their CT preparation from it.
+   Each page uses only its own backend. The later case studies take their CT
+   preparation from the SIRF route.
 
 3. The :doc:`Y-90 effective energy case study
    <auto_examples/real_data/plot_17_y90_effective_energy>` (SIRF) compares two
@@ -208,8 +218,8 @@ Read them in this order:
    the pair is a model comparison, not an accuracy ranking.
 
 4. The :doc:`Monte Carlo scatter case study
-   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) is an audited
-   diagnostic negative result, not a passing quantitative tutorial. It compares
+   <auto_examples/real_data/plot_18_y90_mc_scatter>` (SIRF) is a diagnostic
+   negative result, not a passing quantitative tutorial. It compares
    Monte Carlo scatter strategies on a common reconstruction schedule, but the
    global-scaling arm collapsed and is not quantitatively interpretable, the
    nominal sphere-to-liver ratios are centre-sensitive and do not support a

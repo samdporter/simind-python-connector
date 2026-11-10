@@ -1,4 +1,5 @@
 """
+# sphinx_gallery_thumbnail_path = '_static/custom_config_summary.png'
 Custom configuration
 ====================
 
@@ -14,6 +15,8 @@ exporting them to YAML for easy editing and version control.
 
 import os
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 
 from simind_python_connector import SimulationConfig, configs
 
@@ -79,6 +82,48 @@ cardiac_config.set_value("camera_offset_x", 10.0)  # 10 cm offset
 
 cardiac_yaml = output_dir / "cardiac_spect.yaml"
 cardiac_config.export_yaml(str(cardiac_yaml))
+
+# %%
+# Compare the edits
+# -----------------
+# The thumbnail reads the edited values back from the two collimator
+# configurations. It is a compact illustration of the settings above, not a
+# simulation or a performance claim. The image is used only as the gallery
+# thumbnail; the page itself is declared as a zero-figure page.
+
+comparison = {
+    "LEHR": lehr_config,
+    "HEGP": hegp_config,
+}
+hole_mm = [
+    10.0 * float(config.get_value("hole_size_x")) for config in comparison.values()
+]
+thickness_mm = [
+    10.0 * float(config.get_value("collimator_thickness"))
+    for config in comparison.values()
+]
+energy_kev = [
+    float(config.get_value("photon_energy")) for config in comparison.values()
+]
+
+summary_figure, summary_axes = plt.subplots(
+    1, 3, figsize=(9, 3.2), constrained_layout=True
+)
+for axis, values, title, unit in zip(
+    summary_axes,
+    (hole_mm, thickness_mm, energy_kev),
+    ("Hole diameter", "Collimator thickness", "Photon energy"),
+    ("mm", "mm", "keV"),
+):
+    axis.bar(list(comparison), values, color=("C0", "C1"))
+    axis.set_title(f"{title} ({unit})")
+    axis.set_ylim(0.0, max(values) * 1.2)
+    for position, value in enumerate(values):
+        axis.text(position, value, f"{value:.3g}", ha="center", va="bottom")
+summary_figure.savefig(output_dir / "custom_config_summary.png", dpi=130)
+# Close it so the page stays a declared zero-figure page; the thumbnail is set
+# explicitly in the module docstring.
+plt.close(summary_figure)
 
 # %%
 # Modify a configuration through YAML

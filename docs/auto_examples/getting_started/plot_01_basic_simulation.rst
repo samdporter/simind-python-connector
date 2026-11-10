@@ -22,22 +22,29 @@ Basic simulation
 ================
 
 This example runs SIMIND with voxelized NumPy inputs and reads projections
-back as NumPy arrays via ``SimindPythonConnector``. It is a quick low-history
-run, so the projection is noisy.
+back as NumPy arrays via ``SimindPythonConnector``. It uses the default
+source quantization and a history multiplier large enough for the body and the
+hot sphere to be resolved in the projection, rather than a smoke-test run.
 
-.. GENERATED FROM PYTHON SOURCE LINES 11-14
+The acquisition is a four-view, 360-degree orbit with 32 x 32 bins of 4 mm.
+Four views keep the runtime near an hour on a single emulated x86 core while
+giving each view the full history budget. Increase ``photon_multiplier`` (the
+SIMIND ``NN`` switch) for more statistics; the cost is linear in it.
+
+.. GENERATED FROM PYTHON SOURCE LINES 17-20
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 14-37
+.. GENERATED FROM PYTHON SOURCE LINES 20-51
 
 .. code-block:: Python
 
 
     import os
     import shutil
+    import time
     from pathlib import Path
 
     import matplotlib.pyplot as plt
@@ -45,6 +52,13 @@ Check that SIMIND is installed and choose where the outputs are written.
 
     from simind_python_connector import SimindPythonConnector, configs
     from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
+    from simind_python_connector.utils.interfile import ProjectionGeometry
+    from simind_python_connector.utils.projection_metrics import (
+        projection_view0,
+        require_output_keys,
+        source_weight_sum,
+        zero_history_fraction,
+    )
 
 
     if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
@@ -65,7 +79,7 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 38-43
+.. GENERATED FROM PYTHON SOURCE LINES 52-57
 
 Build the phantom
 -----------------
@@ -73,7 +87,7 @@ A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
 The source map holds relative activity and the attenuation map holds
 ``mu`` in 1/cm.
 
-.. GENERATED FROM PYTHON SOURCE LINES 43-57
+.. GENERATED FROM PYTHON SOURCE LINES 57-71
 
 .. code-block:: Python
 
@@ -98,23 +112,28 @@ The source map holds relative activity and the attenuation map holds
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 58-62
+.. GENERATED FROM PYTHON SOURCE LINES 72-78
 
 Configure and run
 -----------------
-Start from the bundled ``Example.yaml``, attach the voxel phantom, use a
-single 126-154 keV window for Tc-99m and run SIMIND.
+Start from the bundled ``Example.yaml``. The default ``quantization_scale``
+gives the hottest voxel 500 photon histories; ``NN`` multiplies that budget
+without changing the projection scale. The geometry is declared explicitly
+so the number of views, bin size and radius are not inherited by accident.
 
-.. GENERATED FROM PYTHON SOURCE LINES 62-91
+.. GENERATED FROM PYTHON SOURCE LINES 78-135
 
 .. code-block:: Python
 
+
+    PHOTON_MULTIPLIER = 8
+    SEED = 12345
 
     connector = SimindPythonConnector(
         config_source=configs.get("Example.yaml"),
         output_dir=output_dir,
         output_prefix="basic_case01",
-        quantization_scale=0.01 * DEFAULT_QUANTIZATION_SCALE,
+        quantization_scale=DEFAULT_QUANTIZATION_SCALE,
     )
     source_path, density_path = connector.configure_voxel_phantom(
         source=source,
@@ -122,21 +141,46 @@ single 126-154 keV window for Tc-99m and run SIMIND.
         voxel_size_mm=4.0,
         scoring_routine=1,
     )
+    connector.configure_acquisition(
+        ProjectionGeometry(
+            num_projections=4,
+            extent_deg=360.0,
+            direction="CW",
+            start_angle_deg=180.0,
+            radius_mm=250.0,
+            radii_mm=None,
+            num_bins=32,
+            num_axial=32,
+            bin_size_mm=4.0,
+            axial_size_mm=4.0,
+            image_duration_s=None,
+        )
+    )
     connector.add_config_value(1, 140.0)
+    connector.add_config_value(53, 0)
     connector.set_energy_windows([126.0], [154.0], [0])
     connector.add_runtime_switch("CA", 0)
     connector.add_runtime_switch("FI", "tc99m")
     connector.add_runtime_switch("CC", "ma-lehr")
-    connector.add_runtime_switch("NN", 1)
-    connector.add_runtime_switch("RR", 12345)
+    connector.add_runtime_switch("NN", PHOTON_MULTIPLIER)
+    connector.add_runtime_switch("RR", SEED)
 
+    started = time.perf_counter()
     outputs = connector.run()
-    total = outputs["tot_w1"].projection
+    elapsed_s = time.perf_counter() - started
+    total = require_output_keys(outputs, "tot_w1")["tot_w1"].projection
     np.save(output_dir / "total.npy", total)
 
     print(f"Source file: {source_path}")
     print(f"Density file: {density_path}")
-    print(f"Total counts: {float(total.sum()):.3f}")
+    print(
+        "Histories per view: "
+        f"{source_weight_sum(source, DEFAULT_QUANTIZATION_SCALE) * PHOTON_MULTIPLIER}"
+    )
+    loss = zero_history_fraction(source, DEFAULT_QUANTIZATION_SCALE)
+    print(f"Quantization loss: {loss:.4%}")
+    print(f"Total projection sum (activity-scaled): {float(total.sum()):.3f}")
+    print(f"Elapsed: {elapsed_s:.0f} s")
 
 
 
@@ -157,14 +201,14 @@ single 126-154 keV window for Tc-99m and run SIMIND.
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: basic_case01_src  
      Cover.....: al        ScoreRout.: scattwin  DensityImg: basic_case01_dns  
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 11549          
+     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 9239200        
      EnergyResolution...: 9.2          Spectra   Activity..........: 1              
      MaxScatterOrder....: 3            ma-lehr   DetectorLenght....: 21.25          
      DetectorWidth......: 27           SPECT     DetectorHeight....: 0.95           
      UpperEneWindowTresh: 225          x-rays    Distance to det...: 25             
      LowerEneWindowTresh: 75           BScatt    ShiftSource X.....: 0              
-     PixelSize  I.......: 0.44         Random    ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.44         Cover     ShiftSource Z.....: 0              
+     PixelSize  I.......: 0.4          Random    ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.4          Cover     ShiftSource Z.....: 0              
      HalfLength S.......: 6.4          Phantom   HalfLength P......: 6.4            
      HalfWidth  S.......: 6.4          Resolut   HalfWidth  P......: 6.4            
      HalfHeight S.......: 6.4          Forced    HalfHeight P......: 6.4            
@@ -173,6 +217,42 @@ single 126-154 keV window for Tc-99m and run SIMIND.
                    Projection          Hits       Scatt/Tot    Progress
   
   
+                    1 of   4           53459        0.281          2 %
+                    1 of   4          111052        0.305          5 %
+                    1 of   4          170265        0.320          8 %
+                    1 of   4          230253        0.329         10 %
+                    1 of   4          290355        0.333         13 %
+                    1 of   4          350601        0.338         16 %
+                    1 of   4          410238        0.339         18 %
+                    1 of   4          467523        0.338         21 %
+                    1 of   4          521994        0.334         24 %
+                    2 of   4           53724        0.329         27 %
+                    2 of   4          110648        0.329         30 %
+                    2 of   4          169593        0.330         33 %
+                    2 of   4          229368        0.332         35 %
+                    2 of   4          289635        0.333         38 %
+                    2 of   4          350438        0.335         41 %
+                    2 of   4          409824        0.335         43 %
+                    2 of   4          467646        0.335         46 %
+                    2 of   4          522100        0.333         49 %
+                    3 of   4           53922        0.330         52 %
+                    3 of   4          111643        0.330         55 %
+                    3 of   4          170942        0.331         58 %
+                    3 of   4          230588        0.332         60 %
+                    3 of   4          290684        0.333         63 %
+                    3 of   4          351207        0.334         66 %
+                    3 of   4          410943        0.335         68 %
+                    3 of   4          468681        0.335         71 %
+                    3 of   4          522662        0.333         74 %
+                    4 of   4           53619        0.331         77 %
+                    4 of   4          110632        0.330         80 %
+                    4 of   4          169882        0.331         83 %
+                    4 of   4          229984        0.332         85 %
+                    4 of   4          290213        0.333         88 %
+                    4 of   4          350805        0.334         91 %
+                    4 of   4          409951        0.334         93 %
+                    4 of   4          467277        0.334         96 %
+                    4 of   4          521751        0.333         99 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
@@ -181,15 +261,15 @@ single 126-154 keV window for Tc-99m and run SIMIND.
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 32                     IntrinsicResolut..: 0.32           
      MatrixSize J.......: 32                     AcceptanceAngle...: 66.80632       
-     Emission type......: 3                      Initial Weight....: 76.65092       
-     NN ScalingFactor...: 1                      Energy Channels...: 128            
+     Emission type......: 3                      Initial Weight....: 0.09581        
+     NN ScalingFactor...: 8                      Energy Channels...: 128            
                                                                               
      SPECT DATA
-     RotationMode.......: -360                   Nr of Projections.: 24             
-     RotationAngle......: 15                     Projection.[start]: 1              
-     Orbital fraction...: 1                      Projection...[end]: 24             
+     RotationMode.......: 360                    Nr of Projections.: 4              
+     RotationAngle......: 90                     Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 4              
                                                                               
-     COLLIMATOR DATA FOR ROUTINE: MC RayTracing       
+     COLLIMATOR DATA FOR ROUTINE: Analytical          
      CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
      HoleSize X.........: 0.15                   Distance X........: 0.02           
      HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
@@ -198,17 +278,6 @@ single 126-154 keV window for Tc-99m and run SIMIND.
      HoleShape..........: Hexagonal              Space Coll2Det....: 0              
      CollDepValue [57]..: 0                      CollDepValue [58].: 0              
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
-
-     PHOTONS AFTER COLLIMATOR AND WITHIN ENER-WIN
-     Geometric..........:  86.66 %          91.51 %
-     Penetration........:   4.61 %           3.56 %
-     Scatter in collim..:   3.80 %           2.57 %
-     X-rays in collim...:   4.93 %           2.37 %
-                                                                              
-     K-photon1 74.16 keV:  77.48 %          48.64 %
-     K-photon2 85.36 keV:  20.17 %          51.36 %
-     K-photon3 26.27 keV:   2.35 %           0.00 %
-     K-photon4 29.83 keV:   0.00 %           0.00 %
                                                                               
      IMAGE-BASED PHANTOM DATA
      RotationCentre.....:  17, 17                Bone definition...: 1170           
@@ -227,38 +296,38 @@ single 126-154 keV window for Tc-99m and run SIMIND.
        1       0    126.0 - 154.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.141E+04 0.185E+03 0.122E+04 0.151E+00 0.132E+00 0.586E+02
+       1   0.210E+03 0.262E+02 0.184E+03 0.143E+00 0.125E+00 0.525E+02
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
-       1    95.00%     2.83%     2.17%    94.93%     2.82%     2.25%
+       1   100.00%     0.00%     0.00%   100.00%     0.00%     0.00%
   
       Win   SC 1  SC 2  SC 3
-       1   90.6%  8.0%  1.4%
+       1   93.3%  6.4%  0.3%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 371.7          
-     MaxValue projection: 1.800          
-     CountRate spectrum.: 88.71          
-     CountRate E-Window.: 81.78          
+     MaxValue spectrum..: 56.66          
+     MaxValue projection: 0.3305         
+     CountRate spectrum.: 76.80          
+     CountRate E-Window.: 73.28          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.47318        
-     Scatter/Total......: 0.3212         
-     Scatter order 1....: 71.65 %        
-     Scatter order 2....: 23.28 %        
-     Scatter order 3....: 5.07 %         
+     Scatter/Primary....: 0.49899        
+     Scatter/Total......: 0.33289        
+     Scatter order 1....: 70.98 %        
+     Scatter order 2....: 23.12 %        
+     Scatter order 3....: 5.9  %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.8647         
-     Efficiency spectrum: 0.9381         
-     Sensitivity Cps/MBq: 81.7779        
-     Sensitivity Cpm/uCi: 181.547        
+     Efficiency E-window: 0.8988         
+     Efficiency spectrum: 0.9419         
+     Sensitivity Cps/MBq: 73.2842        
+     Sensitivity Cpm/uCi: 162.691        
                                                                               
-     Simulation started.: 2026:10:17 13:34:10
-     Simulation stopped.: 2026:10:17 13:34:36
-     Elapsed time.......: 0 h, 0 m and 26 s
-     DetectorHits.......: 225            
-     DetectorHits/CPUsec: 9              
+     Simulation started.: 2026:11:06 06:30:52
+     Simulation stopped.: 2026:11:06 07:16:40
+     Elapsed time.......: 0 h, 45 m and 48 s
+     DetectorHits.......: 534196         
+     DetectorHits/CPUsec: 194            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -268,44 +337,56 @@ single 126-154 keV window for Tc-99m and run SIMIND.
      Header file: basic_case01.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: basic_case01 basic_case01 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:1/RR:12345
+     Command: basic_case01 basic_case01 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:8/RR:12345/FW:basic_case01
     Source file: /workspace/output/basic_simulation/basic_case01_src.smi
     Density file: /workspace/output/basic_simulation/basic_case01_dns.dmi
-    Total counts: 1406.862
+    Histories per view: 9239200
+    Quantization loss: 0.0000%
+    Total projection sum (activity-scaled): 209.961
+    Elapsed: 2749 s
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 92-96
+.. GENERATED FROM PYTHON SOURCE LINES 136-142
 
 Plot the result
 ---------------
-The left panel is the central slice of the input source and the right panel
-is the first projection view of the total (scatter plus primary) window.
+The left panel is the central slice of the input source. The middle panel is
+the first projection view of the total (scatter plus primary) window, and the
+right panel is a profile through its centre row. The hot sphere is the bright
+disc on the right of the body and the peak on the profile.
 
-.. GENERATED FROM PYTHON SOURCE LINES 96-110
+.. GENERATED FROM PYTHON SOURCE LINES 142-163
 
 .. code-block:: Python
 
 
     source_slice = source[source.shape[0] // 2, :, :]
-    total_view0 = total[0, :, 0, :] if total.ndim == 4 else total[0, :, :]
+    total_view0 = projection_view0(total)
+    profile_row = total_view0[total_view0.shape[0] // 2]
 
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4), constrained_layout=True)
     axes[0].imshow(source_slice, cmap="viridis")
     axes[0].set_title("Input source")
-    axes[1].imshow(total_view0, cmap="magma")
+    total_image = axes[1].imshow(total_view0, cmap="magma")
     axes[1].set_title("Total (view 0)")
-    for ax in axes:
+    fig.colorbar(total_image, ax=axes[1], shrink=0.8)
+    axes[2].plot(profile_row, color="black")
+    axes[2].axvline(22, color="tab:red", linestyle="--", label="Hot sphere")
+    axes[2].set_title("Centre-row profile")
+    axes[2].set_xlabel("Bin")
+    axes[2].set_ylabel("Counts")
+    axes[2].legend()
+    for ax in axes[:2]:
         ax.axis("off")
-    fig.tight_layout()
     fig.savefig(output_dir / "basic_simulation_summary.png", dpi=140)
     plt.show()
 
 
 
 .. image-sg:: /auto_examples/getting_started/images/sphx_glr_plot_01_basic_simulation_001.png
-   :alt: Input source, Total (view 0)
+   :alt: Input source, Total (view 0), Centre-row profile
    :srcset: /auto_examples/getting_started/images/sphx_glr_plot_01_basic_simulation_001.png
    :class: sphx-glr-single-img
 
@@ -316,7 +397,7 @@ is the first projection view of the total (scatter plus primary) window.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 26.070 seconds)
+   **Total running time of the script:** (45 minutes 48.983 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_01_basic_simulation.py:

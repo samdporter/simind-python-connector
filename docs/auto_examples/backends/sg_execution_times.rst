@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**12:26.793** total execution time for 6 files **from auto_examples/backends**:
+**12:04.731** total execution time for 6 files **from auto_examples/backends**:
 
 .. container::
 
@@ -32,21 +32,21 @@ Computation times
    * - Example
      - Time
      - Mem (MB)
-   * - :ref:`sphx_glr_auto_examples_backends_plot_07b_sirf_adaptor_osem.py` (``plot_07b_sirf_adaptor_osem.py``)
-     - 04:16.613
-     - 0.0
    * - :ref:`sphx_glr_auto_examples_backends_plot_07c_pytomography_adaptor_osem.py` (``plot_07c_pytomography_adaptor_osem.py``)
-     - 04:07.459
+     - 04:29.959
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_backends_plot_07b_sirf_adaptor_osem.py` (``plot_07b_sirf_adaptor_osem.py``)
+     - 03:48.691
      - 0.0
    * - :ref:`sphx_glr_auto_examples_backends_plot_07a_stir_adaptor_osem.py` (``plot_07a_stir_adaptor_osem.py``)
-     - 03:54.834
-     - 0.0
-   * - :ref:`sphx_glr_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py` (``plot_08c_pytomography_adaptor_from_dicom.py``)
-     - 00:06.051
-     - 0.0
-   * - :ref:`sphx_glr_auto_examples_backends_plot_08b_sirf_adaptor_from_dicom.py` (``plot_08b_sirf_adaptor_from_dicom.py``)
-     - 00:01.004
+     - 03:44.718
      - 0.0
    * - :ref:`sphx_glr_auto_examples_backends_plot_08a_stir_adaptor_from_dicom.py` (``plot_08a_stir_adaptor_from_dicom.py``)
-     - 00:00.832
+     - 00:00.526
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_backends_plot_08b_sirf_adaptor_from_dicom.py` (``plot_08b_sirf_adaptor_from_dicom.py``)
+     - 00:00.436
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_backends_plot_08c_pytomography_adaptor_from_dicom.py` (``plot_08c_pytomography_adaptor_from_dicom.py``)
+     - 00:00.401
      - 0.0

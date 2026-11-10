@@ -2,16 +2,20 @@
 
 import importlib.util
 import json
+import os
 import shutil
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from simind_python_connector.core.types import ScoringRoutine
+from simind_python_connector.recon.corrections import ScatterCorrection
 from simind_python_connector.utils.interfile import (
     read_header,
     read_projection_geometry,
 )
+from tests.recon.fakes import FakeData
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -770,3 +774,653 @@ def test_sparse_real_engine_density_and_template_integration(tmp_path):
     assert raw["geom_coll_primary"].shape == (1, grid, 2, grid)
     assert float(raw["all_interactions"].sum()) > 0.0
     assert float(raw["geom_coll_primary"].sum()) > 0.0
+
+
+def _gaussian_smooth(array, fwhm_bins=script.SMOOTHING_FWHM_BINS, across_views=True):
+    """Independent NumPy/SciPy reference for the tutorial's smoothing."""
+    from scipy.ndimage import gaussian_filter
+
+    values = np.asarray(array, dtype=np.float64)
+    sigma = [0.0] * values.ndim
+    mode = ["reflect"] * values.ndim
+    sigma[-3] = sigma[-1] = fwhm_bins / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+    if across_views:
+        sigma[-2] = sigma[-1]
+        mode[-2] = "wrap"
+    smoothed = gaussian_filter(values, sigma, mode=mode)
+    # Rescale only for a sum that stands clear of its rounding floor: a
+    # cancelling signed field would otherwise be scaled by an arbitrary factor
+    # (often zero) drawn from two floor-level residuals.
+    original_sum = values.sum()
+    if abs(original_sum) > 1e-9 * np.abs(values).sum():
+        total = smoothed.sum()
+        if total != 0.0:
+            smoothed *= original_sum / total
+    return smoothed
+
+
+def _smoothed_pixelwise_reference(scatter, total, measured, fwhm_bins):
+    smoothed_scatter = _gaussian_smooth(scatter, fwhm_bins)
+    smoothed_total = _gaussian_smooth(total, fwhm_bins)
+    fraction = np.divide(
+        smoothed_scatter,
+        smoothed_total,
+        out=np.zeros_like(smoothed_scatter),
+        where=smoothed_total > 0.0,
+    )
+    return _gaussian_smooth(np.asarray(measured, float) * fraction, fwhm_bins)
+
+
+class _CoreProjector:
+    def __init__(self, raw):
+        self.outputs = raw
+        self.adaptor = type(
+            "Adaptor",
+            (),
+            {"get_scoring_routine": lambda self: ScoringRoutine.PENETRATE},
+        )()
+        self.last_scale = None
+
+    def project(self, image):
+        return {key: FakeData(value) for key, value in self.outputs.items()}
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_pre_smooths_the_mc_fields_before_dividing():
+    rng = np.random.default_rng(31)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    scatter = total - primary
+    measured = rng.uniform(100.0, 200.0, shape)
+    raw = {
+        "all_interactions": total.copy(),
+        "geom_coll_primary": primary.copy(),
+    }
+
+    additive = script.build_additive(raw, measured, "pixelwise")
+    expected = _smoothed_pixelwise_reference(scatter, total, measured, 3.0)
+    legacy = _gaussian_smooth(measured * (scatter / total), 3.0)
+
+    np.testing.assert_allclose(additive.values, expected, rtol=1e-5, atol=1e-4)
+    assert not np.allclose(additive.values, legacy, rtol=1e-4, atol=1e-3)
+    # The final smoothing is still applied after the measured scaling.
+    unsmoothed_fraction = _gaussian_smooth(scatter, 3.0) / _gaussian_smooth(total, 3.0)
+    assert not np.allclose(
+        additive.values, measured * unsmoothed_fraction, rtol=1e-4, atol=1e-3
+    )
+
+
+@pytest.mark.unit
+def test_core_and_tutorial_pixelwise_estimators_agree():
+    rng = np.random.default_rng(37)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    measured = rng.uniform(100.0, 200.0, shape)
+    raw = {
+        "all_interactions": total.copy(),
+        "geom_coll_primary": primary.copy(),
+    }
+
+    tutorial = script.build_additive(raw, measured, "pixelwise")
+    core = ScatterCorrection(
+        _CoreProjector(raw),
+        measured=FakeData(measured),
+        smoothing_fwhm_bins=3.0,
+        smooth_across_views=True,
+    ).estimate("image")
+
+    np.testing.assert_allclose(tutorial.values, core.as_array(), rtol=1e-5, atol=1e-4)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_is_the_same_for_3d_and_singleton_4d_arrays():
+    rng = np.random.default_rng(41)
+    total = rng.uniform(20.0, 40.0, (4, 6, 8))
+    primary = rng.uniform(10.0, 30.0, (4, 6, 8))
+    measured = rng.uniform(100.0, 200.0, (4, 6, 8))
+
+    three = script.build_additive(
+        {"all_interactions": total, "geom_coll_primary": primary},
+        measured,
+        "pixelwise",
+    )
+    four = script.build_additive(
+        {
+            "all_interactions": total[None],
+            "geom_coll_primary": primary[None],
+        },
+        measured[None],
+        "pixelwise",
+    )
+
+    np.testing.assert_allclose(four.values[0], three.values, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_returns_zero_for_an_all_zero_denominator():
+    shape = (1, 3, 4)
+    raw = {
+        "all_interactions": np.zeros(shape),
+        "geom_coll_primary": np.zeros(shape),
+    }
+    additive = script.build_additive(raw, np.ones(shape), "pixelwise")
+    np.testing.assert_array_equal(additive.values, 0.0)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_rescues_a_raw_zero_bin_from_its_neighbours():
+    shape = (1, 5, 7)
+    total = np.ones(shape)
+    total[0, 2, 3] = 0.0
+    raw = {"all_interactions": total, "geom_coll_primary": np.zeros(shape)}
+    additive = script.build_additive(raw, np.ones(shape), "pixelwise")
+    assert additive.values[0, 2, 3] > 0.0
+
+
+@pytest.mark.unit
+def test_smooth_scatter_keeps_a_zero_sum_signed_field():
+    """The tutorial's smoothing must not erase a cancelling signed field."""
+    field = np.zeros((1, 5, 7, 7))  # (leading, axial, view, bin)
+    field[0, 1, 1, 1] = 6.0
+    field[0, 3, 1, 5] = -6.0
+    assert field.sum() == 0.0
+
+    result = script.smooth_scatter(field)
+
+    np.testing.assert_allclose(result, _gaussian_smooth(field), rtol=1e-5, atol=1e-6)
+    assert np.isfinite(result).all()
+    assert result.sum() == pytest.approx(0.0, abs=1e-4)
+    assert result[0, 1, 1, 1] > 0.0
+    assert result[0, 3, 1, 5] < 0.0
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_keeps_a_zero_sum_signed_scatter():
+    """A zero-sum signed scatter survives pre-smoothing, the division and the
+    final smoothing; the export keeps counting raw non-positive bins."""
+    shape = (1, 5, 7, 7)
+    scatter = np.zeros(shape)
+    scatter[0, 1, 1, 1] = 6.0
+    scatter[0, 3, 1, 5] = -6.0
+    assert scatter.sum() == 0.0
+    total = np.full(shape, 10.0)
+    total[0, 4, 6, 6] = 0.0  # raw zero bin, positive once smoothed
+    primary = total - scatter
+    measured = np.full(shape, 100.0)
+    raw = {"all_interactions": total, "geom_coll_primary": primary}
+
+    additive = script.build_additive(raw, measured, "pixelwise")
+
+    np.testing.assert_allclose(
+        additive.values,
+        _smoothed_pixelwise_reference(
+            scatter, total, measured, script.SMOOTHING_FWHM_BINS
+        ),
+        rtol=1e-4,
+        atol=1e-5,
+    )
+    assert np.isfinite(additive.values).all()
+    # The signed field survives: not clipped and not scaled to zero.
+    assert additive.values[0, 1, 1, 1] > 0.0
+    assert additive.values[0, 3, 1, 5] < 0.0
+    # The export reports raw non-positive bins; the division uses the
+    # smoothed total, which rescues that bin.
+    assert additive.zero_denominator_fraction == pytest.approx(1.0 / (5 * 7 * 7))
+    assert additive.values[0, 4, 6, 6] < 0.0
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_accepts_tiny_positive_denominators():
+    shape = (1, 1, 2)
+    raw = {
+        "all_interactions": np.full(shape, 1e-30),
+        "geom_coll_primary": np.full(shape, -1e-30),
+    }
+    additive = script.build_additive(raw, np.full(shape, 7.0), "pixelwise")
+    assert np.isfinite(additive.values).all()
+    np.testing.assert_allclose(additive.values, 14.0, rtol=1e-5)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_is_invariant_to_a_common_mc_scale():
+    rng = np.random.default_rng(43)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    measured = rng.uniform(100.0, 200.0, shape)
+    reference = script.build_additive(
+        {"all_interactions": total, "geom_coll_primary": primary},
+        measured,
+        "pixelwise",
+    )
+    for scale in (1e-9, 1e6):
+        scaled = script.build_additive(
+            {
+                "all_interactions": total * scale,
+                "geom_coll_primary": primary * scale,
+            },
+            measured,
+            "pixelwise",
+        )
+        np.testing.assert_allclose(
+            scaled.values, reference.values, rtol=1e-6, atol=1e-6
+        )
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_does_not_mutate_its_inputs():
+    rng = np.random.default_rng(47)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    measured = rng.uniform(100.0, 200.0, shape)
+    before = (total.copy(), primary.copy(), measured.copy())
+
+    script.build_additive(
+        {"all_interactions": total, "geom_coll_primary": primary},
+        measured,
+        "pixelwise",
+    )
+
+    np.testing.assert_array_equal(total, before[0])
+    np.testing.assert_array_equal(primary, before[1])
+    np.testing.assert_array_equal(measured, before[2])
+
+
+@pytest.mark.unit
+def test_unsmoothed_pixelwise_additive_keeps_the_legacy_algebra_and_signed_values():
+    shape = (1, 1, 2)
+    raw = {
+        "all_interactions": np.full(shape, 10.0),
+        "geom_coll_primary": np.full(shape, 12.0),
+    }
+    measured = np.full(shape, 5.0)
+    additive = script.build_additive(
+        raw, measured, "pixelwise", smoothing_fwhm_bins=None
+    )
+    np.testing.assert_allclose(additive.values, -1.0)
+
+
+@pytest.mark.unit
+def test_pixelwise_additive_rejects_measured_data_of_another_shape():
+    shape = (1, 3, 4)
+    raw = {
+        "all_interactions": np.ones(shape),
+        "geom_coll_primary": np.zeros(shape),
+    }
+    with pytest.raises(ValueError, match=r"measured shape.*all_interactions shape"):
+        script.build_additive(raw, np.ones((1, 3, 5)), "pixelwise")
+
+
+@pytest.mark.unit
+def test_non_pixelwise_additives_are_numerically_unchanged():
+    rng = np.random.default_rng(53)
+    shape = (1, 4, 6, 8)
+    total = rng.uniform(20.0, 40.0, shape)
+    primary = rng.uniform(10.0, 30.0, shape)
+    scatter = total - primary
+    measured = rng.uniform(100.0, 200.0, shape)
+    reference = rng.uniform(80.0, 120.0, shape)
+    raw = {
+        "all_interactions": total.copy(),
+        "geom_coll_primary": primary.copy(),
+    }
+
+    known = script.build_additive(raw, measured, "known")
+    reference_sum = script.build_additive(
+        raw, measured, "reference_sum", reference_projection=reference
+    )
+    global_scaled = script.build_additive(raw, measured, "dewaraja_global")
+
+    np.testing.assert_allclose(
+        known.values, _gaussian_smooth(scatter), rtol=1e-6, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        reference_sum.values,
+        _gaussian_smooth(scatter * float(reference.sum() / primary.sum())),
+        rtol=1e-6,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        global_scaled.values,
+        _gaussian_smooth(scatter * float(measured.sum() / total.sum())),
+        rtol=1e-6,
+        atol=1e-5,
+    )
+
+
+def _cache_fixture(tmp_path, monkeypatch):
+    binary = tmp_path / "simind"
+    binary.write_bytes(b"engine-one")
+    data_directory = tmp_path / "smc"
+    data_directory.mkdir()
+    (data_directory / "y90.isd").write_text("one")
+    monkeypatch.setenv("SIMIND_BIN", str(binary))
+    monkeypatch.setenv("SIMIND_SMC_DIR", str(data_directory))
+    monkeypatch.setenv("SIMIND_DATA_DIR", str(data_directory))
+    monkeypatch.setenv("SIMIND_VERSION", "8")
+    monkeypatch.setenv("SIMIND_ROOT", str(tmp_path))
+    output = tmp_path / "job"
+    output.mkdir()
+    template = tmp_path / "template.hs"
+    template.write_text("original acquisition geometry\n")
+    source = np.ones((2, 2, 2), dtype=np.float32)
+    density = np.ones((2, 2, 2), dtype=np.float32)
+    sums = {"all_interactions": 8.0, "geom_coll_primary": 6.0}
+    for name in ("source", "all_interactions", "geom_coll_primary"):
+        np.save(output / f"{name}.npy", source)
+    (output / "components.json").write_text(json.dumps(sums))
+    job = {
+        "prefix": "job",
+        "nn": 1,
+        "seed": None,
+        "activity_mbq": 1.0,
+        "time_per_projection_s": 1.0,
+        "quantization_scale": 0.1,
+        "template": str(template),
+    }
+    settings = script._simulation_settings(job, density)
+    (output / "manifest.json").write_text(
+        json.dumps({"settings": settings, "result": {"seconds": 3.0, "sums": sums}})
+    )
+    return output, source, density, job, settings, binary, data_directory
+
+
+@pytest.mark.unit
+def test_simulation_cache_hits_when_engine_inputs_are_unchanged(tmp_path, monkeypatch):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    assert script._cached_simulation(output, settings, source) == {
+        "seconds": 3.0,
+        "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+    }
+    assert script._simulation_settings(job, density) == settings
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_binary_changes(tmp_path, monkeypatch):
+    output, source, density, job, settings, binary, _ = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    binary.write_bytes(b"engine-two")
+    changed = script._simulation_settings(job, density)
+    assert changed["engine"]["binary_sha256"] != settings["engine"]["binary_sha256"]
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_bare_simind_bin_is_looked_up_on_path_not_the_working_directory(
+    tmp_path, monkeypatch
+):
+    working = tmp_path / "work"
+    working.mkdir()
+    (working / "simind").write_bytes(b"local-decoy")
+    bin_directory = tmp_path / "bin"
+    bin_directory.mkdir()
+    binary = bin_directory / "simind"
+    binary.write_bytes(b"path-engine")
+    binary.chmod(0o755)
+    monkeypatch.chdir(working)
+    monkeypatch.setenv("SIMIND_BIN", "simind")
+    monkeypatch.setenv(
+        "PATH", str(bin_directory) + os.pathsep + os.environ.get("PATH", "")
+    )
+    inputs = script._engine_inputs()
+    assert inputs["binary"] == str(binary.resolve())
+    assert inputs["binary_complete"] is True
+
+
+@pytest.mark.unit
+def test_unidentifiable_executable_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIMIND_BIN", str(tmp_path / "missing-simind"))
+    settings = script._simulation_settings(job, density)
+    assert settings["engine"]["binary_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_the_acquisition_template_changes(
+    tmp_path, monkeypatch
+):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    Path(job["template"]).write_text("changed orbit radii and view angles\n")
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["acquisition_template_sha256"]
+        != settings["acquisition_template_sha256"]
+    )
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_unreadable_acquisition_template_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    Path(job["template"]).unlink()
+    settings = script._simulation_settings(job, density)
+    assert settings["acquisition_template_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_data_changes(tmp_path, monkeypatch):
+    output, source, density, job, settings, _, data_directory = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    (data_directory / "y90.isd").write_text("one-more-line\n")
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["engine"]["data_directory_digest"]
+        != settings["engine"]["data_directory_digest"]
+    )
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_records_the_path_resolved_executable(tmp_path, monkeypatch):
+    bin_directory = tmp_path / "bin"
+    bin_directory.mkdir()
+    binary = bin_directory / "simind"
+    binary.write_bytes(b"path-engine-one")
+    binary.chmod(0o755)
+    monkeypatch.delenv("SIMIND_BIN", raising=False)
+    monkeypatch.setenv(
+        "PATH", str(bin_directory) + os.pathsep + os.environ.get("PATH", "")
+    )
+    first = script._engine_inputs()
+    assert first["binary"] == str(binary.resolve())
+    binary.write_bytes(b"path-engine-two")
+    second = script._engine_inputs()
+    assert second["binary"] == first["binary"]
+    assert second["binary_sha256"] != first["binary_sha256"]
+
+
+@pytest.mark.unit
+def test_unidentified_data_tree_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    for variable in ("SIMIND_SMC_DIR", "SMC_DIR", "SIMIND_DATA_DIR"):
+        monkeypatch.delenv(variable, raising=False)
+    settings = script._simulation_settings(job, density)
+    assert settings["engine"]["data_directory"] == ""
+    assert settings["engine"]["data_directory_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
+
+
+@pytest.mark.unit
+def test_unreadable_data_directory_forces_a_cache_miss(tmp_path, monkeypatch):
+    output, source, density, job, _, _, _ = _cache_fixture(tmp_path, monkeypatch)
+
+    def failing_walk(root, *, followlinks=False, onerror=None):
+        if onerror is not None:
+            onerror(PermissionError("permission denied", str(root)))
+        return iter(())
+
+    monkeypatch.setattr(script.os, "walk", failing_walk)
+    settings = script._simulation_settings(job, density)
+    assert settings["engine"]["data_directory_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_version_changes(
+    tmp_path, monkeypatch
+):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIMIND_VERSION", "9")
+    changed = script._simulation_settings(job, density)
+    assert changed["engine"]["version"] != settings["engine"]["version"]
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_when_engine_root_changes(tmp_path, monkeypatch):
+    output, source, density, job, settings, _, _ = _cache_fixture(tmp_path, monkeypatch)
+    other = tmp_path / "other-root"
+    other.mkdir()
+    monkeypatch.setenv("SIMIND_ROOT", str(other))
+    changed = script._simulation_settings(job, density)
+    assert changed["engine"]["root"] != settings["engine"]["root"]
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_engine_data_directory_falls_back_to_smc_dir(tmp_path, monkeypatch):
+    data_directory = tmp_path / "smc"
+    data_directory.mkdir()
+    (data_directory / "y90.isd").write_text("one")
+    monkeypatch.delenv("SIMIND_SMC_DIR", raising=False)
+    monkeypatch.delenv("SIMIND_DATA_DIR", raising=False)
+    monkeypatch.setenv("SMC_DIR", str(data_directory))
+    assert script._engine_inputs()["data_directory"] == str(data_directory.resolve())
+
+
+@pytest.mark.unit
+def test_simulation_cache_invalidates_on_same_size_same_mtime_content_edit(
+    tmp_path, monkeypatch
+):
+    output, source, density, job, settings, _, data_directory = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    data_file = data_directory / "y90.isd"
+    before = data_file.stat()
+    data_file.write_text("two")
+    os.utime(data_file, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert data_file.stat().st_size == before.st_size
+    assert data_file.stat().st_mtime_ns == before.st_mtime_ns
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["engine"]["data_directory_digest"]
+        != settings["engine"]["data_directory_digest"]
+    )
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_over_budget_content_change_cannot_hit_the_cache(tmp_path, monkeypatch):
+    """An over-budget file is never a metadata-only cache key."""
+    output, source, density, job, _, _, data_directory = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    monkeypatch.setattr(script, "MAX_DATA_DIGEST_BYTES", 1)
+    over_budget = script._simulation_settings(job, density)
+    assert over_budget["engine"]["data_directory_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": over_budget,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, over_budget, source) is None
+
+    data_file = data_directory / "y90.isd"
+    before = data_file.stat()
+    data_file.write_text("two")
+    os.utime(data_file, ns=(before.st_atime_ns, before.st_mtime_ns))
+    after = data_file.stat()
+    assert after.st_size == before.st_size
+    assert after.st_mtime_ns == before.st_mtime_ns
+    changed = script._simulation_settings(job, density)
+    assert (
+        changed["engine"]["data_directory_digest"]
+        != over_budget["engine"]["data_directory_digest"]
+    )
+    assert changed["engine"]["data_directory_complete"] is False
+    assert script._cached_simulation(output, changed, source) is None
+
+
+@pytest.mark.unit
+def test_symlinked_data_directory_forces_cache_miss(tmp_path, monkeypatch):
+    """Files behind a linked directory must never make a complete key."""
+    output, source, density, job, _, _, data_directory = _cache_fixture(
+        tmp_path, monkeypatch
+    )
+    real = data_directory / "real"
+    real.mkdir()
+    (real / "extra.isd").write_text("extra")
+    (data_directory / "linked").symlink_to(real, target_is_directory=True)
+    (data_directory / "loop").symlink_to(data_directory, target_is_directory=True)
+
+    settings = script._simulation_settings(job, density)
+    assert settings["engine"]["data_directory_complete"] is False
+    (output / "manifest.json").write_text(
+        json.dumps(
+            {
+                "settings": settings,
+                "result": {
+                    "seconds": 3.0,
+                    "sums": {"all_interactions": 8.0, "geom_coll_primary": 6.0},
+                },
+            }
+        )
+    )
+    assert script._cached_simulation(output, settings, source) is None

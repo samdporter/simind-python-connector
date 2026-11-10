@@ -1,0 +1,547 @@
+{
+ "schema": 1,
+ "notes": [
+  "Every gallery page must have an entry here; a new example without one fails the gate.",
+  "figures names the semantic panels required in the page. accepts holds the gallery filenames that satisfy that panel; alt_contains narrows a match when the filename alone is ambiguous.",
+  "figure_count is the accepted number of embedded figures (an integer or [minimum, maximum]).",
+  "thumbnail is real for every page except intentional zero-figure pages, where placeholder is allowed.",
+  "run_summary points at a committed summary from the reviewed run. The gate never re-runs a simulation; it checks the reported fields and the statistical gates that back a quantitative claim.",
+  "Set statistical_claims.negative_result on an audited negative result. Such a page passes completeness but is rejected if the summary is labelled accepted or if no required gate failed."
+ ],
+ "examples": {
+  "backends/plot_07a_stir_adaptor_osem": {
+   "figures": [
+    {
+     "role": "adaptor_osem_comparison",
+     "accepts": ["sphx_glr_plot_07a_stir_adaptor_osem_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_07b_sirf_adaptor_osem": {
+   "figures": [
+    {
+     "role": "adaptor_osem_comparison",
+     "accepts": ["sphx_glr_plot_07b_sirf_adaptor_osem_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_07c_pytomography_adaptor_osem": {
+   "figures": [
+    {
+     "role": "adaptor_osem_comparison",
+     "accepts": ["sphx_glr_plot_07c_pytomography_adaptor_osem_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_08a_stir_adaptor_from_dicom": {
+   "figures": [
+    {
+     "role": "dicom_projection",
+     "accepts": ["sphx_glr_plot_08a_stir_adaptor_from_dicom_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_08b_sirf_adaptor_from_dicom": {
+   "figures": [
+    {
+     "role": "dicom_projection",
+     "accepts": ["sphx_glr_plot_08b_sirf_adaptor_from_dicom_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "backends/plot_08c_pytomography_adaptor_from_dicom": {
+   "figures": [
+    {
+     "role": "dicom_projection",
+     "accepts": ["sphx_glr_plot_08c_pytomography_adaptor_from_dicom_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "cil/plot_14_cil_scatter": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_002.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_003.png"]
+    },
+    {
+     "role": "reconstruction_triptych",
+     "accepts": ["sphx_glr_plot_14_cil_scatter_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real"
+  },
+  "cil/plot_15_cil_rdp_svrg": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_002.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_003.png"]
+    },
+    {
+     "role": "convergence",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_004.png"]
+    },
+    {
+     "role": "convergence_detail",
+     "accepts": ["sphx_glr_plot_15_cil_rdp_svrg_005.png"]
+    }
+   ],
+   "figure_count": 5,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_01_basic_simulation": {
+   "figures": [
+    {
+     "role": "source_and_projection",
+     "accepts": ["sphx_glr_plot_01_basic_simulation_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_02_runtime_switch_comparison": {
+   "figures": [
+    {
+     "role": "seed_comparison",
+     "accepts": ["sphx_glr_plot_02_runtime_switch_comparison_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_03_multi_window": {
+   "figures": [
+    {
+     "role": "multi_window_and_tew",
+     "accepts": ["sphx_glr_plot_03_multi_window_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_04_custom_config": {
+   "intentional_zero_figures": true,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_05_scattwin_vs_penetrate_comparison": {
+   "figures": [
+    {
+     "role": "count_maps",
+     "accepts": ["sphx_glr_plot_05_scattwin_vs_penetrate_comparison_001.png"]
+    },
+    {
+     "role": "component_stacks",
+     "accepts": ["sphx_glr_plot_05_scattwin_vs_penetrate_comparison_002.png"]
+    }
+   ],
+   "figure_count": 2,
+   "thumbnail": "real"
+  },
+  "getting_started/plot_06_schneider_density_conversion": {
+   "figures": [
+    {
+     "role": "density_conversion_comparison",
+     "accepts": ["sphx_glr_plot_06_schneider_density_conversion_001.png"]
+    },
+    {
+     "role": "simulated_ct_and_density",
+     "accepts": ["sphx_glr_plot_06_schneider_density_conversion_002.png"]
+    }
+   ],
+   "figure_count": 2,
+   "thumbnail": "real"
+  },
+  "mc_scatter/plot_11_mc_scatter_osem": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_002.png"]
+    },
+    {
+     "role": "measured_and_scatter_estimates",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_003.png"]
+    },
+    {
+     "role": "reconstruction_triptych",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_004.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_005.png"]
+    },
+    {
+     "role": "contrast_recovery",
+     "accepts": ["sphx_glr_plot_11_mc_scatter_osem_006.png"]
+    }
+   ],
+   "figure_count": 6,
+   "thumbnail": "real"
+  },
+  "mc_scatter/plot_12_scatter_normalisation": {
+   "figures": [
+    {
+     "role": "scale_factors",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_001.png"]
+    },
+    {
+     "role": "scatter_estimates",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_002.png"]
+    },
+    {
+     "role": "ratio_comparison",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_003.png"]
+    },
+    {
+     "role": "reconstruction_grid",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_004.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_005.png"]
+    },
+    {
+     "role": "profiles",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_006.png"]
+    },
+    {
+     "role": "contrast_recovery",
+     "accepts": ["sphx_glr_plot_12_scatter_normalisation_007.png"]
+    }
+   ],
+   "figure_count": 7,
+   "thumbnail": "real"
+  },
+  "mc_scatter/plot_13_residual_correction": {
+   "figures": [
+    {
+     "role": "reconstruction_grid",
+     "accepts": ["sphx_glr_plot_13_residual_correction_001.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_13_residual_correction_002.png"]
+    },
+    {
+     "role": "contrast_recovery",
+     "accepts": ["sphx_glr_plot_13_residual_correction_003.png"]
+    }
+   ],
+   "figure_count": 3,
+   "thumbnail": "real"
+  },
+  "phantoms/plot_09_phantom_library": {
+   "figures": [
+    {
+     "role": "phantom_library",
+     "accepts": ["sphx_glr_plot_09_phantom_library_001.png"]
+    }
+   ],
+   "figure_count": 1,
+   "thumbnail": "real"
+  },
+  "phantoms/plot_10_nema_osem": {
+   "figures": [
+    {
+     "role": "phantom_overview",
+     "accepts": ["sphx_glr_plot_10_nema_osem_001.png"]
+    },
+    {
+     "role": "projection_and_sinogram",
+     "accepts": ["sphx_glr_plot_10_nema_osem_002.png"]
+    },
+    {
+     "role": "reconstruction_comparison",
+     "accepts": ["sphx_glr_plot_10_nema_osem_003.png"]
+    },
+    {
+     "role": "reconstruction_triptych",
+     "accepts": ["sphx_glr_plot_10_nema_osem_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real"
+  },
+  "real_data/plot_16a_stir_ct_conversion": {
+   "figures": [
+    {
+     "role": "registration_overlay",
+     "accepts": ["sphx_glr_plot_16a_stir_ct_conversion_001.png"]
+    },
+    {
+     "role": "attenuation_maps",
+     "accepts": ["sphx_glr_plot_16a_stir_ct_conversion_002.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_16a_stir_ct_conversion_003.png"]
+    }
+   ],
+   "figure_count": 3,
+   "thumbnail": "real"
+  },
+  "real_data/plot_16b_sirf_ct_conversion": {
+   "figures": [
+    {
+     "role": "registration_overlay",
+     "accepts": ["sphx_glr_plot_16b_sirf_ct_conversion_001.png"]
+    },
+    {
+     "role": "attenuation_maps",
+     "accepts": ["sphx_glr_plot_16b_sirf_ct_conversion_002.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_16b_sirf_ct_conversion_003.png"]
+    }
+   ],
+   "figure_count": 3,
+   "thumbnail": "real"
+  },
+  "real_data/plot_16c_pytomography_ct_conversion": {
+   "figures": [
+    {
+     "role": "registration_overlay",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_001.png"]
+    },
+    {
+     "role": "attenuation_maps",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_002.png"]
+    },
+    {
+     "role": "conversion_ratio",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_003.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_16c_pytomography_ct_conversion_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real"
+  },
+  "real_data/plot_17_y90_effective_energy": {
+   "figures": [
+    {
+     "role": "source_spectrum",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_001.png"]
+    },
+    {
+     "role": "detected_spectrum",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_002.png"]
+    },
+    {
+     "role": "attenuation_comparison",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_003.png"]
+    },
+    {
+     "role": "attenuation_profiles",
+     "accepts": ["sphx_glr_plot_17_y90_effective_energy_004.png"]
+    }
+   ],
+   "figure_count": 4,
+   "thumbnail": "real",
+   "run_summary": {
+    "path": "gallery_provenance/plot_17_y90_effective_energy.json",
+    "required_fields": [
+     "source_spectrum.kind",
+     "source_spectrum.points",
+     "detected_spectrum.views",
+     "detected_spectrum.records",
+     "weighted_attenuation.weighted_mean_energy_kev",
+     "weighted_attenuation.body_mean_difference_cm1",
+     "reconstruction.subsets",
+     "reconstruction.iterations"
+    ]
+   }
+  },
+  "real_data/plot_18_y90_mc_scatter": {
+   "figures": [
+    {
+     "role": "registration",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_001.png"]
+    },
+    {
+     "role": "vois",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_002.png"]
+    },
+    {
+     "role": "reconstructions",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_003.png"]
+    },
+    {
+     "role": "reconstructions_global",
+     "accepts": ["sphx_glr_plot_18_y90_mc_scatter_004.png"],
+     "alt_contains": ["Global scaling", "collapsed", "diagnostic only"],
+     "optional": true
+    },
+    {
+     "role": "ratios",
+     "accepts": [
+      "sphx_glr_plot_18_y90_mc_scatter_004.png",
+      "sphx_glr_plot_18_y90_mc_scatter_005.png"
+     ]
+    },
+    {
+     "role": "scatter",
+     "accepts": [
+      "sphx_glr_plot_18_y90_mc_scatter_005.png",
+      "sphx_glr_plot_18_y90_mc_scatter_006.png"
+     ]
+    },
+    {
+     "role": "profiles",
+     "accepts": [
+      "sphx_glr_plot_18_y90_mc_scatter_006.png",
+      "sphx_glr_plot_18_y90_mc_scatter_007.png"
+     ],
+     "alt_contains": [
+      "Profiles through",
+      "hot-sphere column",
+      "5 x 5 band mean",
+      "fixed sphere column"
+     ]
+    }
+   ],
+   "figure_count": [6, 7],
+   "thumbnail": "real",
+   "run_summary": {
+    "path": "gallery_provenance/plot_18_y90_mc_scatter.json",
+    "required_fields": [
+     "status",
+     "engine.version",
+     "engine.history_multiplier",
+     "schedule.history_multiplier",
+     "schedule.probe_geometry",
+     "gates.registration",
+     "gates.quantization_passed",
+     "gates.seed_passed",
+     "gates.seed_scatter_l1",
+     "gates.nn_passed",
+     "gates.iteration_passed",
+     "gates.stability_passed",
+     "gates.stability_max_ratio_change"
+    ],
+    "expected_values": {
+     "status": "quality_not_established",
+     "engine.version": "8",
+     "engine.history_multiplier": 4,
+     "schedule.history_multiplier": 4,
+     "schedule.probe_geometry": "native 120-view measured geometry",
+     "gates.registration": true,
+     "gates.quantization_passed": true,
+     "gates.seed_passed": true,
+     "gates.nn_passed": false,
+     "gates.iteration_passed": true,
+     "gates.stability_passed": true
+    },
+    "consistent_fields": [
+     ["history_multiplier", "engine.history_multiplier"],
+     ["history_multiplier", "schedule.history_multiplier"],
+     ["engine.probe_geometry", "schedule.probe_geometry"]
+    ],
+    "page_reports": [
+     {"prefix": "history-doubling probe runs at ", "suffix": ", 8 and 16",
+      "expected": "NN={engine.history_multiplier:d}"},
+     {"prefix": "seed smoothed-scatter relative L1: ", "suffix": " (gate <= 5%)",
+      "expected": "{gates.seed_scatter_l1:.2%}"},
+     {"prefix": "independent-seed check passed (smoothed scatter L1 ",
+      "suffix": ", gate 5%)", "expected": "{gates.seed_scatter_l1:.2%}"},
+     {"prefix": "two-refresh stability (first versus second refresh): Known activity: ",
+      "suffix": " (gate <= 5%)",
+      "expected": "{gates.stability_max_ratio_change:.2%}"},
+     {"prefix": "two-refresh stability check passed (", "suffix": ", gate 5%)",
+      "expected": "{gates.stability_max_ratio_change:.2%}"},
+     {"prefix": "two-refresh stability check (", "suffix": ", gate 5%)",
+      "expected": "{gates.stability_max_ratio_change:.2%}"},
+     {"prefix": "combined: nominal ", "suffix": ", ±1",
+      "expected": "{centre_sensitivity.combined.nominal_min:.3f}-{centre_sensitivity.combined.nominal_max:.3f}, 125-centre {centre_sensitivity.combined.all_min:.3f}-{centre_sensitivity.combined.all_max:.3f}"},
+     {"prefix": "the four noncollapsed corrected results were ",
+      "suffix": ", against truth",
+      "expected": "{centre_sensitivity.combined.nominal_min:.3f}–{centre_sensitivity.combined.nominal_max:.3f}"},
+     {"prefix": "their combined range was ", "suffix": ". These are sensitivity",
+      "expected": "{centre_sensitivity.combined.all_min:.3f}–{centre_sensitivity.combined.all_max:.3f}"},
+     {"prefix": "strategy ordering among the four corrected strategies changed in ",
+      "suffix": " of 125 centres",
+      "expected": "{centre_sensitivity.ordering_changes_over_125:d}"},
+     {"prefix": "nominal ordering among the four corrected strategies changed in ",
+      "suffix": " of 125 centres",
+      "expected": "{centre_sensitivity.ordering_changes_over_125:d}"},
+     {"prefix": "Diagnostic scale: shared/measured ",
+      "suffix": ", measured counts in zero-SIMIND bins",
+      "expected": "{diagnostics.shared_to_measured:.3f}, global factor {diagnostics.global_factor:.3f}"},
+     {"prefix": "The shared simulated total was ", "suffix": " times measured counts",
+      "expected": "{diagnostics.shared_to_measured:.3f}"},
+     {"prefix": "global factor of ", "suffix": ". Approximately",
+      "expected": "{diagnostics.global_factor:.3f}"},
+     {"prefix": "measured counts in zero-SIMIND bins ",
+      "suffix": " SIMIND realizations:",
+      "expected": "{diagnostics.measured_zero_simind_fraction:.1%}"},
+     {"prefix": "Approximately ",
+      "suffix": " of measured counts occurred in bins with zero simulated total",
+      "expected": "{diagnostics.measured_zero_simind_fraction:.1%}"},
+     {"prefix": "largest NN ratio change NN=4->8: ", "suffix": " (gate <= 2%)",
+      "expected": "{gates.nn_max_ratio_change_coarse:.2%}"},
+     {"prefix": "known-activity arm changed by ", "suffix": " (above the 2% gate)",
+      "expected": "{nn_ratio_changes.coarse.Known activity:.2%}"},
+     {"prefix": "pixel-wise arm by ", "suffix": " (within it)",
+      "expected": "{nn_ratio_changes.coarse.Dewaraja, pixel-wise:.2%}"}
+    ],
+    "statistical_claims": {
+     "quantitative": false,
+     "negative_result": true,
+     "required_gates": [
+      "registration",
+      "quantization_passed",
+      "seed_passed",
+      "nn_passed",
+      "iteration_passed",
+      "stability_passed"
+     ],
+     "page_markers": [
+      "audited negative result",
+      "Statistical adequacy was not established",
+      "not quantitatively interpretable"
+     ],
+     "forbidden_page_markers": [
+      "quantitatively validated",
+      "quantitative validation was established",
+      "all statistical gates pass",
+      "supports a robust strategy ranking"
+     ]
+    }
+   }
+  }
+ }
+}

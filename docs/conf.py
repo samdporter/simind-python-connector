@@ -13,14 +13,14 @@ from sphinx_gallery.sorting import ExplicitOrder
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("."))
 
-from _gallery import BACKENDS, execution_pattern  # noqa: E402
+from _gallery import BACKENDS, execution_pattern, record_gallery_build  # noqa: E402
 
 
 # Project information
 project = "simind-python-connector"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-release = "2.0.1"
+release = "2.0.2"
 for dist_name in ("simind-python-connector",):
     try:
         release = importlib_metadata.version(dist_name)
@@ -145,3 +145,26 @@ sphinx_gallery_conf = {
     "image_scrapers": ("matplotlib",),
     "matplotlib_animations": False,
 }
+
+
+def _gallery_build_finished(app, exception):
+    """Record or invalidate gallery provenance after a backend build.
+
+    The offline documentation build leaves provenance untouched; only a build
+    that executed a backend owns the artifacts it just produced.
+    """
+
+    if not backend:
+        return
+    docs_dir = Path(app.srcdir).resolve()
+    record_gallery_build(
+        root=docs_dir.parent,
+        docs_dir=docs_dir,
+        backend=backend,
+        exception=exception,
+    )
+
+
+def setup(app):
+    app.connect("build-finished", _gallery_build_finished)
+    return {"parallel_read_safe": True, "parallel_write_safe": True}

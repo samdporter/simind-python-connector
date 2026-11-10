@@ -94,7 +94,7 @@ updates the machine version surfaces.
 
       git commit -m "chore: release X.Y.Z"
 
-6. Only after the validation run passes and the final reviewer approves, tag the
+6. Only after the validation run passes and the release is approved, tag the
    release commit and push the branch and the tag:
 
    .. code-block:: bash
@@ -102,7 +102,7 @@ updates the machine version surfaces.
       git tag -a vX.Y.Z -m "Release X.Y.Z"
       git push origin HEAD vX.Y.Z
 
-7. Finally, once validation has passed and the final reviewer approves, publish
+7. Finally, once validation has passed and the release is approved, publish
    the GitHub release from the pushed tag:
 
    .. code-block:: bash

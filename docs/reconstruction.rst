@@ -66,9 +66,9 @@ Why it is built this way
   smooth_across_views=True)`` for a 360° orbit). Damping below 1 from zero
   lags the estimate; see the SIRF OSEM recipe for the startup transient. The
   trimmed ratio only keeps bins where SIMIND's primary is non-zero, so it
-  drops reference counts but no SIMIND counts and scales low: 0.55 (SIMIND v8)
-  and 0.51 (v9) of the true scale on a 32³ OSEM iterate at a tenth of the
-  default quantization.
+  drops reference counts but no SIMIND counts and scales low: 0.55 of the true
+  scale on a 32³ OSEM iterate at a tenth of the default quantization on SIMIND
+  v8.
 - With 64x those histories the trimmed ratio is still 0.96 of the true scale.
   Keep trimmed for references with outlier bins at high histories.
 
@@ -278,8 +278,8 @@ Schedule guidance:
 - update every 1-5 epochs: ``every = epochs * num_subsets``;
 - set ``stop_at = total_iterations`` so the final-callback refresh is
   skipped: ``stop_at`` is an exclusive bound, so this keeps every update that
-  can affect the reconstruction (an earlier bound is an optional, deliberate
-  freeze); pass it to ``UpdateSchedule``, or directly to
+  can affect the reconstruction; an earlier bound stops updating earlier. Pass
+  it to ``UpdateSchedule``, or directly to
   ``scatter_updater(..., stop_at=stop_at)`` when using that helper;
 - use damping 0.5-1.0 with MC accurate models, but damping < 1 requires a
   non-zero starting additive term. From zero, use damping 1.0: otherwise the

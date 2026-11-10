@@ -18,26 +18,34 @@
 .. _sphx_glr_auto_examples_getting_started_plot_02_runtime_switch_comparison.py:
 
 
-Runtime-switch comparison
-=========================
+Seed reproducibility
+====================
 
-This example runs two SIMIND cases with different runtime switch settings and
-compares the resulting projection view. It is a quick low-history run, so the
-seed-to-seed noise is large.
+This example runs the same simulation twice with two independent random seeds
+and compares the projections. The only runtime switch that differs is ``RR``,
+so the difference isolates Monte Carlo noise, not a change of physics.
 
-.. GENERATED FROM PYTHON SOURCE LINES 11-14
+Both runs use the default source quantization, four 360-degree views of
+32 x 32 bins at 4 mm, and a history multiplier of 3, which gives 3,464,700
+histories per view. That keeps both runs inside a two-hour budget together,
+while each view still holds enough counts for a stable repeatability measure.
+The figure uses a shared count scale for the two projections and a zero-centred
+symmetric scale for their difference.
+
+.. GENERATED FROM PYTHON SOURCE LINES 18-21
 
 Setup
 -----
 Check that SIMIND is installed and choose where the outputs are written.
 
-.. GENERATED FROM PYTHON SOURCE LINES 14-38
+.. GENERATED FROM PYTHON SOURCE LINES 21-54
 
 .. code-block:: Python
 
 
     import os
     import shutil
+    import time
     from pathlib import Path
 
     import matplotlib.pyplot as plt
@@ -45,6 +53,14 @@ Check that SIMIND is installed and choose where the outputs are written.
 
     from simind_python_connector import SimindPythonConnector, configs
     from simind_python_connector.core.types import DEFAULT_QUANTIZATION_SCALE
+    from simind_python_connector.utils.interfile import ProjectionGeometry
+    from simind_python_connector.utils.projection_metrics import (
+        normalised_rms_difference,
+        projection_view0,
+        require_output_keys,
+        symmetric_limits,
+        zero_history_fraction,
+    )
 
 
     if shutil.which(os.environ.get("SIMIND_BIN") or "simind") is None:
@@ -66,13 +82,13 @@ Check that SIMIND is installed and choose where the outputs are written.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 39-42
+.. GENERATED FROM PYTHON SOURCE LINES 55-58
 
 Build the phantom
 -----------------
 A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
 
-.. GENERATED FROM PYTHON SOURCE LINES 42-57
+.. GENERATED FROM PYTHON SOURCE LINES 58-75
 
 .. code-block:: Python
 
@@ -90,6 +106,7 @@ A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
     mu_map = np.zeros_like(source)
     mu_map[body] = 0.15
 
+    PHOTON_MULTIPLIER = 3
 
 
 
@@ -98,25 +115,26 @@ A cylindrical body with a hot sphere, on a 32 x 32 x 32 grid (z, y, x).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 58-62
+
+.. GENERATED FROM PYTHON SOURCE LINES 76-80
 
 Define one simulation case
 --------------------------
 Both cases share every setting except the random seed (runtime switch
 ``RR``).
 
-.. GENERATED FROM PYTHON SOURCE LINES 62-89
+.. GENERATED FROM PYTHON SOURCE LINES 80-125
 
 .. code-block:: Python
 
 
 
-    def run_case(case_dir: Path, prefix: str, seed: int) -> np.ndarray:
+    def run_case(case_dir: Path, prefix: str, seed: int) -> tuple[np.ndarray, float]:
         connector = SimindPythonConnector(
             config_source=configs.get("Example.yaml"),
             output_dir=case_dir,
             output_prefix=prefix,
-            quantization_scale=0.005 * DEFAULT_QUANTIZATION_SCALE,
+            quantization_scale=DEFAULT_QUANTIZATION_SCALE,
         )
         connector.configure_voxel_phantom(
             source=source,
@@ -124,16 +142,34 @@ Both cases share every setting except the random seed (runtime switch
             voxel_size_mm=4.0,
             scoring_routine=1,
         )
+        connector.configure_acquisition(
+            ProjectionGeometry(
+                num_projections=4,
+                extent_deg=360.0,
+                direction="CW",
+                start_angle_deg=180.0,
+                radius_mm=250.0,
+                radii_mm=None,
+                num_bins=32,
+                num_axial=32,
+                bin_size_mm=4.0,
+                axial_size_mm=4.0,
+                image_duration_s=None,
+            )
+        )
         connector.add_config_value(1, 140.0)
-        connector.add_config_value(19, 2)
         connector.add_config_value(53, 0)
-        connector.set_energy_windows([75.0], [225.0], [0])
-        connector.add_runtime_switch("FI", "y90_tissue")
-        connector.add_runtime_switch("CC", "ma-megp")
-        connector.add_runtime_switch("NN", 1)
+        connector.set_energy_windows([126.0], [154.0], [0])
+        connector.add_runtime_switch("CA", 0)
+        connector.add_runtime_switch("FI", "tc99m")
+        connector.add_runtime_switch("CC", "ma-lehr")
+        connector.add_runtime_switch("NN", PHOTON_MULTIPLIER)
         connector.add_runtime_switch("RR", seed)
+        started = time.perf_counter()
         outputs = connector.run()
-        return outputs["tot_w1"].projection
+        elapsed_s = time.perf_counter() - started
+        projection = require_output_keys(outputs, "tot_w1")["tot_w1"].projection
+        return projection, elapsed_s
 
 
 
@@ -143,18 +179,18 @@ Both cases share every setting except the random seed (runtime switch
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 90-92
+.. GENERATED FROM PYTHON SOURCE LINES 126-128
 
 Run both seeds
 --------------
 
-.. GENERATED FROM PYTHON SOURCE LINES 92-99
+.. GENERATED FROM PYTHON SOURCE LINES 128-135
 
 .. code-block:: Python
 
 
-    base_projection = run_case(output_dir / "seed_12345", "seed_12345", seed=12345)
-    alt_projection = run_case(output_dir / "seed_54321", "seed_54321", seed=54321)
+    base_projection, base_seconds = run_case(output_dir / "seed_12345", "seed_12345", 12345)
+    alt_projection, alt_seconds = run_case(output_dir / "seed_54321", "seed_54321", 54321)
 
     np.save(output_dir / "projection_seed_12345.npy", base_projection)
     np.save(output_dir / "projection_seed_54321.npy", alt_projection)
@@ -178,14 +214,14 @@ Run both seeds
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: seed_12345_src    
      Cover.....: al        ScoreRout.: scattwin  DensityImg: seed_12345_dns    
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          y90_tis   PhotonsPerProj....: 5646           
+     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 3464700        
      EnergyResolution...: 9.2          Spectra   Activity..........: 1              
-     MaxScatterOrder....: 3            ma-megp   DetectorLenght....: 21.25          
+     MaxScatterOrder....: 3            ma-lehr   DetectorLenght....: 21.25          
      DetectorWidth......: 27           SPECT     DetectorHeight....: 0.95           
      UpperEneWindowTresh: 225          x-rays    Distance to det...: 25             
      LowerEneWindowTresh: 75           BScatt    ShiftSource X.....: 0              
-     PixelSize  I.......: 0.44         Random    ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.44         Cover     ShiftSource Z.....: 0              
+     PixelSize  I.......: 0.4          Random    ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.4          Cover     ShiftSource Z.....: 0              
      HalfLength S.......: 6.4          Phantom   HalfLength P......: 6.4            
      HalfWidth  S.......: 6.4          Resolut   HalfWidth  P......: 6.4            
      HalfHeight S.......: 6.4          Forced    HalfHeight P......: 6.4            
@@ -194,28 +230,40 @@ Run both seeds
                    Projection          Hits       Scatt/Tot    Progress
   
   
+                    1 of   4           55807        0.313          7 %
+                    1 of   4          116106        0.335         14 %
+                    1 of   4          174719        0.338         21 %
+                    2 of   4           55977        0.329         32 %
+                    2 of   4          115952        0.334         39 %
+                    2 of   4          175148        0.335         46 %
+                    3 of   4           56249        0.331         57 %
+                    3 of   4          116709        0.334         64 %
+                    3 of   4          175375        0.335         71 %
+                    4 of   4           56113        0.331         82 %
+                    4 of   4          116307        0.334         89 %
+                    4 of   4          175130        0.335         96 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
-     Photons/Bq.........: 0.1085                 StartingAngle.....: 0              
+     Photons/Bq.........: 0.88524                StartingAngle.....: 0              
      CameraOffset X.....: 0                      CoverThickness....: 0.1            
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 32                     IntrinsicResolut..: 0.32           
-     MatrixSize J.......: 32                     AcceptanceAngle...: 4.08562        
-     Emission type......: 2                      Initial Weight....: 19.2163        
-     NN ScalingFactor...: 1                      Energy Channels...: 128            
+     MatrixSize J.......: 32                     AcceptanceAngle...: 66.80632       
+     Emission type......: 3                      Initial Weight....: 0.2555         
+     NN ScalingFactor...: 3                      Energy Channels...: 128            
                                                                               
      SPECT DATA
-     RotationMode.......: -360                   Nr of Projections.: 24             
-     RotationAngle......: 15                     Projection.[start]: 1              
-     Orbital fraction...: 1                      Projection...[end]: 24             
+     RotationMode.......: 360                    Nr of Projections.: 4              
+     RotationAngle......: 90                     Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 4              
                                                                               
      COLLIMATOR DATA FOR ROUTINE: Analytical          
-     CollimatorCode.....: ma-megp                CollimatorType....: Parallel 
-     HoleSize X.........: 0.25                   Distance X........: 0.12           
-     HoleSize Y.........: 0.28868                Distance Y........: 0.24826        
-     CenterShift X......: 0.185                  X-Ray flag........: T              
-     CenterShift Y......: 0.32043                CollimThickness...: 3.5            
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
      HoleShape..........: Hexagonal              Space Coll2Det....: 0              
      CollDepValue [57]..: 0                      CollDepValue [58].: 0              
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
@@ -234,41 +282,41 @@ Run both seeds
       Scattwin results: Window file: seed_12345.win      
   
       Win  WinAdded  Range(keV)   ScaleFactor
-       1       0     75.0 - 225.0   1.000
+       1       0    126.0 - 154.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.373E+02 0.118E+02 0.256E+02 0.460E+00 0.315E+00 0.156E+01
+       1   0.210E+03 0.261E+02 0.183E+03 0.143E+00 0.125E+00 0.524E+02
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
        1   100.00%     0.00%     0.00%   100.00%     0.00%     0.00%
   
       Win   SC 1  SC 2  SC 3
-       1   72.7% 21.0%  6.2%
+       1   93.4%  6.3%  0.3%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 6.247          
-     MaxValue projection: 0.2507E-01     
-     CountRate spectrum.: 4.592          
-     CountRate E-Window.: 1.556          
+     MaxValue spectrum..: 56.59          
+     MaxValue projection: 0.3218         
+     CountRate spectrum.: 76.68          
+     CountRate E-Window.: 73.18          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.46007        
-     Scatter/Total......: 0.3151         
-     Scatter order 1....: 72.73 %        
-     Scatter order 2....: 21.04 %        
-     Scatter order 3....: 6.22 %         
+     Scatter/Primary....: 0.49951        
+     Scatter/Total......: 0.33311        
+     Scatter order 1....: 70.91 %        
+     Scatter order 2....: 23.08 %        
+     Scatter order 3....: 6.01 %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.3072         
-     Efficiency spectrum: 0.9065         
-     Sensitivity Cps/MBq: 1.5561         
-     Sensitivity Cpm/uCi: 3.4545         
+     Efficiency E-window: 0.8988         
+     Efficiency spectrum: 0.9418         
+     Sensitivity Cps/MBq: 73.1795        
+     Sensitivity Cpm/uCi: 162.4584       
                                                                               
-     Simulation started.: 2026:10:17 13:34:36
-     Simulation stopped.: 2026:10:17 13:34:50
-     Elapsed time.......: 0 h, 0 m and 14 s
-     DetectorHits.......: 3879           
-     DetectorHits/CPUsec: 268            
+     Simulation started.: 2026:11:06 07:16:41
+     Simulation stopped.: 2026:11:06 07:34:02
+     Elapsed time.......: 0 h, 17 m and 21 s
+     DetectorHits.......: 200197         
+     DetectorHits/CPUsec: 192            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -278,7 +326,7 @@ Run both seeds
      Header file: seed_12345.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: seed_12345 seed_12345 /PX:0.4/FI:y90_tissue/CC:ma-megp/NN:1/RR:12345
+     Command: seed_12345 seed_12345 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:3/RR:12345/FW:seed_12345
     
 
 
@@ -290,14 +338,14 @@ Run both seeds
      Collimator: pb_sb2    SourceRout: smap      SourceImg.: seed_54321_src    
      Cover.....: al        ScoreRout.: scattwin  DensityImg: seed_54321_dns    
     ------------------------------------------------------------------------------
-     PhotonEnergy.......: 140          y90_tis   PhotonsPerProj....: 5646           
+     PhotonEnergy.......: 140          tc99m     PhotonsPerProj....: 3464700        
      EnergyResolution...: 9.2          Spectra   Activity..........: 1              
-     MaxScatterOrder....: 3            ma-megp   DetectorLenght....: 21.25          
+     MaxScatterOrder....: 3            ma-lehr   DetectorLenght....: 21.25          
      DetectorWidth......: 27           SPECT     DetectorHeight....: 0.95           
      UpperEneWindowTresh: 225          x-rays    Distance to det...: 25             
      LowerEneWindowTresh: 75           BScatt    ShiftSource X.....: 0              
-     PixelSize  I.......: 0.44         Random    ShiftSource Y.....: 0              
-     PixelSize  J.......: 0.44         Cover     ShiftSource Z.....: 0              
+     PixelSize  I.......: 0.4          Random    ShiftSource Y.....: 0              
+     PixelSize  J.......: 0.4          Cover     ShiftSource Z.....: 0              
      HalfLength S.......: 6.4          Phantom   HalfLength P......: 6.4            
      HalfWidth  S.......: 6.4          Resolut   HalfWidth  P......: 6.4            
      HalfHeight S.......: 6.4          Forced    HalfHeight P......: 6.4            
@@ -306,28 +354,40 @@ Run both seeds
                    Projection          Hits       Scatt/Tot    Progress
   
   
+                    1 of   4           55547        0.315          7 %
+                    1 of   4          115893        0.336         14 %
+                    1 of   4          174579        0.340         21 %
+                    2 of   4           56119        0.329         32 %
+                    2 of   4          116888        0.333         39 %
+                    2 of   4          175555        0.335         46 %
+                    3 of   4           56100        0.330         57 %
+                    3 of   4          116248        0.333         64 %
+                    3 of   4          175148        0.334         71 %
+                    4 of   4           56035        0.330         82 %
+                    4 of   4          116447        0.333         89 %
+                    4 of   4          175294        0.334         96 %
     ------------------------------------------------------------------------------
      GENERAL DATA
      keV/channel........: 4                      CutoffEnergy......: 0              
-     Photons/Bq.........: 0.1085                 StartingAngle.....: 0              
+     Photons/Bq.........: 0.88524                StartingAngle.....: 0              
      CameraOffset X.....: 0                      CoverThickness....: 0.1            
      CameraOffset Y.....: 0                      BackscatterThickn.: 5              
      MatrixSize I.......: 32                     IntrinsicResolut..: 0.32           
-     MatrixSize J.......: 32                     AcceptanceAngle...: 4.08562        
-     Emission type......: 2                      Initial Weight....: 19.2163        
-     NN ScalingFactor...: 1                      Energy Channels...: 128            
+     MatrixSize J.......: 32                     AcceptanceAngle...: 66.80632       
+     Emission type......: 3                      Initial Weight....: 0.2555         
+     NN ScalingFactor...: 3                      Energy Channels...: 128            
                                                                               
      SPECT DATA
-     RotationMode.......: -360                   Nr of Projections.: 24             
-     RotationAngle......: 15                     Projection.[start]: 1              
-     Orbital fraction...: 1                      Projection...[end]: 24             
+     RotationMode.......: 360                    Nr of Projections.: 4              
+     RotationAngle......: 90                     Projection.[start]: 1              
+     Orbital fraction...: 1                      Projection...[end]: 4              
                                                                               
      COLLIMATOR DATA FOR ROUTINE: Analytical          
-     CollimatorCode.....: ma-megp                CollimatorType....: Parallel 
-     HoleSize X.........: 0.25                   Distance X........: 0.12           
-     HoleSize Y.........: 0.28868                Distance Y........: 0.24826        
-     CenterShift X......: 0.185                  X-Ray flag........: T              
-     CenterShift Y......: 0.32043                CollimThickness...: 3.5            
+     CollimatorCode.....: ma-lehr                CollimatorType....: Parallel 
+     HoleSize X.........: 0.15                   Distance X........: 0.02           
+     HoleSize Y.........: 0.17321                Distance Y........: 0.10392        
+     CenterShift X......: 0.085                  X-Ray flag........: T              
+     CenterShift Y......: 0.14722                CollimThickness...: 3.5            
      HoleShape..........: Hexagonal              Space Coll2Det....: 0              
      CollDepValue [57]..: 0                      CollDepValue [58].: 0              
      CollDepValue [59]..: 0                      CollDepValue [60].: 0              
@@ -346,41 +406,41 @@ Run both seeds
       Scattwin results: Window file: seed_54321.win      
   
       Win  WinAdded  Range(keV)   ScaleFactor
-       1       0     75.0 - 225.0   1.000
+       1       0    126.0 - 154.0   1.000
   
       Win    Total    Scatter   Primary  S/P-Ratio S/T Ratio  Cps/MBq
-       1   0.372E+02 0.118E+02 0.254E+02 0.466E+00 0.318E+00 0.155E+01
+       1   0.210E+03 0.262E+02 0.184E+03 0.142E+00 0.125E+00 0.525E+02
   
       Win  Geo(Air)  Pen(Air)  Sca(Air)  Geo(Tot)  Pen(Tot)  Sca(Tot)
        1   100.00%     0.00%     0.00%   100.00%     0.00%     0.00%
   
       Win   SC 1  SC 2  SC 3
-       1   72.5% 21.5%  6.0%
+       1   93.3%  6.3%  0.4%
                                                                               
      INTERACTIONS IN THE CRYSTAL
-     MaxValue spectrum..: 6.170          
-     MaxValue projection: 0.2382E-01     
-     CountRate spectrum.: 4.568          
-     CountRate E-Window.: 1.551          
+     MaxValue spectrum..: 56.43          
+     MaxValue projection: 0.3346         
+     CountRate spectrum.: 76.78          
+     CountRate E-Window.: 73.26          
                                                                               
      SCATTER IN ENERGY WINDOW
-     Scatter/Primary....: 0.46563        
-     Scatter/Total......: 0.3177         
-     Scatter order 1....: 72.46 %        
-     Scatter order 2....: 21.53 %        
-     Scatter order 3....: 6.01 %         
+     Scatter/Primary....: 0.49819        
+     Scatter/Total......: 0.33253        
+     Scatter order 1....: 71.04 %        
+     Scatter order 2....: 23.05 %        
+     Scatter order 3....: 5.9  %         
                                                                               
      CALCULATED DETECTOR PARAMETERS
-     Efficiency E-window: 0.3071         
-     Efficiency spectrum: 0.9046         
-     Sensitivity Cps/MBq: 1.5506         
-     Sensitivity Cpm/uCi: 3.4423         
+     Efficiency E-window: 0.8987         
+     Efficiency spectrum: 0.9419         
+     Sensitivity Cps/MBq: 73.2565        
+     Sensitivity Cpm/uCi: 162.6295       
                                                                               
-     Simulation started.: 2026:10:17 13:34:51
-     Simulation stopped.: 2026:10:17 13:35:40
-     Elapsed time.......: 0 h, 0 m and 49 s
-     DetectorHits.......: 3874           
-     DetectorHits/CPUsec: 78             
+     Simulation started.: 2026:11:06 07:34:02
+     Simulation stopped.: 2026:11:06 08:48:53
+     Elapsed time.......: 1 h, 14 m and 51 s
+     DetectorHits.......: 200464         
+     DetectorHits/CPUsec: 45             
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -390,55 +450,64 @@ Run both seeds
      Header file: seed_54321.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: seed_54321 seed_54321 /PX:0.4/FI:y90_tissue/CC:ma-megp/NN:1/RR:54321
+     Command: seed_54321 seed_54321 /PX:0.4/CA:0/FI:tc99m/CC:ma-lehr/NN:3/RR:54321/FW:seed_54321
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 100-104
+.. GENERATED FROM PYTHON SOURCE LINES 136-143
 
 Compare the projections
 -----------------------
-The difference panel shows the Monte Carlo noise that the seed alone
-introduces.
+The two projections share one count scale. The difference panel is centred
+on zero, so positive and negative Monte Carlo fluctuations are symmetric.
+The relative RMS difference is a repeatability measure: zero for identical
+runs, and about the inverse square root of the counts for two independent
+Monte Carlo runs of the same expectation.
 
-.. GENERATED FROM PYTHON SOURCE LINES 104-132
+.. GENERATED FROM PYTHON SOURCE LINES 143-177
 
 .. code-block:: Python
 
 
+    base_view = projection_view0(base_projection)
+    alt_view = projection_view0(alt_projection)
+    difference = alt_view - base_view
+    repeatability = normalised_rms_difference(alt_view, base_view)
 
-    def view0(projection: np.ndarray) -> np.ndarray:
-        return projection[0, :, 0, :] if projection.ndim == 4 else projection[0, :, :]
+    projection_vmax = float(max(base_view.max(), alt_view.max()))
+    difference_limits = symmetric_limits(difference)
 
-
-    base_view = view0(base_projection)
-    alt_view = view0(alt_projection)
-    diff_view = alt_view - base_view
-
-    fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+    fig, axes = plt.subplots(1, 4, figsize=(16, 4), constrained_layout=True)
     axes[0].imshow(source[source.shape[0] // 2, :, :], cmap="viridis")
     axes[0].set_title("Input source")
-    axes[1].imshow(base_view, cmap="magma")
-    axes[1].set_title("Seed 12345")
-    axes[2].imshow(alt_view, cmap="magma")
-    axes[2].set_title("Seed 54321")
-    axes[3].imshow(diff_view, cmap="coolwarm")
-    axes[3].set_title("Difference")
+    base_image = axes[1].imshow(base_view, cmap="magma", vmin=0.0, vmax=projection_vmax)
+    axes[1].set_title("Seed 12345 (view 0)")
+    fig.colorbar(base_image, ax=axes[1], shrink=0.8)
+    axes[2].imshow(alt_view, cmap="magma", vmin=0.0, vmax=projection_vmax)
+    axes[2].set_title("Seed 54321 (view 0)")
+    difference_image = axes[3].imshow(
+        difference, cmap="coolwarm", vmin=difference_limits[0], vmax=difference_limits[1]
+    )
+    axes[3].set_title("Seed 54321 - seed 12345")
+    fig.colorbar(difference_image, ax=axes[3], shrink=0.8)
     for ax in axes:
         ax.axis("off")
-    fig.tight_layout()
     fig.savefig(output_dir / "runtime_switch_comparison.png", dpi=140)
     plt.show()
 
-    print(f"Seed 12345 counts: {float(base_projection.sum()):.3f}")
-    print(f"Seed 54321 counts: {float(alt_projection.sum()):.3f}")
-    print(f"Difference sum: {float(diff_view.sum()):.3f}")
+    print(f"Seed 12345 projection sum: {float(base_projection.sum()):.3f}")
+    print(f"Seed 54321 projection sum: {float(alt_projection.sum()):.3f}")
+    print(f"Difference sum (view 0): {float(difference.sum()):.3f}")
+    print(f"Relative RMS difference: {repeatability:.3%}")
+    loss = zero_history_fraction(source, DEFAULT_QUANTIZATION_SCALE)
+    print(f"Quantization loss: {loss:.4%}")
+    print(f"Elapsed: {base_seconds:.0f} s and {alt_seconds:.0f} s")
 
 
 
 .. image-sg:: /auto_examples/getting_started/images/sphx_glr_plot_02_runtime_switch_comparison_001.png
-   :alt: Input source, Seed 12345, Seed 54321, Difference
+   :alt: Input source, Seed 12345 (view 0), Seed 54321 (view 0), Seed 54321 - seed 12345
    :srcset: /auto_examples/getting_started/images/sphx_glr_plot_02_runtime_switch_comparison_001.png
    :class: sphx-glr-single-img
 
@@ -447,9 +516,12 @@ introduces.
 
  .. code-block:: none
 
-    Seed 12345 counts: 37.346
-    Seed 54321 counts: 37.214
-    Difference sum: 0.121
+    Seed 12345 projection sum: 209.644
+    Seed 54321 projection sum: 210.137
+    Difference sum (view 0): -0.297
+    Relative RMS difference: 16.825%
+    Quantization loss: 0.0000%
+    Elapsed: 1041 s and 4491 s
 
 
 
@@ -457,7 +529,7 @@ introduces.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (1 minutes 4.732 seconds)
+   **Total running time of the script:** (92 minutes 12.286 seconds)
 
 
 .. _sphx_glr_download_auto_examples_getting_started_plot_02_runtime_switch_comparison.py:

@@ -1,12 +1,9 @@
-"""Runtime switches CA, FW and X1-X6 against the SIMIND manuals.
+"""Runtime switches CA, FW and X1-X6 against the SIMIND v8 manual.
 
-v8 manual (simind_manual.pdf): CA p.27-28, FW p.29, Xn p.39. v9 manual
-(Simind_v90-1.pdf): CA p.27, FW p.28, Xn p.40.
+v8 manual (simind_manual.pdf): CA p.27-28, FW p.29, Xn p.39.
 """
 
 import os
-import shutil
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +16,6 @@ from simind_python_connector.core.types import (
     ScoringRoutine,
     SimulationError,
 )
-from tests import test_release_regressions_simind as regressions
 
 
 pytestmark = [pytest.mark.validation, pytest.mark.requires_simind]
@@ -78,21 +74,17 @@ def _raw_components(directory: Path, prefix: str, suffix: str) -> set[str]:
     }
 
 
-def _expected_raw_components(engine, ca: int) -> set[str]:
-    if engine.version == 8:
-        return [{"tot"}, {"air", "sca", "tot"}, {"air", "pri", "sca", "tot"}][ca]
-    return [{"tot"}, {"air", "tot"}, {"ai2", "air", "pri", "sca", "tot"}][ca]
+def _expected_raw_components(ca: int) -> set[str]:
+    return [{"tot"}, {"air", "sca", "tot"}, {"air", "pri", "sca", "tot"}][ca]
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 @pytest.mark.parametrize("ca", [0, 1, 2])
-def test_ca_raw_files(validate, engine, tmp_path, ca):
-    """Manual: CA selects the SCATTWIN files written (v8 p.27-28, v9 p.27).
+def test_ca_raw_files(validate, tmp_path, ca):
+    """Manual: CA selects the SCATTWIN files written (v8 p.27-28).
 
     The expected sets come from observed runs: the v8 manual lists air, tot and
-    pri for CA=2 but the engine also writes sca; the v9 CA=2 set is the one the
-    native macOS build and a completing Linux build write.
+    pri for CA=2 but the engine also writes sca.
     """
     case = f"ca_raw_files_{ca}"
     connector = _connector(tmp_path, "ca")
@@ -104,7 +96,7 @@ def test_ca_raw_files(validate, engine, tmp_path, ca):
         for key, result in outputs.items()
         if "derived" in result.metadata
     }
-    expected = _expected_raw_components(engine, ca)
+    expected = _expected_raw_components(ca)
     data = _raw_components(tmp_path, "ca", ".a00") - derived
     headers = _raw_components(tmp_path, "ca", ".h00")
 
@@ -119,11 +111,8 @@ def test_ca_raw_files(validate, engine, tmp_path, ca):
     )
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
-def test_ca1_derived_primary(validate, not_run, engine, tmp_path):
-    if engine.version != 8:
-        not_run("ca1_derived_primary", "v9 CA=1 writes no scatter image to derive from")
+def test_ca1_derived_primary(validate, not_run, tmp_path):
     connector = _connector(tmp_path, "pri")
     connector.add_runtime_switch("CA", 1)
     outputs = connector.run(timeout=600)
@@ -148,10 +137,9 @@ def _run_with_window_file(directory, name):
     return connector.run(timeout=600)
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 def test_fw_two_windows(validate, tmp_path):
-    """Manual: FW names the window file, without extension (v8 p.29, v9 p.28)."""
+    """Manual: FW names the window file, without extension (v8 p.29)."""
     outputs = _run_with_window_file(tmp_path, "twowin")
     assert {"tot_w1", "tot_w2"} <= set(outputs)
 
@@ -164,7 +152,6 @@ def test_fw_two_windows(validate, tmp_path):
     )
 
 
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 def test_fw_sixteen_character_name(validate, tmp_path):
     name = "windowfile_sixtn"
@@ -270,56 +257,9 @@ def test_default_cross_section_is_identity(
     validate(case, _max_difference(default, explicit), expected=0, abs_tol=0)
 
 
-@pytest.mark.macos_v9
-@pytest.mark.xfail(strict=True, reason="SIMIND v9.0 Linux SCATTWIN heap corruption")
-def test_v9_linux_scattwin_defect(validate, not_run, engine):
-    """Records the characterised v9 Linux SCATTWIN abort (heap corruption).
-
-    The abort depends on the working-directory length and the source content;
-    this is the crash report's case: 16^3 uniform body, three random voxels, a
-    20-character working directory.
-    """
-    case = "v9_linux_scattwin_defect"
-    if engine.label != "v9-linux":
-        not_run(case, "the SCATTWIN heap corruption is specific to the v9 Linux build")
-    # 20 characters: the abort depends on the working-directory length
-    directory = Path(tempfile.mkdtemp(prefix="v9dfct_", dir="/tmp"))
-    try:
-        connector = regressions._connector(
-            directory, "defect", scoring_routine=ScoringRoutine.SCATTWIN
-        )
-        grid = regressions.GRID
-        source = np.zeros((grid,) * 3, np.float32)
-        source.flat[np.random.default_rng(3).choice(grid**3, 3, replace=False)] = 1
-        connector.configure_voxel_phantom(
-            source,
-            np.full(source.shape, 0.15, np.float32),
-            regressions.VOXEL_MM,
-            scoring_routine=ScoringRoutine.SCATTWIN,
-        )
-        connector.add_runtime_switch("CA", 0)
-        connector.set_activity(10, 1)
-        try:
-            connector.run(timeout=600)
-            completed = 1.0
-        except SimulationError:
-            completed = 0.0
-    finally:
-        shutil.rmtree(directory)
-
-    validate(
-        case,
-        completed,
-        expected=1.0,
-        abs_tol=0,
-        note=f"working directory length {len(str(directory))}",
-    )
-
-
-@pytest.mark.macos_v9
 @pytest.mark.scattwin_data
 def test_scattwin_default_ca(validate, not_run, tmp_path):
-    """The manual defines no CA default for v8; v9 states CA:0 (p.27)."""
+    """The v8 manual defines no CA default."""
     connector = _connector(tmp_path, "dca")
     try:
         connector.run(timeout=600)

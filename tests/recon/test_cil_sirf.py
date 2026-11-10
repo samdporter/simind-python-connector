@@ -227,3 +227,24 @@ def test_prime_installs_an_estimate_before_the_run(sirf_scene):
         objectives.functions[1].function.eta.as_array(),
         np.take(fixed.as_array(), list(views), axis=-2),
     )
+
+
+def test_rdp_prior_strength_is_split_evenly_over_the_subsets(sirf_scene):
+    import sirf.STIR as sirf
+
+    _, image, _ = sirf_scene
+    x = image * 0.5 + 0.1
+    strength = 0.2
+    num_subsets = 6
+
+    full = sirf.RelativeDifferencePrior()
+    full.set_penalisation_factor(strength)
+    full.set_up(x)
+    subsets = []
+    for _ in range(num_subsets):
+        prior = sirf.RelativeDifferencePrior()
+        prior.set_penalisation_factor(strength / num_subsets)
+        prior.set_up(x)
+        subsets.append(prior.get_value(x))
+
+    assert sum(subsets) == pytest.approx(full.get_value(x), rel=1e-5)

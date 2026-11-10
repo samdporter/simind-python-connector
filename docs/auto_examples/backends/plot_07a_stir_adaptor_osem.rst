@@ -275,11 +275,11 @@ scatter in that window (switch ``CA`` 2 asks for the split).
      Sensitivity Cps/MBq: 73.9911        
      Sensitivity Cpm/uCi: 164.2602       
                                                                               
-     Simulation started.: 2026:10:19 16:14:13
-     Simulation stopped.: 2026:10:19 16:18:06
-     Elapsed time.......: 0 h, 3 m and 53 s
+     Simulation started.: 2026:11:06 13:49:24
+     Simulation stopped.: 2026:11:06 13:53:08
+     Elapsed time.......: 0 h, 3 m and 44 s
      DetectorHits.......: 114570         
-     DetectorHits/CPUsec: 492            
+     DetectorHits/CPUsec: 512            
                                                                               
      OTHER INFORMATION
      Minimal toy-example SIMIND configuration
@@ -289,7 +289,7 @@ scatter in that window (switch ``CA`` 2 asks for the split).
      Header file: stir_case01.h00
      Linear angle sampling within acceptance angle
      Inifile: simind.ini
-     Command: stir_case01 stir_case01 /NN:1/FI:tc99m/CA:2/CC:ma-lehr/RR:12345/PX:0.4
+     Command: stir_case01 stir_case01 /NN:1/FI:tc99m/CA:2/CC:ma-lehr/RR:12345/PX:0.4/FW:stir_case01
     Projection sum: 1273.989
 
 
@@ -459,7 +459,7 @@ barely changes the ratio: SIMIND's scatter is smooth and follows the body.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (3 minutes 54.834 seconds)
+   **Total running time of the script:** (3 minutes 44.718 seconds)
 
 
 .. _sphx_glr_download_auto_examples_backends_plot_07a_stir_adaptor_osem.py:

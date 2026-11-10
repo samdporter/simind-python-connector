@@ -90,9 +90,9 @@ With an analytic projector as the reference:
 each end, which makes it robust against outlier bins. It also keeps only bins
 where the component is non-zero, so with few photon histories, where SIMIND's
 primary is zero in many bins, it drops reference counts but no SIMIND counts
-and scales low: 0.55 (SIMIND v8) and 0.51 (v9) of the true scale on a 32³ OSEM
-iterate at a tenth of the default quantization, 0.96 at 64 times those
-histories. Use ``method="sum"`` at quick history counts (including inside a
+and scales low: 0.55 of the true scale on a 32³ OSEM iterate at a tenth of the
+default quantization on SIMIND v8, 0.96 at 64 times those histories. Use
+``method="sum"`` at quick history counts (including inside a
 reconstruction loop, see :doc:`reconstruction`) and keep trimmed for
 references with outlier bins at high histories.
 
@@ -126,7 +126,8 @@ either pixel by pixel,
 
 .. math::
 
-    s_i = s^{\mathrm{SIM}}_i \, \frac{Y_i}{Y^{\mathrm{SIM}}_i},
+    s_i = G\left[ Y_i \,
+    \frac{G(S^{\mathrm{SIM}})_i}{G(T^{\mathrm{SIM}})_i} \right],
 
 or with one global factor,
 
@@ -142,6 +143,22 @@ simulated all-interactions projection. The global factor is a normaliser:
     from simind_python_connector.recon import SimindProjector, measured_normaliser
 
     projector = SimindProjector(..., normalise=measured_normaliser(measured))
+
+Here :math:`G` is the Gaussian smoothing operator, :math:`S^{\mathrm{SIM}}`
+the simulated scatter component and :math:`T^{\mathrm{SIM}}` the matching
+simulated total: ``all_interactions - geom_coll_primary`` and
+``all_interactions`` with PENETRATE, or ``sca_wN`` and ``tot_wN`` with
+SCATTWIN. The same :math:`G` is applied to both simulated fields before the
+division, and to the scaled result afterwards. In the fixed-primary,
+noisy-scatter control used to check this order, forming the ratio first and
+smoothing afterwards came out low against the truth, while pre-smoothing
+reduced the ratio noise of the summed estimate. That is an observation about
+this control and its fixture: the direction and size of a noisy ratio's error
+depend on the covariance between the numerator and the denominator, so it is
+not a general result for Monte Carlo ratios, and it does not account for the
+pixel-wise drift noted below. The final smoothing remains because the measured
+noise enters the estimate. The division is defined only where the smoothed
+total is positive and is zero elsewhere; signed scatter is not clipped.
 
 The pixel-wise scaling is done by the correction:
 
@@ -162,3 +179,11 @@ reconstruction with Monte Carlo scatter modeling", Med Phys 44(12):6364-6376,
 2017, doi:10.1002/mp.12597. The authors found the pixel-wise scaling better in
 their simulations. It multiplies the measured noise into the scatter estimate,
 hence the smoothing.
+
+.. note::
+   The Y-90 tutorial's pixel-wise arm sat about 27% below the true scatter
+   sum in the stored run, which used the earlier ratio-first estimator. The
+   examples have not been re-run with the corrected estimator, so its effect
+   on the 27% is unmeasured, and the source of the drift is unresolved. The
+   next check compares a fixed image with an independent SIMIND seed, which
+   separates estimator bias from image- and source-dependence.

@@ -853,8 +853,8 @@ class SimindPythonConnector(BaseConnector):
         ):
             warnings.warn(
                 "SIMIND v9.0 on Linux can abort in SCATTWIN or silently return "
-                "corrupted projections. Use SIMIND v8, the macOS v9 build or "
-                "the PENETRATE scoring routine.",
+                "corrupted projections. Use SIMIND v8; v9 support is "
+                "experimental and unvalidated in this release (planned for 2.1.0).",
                 RuntimeWarning,
                 stacklevel=2,
             )

@@ -28,15 +28,17 @@ Select a SIMIND executable and its matching data directory. The binary and
 `simind` on `PATH`; set `SMC_DIR` when required by your installation.
 
 ```bash
-export SIMIND_BIN=/path/to/simind-v9/simind
-export PATH=/path/to/simind-v9:$PATH
-export SMC_DIR=/path/to/simind-v9/smc_dir/
-export SIMIND_VERSION=9
+export SIMIND_BIN=/path/to/simind-v8/simind
+export PATH=/path/to/simind-v8:$PATH
+export SMC_DIR=/path/to/simind-v8/smc_dir/
+export SIMIND_VERSION=8
 ```
 
-Select version `8` or `9` explicitly. The connector uses this choice to place
-voxel source and density maps in the same physical coordinates; the default
-is version 8. A constructor's `simind_version` overrides `SIMIND_VERSION`.
+SIMIND v8 is the supported engine for this release. The connector uses the
+version to place voxel source and density maps in the same physical
+coordinates; the default is version 8. A constructor's `simind_version`
+overrides `SIMIND_VERSION`. V9 selection remains experimental and unvalidated
+(planned for 2.1.0); the v9.0 Linux build can fail in SCATTWIN.
 
 Use the installed connector directly:
 
@@ -45,7 +47,7 @@ import numpy as np
 from simind_python_connector import SimindPythonConnector, configs
 
 connector = SimindPythonConnector(
-    configs.get("Example.yaml"), "output/basic", "case01", simind_version=9
+    configs.get("Example.yaml"), "output/basic", "case01", simind_version=8
 )
 source = np.zeros((32, 32, 32), dtype=np.float32)
 source[12:20, 12:20, 12:20] = 1
@@ -82,6 +84,8 @@ phantomgen package; the install command is in the tutorial.
 - `examples/real_data/plot_16a` / `16b` / `16c`: CT-to-SPECT conversion with
   STIR / SIRF / PyTomography for the measured Y-90 phantom.
 - `examples/real_data/plot_17`: the Y-90 effective attenuation energy with SIRF.
+- `examples/real_data/plot_18`: Monte Carlo scatter strategies on the Y-90
+  phantom with SIRF.
 
 The real-data pages are rendered case studies on restricted Y-90 input, not
 reproducible tutorials. See [datasets](docs/datasets.rst) for the availability

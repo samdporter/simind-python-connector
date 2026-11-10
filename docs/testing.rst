@@ -3,9 +3,8 @@
 Testing
 =======
 
-This document explains the testing strategy for simind-python-connector, which handles the
-challenge of testing code that depends on optional external dependencies (SIRF,
-STIR, SIMIND, and PyTomography) that may not be available in every
+This page explains how the test suite handles optional external dependencies
+(SIRF, STIR, SIMIND, and PyTomography) that may not be available in every
 environment.
 
 Test Organization
@@ -162,8 +161,8 @@ SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
 * ``tests/test_measured_geometry_simind.py`` for controlled geometry comparisons.
 * ``tests/recon/test_residual_sirf.py`` for interleaved-model cache isolation.
 
-A3 Measured-Geometry Validation Profiles
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Measured-Geometry Validation Profiles
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``tests/test_measured_geometry_simind.py`` forwards a phantom through SIMIND and
 through SIRF's SPECTUB model in the same template geometry, covering CW, CCW,
@@ -174,9 +173,10 @@ statistics:
 * **Smoke** (default) - 16x16x16 grid, 8 views,
   ``quantization_scale=0.02 x (500 / 32767)``, correlation > 0.5, centre gap
   <= 1 bin. Fast enough for a local smoke check.
-* **Full** (``SIMIND_A3_FULL_VALIDATION=1``) - 64x64x64 grid, 60 views, the
-  default ``quantization_scale`` (the legacy 500-history budget), correlation
-  > 0.9, centre gap <= 1 bin. This is the standing A3 release gate.
+* **Full** (``SIMIND_A3_FULL_VALIDATION=1``; ``A3`` is retained in the variable
+  name for compatibility) - 64x64x64 grid, 60 views, the default
+  ``quantization_scale`` (a 500-history budget), correlation > 0.9, centre gap
+  <= 1 bin. This is the full release gate.
 
 The grid, view count, phantom offsets, template and thresholds are all derived
 from the selected profile, and each run prints the profile, its settings and the
@@ -191,7 +191,7 @@ the ``requires_simind`` check passes:
     # Smoke profile (default)
     pytest tests/test_measured_geometry_simind.py -s
 
-    # Full validation profile (standing A3 release gate)
+    # Full validation profile (full release gate)
     SIMIND_A3_FULL_VALIDATION=1 pytest tests/test_measured_geometry_simind.py -s
 
 Feature validation
@@ -199,21 +199,13 @@ Feature validation
 
 ``tests/validation`` holds one module per feature. Each case runs a small SIMIND
 simulation, compares the result with a stated tolerance, and appends the
-measured value to ``output/validation/<engine>.jsonl``. The runner executes the
-cases on three engines:
-
-* ``v8``: SIMIND v8 on Linux (Docker, amd64).
-* ``v9``: SIMIND v9 on Linux (Docker, amd64). SCATTWIN cases that check
-  projection data are recorded as not run because of a SIMIND v9 Linux engine
-  defect.
-* ``v9-macos``: the native macOS SIMIND v9 build, for the cases marked
-  ``macos_v9``.
+measured value to ``output/validation/<engine>.jsonl``. Release validation
+runs against SIMIND v8 on Linux (Docker, amd64). SIMIND v9 is experimental and
+unvalidated in this release (planned for 2.1.0), so the runner rejects it.
 
 .. code-block:: bash
 
     bash scripts/run_validation.sh --engine v8
-    bash scripts/run_validation.sh --engine v9
-    bash scripts/run_validation.sh --engine v9-macos
 
     # Re-run one feature only
     bash scripts/run_validation.sh --engine v8 --feature recon
