@@ -133,7 +133,8 @@ def test_only_sirf_runs_07b_and_builds_only_sirf(examples_runner):
     assert build_services(argv_log) == ["sirf"]
     runs = compose_run_lines(argv_log)
     assert any(
-        "examples/backends/plot_07b_sirf_adaptor_osem.py" in line for line in runs
+        "docs/example_pages/scripts/plot_07b_sirf_adaptor_osem.py" in line
+        for line in runs
     ), runs
     assert not any("plot_07a_stir_adaptor_osem" in line for line in runs), runs
     assert not any("plot_07c_pytomography_adaptor_osem" in line for line in runs), runs
@@ -153,10 +154,10 @@ def test_default_selection_runs_every_group(examples_runner):
     }
     runs = compose_run_lines(argv_log)
     for example in (
-        "examples/getting_started/plot_01_basic_simulation.py",
-        "examples/backends/plot_07a_stir_adaptor_osem.py",
-        "examples/backends/plot_07b_sirf_adaptor_osem.py",
-        "examples/backends/plot_07c_pytomography_adaptor_osem.py",
+        "docs/example_pages/scripts/plot_01_basic_simulation.py",
+        "docs/example_pages/scripts/plot_07a_stir_adaptor_osem.py",
+        "docs/example_pages/scripts/plot_07b_sirf_adaptor_osem.py",
+        "docs/example_pages/scripts/plot_07c_pytomography_adaptor_osem.py",
     ):
         assert any(example in line for line in runs), (example, runs)
 

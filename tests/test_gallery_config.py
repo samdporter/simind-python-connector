@@ -174,7 +174,7 @@ def test_manifest_covers_every_example_and_only_04_has_no_figures():
     }
     assert set(entries) == keys
     zero_figure = {key for key, entry in entries.items() if not entry.get("figures")}
-    assert zero_figure == {"getting_started/plot_04_custom_config"}
+    assert zero_figure == set()
 
 
 @pytest.mark.unit

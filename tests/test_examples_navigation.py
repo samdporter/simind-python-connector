@@ -7,8 +7,6 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SECTIONS = (
-    "getting_started",
-    "backends",
     "phantoms",
     "mc_scatter",
     "cil",

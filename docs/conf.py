@@ -131,8 +131,6 @@ sphinx_gallery_conf = {
     "within_subsection_order": "FileNameSortKey",
     "subsection_order": ExplicitOrder(
         [
-            "../examples/getting_started",
-            "../examples/backends",
             "../examples/phantoms",
             "../examples/mc_scatter",
             "../examples/cil",

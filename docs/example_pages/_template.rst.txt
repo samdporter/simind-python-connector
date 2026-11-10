@@ -1,21 +1,27 @@
 .. Copy this file to example_pages/<slug>.rst, add <slug> to the toctree in
    example_pages/index.rst, and add an authored_pages entry in
-   docs/gallery_figures.json.
+   docs/gallery_figures.json. Move the source script into
+   example_pages/scripts/ if it is not already there.
 
 <Page title>
 ===========
 
-.. rubric:: Prerequisites
+Prerequisites
+-------------
 
 What the reader needs before starting (SIMIND, a backend, or data).
 
-.. rubric:: Cost and runtime
+Cost and runtime
+----------------
 
 Approximate runtime, history budget, and output location.
 
-.. literalinclude:: /examples/<section>/plot_XX_<name>.py
+.. literalinclude:: scripts/plot_XX_<name>.py
    :language: python
    :linenos:
+
+Download the script: :download:`plot_XX_<name>.py
+<scripts/plot_XX_<name>.py>`.
 
 Results
 -------

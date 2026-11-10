@@ -61,7 +61,7 @@ print(outputs["tot_w1"].projection.shape)
 Run a complete core simulation example from a source checkout:
 
 ```bash
-python examples/getting_started/plot_01_basic_simulation.py
+python docs/example_pages/scripts/plot_01_basic_simulation.py
 ```
 
 The core connector does not require STIR, SIRF, or PyTomography. Install only
@@ -71,12 +71,15 @@ phantomgen package; the install command is in the tutorial.
 
 ## Example map
 
-- `examples/getting_started/plot_01`–`plot_06`: core NumPy simulations, windows, configurations, scoring,
-  and density conversion.
-- `examples/backends/plot_07a` / `07b` / `07c`: STIR / SIRF / PyTomography adaptors.
-- `examples/backends/plot_08a` / `08b` / `08c`: DICOM setup for STIR / SIRF / PyTomography.
-- `examples/phantoms/plot_09` / `plot_10`: the SIMIND analytic phantom library,
-  and a known-activity NEMA/IEC simulation reconstructed with SIRF OSEM.
+- `docs/example_pages/scripts/plot_01`–`plot_06` and `plot_09`: authored
+  tutorials for core simulations, windows, configurations, scoring, density
+  conversion and the phantom library.
+- `docs/example_pages/scripts/plot_07a` / `07b` / `07c`: STIR / SIRF /
+  PyTomography adaptors.
+- `docs/example_pages/dicom_recipe.rst`: DICOM setup snippets for STIR, SIRF
+  and PyTomography with a reader-supplied file.
+- `examples/phantoms/plot_10`: a known-activity NEMA/IEC simulation
+  reconstructed with SIRF OSEM.
 - `examples/mc_scatter/plot_11`–`plot_13`: Monte Carlo scatter in SIRF OSEM,
   scatter normalisation, and residual correction.
 - `examples/cil/plot_14` / `plot_15`: CIL scatter correction, and an

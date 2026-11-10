@@ -36,12 +36,12 @@ SIMIND releases may differ in their data files and output components. Check
 your local release manual and the observations in :doc:`simind_validation`
 before relying on a particular component name. Keep each binary paired with
 its own data directory. Start with the :doc:`basic simulation tutorial
-<auto_examples/getting_started/plot_01_basic_simulation>`, at
-``examples/getting_started/plot_01_basic_simulation.py``:
+<example_pages/basic_simulation>`, at
+``docs/example_pages/scripts/plot_01_basic_simulation.py``:
 
 .. code-block:: bash
 
-    python examples/getting_started/plot_01_basic_simulation.py
+    python docs/example_pages/scripts/plot_01_basic_simulation.py
 
 It uses a small voxel phantom, one energy window, four views, the default
 source quantization and ``NN=8``. Inspect the saved source, density, and total
@@ -57,7 +57,7 @@ Build the phantoms
 ------------------
 
 The :doc:`phantom library tutorial
-<auto_examples/phantoms/plot_09_phantom_library>` simulates SIMIND's analytic
+<example_pages/phantom_library>` builds SIMIND's analytic
 multiple-inserts phantom and the NEMA/IEC body phantom. The NEMA phantom comes
 from `phantomgen <https://github.com/varzakis/phantomgen>`_, which is optional
 and is currently installed from GitHub, not PyPI:
@@ -65,16 +65,13 @@ and is currently installed from GitHub, not PyPI:
 .. code-block:: bash
 
     python -m pip install 'phantomgen @ git+https://github.com/varzakis/phantomgen'
-    python examples/phantoms/plot_09_phantom_library.py
+    python docs/example_pages/scripts/plot_09_phantom_library.py
 
 The NEMA/IEC body phantom has explicit activity in MBq per voxel, density, and
-named masks. The example builds it before either simulation, so a missing
-phantomgen stops there rather than after the analytic run. It writes both
-projections under ``output/phantom_library`` and plots a central source slice
-and the first projection view of each phantom. The 24 views are kept, but the
-history budget is raised: the analytic branch uses Index 26 = 4 (four million
-histories per projection) and the voxel NEMA branch uses the default
-quantization, which gives its hottest voxel 500 histories.
+named masks. The tutorial builds both phantoms without simulating them: the
+analytic phantom is voxelised to relative source weights, and the NEMA object
+is returned with its activity, density and masks. It plots a central source
+slice and the hottest NEMA activity slice under ``output/phantom_library``.
 
 For a quick smoke run, reduce ``quantization_scale`` and the number of views,
 or threshold the source to a mostly-zero map. Use ``NN >= 1``. For quantitative
@@ -166,13 +163,12 @@ approximation, and the non-zero positivity floor can affect low-count regions.
 Measured projections and DICOM calibration
 ------------------------------------------
 
-The :doc:`STIR <auto_examples/backends/plot_08a_stir_adaptor_from_dicom>`,
-:doc:`SIRF <auto_examples/backends/plot_08b_sirf_adaptor_from_dicom>` and
-:doc:`PyTomography <auto_examples/backends/plot_08c_pytomography_adaptor_from_dicom>`
-DICOM tutorials read projection geometry from the Y-90 NM dataset named by
-``SIMIND_CONNECTOR_Y90_DATA``; no path argument is needed (see
-:doc:`datasets`). They build STIR, SIRF or PyTomography projection objects and
-plot the projection.
+The :doc:`DICOM projection recipe <example_pages/dicom_recipe>` shows the
+STIR, SIRF and PyTomography call sequences for a reader-supplied DICOM NM
+projection file. The dataset used during development is restricted and is not
+redistributed (see :doc:`datasets`). Each snippet builds the matching
+projection object; the recipe preserves the backend-specific view-order
+qualifications.
 Compare the DICOM-derived geometry with the simulated header before use. A
 DICOM geometry match does not calibrate absolute sensitivity. For a calibrated
 comparison, document the activity, acquisition time, decay reference, energy

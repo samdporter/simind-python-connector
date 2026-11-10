@@ -12,8 +12,6 @@ shows the committed outputs and does not run the examples.
    :maxdepth: 1
 
    /example_pages/index
-   getting_started/index
-   backends/index
    phantoms/index
    mc_scatter/index
    cil/index

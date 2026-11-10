@@ -28,39 +28,30 @@ os.chdir(parent_dir)
 # List of core examples to run (now in ../examples from scripts/)
 EXAMPLES = [
     {
-        "name": "getting_started/plot_01_basic_simulation.py",
-        "description": "Basic SIMIND simulation with simple phantom",
-        "module": "examples.getting_started.plot_01_basic_simulation",
+        "name": "docs/example_pages/scripts/plot_01_basic_simulation.py",
+        "description": "Basic SIMIND simulation with a seed check",
         "estimated_time": "1 minute",
     },
     {
-        "name": "getting_started/plot_02_runtime_switch_comparison.py",
-        "description": "Runtime-switch comparison using pure Python connector",
-        "module": "examples.getting_started.plot_02_runtime_switch_comparison",
-        "estimated_time": "1 minute",
-    },
-    {
-        "name": "getting_started/plot_03_multi_window.py",
+        "name": "docs/example_pages/scripts/plot_03_multi_window.py",
         "description": "Multi-energy window simulation (TEW method)",
-        "module": "examples.getting_started.plot_03_multi_window",
         "estimated_time": "1 minute",
     },
     {
-        "name": "getting_started/plot_04_custom_config.py",
+        "name": "docs/example_pages/scripts/plot_04_custom_config.py",
         "description": "Custom configuration creation and YAML workflow",
-        "module": "examples.getting_started.plot_04_custom_config",
         "estimated_time": "< 1 minute",
     },
     {
-        "name": "getting_started/plot_05_scattwin_vs_penetrate_comparison.py",
+        "name": (
+            "docs/example_pages/scripts/plot_05_scattwin_vs_penetrate_comparison.py"
+        ),
         "description": "Comparison of SCATTWIN vs PENETRATE scoring routines",
-        "module": "examples.getting_started.plot_05_scattwin_vs_penetrate_comparison",
         "estimated_time": "3 minutes",
     },
     {
-        "name": "getting_started/plot_06_schneider_density_conversion.py",
+        "name": "docs/example_pages/scripts/plot_06_schneider_density_conversion.py",
         "description": "Schneider2000 density conversion demonstration",
-        "module": "examples.getting_started.plot_06_schneider_density_conversion",
         "estimated_time": "< 1 minute",
     },
 ]
@@ -110,7 +101,7 @@ def run_example_subprocess(example_file):
         result = subprocess.run(
             [
                 sys.executable,
-                f"examples/{example_file}",  # examples are in parent directory
+                example_file,  # examples are in parent directory
             ],
             capture_output=True,
             text=True,

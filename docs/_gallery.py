@@ -435,9 +435,7 @@ def _check_authored_page(key: str, entry: dict, docs_dir: Path) -> list[GalleryP
         return [GalleryProblem(key, "page_missing", f"{key}.rst")]
 
     source = entry.get("source")
-    if not source:
-        problems.append(GalleryProblem(key, "source_missing", "no source script"))
-    else:
+    if source is not None:
         source_path = (docs_dir / ".." / source).resolve()
         if not source_path.exists():
             problems.append(GalleryProblem(key, "source_missing", source))
