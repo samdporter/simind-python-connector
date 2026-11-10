@@ -140,6 +140,7 @@ sphinx_gallery_conf = {
         ]
     ),
     "abort_on_example_error": True,
+    "copyfile_regex": r"^index\.rst$",
     "remove_config_comments": True,
     "download_all_examples": False,
     "image_scrapers": ("matplotlib",),

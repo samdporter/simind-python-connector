@@ -2,7 +2,7 @@
  "examples": {
   "backends/plot_07a_stir_adaptor_osem": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_07a_stir_adaptor_osem.ipynb": "1d0f428177aa49b9a4fbba54b231febf394687eb5ac3a4d4595a2509aba04611",
     "plot_07a_stir_adaptor_osem.py": "9a995c8213ca309329f880114315a0bba9f5d244a7e0c7259110a44c2b6d131e",
@@ -17,7 +17,7 @@
   },
   "backends/plot_07b_sirf_adaptor_osem": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_07b_sirf_adaptor_osem.ipynb": "7af24cb7782ba54e59a0b9b58f9f5873d2733f6fa738fdab154701443ccce750",
     "plot_07b_sirf_adaptor_osem.py": "ef92161fb22c653a7d33b20be628f718750e0f6767dc2c1c47de38d3af9fa812",
@@ -32,7 +32,7 @@
   },
   "backends/plot_07c_pytomography_adaptor_osem": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_07c_pytomography_adaptor_osem.ipynb": "4f8bf5922313b0c09f25804270958a47dbcb9257520d9ee6f91448daa7fbce24",
     "plot_07c_pytomography_adaptor_osem.py": "f0a99c113991d447651f857fc6e371f93c43841de498280c3e9c7fa6922a9964",
@@ -47,7 +47,7 @@
   },
   "backends/plot_08a_stir_adaptor_from_dicom": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_08a_stir_adaptor_from_dicom.ipynb": "d8df9c0244122f49235866f89dc7225f222adba093916881eebff9d1b746c14a",
     "plot_08a_stir_adaptor_from_dicom.py": "df15fa26fa245db7083ddb33a02de3a9285a1762ed4b9f56d1891ec9fa06fcb6",
@@ -62,7 +62,7 @@
   },
   "backends/plot_08b_sirf_adaptor_from_dicom": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_08b_sirf_adaptor_from_dicom.ipynb": "d6bee4b704267e1f089933897ecbd7e7f54e69d7994c89131d2aac869c5e16e2",
     "plot_08b_sirf_adaptor_from_dicom.py": "ee11a46507c4088be9fe218b853ce5b5b488624ff97ea37c759aafc3d0cfd559",
@@ -77,7 +77,7 @@
   },
   "backends/plot_08c_pytomography_adaptor_from_dicom": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_08c_pytomography_adaptor_from_dicom.ipynb": "e38f515da3135b2e5391c07dc67b54e8ce7382dad7578c907380b151fdf97e5a",
     "plot_08c_pytomography_adaptor_from_dicom.py": "455ae25da7a26ccc28f98333f221c23d679720041a0687b8a764bce93a1b146e",
@@ -92,7 +92,7 @@
   },
   "cil/plot_14_cil_scatter": {
    "build_failed": false,
-   "dependencies_sha256": "55f32ca510022d1bbae3300d9fb27d819af920129d04c26627acbcfd9262a42f",
+   "dependencies_sha256": "497e2005789a2c23f2c1448937df40e18d41384a880d339ccedd1555bc0446d7",
    "downloads": {
     "plot_14_cil_scatter.ipynb": "139140b82273b8e58adbf05f7fa555093a4ee078cf55808dccf4ad774f3d2632",
     "plot_14_cil_scatter.py": "114ce3a6070afa7acc1bd48c6dc663e04f5267bc1c117d67a652eee28c0a8c26",
@@ -110,7 +110,7 @@
   },
   "cil/plot_15_cil_rdp_svrg": {
    "build_failed": false,
-   "dependencies_sha256": "55f32ca510022d1bbae3300d9fb27d819af920129d04c26627acbcfd9262a42f",
+   "dependencies_sha256": "497e2005789a2c23f2c1448937df40e18d41384a880d339ccedd1555bc0446d7",
    "downloads": {
     "plot_15_cil_rdp_svrg.ipynb": "1350dd04a536e918825444e35824d8542ef60ffb86b929bdf7c9f131b5c9d9ef",
     "plot_15_cil_rdp_svrg.py": "60f5e3c0fcfc2d44f1c119b73a12b9c83b0b8e332a012fe6594951d0eb03f6b0",
@@ -129,7 +129,7 @@
   },
   "getting_started/plot_01_basic_simulation": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_01_basic_simulation.ipynb": "82935d823ecd35fe4ecd2ee3adba27101fde17676780087a14227d890c26018b",
     "plot_01_basic_simulation.py": "f54c0d85726ece5a02306a6a981bc5d57f4352b0dbf6aa09a767be03437070c3",
@@ -144,7 +144,7 @@
   },
   "getting_started/plot_02_runtime_switch_comparison": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_02_runtime_switch_comparison.ipynb": "a55634aa57045225ab4ce0d15eeaaf2211cc5cd56886a2809da476b493acfaf7",
     "plot_02_runtime_switch_comparison.py": "5f837a569d497959d4bb8b88cb6f7694ea74ad190bf7697c6b45f696a536a287",
@@ -159,7 +159,7 @@
   },
   "getting_started/plot_03_multi_window": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_03_multi_window.ipynb": "e964523d7ecd319e52a92da48711e291b5b767274940b72c8c22910075046ff4",
     "plot_03_multi_window.py": "23daf83820c245425ce321faa29d33f4dec0d46f0f6499bfa69f0e69e12b0efb",
@@ -174,7 +174,7 @@
   },
   "getting_started/plot_04_custom_config": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_04_custom_config.ipynb": "d54ad2152f0a3dcceb619f35ccd612b2f9094cc6cfd276c42a66c0c8c681eb67",
     "plot_04_custom_config.py": "295e6493bb498de86288c0b912a5f7c8b2f173000f1ed28adb76b868e8ae9a52",
@@ -187,7 +187,7 @@
   },
   "getting_started/plot_05_scattwin_vs_penetrate_comparison": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_05_scattwin_vs_penetrate_comparison.ipynb": "dcd08710b70c3d6b844e9dcf82688b93e579080bbb316b3f43451cbf1dc0c19b",
     "plot_05_scattwin_vs_penetrate_comparison.py": "f53478389e0551a7519e82c7498b9b6478a18b8aff4a3458a3b1f1595be140b6",
@@ -203,7 +203,7 @@
   },
   "getting_started/plot_06_schneider_density_conversion": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_06_schneider_density_conversion.ipynb": "88222f77dd2850b0709e9dec2a48d381df7449e006983749bb769b830daf49e4",
     "plot_06_schneider_density_conversion.py": "72e2e6ff543dcd1c03dfbc793678380990513767480dfcae2c16d836f4f0f816",
@@ -219,7 +219,7 @@
   },
   "mc_scatter/plot_11_mc_scatter_osem": {
    "build_failed": false,
-   "dependencies_sha256": "55f32ca510022d1bbae3300d9fb27d819af920129d04c26627acbcfd9262a42f",
+   "dependencies_sha256": "497e2005789a2c23f2c1448937df40e18d41384a880d339ccedd1555bc0446d7",
    "downloads": {
     "plot_11_mc_scatter_osem.ipynb": "a73d172c87bac4229ef463d9294eb1bb32a66852504f586da89377e0b793bce5",
     "plot_11_mc_scatter_osem.py": "323b456234cd027707bf998e0adbb0abcc7cceca0fa064a2cff8537b23cbb06d",
@@ -239,7 +239,7 @@
   },
   "mc_scatter/plot_12_scatter_normalisation": {
    "build_failed": false,
-   "dependencies_sha256": "55f32ca510022d1bbae3300d9fb27d819af920129d04c26627acbcfd9262a42f",
+   "dependencies_sha256": "497e2005789a2c23f2c1448937df40e18d41384a880d339ccedd1555bc0446d7",
    "downloads": {
     "plot_12_scatter_normalisation.ipynb": "c6302a4b84292cc6f8cbf74e05b329e4975a6b49342628e3a2c5357185312344",
     "plot_12_scatter_normalisation.py": "c6d0604fd1d67d83cf79f11419de12ccebbcdc9de05ea63cea0b5266b10e90ea",
@@ -260,7 +260,7 @@
   },
   "mc_scatter/plot_13_residual_correction": {
    "build_failed": false,
-   "dependencies_sha256": "55f32ca510022d1bbae3300d9fb27d819af920129d04c26627acbcfd9262a42f",
+   "dependencies_sha256": "497e2005789a2c23f2c1448937df40e18d41384a880d339ccedd1555bc0446d7",
    "downloads": {
     "plot_13_residual_correction.ipynb": "894232e81c4050b5932662dddf26554b6891ec53ad2eaeeb460f9809c618c570",
     "plot_13_residual_correction.py": "d84b1531774f1794cbf0e7c13e433a66f8c3c5f2030a86397ba39b4ac8c895bc",
@@ -277,7 +277,7 @@
   },
   "phantoms/plot_09_phantom_library": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_09_phantom_library.ipynb": "5136728408e5df3dc1c3f0e157875a17cef6ef3d84cf12d1d951bbf79020a069",
     "plot_09_phantom_library.py": "de75f3b91820abf6aef15b9cabe8923e365ec1a4c495493674829f6b5bc60875",
@@ -292,7 +292,7 @@
   },
   "phantoms/plot_10_nema_osem": {
    "build_failed": false,
-   "dependencies_sha256": "55f32ca510022d1bbae3300d9fb27d819af920129d04c26627acbcfd9262a42f",
+   "dependencies_sha256": "497e2005789a2c23f2c1448937df40e18d41384a880d339ccedd1555bc0446d7",
    "downloads": {
     "plot_10_nema_osem.ipynb": "93644ebca35a17f613334272fa6bc338042891f9608478de1b2b2597e4097774",
     "plot_10_nema_osem.py": "d39e0706e84abdcc7f92d659f8acc49868983bc0f54e8f50b25cad79964966dc",
@@ -310,7 +310,7 @@
   },
   "real_data/plot_16a_stir_ct_conversion": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_16a_stir_ct_conversion.ipynb": "6be18939c8c3ac723b4e9ae0a3dd89319a31b74910c4f5ec3452737f8ce6f260",
     "plot_16a_stir_ct_conversion.py": "677c86b6e4bf415ff1672d42972c8495ec59907a5c57047ca845c95adf74e8d4",
@@ -327,7 +327,7 @@
   },
   "real_data/plot_16b_sirf_ct_conversion": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_16b_sirf_ct_conversion.ipynb": "a9f412027fd0868233303fa2b26ee7d71d61eae06c28d211c7a821da7b7e3902",
     "plot_16b_sirf_ct_conversion.py": "2ff1a7f51fce51198cdbfabe2acba288918e31fc4f232b6c22e2c3d45f4fb501",
@@ -344,7 +344,7 @@
   },
   "real_data/plot_16c_pytomography_ct_conversion": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_16c_pytomography_ct_conversion.ipynb": "02ee889960cecac87ac0d95e0451e5f7ef2d2238a8b491dda4039c228d36386e",
     "plot_16c_pytomography_ct_conversion.py": "68e911737b51f1bf23c7ab908cb58b32b0e8b7687f1715d7ccc1ec6314ed561d",
@@ -362,7 +362,7 @@
   },
   "real_data/plot_17_y90_effective_energy": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_17_y90_effective_energy.ipynb": "83bc0b669a27af6c6bca74960196a25bf72b6f80790247136c0d8246c0a78bcd",
     "plot_17_y90_effective_energy.py": "4a3dd02973a8a9c178abc0f122eca4dd7b240c8295a4ddd8a9e2f063075ec23f",
@@ -380,7 +380,7 @@
   },
   "real_data/plot_18_y90_mc_scatter": {
    "build_failed": false,
-   "dependencies_sha256": "d0a8fb13bfeaaa0b758b43b8b06dce75760be432fe3df3829578afd328dcb313",
+   "dependencies_sha256": "aeb8726ffc8b6af91d6d2db68bf92623dc02ecdff5f9ef80ee093a7a1c80b1d2",
    "downloads": {
     "plot_18_y90_mc_scatter.ipynb": "5cf2e9200a3d4a46b5f5606e441de6a1de360f71b1830f41c3b5831e5bff6429",
     "plot_18_y90_mc_scatter.py": "8520d9140a3102bc43430dc116f318752547d7b9658b30fdb2bca7a08d22adbf",

@@ -91,4 +91,5 @@ Where the data are used
 
 - The :doc:`workflow tutorial <tutorial>` lists the real-data case studies in
   their recommended order.
-- :doc:`examples` points at the gallery sections that contain them.
+- :doc:`The gallery <auto_examples/index>` points at the sections that
+  contain them.
