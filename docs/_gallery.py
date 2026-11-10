@@ -167,8 +167,32 @@ def example_backend(path: Path) -> str:
     return backends.pop() if backends else "python"
 
 
+def _walk_plot_sources(directory: Path, seen: set[tuple[int, int]]):
+    """Walk directories, following symlinks once and pruning cycles."""
+
+    try:
+        stat = directory.stat()
+    except OSError:
+        return
+    identity = (stat.st_dev, stat.st_ino)
+    if identity in seen:
+        return
+    seen.add(identity)
+    try:
+        entries = sorted(directory.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return
+    for entry in entries:
+        if entry.is_dir():
+            yield from _walk_plot_sources(entry, seen)
+        elif (
+            entry.is_file() and entry.name.startswith("plot_") and entry.suffix == ".py"
+        ):
+            yield entry
+
+
 def gallery_examples(examples_dir: Path) -> list[Path]:
-    return sorted(examples_dir.rglob("plot_*.py"))
+    return sorted(_walk_plot_sources(examples_dir, set()))
 
 
 def example_key(path: Path) -> str:

@@ -213,6 +213,32 @@ def test_generated_coverage_finds_nested_sources(tmp_path):
 
 
 @pytest.mark.unit
+def test_generated_coverage_follows_symlinked_directories(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    target = tmp_path / "linked_target"
+    _write(target / "plot_20_linked.py", "x = 1\n")
+    link = root / "examples" / "phantoms" / "linked"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target, target_is_directory=True)
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert any(
+        problem.code == "manifest_missing"
+        and "examples/phantoms/linked/plot_20_linked.py" in problem.detail
+        for problem in problems
+    )
+
+
+@pytest.mark.unit
+def test_generated_coverage_prunes_symlink_cycles(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    loop = root / "examples" / "phantoms" / "loop"
+    loop.parent.mkdir(parents=True, exist_ok=True)
+    loop.symlink_to(root / "examples" / "phantoms", target_is_directory=True)
+    assert gallery.stale_examples(root / "examples", gallery_dir, root=root) == []
+    assert gallery.check_gallery(root / "examples", gallery_dir, docs, root=root) == []
+
+
+@pytest.mark.unit
 def test_authored_entry_cannot_exempt_a_source_that_is_still_generated(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
     _add_authored_fixture(root, docs, gallery_dir)
