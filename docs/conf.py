@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("."))
 
-from _gallery import BACKENDS, execution_pattern  # noqa: E402
+from _gallery import BACKENDS, GENERATED_SECTIONS, execution_pattern  # noqa: E402
 
 
 # Project information
@@ -119,18 +119,8 @@ if backend and backend not in BACKENDS:
     )
 
 sphinx_gallery_conf = {
-    "examples_dirs": [
-        "../examples/phantoms",
-        "../examples/mc_scatter",
-        "../examples/cil",
-        "../examples/real_data",
-    ],
-    "gallery_dirs": [
-        "auto_examples/phantoms",
-        "auto_examples/mc_scatter",
-        "auto_examples/cil",
-        "auto_examples/real_data",
-    ],
+    "examples_dirs": [f"../examples/{name}" for name in GENERATED_SECTIONS],
+    "gallery_dirs": [f"auto_examples/{name}" for name in GENERATED_SECTIONS],
     "filename_pattern": (
         execution_pattern(Path("../examples").resolve(), backend) if backend else r"^$"
     ),
