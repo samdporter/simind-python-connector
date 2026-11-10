@@ -18,4 +18,4 @@ Download the script: :download:`plot_05_scattwin_vs_penetrate_comparison.py
 
 PENETRATE distinguishes geometric primary, penetration and collimator
 interactions. The printed checks compare each routine's component sum with its
-own total.
+own total, and each matches.
