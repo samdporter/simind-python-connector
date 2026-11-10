@@ -1,8 +1,9 @@
 Examples
 ========
 
-Worked tutorials. Each page includes its current example script and the
-reviewed figures retained from the earlier run.
+Worked tutorials. Runnable pages include their current example script and the
+reviewed figures retained from the earlier run; recipe-only pages describe a
+restricted workflow.
 
 .. toctree::
    :maxdepth: 1

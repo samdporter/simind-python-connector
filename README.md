@@ -10,7 +10,7 @@ SIMIND project and Lund University.
 See the [workflow tutorial](docs/tutorial.rst) for an ordered path through a
 core simulation, known-activity NEMA phantom, reconstruction, scatter
 correction, and measured-data calibration. The [example pages](docs/example_pages/index.rst)
-has every tutorial with its figures and printed output. Rendered documentation,
+collect the tutorials and their retained figures. Rendered documentation,
 including the example pages, is built from the tagged repository; source
 distributions contain the example sources rather than rendered pages. The
 [documentation](https://simind-python-connector.readthedocs.io/) explains
@@ -71,7 +71,8 @@ phantomgen package; the install command is in the tutorial.
 
 ## Example map
 
-- `examples/getting_started/plot_01`–`plot_06` and `examples/phantoms/plot_09`:
+- `examples/getting_started/plot_01`, `plot_03`–`plot_06` and
+  `examples/phantoms/plot_09`:
   authored tutorials for core simulations, windows, configurations, scoring,
   density conversion and the phantom library.
 - `examples/backends/plot_07a` / `07b` / `07c`: STIR / SIRF / PyTomography

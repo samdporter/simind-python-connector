@@ -191,6 +191,3 @@ and the pages cannot be reproduced without the restricted input. Setting
   The spectrum is simulated and the weighted map is an approximation; neither
   is an accuracy reference.
 
-The :doc:`DICOM projection recipe <example_pages/dicom_recipe>` shows how to
-build the STIR, SIRF or PyTomography projection object from a reader-supplied
-DICOM file.

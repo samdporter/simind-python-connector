@@ -112,21 +112,24 @@ SIRF OSEM
     )
     from simind_python_connector.recon.osem import run_osem_with_corrections
 
-    projector = SimindProjector(adaptor, measured, mu_map,
+    projector = SimindProjector(adaptor, template, mu_map,
                                 normalise=reference_normaliser(full_model),
                                 seed=1)
     correction = ScatterCorrection(projector, smoothing_fwhm_bins=3.0,
                                    smooth_across_views=True)
+    zero_additive = measured.get_uniform_copy(0)
     updater = AdditiveUpdater(correction, UpdateSchedule(every=10),
-                              initial_additive=measured.get_uniform_copy(0),
-                              damping=0.5)
+                              zero_additive, damping=0.5)
     image = run_osem_with_corrections(measured, make_model, initial, updater,
                                       num_subsets=5, subiterations_per_update=10,
                                       num_updates=3)
 
-``full_model`` is the full-data linear model (no additive term), set up with
-the measured data and kept separate for reference normalisation. To scale the
-scatter estimate to the measured data instead, see
+``template`` is the projection-geometry template passed to ``SimindProjector``;
+it is not the measured acquisition. ``measured`` enters only as the OSEM data
+and as the zero additive image. ``full_model`` is the full-data linear model
+(no additive term), set up with the measured data and kept separate for
+reference normalisation. To scale the scatter estimate to the measured data
+instead, see
 :ref:`scaling-scatter-to-measured-data`.
 ``make_model`` is a zero-argument factory returning a fresh, configured,
 not-yet-set-up acquisition model on every call, with independent model-owned
@@ -279,8 +282,9 @@ Schedule guidance:
 - set ``stop_at = total_iterations`` so the final-callback refresh is
   skipped: ``stop_at`` is an exclusive bound, so this keeps every update that
   can affect the reconstruction; an earlier bound stops updating earlier. Pass
-  it to ``UpdateSchedule``, or directly to
-  ``scatter_updater(..., stop_at=stop_at)`` when using that helper;
+  it to ``UpdateSchedule(every=..., stop_at=total_iterations)`` and pass that
+  schedule to ``AdditiveUpdater(correction, schedule, zero_additive,
+  damping=...)``;
 - use damping 0.5-1.0 with MC accurate models, but damping < 1 requires a
   non-zero starting additive term. From zero, use damping 1.0: otherwise the
   term lags the estimate and, with roughly constant statistics, biases the

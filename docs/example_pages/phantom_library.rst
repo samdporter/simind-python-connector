@@ -28,8 +28,10 @@ Results
    :alt: Central Jaszczak source slice and hottest NEMA activity slice
    :width: 100%
 
-   Figure 1. Central slice of the analytic Jaszczak source and the hottest
-   axial slice of the NEMA/IEC activity map.
+   Figure 1. Central slice of the analytic Jaszczak source, in relative source
+   weights, and the hottest axial NEMA/IEC activity slice, in MBq per voxel.
+   The two panels use independent grey scales; neither has an absolute
+   intensity scale.
 
 The analytic phantom is voxelised to relative source weights and a per-voxel
 attenuator fraction. The NEMA/IEC phantom carries MBq per voxel, a

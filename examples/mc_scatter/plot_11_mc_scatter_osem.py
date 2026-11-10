@@ -150,6 +150,7 @@ for axis, (title, image) in zip(axes, (("Truth", truth_array), *arrays.items()))
     axis.set_title(title)
     axis.axis("off")
 fig.colorbar(shown, ax=axes, label="relative to background")
+fig.savefig(output_dir / "reconstructions.png", dpi=140)
 plt.show()
 
 truth_recovery = _nema.contrast_recovery(nema.activity_mbq, nema_phantom)
@@ -191,6 +192,7 @@ axis.set_xlabel("Sphere diameter (mm)")
 axis.set_ylabel("Contrast recovery")
 axis.set_ylim(0, max(truth_recovery) * 1.15)
 axis.legend()
+fig.savefig(output_dir / "recovery.png", dpi=140)
 plt.show()
 
 # The recorded recovery rises from 0.33 to 0.36 at 17 mm, 0.38 to 0.43 at

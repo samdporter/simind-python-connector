@@ -1,6 +1,11 @@
 Y-90 CT conversion
 ==================
 
+This is a restricted-data case study, not a reproducible tutorial. The DICOM
+and vendor attenuation files are not redistributed, so no runnable conversion
+script is included here; the recipes are prose descriptions of the earlier
+reviewed workflow.
+
 Prerequisites
 -------------
 
@@ -21,7 +26,14 @@ The measured CT is a 656-slice Mediso acquisition on the vendor
 recorded photon energy, so it is a registration reference only and is never
 converted to density.
 
-All three routes share the same preparation in ``examples/_y90.py``:
+``examples/_y90.py`` provides only the shared preparation helpers:
+``read_ct_series`` (DICOM reading, sorting by ``ImagePositionPatient``,
+series/frame/orientation/spacing validation, rescaling to HU and the LPS
+affine), ``patient_to_spect_affine``, ``read_umap``, ``ct_coverage`` and the
+SIRF ``resample_ct``. It contains no registration gate and no executable
+conversion route.
+
+The preparation used by each route is:
 
 - read the DICOM slices and sort them by ``ImagePositionPatient``;
 - require one series, one frame of reference, unique SOP Instance UIDs, one
@@ -40,12 +52,13 @@ need the same out-of-volume handling.
 Registration gate
 -----------------
 
-After resampling, every route computes normalized cross-correlation between
-the CT-derived attenuation map and ``umap_zoomed`` on the once-eroded
+This is the protocol each route must implement; it is not a function exported
+by ``examples/_y90.py``. After resampling, compute normalized cross-correlation
+between the CT-derived attenuation map and ``umap_zoomed`` on the once-eroded
 intersection of CT coverage, HU > -400, positive vendor attenuation and finite
 values. The gate is a one-voxel Euclidean limit on that eroded CT/vendor
-intersection. On failure each route writes ``summary.json`` and
-``UNACCEPTED.txt`` and stops before producing density or attenuation maps.
+intersection. On failure write ``summary.json`` and ``UNACCEPTED.txt`` and stop
+before producing density or attenuation maps.
 
 STIR recipe
 -----------
@@ -96,10 +109,11 @@ Results
    :alt: CT and vendor attenuation-map overlay after registration
    :width: 100%
 
-   Figure 1. Registration illustration produced by the STIR route: CT (red)
-   and vendor attenuation map (green) after sorting, resampling and the
-   one-voxel registration gate. The vendor map is a registration reference,
-   not a known-energy attenuation map.
+   Figure 1. Registration illustration produced by the STIR route after the
+   one-voxel gate (0.409 voxels, 1.74 mm). The vendor map (green) fills the
+   body and largely covers the CT (red); the red/orange edges and table show
+   the residual alignment. The vendor map is a registration reference, not a
+   known-energy attenuation map.
 
 .. figure:: /_static/examples/y90_ct_conversion/maps.png
    :alt: Resampled CT HU, Schneider density and 150 keV attenuation maps

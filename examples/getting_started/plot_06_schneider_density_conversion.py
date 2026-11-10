@@ -94,12 +94,6 @@ fig.tight_layout()
 fig.savefig(output_dir / "density_method_comparison.png", dpi=150, bbox_inches="tight")
 plt.show()
 
-hu_slice = np.full((64, 64), -1000.0)
-hu_slice[8:56, 8:56] = 40.0
-hu_slice[20:36, 20:30] = -800.0
-hu_slice[20:36, 34:44] = -800.0
-hu_slice[44:52, 28:36] = 800.0
-hu_slice[28:34, 46:50] = 2000.0
 print(
     "Density at soft tissue, lung, bone and metal: "
     f"{hu_to_density_schneider(np.array([40.0, -800.0, 800.0, 2000.0]))}"

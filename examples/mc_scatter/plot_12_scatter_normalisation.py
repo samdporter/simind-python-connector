@@ -195,6 +195,7 @@ for axis in axes:
     axis.set_xticks(updates)
     axis.set_xlabel("Update")
 axes[1].legend(loc="center left", bbox_to_anchor=(1, 0.5))
+fig.savefig(output_dir / "scale_scatter.png", dpi=140)
 plt.show()
 
 
@@ -256,6 +257,7 @@ axis.set_xlabel("Sphere diameter (mm)")
 axis.set_ylabel("Contrast recovery")
 axis.set_ylim(0, max(truth_recovery) * 1.15)
 axis.legend(fontsize=8)
+fig.savefig(output_dir / "recovery.png", dpi=140)
 plt.show()
 
 # Recorded: all strategies raise recovery above no correction and stay below

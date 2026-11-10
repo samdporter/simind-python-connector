@@ -28,8 +28,9 @@ Results
    :alt: Scale factor and raw scatter sum for the five normalisations
    :width: 100%
 
-   Figure 1. Scale factor and raw scatter estimate sum per update for each
-   normalisation.
+   Figure 1. Scale factor (applied normalisations only) and raw scatter
+   estimate sum per update. Known activity applies no scale factor and appears
+   only in the sum panel.
 
 .. figure:: /_static/examples/scatter_normalisation/recovery.png
    :alt: Contrast recovery bars for the five normalisations and no correction

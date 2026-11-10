@@ -29,7 +29,7 @@ The pages are:
   attenuation-map figures. The spectrum is simulated and the weighted map is an
   approximation; neither is an accuracy reference.
 
-The CT page needs NumPy, pydicom, matplotlib and SciPy plus the matching
-backend (SIRF also needs nibabel). The effective-energy page needs SIMIND,
+The CT page needs NumPy, pydicom and SciPy, plus STIR, SIRF or PyTomography
+for the matching recipe. The effective-energy page needs SIMIND,
 SIRF, NumPy, Matplotlib, pydicom and nibabel. No paired reconstructions,
 profiles or Monte Carlo case study remain.
