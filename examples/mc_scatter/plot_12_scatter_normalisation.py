@@ -39,13 +39,12 @@ import numpy as np
 import sirf.STIR as sirf
 
 from examples import _nema
+from examples._scatter_normalisation import STRATEGIES, strategy_options
 from simind_python_connector.recon import (
     AdditiveUpdater,
     ScatterCorrection,
     SimindProjector,
     UpdateSchedule,
-    measured_normaliser,
-    reference_normaliser,
 )
 from simind_python_connector.recon.osem import run_osem_with_corrections
 
@@ -106,62 +105,14 @@ uncorrected = {
     for seed, measured in realisations.items()
 }
 
-STRATEGIES = (
-    "Known activity",
-    "Reference, sum",
-    "Reference, trimmed",
-    "Dewaraja, global",
-    "Dewaraja, pixel-wise",
-)
 
-
-def options(title, measured):
-    """Projector and correction options for one normalisation."""
-    if title == "Known activity":
-        return {
-            "projector": {
-                "activity_mbq": lambda image: nema_phantom.total_mbq,
-                "time_per_projection_s": _nema.REFERENCE_TIME_S,
-            },
-            "correction": {},
-        }
-    if title == "Reference, sum":
-        return {
-            "projector": {"normalise": reference_normaliser(full_model, "sum")},
-            "correction": {},
-        }
-    if title == "Reference, trimmed":
-        return {
-            "projector": {"normalise": reference_normaliser(full_model, "trimmed")},
-            "correction": {},
-        }
-    if title == "Dewaraja, global":
-        return {
-            "projector": {"normalise": measured_normaliser(measured)},
-            "correction": {},
-        }
-    return {
-        "projector": {"normalise": measured_normaliser(measured)},
-        "correction": {"measured": measured},
-    }
-
-
-class ScaleSeries(ScatterCorrection):
-    """Keep the raw estimate sums needed by the scale figure."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.raw_sums = []
-
-    def estimate(self, image):
-        estimate = super().estimate(image)
-        self.raw_sums.append(float(estimate.sum()))
-        return estimate
-
-
-def reconstruct(seed, title):
-    measured = realisations[seed]
-    settings = options(title, measured)
+def reconstruct(seed, title, measured):
+    settings = strategy_options(
+        full_model,
+        measured,
+        nema_phantom.total_mbq,
+        _nema.REFERENCE_TIME_S,
+    )[title]
     projector = SimindProjector(
         _nema.make_adaptor(
             estimate_dir,
@@ -174,7 +125,7 @@ def reconstruct(seed, title):
         seed=None,
         **settings["projector"],
     )
-    correction = ScaleSeries(
+    correction = ScatterCorrection(
         projector,
         smoothing_fwhm_bins=3.0,
         smooth_across_views=True,
@@ -195,25 +146,39 @@ def reconstruct(seed, title):
         SUBITERATIONS_PER_UPDATE,
         NUM_UPDATES,
     )
-    return image, updater, correction
+    return image, updater
 
 
-runs = {
-    title: {seed: reconstruct(seed, title) for seed in realisations}
-    for title in STRATEGIES
-}
+def raw_estimate_sums(updater):
+    """Recover raw estimate sums from the damped additive history.
+
+    With zero start and damping 0.5, E_k = 2 D_k - D_{k-1}; the positivity
+    floor contributes at most a few counts and is negligible on this scale.
+    """
+
+    raw = []
+    previous = 0.0
+    for record in updater.history:
+        raw.append(2.0 * record.additive_sum - previous)
+        previous = record.additive_sum
+    return np.array(raw)
+
+
+runs = {title: {} for title in STRATEGIES}
+series = {title: {"scales": [], "raw_sums": []} for title in STRATEGIES}
+for title in STRATEGIES:
+    for seed, measured in realisations.items():
+        image, updater = reconstruct(seed, title, measured)
+        runs[title][seed] = image
+        series[title]["scales"].append([record.scale for record in updater.history])
+        series[title]["raw_sums"].append(raw_estimate_sums(updater))
+
 updates = np.arange(1, NUM_UPDATES + 1)
-
 fig, axes = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
 for color, title in enumerate(STRATEGIES):
     color = f"C{color}"
-    scales = np.array(
-        [
-            [record.scale for record in runs[title][seed][1].history]
-            for seed in realisations
-        ]
-    )
-    sums = np.array([runs[title][seed][2].raw_sums for seed in realisations])
+    scales = np.array(series[title]["scales"])
+    sums = np.array(series[title]["raw_sums"])
     if title != "Known activity":
         mean, spread = _nema.mean_and_std(scales)
         axes[0].plot(updates, mean, "o-", color=color, label=title)
@@ -270,7 +235,7 @@ def add_row(title, images):
 
 add_row("No correction", list(uncorrected.values()))
 for title in STRATEGIES:
-    add_row(title, [runs[title][seed][0] for seed in realisations])
+    add_row(title, [runs[title][seed] for seed in realisations])
 
 diameters = [str(d) for d in _nema.SPHERES.values()]
 print(f"{'':22}" + "".join(f"{d:>7} mm" for d in diameters) + "        CoV       total")
