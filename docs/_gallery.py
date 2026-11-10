@@ -27,7 +27,7 @@ from sphinx_gallery.utils import get_md5sum
 BACKENDS = ("python", "stir", "sirf", "pytomography")
 GENERATED_SECTIONS = ("real_data",)
 GALLERY_IGNORE_PATTERN = (
-    r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$|^plot_1[1-5]_.*\.py$"
+    r"^(?!plot_)[^/]*\.py$|^plot_0[1-9].*\.py$|^plot_1[1-8]_.*\.py$"
 )
 MANIFEST_NAME = "gallery_figures.json"
 
@@ -608,10 +608,11 @@ def stale_examples(
     """Return examples whose source changed after their gallery page was built."""
 
     del root  # retained for callers that still pass the repository root
+    manifest_exists = (gallery_dir.parent / MANIFEST_NAME).exists()
     entries = load_manifest(gallery_dir.parent).get("examples", {})
     stale = []
     for path in gallery_examples(examples_dir):
-        if entries and example_key(path) not in entries:
+        if manifest_exists and example_key(path) not in entries:
             continue
         if example_backend(path) not in backends:
             continue

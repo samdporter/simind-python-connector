@@ -83,14 +83,13 @@ phantomgen package; the install command is in the tutorial.
 - `examples/mc_scatter/plot_12` / `plot_13` and `examples/cil/plot_14` /
   `plot_15`: authored tutorials for scatter normalisation, residual
   correction, CIL scatter correction and RDP-regularised SVRG.
-- `examples/real_data/plot_16a` / `16b` / `16c`: CT-to-SPECT conversion with
-  STIR / SIRF / PyTomography for the measured Y-90 phantom.
-- `examples/real_data/plot_17`: the Y-90 effective attenuation energy with SIRF.
-- `examples/real_data/plot_18`: Monte Carlo scatter strategies on the Y-90
-  phantom with SIRF.
+- `docs/example_pages/y90_ct_conversion.rst`: Y-90 CT preparation with
+  STIR / SIRF / PyTomography resampling recipes.
+- `examples/real_data/plot_17_y90_effective_energy.py`: authored Y-90
+  effective attenuation-energy page.
 
-The real-data pages are rendered case studies on restricted Y-90 input, not
-reproducible tutorials. See [datasets](docs/datasets.rst) for the availability
+The real-data pages use restricted Y-90 input and are not reproducible
+tutorials. See [datasets](docs/datasets.rst) for the availability
 statement.
 
 Lower `quantization_scale`, fewer projections, or a mostly-zero source map can

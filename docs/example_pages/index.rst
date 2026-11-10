@@ -1,9 +1,8 @@
 Examples
 ========
 
-Worked tutorials and the generated gallery. Authored pages include the current
-example script and reviewed figures; the generated sections keep the remaining
-Sphinx-Gallery examples.
+Worked tutorials. Each page includes its current example script and the
+reviewed figures retained from the earlier run.
 
 .. toctree::
    :maxdepth: 1
@@ -23,4 +22,5 @@ Sphinx-Gallery examples.
    sirf_osem
    pytomography_osem
    dicom_recipe
-   /auto_examples/real_data/index
+   y90_ct_conversion
+   y90_effective_energy

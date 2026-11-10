@@ -5,62 +5,7 @@
   "figures lists the image filenames the page publishes. The gate checks that each file exists, is a readable PNG and is referenced by the page.",
   "run_summary points at the committed numerical summary for a page with a retained summary table. The gate never re-runs a simulation."
  ],
- "examples": {
-  "real_data/plot_16a_stir_ct_conversion": {
-   "figures": [
-    "sphx_glr_plot_16a_stir_ct_conversion_001.png",
-    "sphx_glr_plot_16a_stir_ct_conversion_002.png",
-    "sphx_glr_plot_16a_stir_ct_conversion_003.png"
-   ]
-  },
-  "real_data/plot_16b_sirf_ct_conversion": {
-   "figures": [
-    "sphx_glr_plot_16b_sirf_ct_conversion_001.png",
-    "sphx_glr_plot_16b_sirf_ct_conversion_002.png",
-    "sphx_glr_plot_16b_sirf_ct_conversion_003.png"
-   ]
-  },
-  "real_data/plot_16c_pytomography_ct_conversion": {
-   "figures": [
-    "sphx_glr_plot_16c_pytomography_ct_conversion_001.png",
-    "sphx_glr_plot_16c_pytomography_ct_conversion_002.png",
-    "sphx_glr_plot_16c_pytomography_ct_conversion_003.png",
-    "sphx_glr_plot_16c_pytomography_ct_conversion_004.png"
-   ]
-  },
-  "real_data/plot_17_y90_effective_energy": {
-   "figures": [
-    "sphx_glr_plot_17_y90_effective_energy_001.png",
-    "sphx_glr_plot_17_y90_effective_energy_002.png",
-    "sphx_glr_plot_17_y90_effective_energy_003.png",
-    "sphx_glr_plot_17_y90_effective_energy_004.png"
-   ],
-   "run_summary": {
-    "path": "gallery_provenance/plot_17_y90_effective_energy.json",
-    "required_fields": [
-     "source_spectrum.kind",
-     "source_spectrum.points",
-     "detected_spectrum.views",
-     "detected_spectrum.records",
-     "weighted_attenuation.weighted_mean_energy_kev",
-     "weighted_attenuation.body_mean_difference_cm1",
-     "reconstruction.subsets",
-     "reconstruction.iterations"
-    ]
-   }
-  },
-  "real_data/plot_18_y90_mc_scatter": {
-   "figures": [
-    "sphx_glr_plot_18_y90_mc_scatter_001.png",
-    "sphx_glr_plot_18_y90_mc_scatter_002.png",
-    "sphx_glr_plot_18_y90_mc_scatter_003.png",
-    "sphx_glr_plot_18_y90_mc_scatter_004.png",
-    "sphx_glr_plot_18_y90_mc_scatter_005.png",
-    "sphx_glr_plot_18_y90_mc_scatter_006.png",
-    "sphx_glr_plot_18_y90_mc_scatter_007.png"
-   ]
-  }
- },
+ "examples": {},
  "authored_pages": {
   "example_pages/basic_simulation": {
    "source": "examples/getting_started/plot_01_basic_simulation.py",
@@ -150,6 +95,19 @@
    "figures": [
     "_static/examples/cil_rdp_svrg/reconstructions.png",
     "_static/examples/cil_rdp_svrg/recovery.png"
+   ]
+  },
+  "example_pages/y90_ct_conversion": {
+   "figures": [
+    "_static/examples/y90_ct_conversion/registration.png",
+    "_static/examples/y90_ct_conversion/maps.png"
+   ]
+  },
+  "example_pages/y90_effective_energy": {
+   "source": "examples/real_data/plot_17_y90_effective_energy.py",
+   "figures": [
+    "_static/examples/y90_effective_energy/detected_spectrum.png",
+    "_static/examples/y90_effective_energy/attenuation_maps.png"
    ]
   }
  }

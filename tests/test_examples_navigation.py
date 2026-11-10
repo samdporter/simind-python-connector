@@ -6,7 +6,6 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SECTIONS = ("real_data",)
 
 
 def _toctree_entries(path: Path) -> list[str]:
@@ -30,10 +29,8 @@ def test_examples_navigation_has_one_duplication_free_root():
     root = ROOT / "docs" / "example_pages" / "index.rst"
     assert root.is_file()
     entries = _toctree_entries(root)
-    assert entries[-len(SECTIONS) :] == [
-        f"/auto_examples/{name}/index" for name in SECTIONS
-    ]
-    assert entries[:15] == [
+    assert not any(entry.startswith("/auto_examples/") for entry in entries)
+    assert entries == [
         "basic_simulation",
         "multi_window",
         "custom_configuration",
@@ -49,6 +46,8 @@ def test_examples_navigation_has_one_duplication_free_root():
         "sirf_osem",
         "pytomography_osem",
         "dicom_recipe",
+        "y90_ct_conversion",
+        "y90_effective_energy",
     ]
     assert (ROOT / "docs" / "example_pages" / "_template.rst.txt").is_file()
     assert (ROOT / "docs" / "_static" / "examples").is_dir()
