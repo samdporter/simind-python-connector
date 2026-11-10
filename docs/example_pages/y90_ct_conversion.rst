@@ -10,7 +10,8 @@ Prerequisites
 -------------
 
 The restricted Y-90 dataset from :doc:`/datasets`, NumPy, pydicom and SciPy,
-plus STIR, SIRF or PyTomography for the matching recipe.
+plus STIR, SIRF or PyTomography for the matching recipe. The SIRF route also
+requires ``nibabel`` for its NIfTI resampling step.
 
 Cost and runtime
 ----------------

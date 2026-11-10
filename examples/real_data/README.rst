@@ -30,6 +30,7 @@ The pages are:
   approximation; neither is an accuracy reference.
 
 The CT page needs NumPy, pydicom and SciPy, plus STIR, SIRF or PyTomography
-for the matching recipe. The effective-energy page needs SIMIND,
+for the matching recipe. The SIRF route also requires ``nibabel`` for its NIfTI
+resampling step. The effective-energy page needs SIMIND,
 SIRF, NumPy, Matplotlib, pydicom and nibabel. No paired reconstructions,
 profiles or Monte Carlo case study remain.
