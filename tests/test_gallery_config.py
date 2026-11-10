@@ -244,6 +244,34 @@ def test_gate_rejects_broken_html_links_and_images(tmp_path):
 
 
 @pytest.mark.unit
+def test_gate_rejects_a_figure_name_that_only_appears_in_prose(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    page = gallery_dir / "s" / "plot_01_demo.rst"
+    page.write_text(
+        "Demo\n====\n\nThe file sphx_glr_plot_01_demo_001.png is described here.\n"
+    )
+    assert "figure_not_referenced" in _codes(
+        gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    )
+
+
+@pytest.mark.unit
+def test_gate_rejects_a_same_basename_figure_in_another_directory(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _add_authored_fixture(root, docs, gallery_dir)
+    _png(docs / "_static" / "examples" / "other" / "plot.png")
+    page = docs / "example_pages" / "demo.rst"
+    page.write_text(
+        page.read_text().replace(
+            "/_static/examples/demo/plot.png", "/_static/examples/other/plot.png"
+        )
+    )
+    assert "figure_not_referenced" in _codes(
+        gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    )
+
+
+@pytest.mark.unit
 def test_gate_accepts_a_current_authored_page(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
     _add_authored_fixture(root, docs, gallery_dir)

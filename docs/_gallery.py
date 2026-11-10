@@ -32,6 +32,36 @@ _ANCHOR_TAG = re.compile(r"<a\b([^>]*)>")
 _IMAGE_TAG = re.compile(r"<img\b([^>]*)>")
 _ATTR = re.compile(r'([\w-]+)="([^"]*)"')
 _LITERALINCLUDE = re.compile(r"^\s*\.\.\s+literalinclude::\s+(\S+)\s*$", re.M)
+_IMAGE_DIRECTIVE = re.compile(
+    r"^\s*\.\.\s+(?:figure|image|image-sg)::\s+(\S+)\s*$", re.M
+)
+
+
+def _resolved_image_target(raw: str, page: Path, docs_dir: Path) -> Path | None:
+    target = raw.split("?")[0].split("#")[0]
+    if not target or target.startswith(("http:", "https:", "data:")):
+        return None
+    if target.startswith("/"):
+        return (docs_dir / target.lstrip("/")).resolve()
+    return (page.parent / target).resolve()
+
+
+def _referenced_images(page: Path, docs_dir: Path) -> set[Path]:
+    """Return the resolved targets of real image directives on a page."""
+
+    text = page.read_text(encoding="utf-8")
+    targets = set()
+    for raw in _IMAGE_DIRECTIVE.findall(text):
+        target = _resolved_image_target(raw, page, docs_dir)
+        if target is not None:
+            targets.add(target)
+    for attributes in _IMAGE_TAG.findall(text):
+        source = dict(_ATTR.findall(attributes)).get("src")
+        if source:
+            target = _resolved_image_target(source, page, docs_dir)
+            if target is not None:
+                targets.add(target)
+    return targets
 
 
 class GalleryProblem(NamedTuple):
@@ -307,9 +337,10 @@ def _check_generated_page(
         )
 
     if rst.exists():
-        page_text = rst.read_text(encoding="utf-8")
+        referenced = _referenced_images(rst, gallery_dir.parent)
         for name in _declared_figures(entry):
-            if name not in page_text:
+            expected = (page_dir / "images" / name).resolve()
+            if expected not in referenced:
                 problems.append(GalleryProblem(key, "figure_not_referenced", name))
         problems.extend(_check_downloads(example, page_dir, stem, key))
         problems.extend(_check_run_summary(entry, gallery_dir.parent, key))
@@ -350,14 +381,12 @@ def _check_authored_page(key: str, entry: dict, docs_dir: Path) -> list[GalleryP
                     )
                 )
 
-    text = page.read_text(encoding="utf-8")
+    referenced = _referenced_images(page, docs_dir)
     for name in _declared_figures(entry):
         figure = (docs_dir / name).resolve()
         problems.extend(_check_figure(figure, key, name))
-        if Path(name).name not in text:
-            problems.append(
-                GalleryProblem(key, "figure_not_referenced", Path(name).name)
-            )
+        if figure not in referenced:
+            problems.append(GalleryProblem(key, "figure_not_referenced", name))
     return problems
 
 
