@@ -149,14 +149,15 @@ def dependency_files(root: Path, *, example: Path | None = None) -> list[Path]:
     """Files whose contents change the figures independently of the example.
 
     The example source itself is tracked by its ``.md5`` sidecar.  These are the
-    shared helpers, the documentation settings and the packaged presets/data
-    that examples rely on implicitly.  ``examples/_nema.py`` matters only to the
-    examples that import it, so it is added to just those examples' digest.
+    shared helpers and the packaged presets/data that examples rely on
+    implicitly.  ``examples/_nema.py`` matters only to the examples that import
+    it, so it is added to just those examples' digest.  Documentation settings
+    are deliberately excluded: navigation and presentation changes do not alter
+    an executed example's output.
     """
 
     package = root / "simind_python_connector"
     files = [
-        root / "docs" / "conf.py",
         root / "examples" / "_python_connector_helpers.py",
     ]
     if example is None or _imports_nema(example):
@@ -257,7 +258,9 @@ def record_provenance(
         entry.update(
             {
                 "source_md5": get_md5sum(example, mode="t"),
-                "dependencies_sha256": dependency_digest(root, example=example),
+                "execution_dependencies_sha256": dependency_digest(
+                    root, example=example
+                ),
                 "build_failed": bool(build_failed),
             }
         )
@@ -1037,14 +1040,14 @@ def check_gallery(
                             key, "provenance_stale", "recorded source md5 differs"
                         )
                     )
-                if record.get("dependencies_sha256") != dependency_digest(
+                if record.get("execution_dependencies_sha256") != dependency_digest(
                     root, example=example
                 ):
                     problems.append(
                         _flatten_problem(
                             key,
                             "dependency_changed",
-                            "helpers, configs or settings changed after the build",
+                            "execution dependencies changed after the build",
                         )
                     )
 
@@ -1234,7 +1237,7 @@ def stale_examples(
         if (
             record is None
             or record.get("source_md5") != source_md5
-            or record.get("dependencies_sha256")
+            or record.get("execution_dependencies_sha256")
             != dependency_digest(root, example=path)
             or record.get("build_failed")
         ):

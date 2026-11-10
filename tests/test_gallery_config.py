@@ -316,6 +316,18 @@ def test_gate_rejects_a_changed_shared_dependency(tmp_path):
 
 
 @pytest.mark.unit
+def test_execution_digest_ignores_docs_config_but_tracks_code(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    conf = _write(docs / "conf.py", "html_theme = 'sphinx_rtd_theme'\n")
+    gallery.record_provenance(root, docs)
+    _write(conf, "html_theme = 'alabaster'\n")
+    assert gallery.check_gallery(root / "examples", gallery_dir, docs, root=root) == []
+    _write(root / "simind_python_connector" / "helpers.py", "VALUE = 1\n")
+    problems = gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    assert "dependency_changed" in _codes(problems)
+
+
+@pytest.mark.unit
 def test_gate_rejects_a_changed_nema_helper(tmp_path):
     root, example, docs, gallery_dir = _gallery_fixture(
         tmp_path, source="from examples import _nema\n\nx = 1\n"
