@@ -57,7 +57,6 @@ SDIST_REQUIRED = {
     "examples/getting_started/plot_01_basic_simulation.py",
     "examples/backends/plot_07a_stir_adaptor_osem.py",
     "scripts/check_docs.py",
-    "scripts/build_examples.sh",
     "scripts/make_y90_bundle.py",
     "scripts/check_wheel_resources.py",
     "scripts/run_container_examples.sh",
