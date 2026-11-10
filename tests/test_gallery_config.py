@@ -302,6 +302,53 @@ def test_gate_ignores_raw_html_images_inside_code_blocks(tmp_path):
 
 
 @pytest.mark.unit
+def test_gate_ignores_images_inside_rst_comments(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    page = gallery_dir / "s" / "plot_01_demo.rst"
+    page.write_text(
+        "\n".join(
+            [
+                "Demo",
+                "====",
+                "",
+                ".. this comment hides an image",
+                "   .. image-sg:: /auto_examples/s/images/"
+                "sphx_glr_plot_01_demo_001.png",
+                "",
+            ]
+        )
+    )
+    assert "figure_not_referenced" in _codes(
+        gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    )
+
+
+@pytest.mark.unit
+def test_gate_ignores_html_in_non_html_raw_blocks(tmp_path):
+    root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
+    _add_authored_fixture(root, docs, gallery_dir)
+    page = docs / "example_pages" / "demo.rst"
+    page.write_text(
+        "\n".join(
+            [
+                "Demo tutorial",
+                "=============",
+                "",
+                ".. literalinclude:: /examples/s/plot_01_demo.py",
+                "",
+                ".. raw:: text",
+                "",
+                "   <img src='/_static/examples/demo/plot.png'>",
+                "",
+            ]
+        )
+    )
+    assert "figure_not_referenced" in _codes(
+        gallery.check_gallery(root / "examples", gallery_dir, docs, root=root)
+    )
+
+
+@pytest.mark.unit
 def test_gate_accepts_a_single_quoted_raw_html_image(tmp_path):
     root, _, docs, gallery_dir = _gallery_fixture(tmp_path)
     _add_authored_fixture(root, docs, gallery_dir)

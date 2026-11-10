@@ -13,9 +13,14 @@ import ast
 import json
 import re
 import zipfile
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import NamedTuple
 
+from docutils import nodes
+from docutils.core import publish_doctree
+from docutils.parsers.rst import Directive, directives
+from docutils.parsers.rst.directives.images import Image
 from sphinx_gallery.utils import get_md5sum
 
 
@@ -32,13 +37,48 @@ _ANCHOR_TAG = re.compile(r"<a\b([^>]*)>")
 _IMAGE_TAG = re.compile(r"<img\b([^>]*)>")
 _ATTR = re.compile(r"""([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
 _LITERALINCLUDE = re.compile(r"^\s*\.\.\s+literalinclude::\s+(\S+)\s*$", re.M)
-_IMAGE_DIRECTIVE = re.compile(
-    r"^\s*\.\.\s+(?:figure|image|image-sg)::\s+(\S+)\s*$", re.M
-)
-_CODE_DIRECTIVE = re.compile(
-    r"^\s*\.\.\s+(?:code|code-block|sourcecode|literalinclude)::"
-)
-_LITERAL_INTRO = re.compile(r"^(?!\.\.\s).*::\s*$")
+_DIRECTIVES_REGISTERED = False
+
+
+class _OnlyDirective(Directive):
+    """Pass-through for Sphinx's ``only`` wrapper in generated pages."""
+
+    has_content = True
+    required_arguments = 1
+    optional_arguments = 0
+    final_argument_whitespace = True
+
+    def run(self):
+        container = nodes.container()
+        self.state.nested_parse(self.content, self.content_offset, container)
+        return container.children
+
+
+class _ImageSGDirective(Image):
+    """Sphinx-Gallery's image directive, including its ``srcset`` option."""
+
+    option_spec = dict(Image.option_spec, srcset=directives.unchanged)
+
+
+class _ImgCollector(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.sources = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "img":
+            source = dict(attrs).get("src")
+            if source:
+                self.sources.append(source)
+
+
+def _register_directives() -> None:
+    global _DIRECTIVES_REGISTERED
+    if _DIRECTIVES_REGISTERED:
+        return
+    directives.register_directive("only", _OnlyDirective)
+    directives.register_directive("image-sg", _ImageSGDirective)
+    _DIRECTIVES_REGISTERED = True
 
 
 def _attributes(raw: str) -> dict[str, str]:
@@ -50,58 +90,6 @@ def _attributes(raw: str) -> dict[str, str]:
     }
 
 
-def _visible_text(text: str) -> str:
-    """Drop literal and code blocks so samples cannot fake real content."""
-
-    lines = text.splitlines(keepends=True)
-    visible = []
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        directive = _CODE_DIRECTIVE.match(line)
-        if directive:
-            visible.append(line)
-            index += 1
-            indent = len(line) - len(line.lstrip())
-            while index < len(lines):
-                candidate = lines[index]
-                if not candidate.strip():
-                    index += 1
-                    continue
-                if len(candidate) - len(candidate.lstrip()) > indent:
-                    index += 1
-                    continue
-                break
-            continue
-
-        if _LITERAL_INTRO.match(line):
-            visible.append(line)
-            index += 1
-            blanks = index
-            while index < len(lines) and not lines[index].strip():
-                index += 1
-            if index < len(lines):
-                indent = len(lines[index]) - len(lines[index].lstrip())
-                intro_indent = len(line) - len(line.lstrip())
-                if indent > intro_indent:
-                    while index < len(lines):
-                        candidate = lines[index]
-                        if not candidate.strip():
-                            index += 1
-                            continue
-                        if len(candidate) - len(candidate.lstrip()) >= indent:
-                            index += 1
-                            continue
-                        break
-                    continue
-            visible.extend(lines[blanks:index])
-            continue
-
-        visible.append(line)
-        index += 1
-    return "".join(visible)
-
-
 def _resolved_image_target(raw: str, page: Path, docs_dir: Path) -> Path | None:
     target = raw.split("?")[0].split("#")[0]
     if not target or target.startswith(("http:", "https:", "data:")):
@@ -111,18 +99,36 @@ def _resolved_image_target(raw: str, page: Path, docs_dir: Path) -> Path | None:
     return (page.parent / target).resolve()
 
 
-def _referenced_images(page: Path, docs_dir: Path) -> set[Path]:
-    """Return the resolved targets of real image directives on a page."""
+def _raw_html_images(raw_text: str) -> list[str]:
+    parser = _ImgCollector()
+    parser.feed(raw_text)
+    parser.close()
+    return parser.sources
 
-    text = _visible_text(page.read_text(encoding="utf-8"))
+
+def _referenced_images(page: Path, docs_dir: Path) -> set[Path]:
+    """Return resolved targets of image nodes and HTML raw image nodes."""
+
+    _register_directives()
+    document = publish_doctree(
+        page.read_text(encoding="utf-8"),
+        settings_overrides={
+            "report_level": 5,
+            "halt_level": 5,
+            "file_insertion_enabled": False,
+            "raw_enabled": True,
+        },
+    )
     targets = set()
-    for raw in _IMAGE_DIRECTIVE.findall(text):
-        target = _resolved_image_target(raw, page, docs_dir)
+    for node in document.findall(nodes.image):
+        target = _resolved_image_target(node.get("uri", ""), page, docs_dir)
         if target is not None:
             targets.add(target)
-    for attributes in _IMAGE_TAG.findall(text):
-        source = _attributes(attributes).get("src")
-        if source:
+    for node in document.findall(nodes.raw):
+        formats = str(node.get("format", "")).lower().split()
+        if "html" not in formats:
+            continue
+        for source in _raw_html_images(node.astext()):
             target = _resolved_image_target(source, page, docs_dir)
             if target is not None:
                 targets.add(target)
