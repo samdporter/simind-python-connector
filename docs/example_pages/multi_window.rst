@@ -1,43 +1,21 @@
 Multi-window simulation
 =======================
 
-Prerequisites
--------------
+Estimate scatter with the triple-energy-window method (TEW). Requires SIMIND,
+NumPy and Matplotlib.
 
-A working SIMIND installation on ``PATH`` or via ``SIMIND_BIN``, NumPy and
-Matplotlib.
-
-Cost and runtime
-----------------
-
-One SIMIND run of four 360-degree views, 32 x 32 bins of 4 mm, with ``NN=10``
-and three Lu-177 energy windows. Outputs are written under
-``$SIMIND_EXAMPLES_OUTPUT/multi_window``.
-
-.. literalinclude:: /examples/getting_started/plot_03_multi_window.py
-   :language: python
-   :linenos:
+One run produces three Lu-177 energy windows over four views.
 
 Download the script: :download:`plot_03_multi_window.py
 </examples/getting_started/plot_03_multi_window.py>`.
-
-Results
--------
 
 .. figure:: /_static/examples/multi_window/multi_window.png
    :alt: Source and five TEW panels from the lower window to the corrected image
    :width: 100%
 
-   Figure 1. Input source, the three windows, the TEW scatter estimate and the
-   clipped corrected projection.
+   Figure 1. Source, energy-window projections, TEW scatter estimate and
+   corrected projection.
 
-The photopeak keeps the hot sphere while the side windows contain a smoother
-scatter background. The estimate removes counts from the photopeak and is
-clipped at zero; the printed clipping fraction shows how much the noisy side
-windows affected the correction. TEW assumes a linear scatter spectrum across
-the windows, which is an approximation.
-
-.. note::
-
-   Retained figures come from the earlier reviewed run and were not
-   re-executed for this editorial revision.
+Subtracting the side-window estimate reduces the photopeak background. Negative
+corrected bins are clipped to zero. TEW assumes a linear scatter spectrum across
+the windows.

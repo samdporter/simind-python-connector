@@ -4,7 +4,7 @@
   "Every authored page under docs/example_pages has an entry here.",
   "figures lists the image filenames the page publishes. The check requires each file to exist, be readable and be referenced by the page.",
   "run_summary optionally points at a committed numerical summary for a page with a retained table.",
-  "Optional source points at the runnable script a page includes; recipe-only pages omit it."
+  "Optional source points at the runnable script a page downloads; recipe-only pages omit it."
  ],
  "authored_pages": {
   "example_pages/basic_simulation": {

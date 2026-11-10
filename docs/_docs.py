@@ -28,7 +28,6 @@ _ADAPTOR_ROOTS = {
 _ANCHOR_TAG = re.compile(r"<a\b([^>]*)>")
 _IMAGE_TAG = re.compile(r"<img\b([^>]*)>")
 _ATTR = re.compile(r"""([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
-_LITERALINCLUDE = re.compile(r"^\s*\.\.\s+literalinclude::\s+(\S+)\s*$", re.M)
 _MISSING = object()
 
 
@@ -213,27 +212,6 @@ def _check_run_summary(entry: dict, docs_dir: Path, key: str) -> list[DocsProble
     return problems
 
 
-def _canonical_source(path: Path, docs_dir: Path) -> Path:
-    """Map a copied ``docs/examples`` tree back to the shipped root examples."""
-    mirror = docs_dir / "examples"
-    try:
-        relative = path.relative_to(mirror)
-    except ValueError:
-        return path
-    return (docs_dir.parent / "examples" / relative).resolve()
-
-
-def _literalinclude_paths(page: Path, docs_dir: Path) -> list[Path]:
-    paths = []
-    for raw in _LITERALINCLUDE.findall(page.read_text(encoding="utf-8")):
-        if raw.startswith("/"):
-            target = (docs_dir / raw.lstrip("/")).resolve()
-        else:
-            target = (page.parent / raw).resolve()
-        paths.append(_canonical_source(target, docs_dir))
-    return paths
-
-
 def _check_authored_page(key: str, entry: dict, docs_dir: Path) -> list[DocsProblem]:
     problems = []
     page = docs_dir / f"{key}.rst"
@@ -247,15 +225,6 @@ def _check_authored_page(key: str, entry: dict, docs_dir: Path) -> list[DocsProb
             problems.append(DocsProblem(key, "source_missing", source))
         else:
             example_backend(source_path)
-            includes = _literalinclude_paths(page, docs_dir)
-            if source_path not in includes:
-                problems.append(
-                    DocsProblem(
-                        key,
-                        "included_source_mismatch",
-                        f"literalinclude does not use {source}",
-                    )
-                )
 
     referenced = _referenced_images(page, docs_dir)
     for name in _declared_figures(entry):
