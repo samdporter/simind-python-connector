@@ -23,17 +23,8 @@ Dependency Matrix
    * - ``PyTomographySimindAdaptor``
      - PyTomography + torch
 
-The adaptors are responsible for converting input/output object types across
-package boundaries. Reconstruction-system objects (for example, a PyTomography
-system matrix) should be created directly in the target package.
-
 Input and Output Layouts
 ------------------------
-
-Image maps are inputs, not outputs: they are supplied in the orientation each
-package uses. What comes back from ``run()`` is the projection outputs, in that
-package's native type and layout. See :doc:`geometry` for the axis conventions
-in full.
 
 Image inputs
    - ``SimindPythonConnector.configure_voxel_phantom`` takes NumPy source and
@@ -52,11 +43,8 @@ Returned projections
      acquisitions are ``(tof, axial, view, bin)``.
    - ``PyTomographySimindAdaptor`` returns torch tensors in
      ``(view, bin, axial)``, matching
-     ``pytomography.io.SPECT.simind.get_projections``. Outputs SIMIND wrote
-     no per-key ``.h00`` for (PENETRATE components and derived
-     ``pri_wN``/``sca_wN``) get one written from SIMIND's own header, so they
-     are read the same way. Without PyTomography installed the adaptor builds
-     the same layout from the core array.
+     ``pytomography.io.SPECT.simind.get_projections``. Without PyTomography
+     installed the adaptor builds the same layout from the core array.
 
 Reconstructing with STIR or SIRF SPECTUB
 ----------------------------------------

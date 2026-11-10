@@ -3,43 +3,27 @@
 Contributing
 ============
 
-Contributions are welcome. For code changes, please follow the development and
-testing checklist below before opening a pull request.
+Contributions are welcome. Open a pull request once the tests and the `-W`
+documentation build pass.
 
 Development Setup
 -----------------
 
-1. Fork the repository on GitHub
-2. Clone your fork locally
-3. Create a development branch
-4. Install in development mode:
+.. code-block:: bash
 
-   .. code-block:: bash
+    pip install -e ".[dev]"
 
-      pip install -e ".[dev]"
-
-5. Make your changes
-6. Run tests to ensure everything works
-7. Submit a pull request
-
-Testing Your Changes
---------------------
-
-Before submitting:
+Testing and Linting
+-------------------
 
 .. code-block:: bash
 
-    # Run all tests
     python -m pytest tests/ -v
-
-    # Check linting and formatting
     ruff check .
     ruff format --check .
 
-Documentation Updates
----------------------
-
-If you make changes that affect the documentation:
+Documentation
+-------------
 
 .. code-block:: bash
 
@@ -48,28 +32,27 @@ If you make changes that affect the documentation:
 Releasing
 ---------
 
-Release notes are written by hand; the release tooling only validates them and
-updates the machine version surfaces.
+Release notes are written by hand; the release tooling validates them and
+updates the machine version surfaces. Only after the validation run passes and
+the release is approved, tag and publish.
 
-1. Write the release notes. In ``CHANGELOG.md``, move the entries out of
-   ``## [Unreleased]`` into a new ``## [X.Y.Z] - YYYY-MM-DD`` section and leave
-   ``## [Unreleased]`` empty. Add the matching ``X.Y.Z - YYYY-MM-DD`` section to
-   ``docs/changelog.rst``.
-2. Run the preparation script from the repository root:
+1. Write the release notes. Move entries out of ``## [Unreleased]`` in
+   ``CHANGELOG.md`` into a new ``## [X.Y.Z] - YYYY-MM-DD`` section, and add the
+   matching section to ``docs/changelog.rst``.
+2. Run the preparation script:
 
    .. code-block:: bash
 
       bash scripts/release.sh X.Y.Z
 
-   This validates both changelogs and rewrites the version in ``pyproject.toml``,
-   ``uv.lock`` (the root package only), ``CITATION.cff``, ``.zenodo.json``,
-   ``simind_python_connector/__init__.py`` and ``docs/conf.py``. It fails without
-   changing anything when a note or field is missing or malformed.
-3. Inspect the working tree and the index before staging anything. ``git status``
-   lists the files the preparation script rewrote and ``git diff --cached`` shows
-   what is already staged. Implementation or test corrections are committed
-   separately, in their own commit, before the metadata-preparation commit.
-   Anything already staged must not ride along in the release commit.
+   It rewrites the version in ``pyproject.toml``, ``uv.lock``,
+   ``CITATION.cff``, ``.zenodo.json``,
+   ``simind_python_connector/__init__.py`` and ``docs/conf.py``, and fails
+   without changing anything on a missing or malformed note or field.
+3. Inspect the working tree and the index. ``git status`` lists the files the
+   preparation script rewrote, and ``git diff --cached`` shows what is already
+   staged. Implementation or test corrections are committed separately, in
+   their own commit, before the metadata-preparation commit.
 
    .. code-block:: bash
 
@@ -85,43 +68,30 @@ updates the machine version surfaces.
       git diff --cached --stat
       git diff --cached
 
-   The staged diff must contain only those eight paths; unstage anything else
-   before committing.
-
 5. Commit the staged metadata:
 
    .. code-block:: bash
 
       git commit -m "chore: release X.Y.Z"
 
-6. Only after the validation run passes and the release is approved, tag the
-   release commit and push the branch and the tag:
+6. Tag and push:
 
    .. code-block:: bash
 
       git tag -a vX.Y.Z -m "Release X.Y.Z"
       git push origin HEAD vX.Y.Z
 
-7. Finally, once validation has passed and the release is approved, publish
-   the GitHub release from the pushed tag:
+7. Publish the GitHub release from the pushed tag:
 
    .. code-block:: bash
 
       gh release create vX.Y.Z --verify-tag --title "X.Y.Z" --notes-file notes.md
 
-   Publishing the GitHub release starts ``publish.yml``, which reruns the test
-   suite, builds the documentation at the release tag, checks that the tag
-   matches the package version and uploads to PyPI. Pushing the tag alone does
-   **not** publish to PyPI.
+   Publishing starts ``publish.yml``, which reruns the tests, builds the
+   documentation at the release tag, checks the tag against the package version
+   and uploads to PyPI. Pushing the tag alone does not publish to PyPI.
 
-8. Confirm the public documentation. Read the Docs builds the released tag from
-   ``.readthedocs.yaml``: it installs the package, builds ``docs/conf.py`` and
-   fails on any warning. Activate ``vX.Y.Z`` in the Read the Docs version
-   selector if it is not active yet, wait for the build, then check that the
-   version selector shows ``vX.Y.Z`` and that the example pages, script
-   downloads and API pages load without a 404.
-
-You can verify the eight version surfaces without changing anything:
+You can verify the version surfaces without changing anything:
 
 .. code-block:: bash
 

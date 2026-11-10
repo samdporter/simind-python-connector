@@ -1,18 +1,15 @@
 SIMIND workflow tutorial
 ========================
 
-This tutorial follows one small workflow from a local SIMIND installation to
+This tutorial follows one workflow from a local SIMIND installation to
 projection data and reconstruction. Run commands from the repository root.
-SIMIND is licensed separately and is not included with this package.
 
 Choose a matching SIMIND installation
 -------------------------------------
 
 Use the executable and ``smc_dir`` data files from the same SIMIND release.
 Point ``SIMIND_BIN`` at the executable and ``SMC_DIR`` at that release's data
-directory. The executor uses ``SIMIND_BIN`` when set and otherwise searches
-``PATH``. For the repository's container scripts, the supported layout is
-``./simind/simind`` with data in ``./simind/smc_dir/``.
+directory:
 
 .. code-block:: bash
 
@@ -21,173 +18,104 @@ directory. The executor uses ``SIMIND_BIN`` when set and otherwise searches
     export PATH=/path/to/simind-v8:$PATH
     export SIMIND_VERSION=8
     python -m pip install -e '.[examples]'
-    python -c 'import shutil; print(shutil.which("simind"))'
 
-SIMIND v8 is the supported engine for this release, and 8 is the default. In
-Python, pass ``simind_version=8`` to the connector or adaptor to override the
-environment. Version selection also controls voxel-map origin handling; using
-the wrong value can displace the source and attenuation map.
+SIMIND v8 is the supported engine and the default; pass ``simind_version=8`` to
+a connector or adaptor to override the environment. Version selection controls
+voxel-map origin handling, so a wrong value can displace the source and
+attenuation map. SIMIND v9 selection is experimental; see
+:doc:`simind_validation` and :doc:`installation`.
 
-SIMIND v9 selection remains experimental and unvalidated, and is planned for
-2.1.0. The v9.0 Linux build can abort or silently return corrupted projections
-(see :doc:`simind_validation`).
+A core simulation
+-----------------
 
-SIMIND releases may differ in their data files and output components. Check
-your local release manual and the observations in :doc:`simind_validation`
-before relying on a particular component name. Keep each binary paired with
-its own data directory. Start with the :doc:`basic simulation tutorial
-<example_pages/basic_simulation>`, at
-``examples/getting_started/plot_01_basic_simulation.py``:
+Start with the :doc:`basic simulation tutorial <example_pages/basic_simulation>`:
 
 .. code-block:: bash
 
     python examples/getting_started/plot_01_basic_simulation.py
 
-It uses a small voxel phantom, one energy window, four views, the default
-source quantization and ``NN=8``. Inspect the saved source, density, and total
-projection under ``output/basic_simulation``. The example requests SCATTWIN
-``CA=0`` for its 126–154 keV window, which is available across the checked
-Linux builds. The four views and eightfold history budget resolve the body and
-the hot sphere; this is a teaching run, not a clinical acquisition. For a
-quantitative study, use the activity and time for the acquisition, enough
-histories for stable statistics, the intended number of views, and the matching
-collimator, windows, and detector settings.
+It uses a small voxel phantom, one energy window, four views and ``NN=8``, and
+writes its source, density and total projection under
+``output/basic_simulation``. This is a teaching run; a quantitative study needs
+the acquisition's activity and time, enough histories, and the intended views,
+collimator, windows and detector settings.
 
 Build the phantoms
 ------------------
 
-The :doc:`phantom library tutorial
-<example_pages/phantom_library>` builds SIMIND's analytic
-multiple-inserts phantom and the NEMA/IEC body phantom. The NEMA phantom comes
-from `phantomgen <https://github.com/varzakis/phantomgen>`_, which is optional
-and is currently installed from GitHub, not PyPI:
+The :doc:`phantom library tutorial <example_pages/phantom_library>` builds
+SIMIND's analytic multiple-inserts phantom and the NEMA/IEC body phantom.
+``phantomgen`` supplies the NEMA phantom and is installed from GitHub:
 
 .. code-block:: bash
 
     python -m pip install 'phantomgen @ git+https://github.com/varzakis/phantomgen'
     python examples/phantoms/plot_09_phantom_library.py
 
-The NEMA/IEC body phantom has explicit activity in MBq per voxel, density, and
-named masks. The tutorial builds both phantoms without simulating them: the
-analytic phantom is voxelised to relative source weights, and the NEMA object
-is returned with its activity, density and masks. It plots a central source
-slice and the hottest NEMA activity slice under ``output/phantom_library``.
-
-For a quick smoke run, reduce ``quantization_scale`` and the number of views,
-or threshold the source to a mostly-zero map. Use ``NN >= 1``. For quantitative
-work, retain the full phantom and set histories and acquisition settings to
-the study protocol. See :doc:`phantoms` for coordinate conventions and
-:doc:`normalisation` for the distinction between activity and histories.
+The analytic phantom is voxelised to relative source weights; the NEMA object
+has activity in MBq per voxel, density and named masks. See :doc:`phantoms` for
+coordinate conventions.
 
 Activity, histories, time, energy windows, and scoring
 ------------------------------------------------------
 
 The source map controls where histories start and their relative weights.
 ``quantization_scale`` and ``NN`` control the history budget and Monte Carlo
-noise. They do not set the number of projection counts. The known NEMA activity
-is passed through Index 25 as total MBq multiplied by seconds per projection.
-For another known-activity source, use ``connector.set_activity(...)`` or
-``configure_phantom(..., time_per_projection_s=...)``. For a source containing
-only relative weights, normalise the simulation to a measured projection or
-to an analytic primary projection; see :doc:`normalisation`.
+noise; they do not set projection counts. Pass a known activity through Index
+25 with ``connector.set_activity(...)`` or
+``configure_phantom(..., time_per_projection_s=...)``. For relative weights,
+normalise to a measured or analytic projection; see :doc:`normalisation`.
 
-Low quantisation budgets also round relative source weights coarsely. Use the
-quick settings for execution checks; verify region activity ratios and increase
-the budget before interpreting contrast or activity recovery.
+Low quantisation budgets round relative source weights coarsely. Use them for
+execution checks and increase the budget before interpreting contrast or
+activity recovery.
 
 Energy-window bounds and order select the output windows. SCATTWIN and
-PENETRATE score different interaction components. Keep the raw SIMIND outputs
-when comparing routines or releases. Example 05 requests SCATTWIN ``CA=2`` and
-reads its raw total, scatter, and primary components; this mode is checked in
-the supported v8 build. The output component names depend on scoring routine
-and SIMIND version; see :doc:`simind_validation` for the observed map.
+PENETRATE score different interaction components, and component names depend on
+the routine and SIMIND version; keep raw outputs and see :doc:`simind_validation`.
+For a smoke run, reduce ``quantization_scale`` and the views, or threshold the
+source. Keep ``NN >= 1``.
 
 Reconstruct the simulated acquisition
 -------------------------------------
 
 The :doc:`Monte Carlo scatter correction tutorial
 <example_pages/mc_scatter_osem>` simulates the known-activity NEMA/IEC phantom
-and reconstructs it with SIRF OSEM, without and with a SIMIND scatter estimate:
+and reconstructs it with SIRF OSEM, with and without a SIMIND scatter estimate:
 
 .. code-block:: bash
 
     python examples/mc_scatter/plot_11_mc_scatter_osem.py
 
-Install SIRF and phantomgen; see :doc:`installation`. The tutorial simulates 60
-views with 8 MPI processes at the default quantization and four times the
-source-history budget, adds three paired seeded Poisson realisations at 2 s per
-view, and reconstructs with SPECTUB attenuation but no collimator blur or
-scatter. It reports the expectation histories and counts separately and does
-not derive a Monte Carlo precision from their ratio, because that ratio does not
-give the variance of SIMIND's weighted estimator. It scores the 17-37 mm hot
-spheres only; the 10 and 13 mm spheres are cold, and every score is shown
-against the truth's own masked score. The first run takes about an hour, nearly
-all of it in SIMIND; later tutorials reuse the cached expectation.
-Matching dimensions do not verify axis, view-angle, or orbit alignment, and a
-finite image is not evidence of absolute sensitivity. For quantitative work,
-validate voxel spacing, view angles, center of rotation, axis orientation, and
-absolute calibration.
-
-Monte Carlo scatter and residual correction
--------------------------------------------
-
-The Monte Carlo tutorials simulate the NEMA/IEC phantom and reconstruct it with
-SIRF or CIL. The shared expectation is simulated once per output directory;
-the first tutorial pays for it and the rest reuse it. Each tutorial then takes
-between about half an hour and three hours, dominated by the scatter estimates
-and, in the last tutorial, by the SVRG subset gradients:
+Install SIRF and phantomgen. The five correction tutorials share one 60-view
+simulation; the first run takes about an hour and later tutorials reuse the
+cached expectation. See :doc:`reconstruction` for the model and calibration
+details.
 
 - :doc:`Monte Carlo scatter correction in OSEM <example_pages/mc_scatter_osem>`
-- :doc:`Normalising the Monte Carlo scatter
-  <example_pages/scatter_normalisation>`
-- :doc:`Residual correction with SIMIND as the accurate model
-  <example_pages/residual_correction>`
-- :doc:`Monte Carlo scatter correction with CIL
-  <example_pages/cil_scatter>`
-- :doc:`RDP-regularised reconstruction with SVRG
-  <example_pages/cil_rdp_svrg>`
+- :doc:`Normalising the Monte Carlo scatter <example_pages/scatter_normalisation>`
+- :doc:`Residual correction with SIMIND <example_pages/residual_correction>`
+- :doc:`CIL scatter correction <example_pages/cil_scatter>`
+- :doc:`RDP regularisation with SVRG <example_pages/cil_rdp_svrg>`
 
-The CIL tutorials additionally need CIL. These tutorials use a fast SPECTUB
-model; the expectation is high precision, while the scatter estimates use a
-fortieth of its history budget and are smoothed. The objective, noise, and update
-cadence are demonstration choices, not evidence of quantitative accuracy. See
-:doc:`reconstruction` for the model, damping, floor, and calibration details.
-For quantitative work, establish an accurate reference and validate the
-scatter or residual estimate against it; a faster objective remains an
-approximation, and the non-zero positivity floor can affect low-count regions.
+The CIL tutorials additionally need CIL.
 
 Measured projections and DICOM calibration
 ------------------------------------------
 
-The :doc:`DICOM projection recipe <example_pages/dicom_recipe>` shows the
-STIR, SIRF and PyTomography call sequences for a reader-supplied DICOM NM
-projection file. The dataset used during development is restricted and is not
-redistributed (see :doc:`datasets`). Each snippet builds the matching
-projection object; the recipe preserves the backend-specific view-order
-qualifications.
-Compare the DICOM-derived geometry with the simulated header before use. A
-DICOM geometry match does not calibrate absolute sensitivity. For a calibrated
-comparison, document the activity, acquisition time, decay reference, energy
-window, collimator, camera, and any measured projection used to scale the
-simulation. Treat any resulting factor as specific to those assumptions.
+The :doc:`DICOM projection recipe <example_pages/dicom_recipe>` gives the STIR,
+SIRF and PyTomography calls for a DICOM NM projection file. Compare the derived
+geometry with the simulated header before use; a geometry match does not
+calibrate absolute sensitivity. See :doc:`datasets` for the restricted data used
+during development.
 
 Real Y-90 data
 --------------
 
-The measured Y-90 material is in two authored pages. The data are not
-redistributed at this time, there is no public download or other access route,
-and the pages cannot be reproduced without the restricted input. Setting
-``SIMIND_CONNECTOR_Y90_DATA`` to a local copy is the only current route; see
-:doc:`datasets` for the availability statement.
+The measured Y-90 material is in two pages:
 
-- :doc:`Y-90 CT conversion <example_pages/y90_ct_conversion>` documents the
-  common CT preparation and gives separate STIR, SIRF and PyTomography
-  resampling recipes, then converts HU to density and attenuation. The backend
-  routes are not claimed equivalent, and the vendor map is not a known-energy
-  reference.
+- :doc:`Y-90 CT conversion <example_pages/y90_ct_conversion>`
 - :doc:`Y-90 effective attenuation energy <example_pages/y90_effective_energy>`
-  compares a 150 keV map with a map weighted by the simulated detected
-  spectrum, and checks the list-mode window weight against the engine counts.
-  The spectrum is simulated and the weighted map is an approximation; neither
-  is an accuracy reference.
 
+The data are not redistributed; setting ``SIMIND_CONNECTOR_Y90_DATA`` to a
+local copy is the only route. See :doc:`datasets`.

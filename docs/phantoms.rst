@@ -63,16 +63,12 @@ Library phantoms
 ----------------
 
 ``LibraryPhantom.ZUBAL_TORSO``, ``ZUBAL_BRAIN``, ``ZUBAL_WHOLE_BODY`` and
-``NEMA_IQ`` are the voxel phantoms in SIMIND's ``smc_dir``. All four select a
-section of the shipped ``phantom.zub`` code table (Index 45: torso/vox_man = 1,
-brain/vox_brn = 2, whole body/vox_man3 = 1, NEMA/nema = 3) and use
-``/FZ:phantom``, with the table copied into the run directory because SIMIND
-resolves ``/FZ`` against its working directory. The NEMA IQ phantom also uses
-the manual's settings (Index 31 = 0.1 cm, Index 2 = Index 5 = 11 cm, a
-364 x 364 x 110 map). Flag 15 makes SIMIND write the aligned density, which is
-the only ground truth available for these phantoms. SIMIND only writes it with
-Flag 11 (interactions in the phantom) on; library and voxel phantoms take
-Flag 11 from the configuration.
+``NEMA_IQ`` are the voxel phantoms in SIMIND's ``smc_dir``, selected with
+``/FZ:phantom``; the table is copied into the run directory because SIMIND
+resolves ``/FZ`` against its working directory. Flag 15 makes SIMIND write the
+aligned density, the only ground truth available for these phantoms; it is
+written only with Flag 11 (interactions in the phantom) on, which library and
+voxel phantoms take from the configuration.
 
 phantomgen and voxel phantoms
 -----------------------------

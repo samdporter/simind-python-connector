@@ -11,47 +11,22 @@ The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`
 -------------------
 
 A documentation, gallery and correctness release on the 2.0.1 code base. It
-states the supported engine, raises the example statistics to publication
-quality, publishes the real-data reconstruction comparisons, and fixes the
-pixel-wise Dewaraja scatter estimator and the STIR OSEM image output.
+states the supported engine and fixes the pixel-wise Dewaraja scatter estimator
+and the STIR OSEM image output.
 
 Compatibility
 ~~~~~~~~~~~~~
 
 - SIMIND v8 is the supported engine. v9 remains experimental and unvalidated:
   the v9.0 Linux build can abort or return silently corrupted projections, so
-  v9 qualification is planned for 2.1.0. The v9 failure-expectation tests, the
-  v9 validation tables and the support claims that depended on them are
-  removed.
+  v9 qualification is planned for 2.1.0.
 
 Documentation
 ~~~~~~~~~~~~~
 
-- Gallery statistics are raised to publication quality. Examples 01, 02 (seed
-  reproducibility), 03 (TEW), 05 (SCATTWIN versus PENETRATE) and 09 are
-  rebuilt with their recorded settings, seeds and runtimes. Examples 10-15
-  are rebuilt on one cached high-precision SIMIND expectation, with
-  seed-to-seed uncertainty and Monte Carlo precision separated from Poisson
-  acquisition noise; example 12 draws the uncertainty bands its text
-  describes for the scale factors and the raw scatter sums.
-- The real-data tutorials gain matched reconstruction endpoints. Examples
-  16A/16B/16C compare no attenuation with the CT-derived 150 keV attenuation
-  map. Example 17 declares a matched 10 mm FWHM display treatment and keeps
-  the raw companions. Example 18 publishes the reconstruction comparisons at
-  the native 120 views with shared scales, a collapsed-global diagnostic
-  panel, profiles, scatter estimates and primary ratios, registration and
-  volume-of-interest overlays, and keeps its diagnostic negative-result
-  framing.
-- Example 18's simulation cache is keyed by the detected engine: the version
-  banner, the resolved serial executable's content hash looked up on `PATH`
-  like the executor, the content digest of the data tree, and the digest of the
-  effective acquisition template. A cache hit is refused when the tree, the
-  executable or the template cannot be hashed.
-- A new gallery gate checks figure and provenance completeness, thumbnails,
-  notebooks and rendered HTML links. Example 18's missing figures would now
-  fail the release.
-- Public documentation and README prose no longer use internal process
-  framing.
+- Gallery examples were rebuilt with recorded settings, seeds and runtimes.
+  Examples 10-15 share one cached high-precision SIMIND expectation and
+  separate seed-to-seed uncertainty from Poisson acquisition noise.
 
 Fixed
 ~~~~~
@@ -65,18 +40,15 @@ Fixed
 Known limitations
 ~~~~~~~~~~~~~~~~~
 
-- Example 18's hot sphere is present but not resolved as a separate peak in
-  the scatter-corrected display.
-- Example 13's residual arm and example 15's instability remain documented
-  negative and limited results, not validated improvements.
+- The Y-90 dataset behind the 16A/B/C, 17 and 18 pages is restricted and is
+  not redistributed: there is no public download or other access route, so the
+  case-study pages cannot be regenerated without a local copy.
 
 2.0.1 - 2026-10-24
 -------------------
 
 The supported successor to 1.2.0, the current public release, and the
-replacement for the withdrawn 2.0.0 and 3.0.0. It carries the A0-E next-major
-work that was published by mistake under 2.0.0/3.0.0, together with the
-projection-geometry correction that followed. Upgrade from 1.2.0 with
+replacement for the withdrawn 2.0.0 and 3.0.0. Upgrade from 1.2.0 with
 ``pip install -U simind-python-connector``; users of the withdrawn
 2.0.0/3.0.0 releases are covered by the reinstall note below, not by an
 upgrade through those versions.
@@ -373,23 +345,13 @@ Fixed
 Known limitations
 ~~~~~~~~~~~~~~~~~
 
-- The real-data gallery's example 18 publishes the audited Y-90 recovery study
-  as a diagnostic negative result: the quality of the tested
-  scatter-correction scaling strategies is not established (the global scaling
-  collapsed, the seed-stability and smoothed-L1 checks failed, and the
-  history-doubling check was inconclusive). The page ranks no strategy and
-  claims no calibrated recovery; every failed or inconclusive check is shown.
-- The Y-90 dataset behind examples 08A/B/C, 16A/B/C, 17 and 18 is restricted
-  and is not redistributed: there is no public download or other access route,
-  so the rendered case-study pages cannot be regenerated without a local copy.
-- The optional SIRF/CIL scatter and residual correction workflows ship with the
-  documented :doc:`SPECTUB all-views-cache interference
-  <spectub_cache_interference>`: two separately set-up SPECTUB models can
-  interfere through the shared all-views cache, which changes the residual
-  correction and the reconstruction endpoint. No cache fix or workaround ships
-  in this release. This is an environment-specific, reported limitation and is
-  not a claim of deterministic reconstruction endpoints or of resolved residual
-  interference.
+- The Y-90 dataset behind examples 16A/B/C, 17 and 18 is restricted and is not
+  redistributed: there is no public download or other access route, so the
+  rendered case-study pages cannot be regenerated without a local copy.
+- The optional SIRF/CIL scatter and residual correction workflows are affected
+  by the documented :doc:`SPECTUB all-views-cache interference
+  <spectub_cache_interference>`. This release ships no cache fix or
+  workaround. The effect was reported for the tested environment only.
 
 3.0.0 - 2026-10-09
 ------------------
@@ -402,85 +364,11 @@ If you installed 3.0.0, reinstall the supported release with an exact pin:
 auto-supersede an installed 3.0.0, because pip does not downgrade an already
 satisfied requirement).
 
-Breaking Changes
-~~~~~~~~~~~~~~~~
-
-- Python 3.10 or newer is required.
-- Removed the backend wrappers and legacy Interfile and STIR utility modules.
-  Use the native adaptors and ``simind_python_connector.utils.interfile``.
-- Photon-history scaling and runtime switches now reject invalid values.
-
-Added
-~~~~~
-
-- Measured acquisition geometry, activity scaling, anisotropic voxel maps and
-  SIMIND MPI execution.
-- Analytic and library phantoms, voxelisation and native adaptor ground truth.
-- Optional SIMIND scatter and residual corrections for SIRF and CIL workflows.
-
-Fixed
-~~~~~
-
-- PyTomography image-axis conversions reverse z slices to match its SIMIND
-  reader. Source and attenuation maps now agree with native tensor slice order.
-- Added asymmetric real-reader regressions and a sparse two-view SIMIND smoke
-  test for axial source placement.
-- Consolidated Interfile parsing and geometry handling to follow STIR semantics.
-
 2.0.0 - 2026-10-09
 ------------------
 
 **Withdrawn.** This release was published by mistake and yanked; do not use.
 See the 2.0.1 entry above for the supported release.
-
-Breaking Changes
-~~~~~~~~~~~~~~~~
-
-- ``STIRSPECTAcquisitionDataBuilder`` no longer flips projection data along the
-  last axis.
-- Runtime-operator switches passed to ``run()`` apply to that run only. They
-  are no longer kept on the connector for later runs.
-- Each run deletes earlier outputs that share the output prefix before SIMIND
-  starts.
-- The STIR backend needs ``stirextra`` as well as ``stir``.
-- STIR/SIRF adaptors take the z voxel spacing from a different axis (see
-  Fixed). Results change for anisotropic voxels.
-- Invalid inputs now raise ``ValueError``: empty, non-finite or negative source
-  and attenuation maps, array shapes that do not match the header, and
-  ``output_prefix`` values that contain a path. Energy-window validation raises
-  ``ValueError`` instead of ``AssertionError``.
-
-Fixed
-~~~~~
-
-- The packaged ``configs/input.smc`` is now included in the wheel. SMC parsing
-  handles fixed-width fields and checks section counts.
-- STIR/SIRF adaptors read the z voxel spacing from the correct axis:
-  ``voxel_sizes()`` is ``(z, y, x)``, and raw ``get_grid_spacing()`` is
-  ``(unused, z, y, x)``.
-- Voxel-map dimension indices 76, 77, 78, 79, 81 and 82 are set correctly.
-- The executor resolves ``SIMIND_BIN`` and accepts executable paths that
-  contain spaces. The connector no longer changes the process working directory.
-- Runtime switches apply to one run only. Output prefixes cannot escape the
-  output directory. Stale outputs are removed, and ``.win``, ``.smi`` and
-  ``.dmi`` inputs are kept.
-- Energy-window validation raises ``ValueError`` instead of failing an
-  ``assert``.
-- The Interfile loader honours data offsets, strips quoted values and rejects
-  truncated or oversized payloads. The SIMIND-to-STIR converter keeps data-file
-  lines and applies the radius scale factor.
-- Attenuation utilities handle the ``rho*1000`` selector and STIR ``#`` header
-  keys, and reject unknown attenuation types.
-- Image and acquisition builders validate array shapes, split multi-energy data
-  deterministically and no longer flip images. The DICOM builder handles missing
-  timing information and 2D pixel data.
-- Backend adaptors are imported lazily, so the core package imports without
-  STIR, SIRF or PyTomography.
-
-Removed
-~~~~~~~
-
-- The legacy ``scripts/simulation.py``.
 
 1.1.1 - 2026-10-11
 ------------------
@@ -777,9 +665,6 @@ Changed
   - Native SIRF/STIR object → Wraps it
   - ``None`` → Creates empty object (SIRF only)
 
-**Internal Template Storage**
-  ``SimindSimulator`` now stores both template filepath (backend-agnostic) and wrapped object for efficient operations.
-
 Fixed
 ~~~~~
 
@@ -788,8 +673,6 @@ Fixed
 
   - **Issue**: Coordinator updates were occurring at iteration N, but callbacks (UpdateEtaCallback, ArmijoTriggerCallback) ran AFTER the step was taken, causing Armijo line search to run one iteration late with a mismatched objective function
   - **Fix**: Modified ``SimindCoordinator.should_update()`` and ``StirPsfCoordinator.should_update()`` to trigger updates ONE iteration early (at ``correction_update_interval - 1`` instead of ``correction_update_interval``)
-  - **Impact**: Ensures proper callback ordering for convergent optimization
-  - **Result**: Eliminates divergence caused by taking steps with wrong objective, ensures convexity is maintained
 
 Added
 ~~~~~
@@ -800,7 +683,6 @@ Added
   - Factory functions: ``create_image_data()``, ``create_acquisition_data()``
   - Utility functions: ``get_backend()``, ``set_backend()``, ``is_sirf_backend()``
   - Wrapper classes: ``SirfImageData``, ``SirfAcquisitionData``, ``StirImageData``, ``StirAcquisitionData``
-  - See :doc:`backends` for complete documentation
 
 **Utility Functions for STIR Compatibility**
   - ``to_projdata_in_memory()``: Convert ProjData to ProjDataInMemory for arithmetic operations (STIR Python compatibility)
@@ -824,74 +706,52 @@ Added
 Changed
 ~~~~~~~
 
-**Documentation Organization**
-  - Moved BACKENDS.md to docs/backends.rst (reStructuredText format)
-  - Updated docs/changelog.rst with comprehensive change history
-  - Added backends page to documentation index
-
 Version 0.2.1
 -------------
 
 New Features
 ~~~~~~~~~~~~
 
-**Schneider2000 Density Conversion**
-  Advanced 44-segment piecewise model for HU-to-density conversion:
+**Schneider2000 density conversion**
+  Forty-four-segment piecewise HU-to-density model:
 
-  - ``hu_to_density_schneider()``: Interpolated conversion using all 44 tissue segments
-  - ``hu_to_density_schneider_piecewise()``: Exact piecewise conversion matching lookup table
-  - ``get_schneider_tissue_info()``: Lookup tissue information for specific HU values
-  - ``compare_density_methods()``: Compare bilinear vs Schneider methods
-  - Enhanced Accuracy: ~0.17-0.19 g/cm³ improved accuracy over bilinear model
-  - Comprehensive Tissue Support: Covers air, lung variations, soft tissues, bones, and metal implants
-  - New Example: ``06_schneider_density_conversion.py`` demonstrates advanced density conversion
+  - ``hu_to_density_schneider()``: interpolated conversion using the tissue segments
+  - ``hu_to_density_schneider_piecewise()``: exact piecewise conversion
+  - ``get_schneider_tissue_info()``: tissue information for a HU value
+  - ``compare_density_methods()``: compare the bilinear and Schneider methods
 
-**Coordinator Architecture**
-  Efficient subset reconstruction with shared Monte Carlo corrections:
+**Coordinator architecture**
+  Shared Monte Carlo corrections across subset reconstructions:
 
-  - ``SimindCoordinator``: Manages single SIMIND simulation for all subsets
-  - ``SimindSubsetProjector``: Projector for individual subsets
-  - CIL partitioner utilities for subset-based reconstruction
-  - 12× faster for 12-subset reconstruction
-  - See coordinator-related API/docs sections for implementation details
+  - ``SimindCoordinator``: one SIMIND simulation for all subsets
+  - ``SimindSubsetProjector``: projector for individual subsets
+  - CIL partitioner utilities for subset reconstruction
 
-**SimindProjector AcquisitionModel Interface**
-  Drop-in replacement for SIRF AcquisitionModel with Monte Carlo corrections:
+**SimindProjector AcquisitionModel interface**
+  SIRF ``AcquisitionModel``-compatible projector with Monte Carlo corrections:
 
-  - Complete AcquisitionModel API compatibility
-  - Three correction modes (residual only, additive only, both)
-  - Automatic iteration tracking
-  - Intelligent scaling strategy
-  - CIL framework compatibility
+  - residual-only, additive-only or both correction modes
+  - iteration tracking and CIL compatibility
 
 Improvements
 ~~~~~~~~~~~~
 
-- Extended documentation with density conversion methods comparison
-- Comprehensive test suite for Schneider functionality (16 new tests)
-- Enhanced attenuation conversion utilities with clinical-grade accuracy
-- MPI parallel execution support for SIMIND simulations
-- STIR CUDARelativeDifferencePrior integration
+- Density-conversion documentation and tests.
+- MPI parallel execution for SIMIND simulations.
+- STIR ``CUDARelativeDifferencePrior`` integration.
 
 Fixed
 ~~~~~
 
-**Critical: Non-Circular Orbit Support**
-  Multiple fixes for proper orbit file handling:
+**Non-circular orbit support**
+  Orbit-file creation, mm-to-cm radii conversion, naming collisions, argument
+  order and full paths.
 
-  - Issue 1: Missing orbit file creation (AcquisitionData.get_info() doesn't include orbit/radii)
-  - Issue 2: Missing unit conversion (radii in mm instead of cm)
-  - Issue 3: File naming collision (input orbit file overwritten)
-  - Issue 4: Incorrect command argument order
-  - Issue 5: Full path instead of filename
+**Subset view index out of range**
+  The coordinator now requires full-data acquisition models in ``__init__()``.
 
-**Critical: Subset View Index Out of Range**
-  - Fixed coordinator receiving subset acquisition models but attempting to extract using full-data indices
-  - Coordinator now requires full-data acquisition models passed to ``__init__()``
-
-**Module Import Issues**
-  - Fixed RecursionError in lazy imports (``converters``, ``utils``, ``builders`` modules)
-  - Wrapped SIRF imports in try/except blocks for better fallback behavior
+**Module imports**
+  Fixed recursion in lazy imports and wrapped SIRF imports for fallback.
 
 Version 0.2.0
 -------------
@@ -905,18 +765,9 @@ Breaking Changes
 New Features
 ~~~~~~~~~~~~
 
-- Comprehensive test suite with unit and integration tests
-- Enhanced documentation with ReadTheDocs support
-- GitHub Actions CI/CD pipeline
-- Auto-generated API documentation
-- Professional documentation structure
-
-Improvements
-~~~~~~~~~~~~
-
-- Better test coverage for all components
-- Improved code quality with automated checks
-- Streamlined README for better user experience
+- Unit and integration test suite.
+- Read the Docs documentation and GitHub Actions CI.
+- Auto-generated API documentation.
 
 Version 0.1.1
 -------------

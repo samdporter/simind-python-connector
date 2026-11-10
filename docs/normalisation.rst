@@ -148,17 +148,10 @@ Here :math:`G` is the Gaussian smoothing operator, :math:`S^{\mathrm{SIM}}`
 the simulated scatter component and :math:`T^{\mathrm{SIM}}` the matching
 simulated total: ``all_interactions - geom_coll_primary`` and
 ``all_interactions`` with PENETRATE, or ``sca_wN`` and ``tot_wN`` with
-SCATTWIN. The same :math:`G` is applied to both simulated fields before the
-division, and to the scaled result afterwards. In the fixed-primary,
-noisy-scatter control used to check this order, forming the ratio first and
-smoothing afterwards came out low against the truth, while pre-smoothing
-reduced the ratio noise of the summed estimate. That is an observation about
-this control and its fixture: the direction and size of a noisy ratio's error
-depend on the covariance between the numerator and the denominator, so it is
-not a general result for Monte Carlo ratios, and it does not account for the
-pixel-wise drift noted below. The final smoothing remains because the measured
-noise enters the estimate. The division is defined only where the smoothed
-total is positive and is zero elsewhere; signed scatter is not clipped.
+SCATTWIN. The same Gaussian smooths simulated scatter and total before
+division. The measured projection multiplies this fraction, then the result is
+smoothed again. The fraction is zero where the smoothed total is not positive;
+signed scatter is not clipped.
 
 The pixel-wise scaling is done by the correction:
 
@@ -177,13 +170,9 @@ is the ``tot_wN`` output, so pass ``component="tot_wN"`` to ``measured_normalise
 Dewaraja Y.K. et al., "Improved quantitative 90Y bremsstrahlung SPECT/CT
 reconstruction with Monte Carlo scatter modeling", Med Phys 44(12):6364-6376,
 2017, doi:10.1002/mp.12597. The authors found the pixel-wise scaling better in
-their simulations. It multiplies the measured noise into the scatter estimate,
-hence the smoothing.
+their simulations.
 
 .. note::
-   The Y-90 tutorial's pixel-wise arm sat about 27% below the true scatter
-   sum in the stored run, which used the earlier ratio-first estimator. The
-   examples have not been re-run with the corrected estimator, so its effect
-   on the 27% is unmeasured, and the source of the drift is unresolved. The
-   next check compares a fixed image with an independent SIMIND seed, which
-   separates estimator bias from image- and source-dependence.
+   In ``example_pages/scatter_normalisation``, pixel-wise scaling gives a
+   scatter sum of 5.695e5 against a true 5.703e5. Total agreement alone does
+   not establish spatial accuracy.

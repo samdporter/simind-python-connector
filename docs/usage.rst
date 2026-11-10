@@ -18,12 +18,9 @@ or pass ``simind_version=8`` to the connector/adaptor constructor. An explicit
 constructor value takes precedence over the environment and the default is 8.
 
 ``simind_version=9`` remains available for experimental use, but v9 is
-unvalidated in this release (planned for 2.1.0). The v9 voxel-map origin
-compensation is implementation behaviour, not evidence of validated physics:
-it is applied to a copy of the run configuration and leaves the input arrays
-unchanged. The compensation currently requires the default source/density
-orientations (``DI=0``, Index 32 = 0, and no ``OR`` override). Other map
-orientations fail before SIMIND starts.
+unvalidated in this release. Its voxel-map compensation requires the default
+source/density orientations (``DI=0``, Index 32 = 0, and no ``OR`` override);
+other map orientations fail before SIMIND starts.
 
 .. code-block:: python
 
@@ -63,17 +60,9 @@ orientations fail before SIMIND starts.
 Runtime Control
 ---------------
 
-``output_prefix`` must start with a lowercase letter or digit and contain only
-lowercase letters, digits and ``_``. SIMIND lowercases file names, a dot would
-be read as a file extension, and a hyphen is an argument delimiter: a prefix
-containing ``-`` splits SIMIND's filename arguments and the run silently
-produces no output. The prefix is also capped at 47 characters, so the longest
-name SIMIND writes (``{prefix}_tot_w{N}.a00``, up to 12 characters at the
-99-window maximum) stays inside its fixed 60-character output buffer; a longer
-name is truncated by SIMIND, dropping the final ``.h00``/``.a00`` character so
-no readable SPECT header remains. The connector raises ``ValueError`` at
-construction and re-checks the prefix in ``run()``; the executor raises
-``SimulationError`` before it launches SIMIND.
+``output_prefix`` must match ``[a-z0-9][a-z0-9_]*`` and is capped at 47
+characters. The connector checks it at construction and again in ``run()``; the
+executor rejects an invalid prefix before launching SIMIND.
 
 ``RuntimeOperator`` carries per-run switches and an optional orbit file. The
 orbit file must point at an existing regular file: a missing path raises
@@ -96,18 +85,15 @@ integers, integral reals and ASCII digit strings for the process count and
 raises ``SimulationError`` for anything else before launch. ``NN`` must be an
 integer >= 1.
 
-By default every process simulates all projections and SIMIND sums them, the
-same as one process with ``processes`` times more histories. Each process then
-needs its own random numbers. Without an ``RR`` switch, ``simind_mpi`` seeds
-process ``r`` (counting from 0) exactly as ``RR = r + 1`` (checked on v8: a
-two-process run is the mean of the serial runs with ``RR`` 1 and 2), so do not
-combine replicate output with serial runs that use those small ``RR`` values. With a
-fixed ``RR`` every process would repeat the same histories and the result
-would equal the serial run, so ``run()`` refuses a fixed ``RR`` with more than
-one replicate process. ``split_projections=True`` (``/MP``) shares the
-projections out instead; Index 29 must be a multiple of ``processes``, a fixed
-``RR`` is allowed, and the PENETRATE scoring routine is refused because
-``simind_mpi`` writes only the primary process's PENETRATE projections.
+By default every process simulates all projections and SIMIND sums them.
+Without an ``RR`` switch, ``simind_mpi`` seeds process ``r`` (counting from 0)
+as ``RR = r + 1``, so do not combine replicate output with serial runs that use
+those small ``RR`` values. A fixed ``RR`` would repeat the same histories in
+every process, so ``run()`` refuses it with more than one replicate process.
+``split_projections=True`` (``/MP``) shares the projections out instead; Index
+29 must be a multiple of ``processes``, a fixed ``RR`` is allowed, and
+PENETRATE is refused because ``simind_mpi`` writes only the primary process's
+PENETRATE projections.
 
 .. code-block:: python
 
@@ -116,23 +102,9 @@ projections out instead; Index 29 must be a multiple of ``processes``, a fixed
 Input Validation
 ----------------
 
-Validation runs where it can still do good. ``output_prefix`` is checked when
-the connector is constructed, and ``run()`` re-checks the prefix and the
-effective scoring routine before it saves the configuration or clears stale
-outputs. An invalid ``RuntimeOperator`` (switch values, ``orbit_file``) is
-rejected before the orbit file is staged and before prior outputs are removed;
-the native and PyTomography adaptors apply the same checks before inputs are
-written. ``configure_voxel_phantom`` checks the arrays, the scoring routine and
-``quantization_scale`` before the configuration is updated or the source and
-density inputs are written, and the energy-window bounds are validated before
-the window file is written (at most 99 windows). The executor then re-validates
-the output prefix, the MPI process count and every runtime switch value
-immediately before it builds the SIMIND command, raising ``SimulationError``
-for an invalid value. An unsupported setup therefore fails with a clear message
-instead of an obscure one after the run; failures that only SIMIND can detect
-(a missing isotope or spectra input, for example) still surface during the run
-as ``SimulationError``. Missing inputs such as the configuration file, the
-orbit file or the output headers raise ``FileNotFoundError``.
+Inputs are checked before managed files are written or previous outputs are
+removed. Invalid values raise ``ValueError``; missing files raise
+``FileNotFoundError``. Failures reported by SIMIND raise ``SimulationError``.
 
 Only the scoring routines DUMMY (0), SCATTWIN (1) and PENETRATE (4) are
 supported by the Interfile connector. LIST_MODE (2) and FORCED_COLLIMATION (3)
