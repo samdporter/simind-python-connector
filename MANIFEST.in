@@ -27,7 +27,8 @@ recursive-include simind_python_connector/data *.atn *.json
 recursive-include simind_python_connector/configs *.smc *.yaml
 
 # Documentation sources, not generated gallery output.
-recursive-include docs *.rst *.md *.py LICENSE
+recursive-include docs *.rst *.rst.txt *.md *.py LICENSE
+recursive-include docs/_static/examples *
 include docs/_static/.gitkeep
 prune docs/auto_examples
 prune docs/examples

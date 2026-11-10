@@ -1,0 +1,34 @@
+.. Copy this file to example_pages/<slug>.rst, add <slug> to the toctree in
+   example_pages/index.rst, and add an authored_pages entry in
+   docs/gallery_figures.json.
+
+<Page title>
+===========
+
+.. rubric:: Prerequisites
+
+What the reader needs before starting (SIMIND, a backend, or data).
+
+.. rubric:: Cost and runtime
+
+Approximate runtime, history budget, and output location.
+
+.. literalinclude:: /examples/<section>/plot_XX_<name>.py
+   :language: python
+   :linenos:
+
+Results
+-------
+
+.. figure:: /_static/examples/<slug>/<figure>.png
+   :alt: <what the image shows>
+   :width: 100%
+
+   Figure 1. <caption in sentence case.>
+
+<One or two paragraphs interpreting the result.>
+
+.. note::
+
+   Retained figures come from the earlier reviewed run and were not
+   re-executed for this editorial revision.

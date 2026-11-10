@@ -11,6 +11,7 @@ shows the committed outputs and does not run the examples.
 .. toctree::
    :maxdepth: 1
 
+   /example_pages/index
    getting_started/index
    backends/index
    phantoms/index

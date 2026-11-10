@@ -42,7 +42,7 @@ jobs:
           SIMIND_GALLERY_BACKEND: ""
         run: |
           python -m sphinx -b html -W --keep-going docs docs/_build/html
-      - name: Check the gallery figures and provenance
+      - name: Check the gallery inventory and figures
         run: python scripts/check_gallery_current.py --html-dir docs/_build/html
       - name: Check the generated gallery indexes are committed
         run: |

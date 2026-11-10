@@ -1,9 +1,8 @@
-"""Exit non-zero when the committed gallery is not release-ready.
+"""Exit non-zero when the committed documentation inventory is inconsistent.
 
-Checks source freshness, shared-helper/config provenance, required embedded
-figures, thumbnails, download artifacts, reported statistical gates and, when
-an HTML build is available, the final rendered figure links.  It never executes
-an example.
+Checks source freshness, declared figures, download artifacts and retained
+summary tables, and, when an HTML build is available, the rendered links and
+images.  It never executes an example.
 """
 
 import argparse
@@ -61,7 +60,7 @@ def main() -> int:
     if stale or problems:
         print(
             f"gallery gate failed: {len(stale)} stale source(s), "
-            f"{len(problems)} artifact/provenance problem(s)"
+            f"{len(problems)} inventory/artifact problem(s)"
         )
         return 1
     print("gallery gate passed")

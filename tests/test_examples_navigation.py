@@ -37,7 +37,13 @@ def test_examples_navigation_has_one_duplication_free_root():
     authored = ROOT / "examples" / "index.rst"
     generated = ROOT / "docs" / "auto_examples" / "index.rst"
     assert authored.is_file()
-    assert _toctree_entries(authored) == [f"{name}/index" for name in SECTIONS]
+    assert _toctree_entries(authored) == [
+        "/example_pages/index",
+        *(f"{name}/index" for name in SECTIONS),
+    ]
+    assert (ROOT / "docs" / "example_pages" / "index.rst").is_file()
+    assert (ROOT / "docs" / "example_pages" / "_template.rst.txt").is_file()
+    assert (ROOT / "docs" / "_static" / "examples").is_dir()
     # The gallery copies the authored root verbatim instead of generating an
     # aggregate page that repeats every section's prose and thumbnails.
     assert generated.read_text() == authored.read_text()
